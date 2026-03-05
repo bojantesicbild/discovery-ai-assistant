@@ -1,0 +1,2121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crnogorchi — Discovery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #00E5A0;
+      --green-light: #00E5A020;
+      --green-mid: #00E5A040;
+      --green-hover: #00CCA0;
+      --dark: #1A1A1A;
+      --dark-deep: #111111;
+      --dark-card: #222222;
+      --dark-border: #2A2A2A;
+      --dark-hover: #2D2D2D;
+      --white: #FFFFFF;
+      --gray-50: #F9FAFB;
+      --gray-100: #F3F4F6;
+      --gray-200: #E5E7EB;
+      --gray-300: #D1D5DB;
+      --gray-400: #9CA3AF;
+      --gray-500: #6B7280;
+      --gray-600: #4B5563;
+      --gray-700: #374151;
+      --warning: #F59E0B;
+      --warning-light: #F59E0B20;
+      --danger: #EF4444;
+      --danger-light: #EF444420;
+      --info: #3B82F6;
+      --info-light: #3B82F620;
+      --purple: #8B5CF6;
+      --purple-light: #8B5CF620;
+      --orange: #F97316;
+      --orange-light: #F9731620;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --sidebar-width: 260px;
+      --topbar-height: 64px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+      --left-panel-width: 264px;
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font); background: var(--gray-50); color: var(--dark); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; height: 100vh; }
+    .app { display: flex; height: 100vh; }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar { width: var(--sidebar-width); background: var(--dark); position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
+    .sidebar-logo { padding: 24px 24px 32px; border-bottom: 1px solid var(--dark-border); }
+    .sidebar-logo h1 { font-size: 20px; font-weight: 800; color: var(--white); letter-spacing: -0.3px; }
+    .sidebar-logo h1 span { display: inline-block; width: 7px; height: 7px; background: var(--green); border-radius: 1.5px; margin-left: 1px; }
+    .sidebar-nav { flex: 1; padding: 16px 12px; }
+    .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--gray-500); padding: 16px 12px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--gray-400); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-decoration: none; position: relative; }
+    .nav-item:hover { background: var(--dark-hover); color: var(--gray-200); }
+    .nav-item.active { background: var(--green-light); color: var(--green); }
+    .nav-item.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 20px; background: var(--green); border-radius: 0 3px 3px 0; }
+    .nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .nav-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .nav-badge { margin-left: auto; background: var(--green); color: var(--dark); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+    .sidebar-user { padding: 16px 16px 20px; border-top: 1px solid var(--dark-border); display: flex; align-items: center; gap: 12px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--dark); flex-shrink: 0; }
+    .user-info { flex: 1; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 600; color: var(--white); }
+    .user-role { font-size: 11px; color: var(--gray-500); }
+
+    /* ===== MAIN ===== */
+    .main { flex: 1; margin-left: var(--sidebar-width); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ===== TOPBAR ===== */
+    .topbar { height: var(--topbar-height); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; padding: 0 32px; gap: 16px; flex-shrink: 0; }
+    .project-selector { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); cursor: pointer; background: var(--white); }
+    .project-selector:hover { border-color: var(--gray-400); }
+    .project-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; }
+    .project-name { font-size: 14px; font-weight: 600; }
+    .search-bar { flex: 1; max-width: 400px; position: relative; }
+    .search-bar input { width: 100%; padding: 8px 12px 8px 36px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font); background: var(--gray-50); color: var(--dark); outline: none; transition: all 0.15s; }
+    .search-bar input::placeholder { color: var(--gray-400); }
+    .search-bar input:focus { border-color: var(--green); background: var(--white); box-shadow: 0 0 0 3px var(--green-light); }
+    .search-bar svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--gray-400); stroke: currentColor; fill: none; stroke-width: 2; }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; position: relative; }
+    .icon-btn:hover { border-color: var(--gray-300); background: var(--gray-50); }
+    .icon-btn svg { width: 18px; height: 18px; color: var(--gray-600); stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .icon-btn .notif-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; background: var(--green); border-radius: 50%; border: 2px solid var(--white); }
+    .btn-primary { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green); color: var(--dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: all 0.15s; }
+    .btn-primary:hover { background: var(--green-hover); box-shadow: 0 2px 8px rgba(0,229,160,0.3); }
+    .btn-primary svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* ===== PHASE BANNER ===== */
+    .phase-banner { background: linear-gradient(135deg, var(--dark) 0%, #0a2e1f 100%); border-radius: var(--radius); padding: 24px 28px; margin: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; color: var(--white); flex-shrink: 0; }
+    .phase-banner-left { display: flex; align-items: center; gap: 16px; }
+    .phase-number { width: 48px; height: 48px; border-radius: 50%; background: var(--green); color: var(--dark); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+    .phase-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    .phase-desc { font-size: 13px; color: var(--gray-400); }
+    .phase-banner-right { display: flex; align-items: center; gap: 24px; }
+    .phase-stat { text-align: center; }
+    .phase-stat-value { font-size: 24px; font-weight: 800; color: var(--green); }
+    .phase-stat-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ===== WORKSPACE ===== */
+    .workspace { flex: 1; display: flex; overflow: hidden; margin-top: 16px; }
+
+    /* ===== LEFT PANEL ===== */
+    .left-panel { width: var(--left-panel-width); background: var(--white); border-right: 1px solid var(--gray-200); display: flex; flex-direction: column; flex-shrink: 0; transition: width 0.3s ease; overflow: hidden; position: relative; }
+    .left-panel.collapsed { width: 48px; min-width: 48px; }
+    .left-panel.collapsed .left-panel-body, .left-panel.collapsed .left-panel-footer, .left-panel.collapsed .tool-icons { display: none; }
+    .left-panel.collapsed .collapse-strip { display: flex; }
+
+    .collapse-strip { display: none; flex-direction: column; align-items: center; padding: 12px 0; gap: 4px; flex: 1; }
+    .collapse-strip-btn { width: 36px; height: 36px; border-radius: var(--radius-xs); border: none; background: transparent; color: var(--gray-400); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .collapse-strip-btn:hover { background: var(--gray-100); color: var(--gray-600); }
+    .collapse-strip-btn.active { background: var(--green-light); color: var(--green); }
+    .collapse-strip-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .tool-icons { display: flex; align-items: center; gap: 1px; padding: 10px 8px 8px; border-bottom: 1px solid var(--gray-100); }
+    .tool-icon-btn { width: 32px; height: 32px; border-radius: var(--radius-xs); border: none; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; color: var(--gray-400); position: relative; }
+    .tool-icon-btn:hover { background: var(--gray-100); color: var(--gray-600); }
+    .tool-icon-btn.active { background: var(--green-light); color: var(--green); }
+    .tool-icon-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .tool-icon-btn .badge-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: var(--danger); border-radius: 50%; }
+
+    .panel-toggle { position: absolute; top: 10px; right: -12px; width: 24px; height: 24px; border-radius: 50%; background: var(--white); border: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; box-shadow: var(--shadow-sm); }
+    .panel-toggle:hover { background: var(--gray-50); }
+    .panel-toggle svg { width: 12px; height: 12px; stroke: var(--gray-500); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .left-panel.collapsed .panel-toggle svg { transform: rotate(180deg); }
+
+    .left-panel-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+    .lp-tab-content { display: none; }
+    .lp-tab-content.active { display: block; }
+
+    /* Sections */
+    .panel-section-header { display: flex; align-items: center; gap: 6px; padding: 10px 14px 6px; cursor: pointer; user-select: none; }
+    .panel-section-header:hover .panel-section-title { color: var(--gray-700); }
+    .panel-chevron { width: 14px; height: 14px; color: var(--gray-400); transition: transform 0.2s; flex-shrink: 0; }
+    .panel-chevron svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .panel-section.collapsed .panel-chevron { transform: rotate(-90deg); }
+    .panel-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-500); }
+    .panel-section-count { margin-left: auto; font-size: 10px; color: var(--gray-400); }
+    .panel-section-items { padding: 2px 8px 8px; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease; max-height: 800px; opacity: 1; }
+    .panel-section.collapsed .panel-section-items { max-height: 0; opacity: 0; padding: 0 8px; }
+
+    /* Shared items */
+    .wf-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; font-size: 13px; font-weight: 500; color: var(--gray-600); }
+    .wf-item:hover { background: var(--gray-50); color: var(--dark); }
+    .wf-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gray-400); }
+    .wf-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .wf-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wf-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--green-light); color: var(--green); }
+
+    .session-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; margin-bottom: 1px; }
+    .session-item:hover { background: var(--gray-50); }
+    .session-item.active { background: var(--green-light); }
+    .session-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .session-dot.live { background: var(--green); }
+    .session-dot.done { background: var(--gray-300); }
+    .session-info { flex: 1; min-width: 0; }
+    .session-title { font-size: 12px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .session-item.active .session-title { color: var(--dark); }
+    .session-meta { font-size: 10px; color: var(--gray-400); }
+
+    .pinned-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+    .pinned-item:hover { background: var(--gray-50); }
+    .pinned-icon { color: var(--warning); font-size: 12px; flex-shrink: 0; }
+    .pinned-label { font-size: 12px; font-weight: 500; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .doc-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); padding: 12px 14px 6px; }
+    .lp-doc-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; margin: 0 6px 2px; }
+    .lp-doc-item:hover { background: var(--gray-50); }
+    .lp-doc-icon { width: 30px; height: 30px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+    .lp-doc-icon.pdf { background: #EF444415; color: var(--danger); }
+    .lp-doc-icon.doc { background: #3B82F615; color: var(--info); }
+    .lp-doc-icon.repo { background: var(--purple-light); color: var(--purple); }
+    .lp-doc-icon.txt { background: var(--green-light); color: #059669; }
+    .lp-doc-icon.brief { background: var(--green-light); color: #059669; }
+    .lp-doc-icon.mp { background: var(--info-light); color: var(--info); }
+    .lp-doc-icon.gap { background: var(--warning-light); color: var(--warning); }
+    .lp-doc-info { flex: 1; min-width: 0; }
+    .lp-doc-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lp-doc-meta { font-size: 10px; color: var(--gray-400); }
+    .lp-doc-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .lp-doc-badge.new { background: var(--green-light); color: #059669; }
+    .lp-doc-badge.processing { background: var(--warning-light); color: var(--warning); }
+
+    .lp-person { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; margin: 0 6px 4px; border: 1px solid var(--gray-100); }
+    .lp-person:hover { background: var(--gray-50); border-color: var(--gray-200); }
+    .lp-person-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .lp-person-info { flex: 1; min-width: 0; }
+    .lp-person-top { display: flex; align-items: center; gap: 6px; }
+    .lp-person-name { font-size: 12px; font-weight: 600; }
+    .lp-person-role { font-size: 10px; color: var(--gray-400); }
+    .lp-person-phase { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: auto; flex-shrink: 0; }
+    .lp-person-stats { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+    .lp-person-stat { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--gray-400); }
+    .lp-person-stat svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .lp-person-stat strong { font-weight: 700; color: var(--gray-600); }
+
+    .lp-upload { display: flex; align-items: center; gap: 10px; border: 1.5px dashed var(--gray-200); border-radius: var(--radius-sm); padding: 10px 14px; cursor: pointer; transition: all 0.2s; margin: 6px 10px 10px; }
+    .lp-upload:hover { border-color: var(--green); background: var(--green-light); }
+    .lp-upload svg { width: 16px; height: 16px; stroke: var(--gray-400); fill: none; stroke-width: 1.8; flex-shrink: 0; stroke-linecap: round; stroke-linejoin: round; }
+    .lp-upload:hover svg { stroke: var(--green-hover); }
+    .lp-upload-text { font-size: 12px; font-weight: 600; color: var(--gray-500); }
+    .lp-upload:hover .lp-upload-text { color: var(--green-hover); }
+
+    /* Collapsible doc sections */
+    .doc-section { margin-bottom: 4px; }
+    .doc-section-header { display: flex; align-items: center; gap: 6px; padding: 10px 14px 6px; cursor: pointer; user-select: none; }
+    .doc-section-header:hover .doc-section-title { color: var(--gray-700); }
+    .doc-section-chevron { width: 14px; height: 14px; color: var(--gray-400); transition: transform 0.2s; flex-shrink: 0; }
+    .doc-section-chevron svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .doc-section.collapsed .doc-section-chevron { transform: rotate(-90deg); }
+    .doc-section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
+    .doc-section-count { margin-left: auto; font-size: 10px; color: var(--gray-400); font-weight: 600; }
+    .doc-section-items { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; max-height: 1200px; opacity: 1; }
+    .doc-section.collapsed .doc-section-items { max-height: 0; opacity: 0; }
+
+    /* Document folders */
+    .doc-folder { margin: 2px 6px; }
+    .doc-folder-header { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+    .doc-folder-header:hover { background: var(--gray-50); }
+    .doc-folder-chevron { width: 12px; height: 12px; color: var(--gray-300); transition: transform 0.2s; flex-shrink: 0; }
+    .doc-folder-chevron svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .doc-folder.collapsed .doc-folder-chevron { transform: rotate(-90deg); }
+    .doc-folder-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; color: var(--gray-400); flex-shrink: 0; }
+    .doc-folder-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .doc-folder-name { font-size: 12px; font-weight: 600; color: var(--gray-600); flex: 1; }
+    .doc-folder-count { font-size: 10px; color: var(--gray-400); }
+    .doc-folder-files { padding-left: 16px; overflow: hidden; transition: max-height 0.25s ease, opacity 0.2s ease; max-height: 600px; opacity: 1; }
+    .doc-folder.collapsed .doc-folder-files { max-height: 0; opacity: 0; }
+
+    /* ===== PHASE GATE BANNER ===== */
+    .phase-gate { margin: 8px 10px 4px; border-radius: var(--radius-sm); overflow: hidden; }
+    .phase-gate-header { display: flex; align-items: center; gap: 12px; padding: 14px; background: linear-gradient(135deg, var(--dark) 0%, #2a2a2a 100%); color: var(--white); }
+    .pg-ring { width: 52px; height: 52px; position: relative; flex-shrink: 0; }
+    .pg-ring svg { width: 52px; height: 52px; transform: rotate(-90deg); }
+    .pg-ring .ring-bg { fill: none; stroke: rgba(255,255,255,0.15); stroke-width: 5; }
+    .pg-ring .ring-fg { fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 138; stroke-dashoffset: 15.2; }
+    .pg-value { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 15px; font-weight: 800; color: var(--white); }
+    .pg-info { flex: 1; min-width: 0; }
+    .pg-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+    .pg-subtitle { font-size: 11px; color: var(--gray-400); }
+    .pg-trend { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: var(--green); margin-top: 3px; }
+    .pg-trend svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .phase-gate-bar { height: 3px; background: rgba(255,255,255,0.1); }
+    .phase-gate-bar-fill { height: 100%; width: 89%; background: var(--green); border-radius: 0 2px 2px 0; transition: width 0.6s ease; }
+    .pg-next { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--green-light); font-size: 11px; color: #059669; font-weight: 600; }
+    .pg-next svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .pg-next-label { flex: 1; }
+    .pg-next-value { font-weight: 700; }
+
+    /* ===== CONTROL POINTS (enhanced) ===== */
+    .cp-card { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin: 0 8px 6px; transition: all 0.15s; cursor: pointer; }
+    .cp-card:hover { background: var(--gray-50); border-color: var(--gray-200); }
+    .cp-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .cp-status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cp-status-dot.good { background: #059669; }
+    .cp-status-dot.warn { background: var(--warning); }
+    .cp-status-dot.bad { background: var(--danger); }
+    .cp-card-label { font-size: 12px; font-weight: 600; color: var(--dark); flex: 1; }
+    .cp-card-value { font-size: 12px; font-weight: 800; }
+    .cp-card-value.good { color: #059669; }
+    .cp-card-value.warn { color: var(--warning); }
+    .cp-card-value.bad { color: var(--danger); }
+    .cp-bar { height: 4px; background: var(--gray-100); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+    .cp-bar-fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+    .cp-bar-fill.good { background: #059669; }
+    .cp-bar-fill.warn { background: var(--warning); }
+    .cp-bar-fill.bad { background: var(--danger); }
+    .cp-breakdown { display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--gray-400); }
+    .cp-breakdown span { display: flex; align-items: center; gap: 3px; }
+    .cp-bk-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .cp-bk-dot.confirmed { background: #059669; }
+    .cp-bk-dot.assumed { background: var(--warning); }
+    .cp-bk-dot.gap { background: var(--danger); }
+
+    /* ===== GAP ITEMS (enhanced) ===== */
+    .lp-gap-item { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin: 0 8px 6px; transition: all 0.15s; }
+    .lp-gap-item:hover { border-color: var(--gray-200); background: var(--gray-50); }
+    .lp-gap-top { display: flex; align-items: flex-start; gap: 8px; }
+    .lp-gap-icon { width: 18px; height: 18px; border-radius: 50%; background: var(--warning-light); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+    .lp-gap-q { font-size: 12px; font-weight: 600; color: var(--dark); flex: 1; line-height: 1.4; }
+    .lp-gap-footer { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-left: 26px; }
+    .lp-gap-tag { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .lp-gap-tag.high { background: var(--danger-light); color: var(--danger); }
+    .lp-gap-tag.medium { background: var(--warning-light); color: var(--warning); }
+    .lp-gap-tag.blocks { background: var(--purple-light); color: var(--purple); }
+    .lp-gap-src { font-size: 10px; color: var(--gray-400); margin-left: auto; }
+    .lp-gap-ask { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; color: var(--green-hover); background: var(--green-light); border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; transition: all 0.15s; margin-left: auto; }
+    .lp-gap-ask:hover { background: var(--green-mid); }
+    .lp-gap-ask svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* Req items in left panel */
+    .lp-req-item { padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin: 0 8px 4px; cursor: pointer; transition: all 0.15s; }
+    .lp-req-item:hover { background: var(--gray-50); }
+    .lp-req-top { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .lp-req-id { font-size: 10px; font-weight: 700; color: var(--green); }
+    .lp-req-pri { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: auto; }
+    .lp-req-pri.must { background: var(--danger-light); color: var(--danger); }
+    .lp-req-pri.should { background: var(--warning-light); color: var(--warning); }
+    .lp-req-pri.could { background: var(--info-light); color: var(--info); }
+    .lp-req-text { font-size: 11px; color: var(--gray-700); }
+
+    /* Sync items */
+    .lp-sync-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); margin: 0 8px 4px; border: 1px solid var(--gray-100); }
+    .lp-sync-icon { width: 26px; height: 26px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .lp-sync-info { flex: 1; min-width: 0; }
+    .lp-sync-name { font-size: 12px; font-weight: 600; }
+    .lp-sync-meta { font-size: 10px; color: var(--gray-400); }
+    .lp-sync-status { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .lp-sync-status.ok { background: var(--green); }
+    .lp-sync-status.warn { background: var(--warning); }
+
+    /* Graph mini */
+    .lp-graph-container { background: var(--dark); border-radius: var(--radius-sm); height: 200px; position: relative; overflow: hidden; margin: 8px 10px; }
+    .lp-graph-container .graph-node { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; transition: transform 0.2s; }
+    .lp-graph-container .graph-node:hover { transform: scale(1.15); }
+    .lp-graph-container .gn-c { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 2px solid; }
+    .gn-c.entity { background: var(--info); border-color: #60A5FA; color: var(--white); }
+    .gn-c.fact { background: var(--green); border-color: #34D399; color: var(--dark); }
+    .gn-c.doc { background: var(--purple); border-color: #A78BFA; color: var(--white); }
+    .gn-c.person { background: var(--orange); border-color: #FB923C; color: var(--white); }
+    .lp-graph-container .gn-l { font-size: 8px; color: var(--gray-400); font-weight: 500; white-space: nowrap; }
+    .lp-graph-lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    .lp-graph-lines line { stroke: rgba(255,255,255,0.08); stroke-width: 1; }
+    .graph-legend { display: flex; gap: 10px; padding: 6px 12px; }
+    .graph-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--gray-500); }
+    .gl-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .gl-dot.entity { background: var(--info); }
+    .gl-dot.fact { background: var(--green); }
+    .gl-dot.doc { background: var(--purple); }
+    .gl-dot.person { background: var(--orange); }
+    .graph-stat-row { display: flex; gap: 6px; padding: 4px 10px 8px; }
+    .gs-pill { flex: 1; text-align: center; padding: 6px; background: var(--gray-50); border-radius: var(--radius-xs); }
+    .gs-pill strong { font-size: 14px; font-weight: 800; display: block; }
+    .gs-pill span { font-size: 9px; color: var(--gray-400); }
+
+    .left-panel-footer { padding: 10px; border-top: 1px solid var(--gray-100); }
+    .new-session-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 7px; border: 1px dashed var(--gray-300); border-radius: var(--radius-sm); background: transparent; font-size: 12px; font-weight: 600; font-family: var(--font); color: var(--gray-500); cursor: pointer; transition: all 0.15s; }
+    .new-session-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-light); }
+    .new-session-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    /* ===== CHAT AREA ===== */
+    .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--gray-50); position: relative; }
+
+    .chat-session-header { display: flex; align-items: center; gap: 10px; padding: 10px 28px; border-bottom: 1px solid var(--gray-200); background: var(--white); flex-shrink: 0; }
+    .chat-session-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--dark); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+    .chat-session-title { font-size: 14px; font-weight: 700; }
+    .chat-session-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--green-light); color: #059669; font-weight: 600; }
+    .chat-session-actions { margin-left: auto; display: flex; gap: 4px; }
+    .chat-action-btn { width: 28px; height: 28px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .chat-action-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
+    .chat-action-btn svg { width: 13px; height: 13px; stroke: var(--gray-500); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px 28px; display: flex; flex-direction: column; gap: 18px; }
+    .chat-date-divider { display: flex; align-items: center; gap: 12px; margin: 4px 0; }
+    .chat-date-divider::before, .chat-date-divider::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+    .chat-date-divider span { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+    .chat-msg { max-width: 740px; display: flex; gap: 12px; }
+    .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+    .msg-avatar.ai-avatar { background: var(--dark); color: var(--green); }
+    .msg-avatar.user-avatar { background: var(--green); color: var(--dark); }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-sender { font-size: 11px; font-weight: 600; color: var(--gray-500); margin-bottom: 3px; }
+    .chat-msg.user .msg-sender { text-align: right; }
+    .msg-bubble { padding: 12px 16px; border-radius: 14px; font-size: 13px; line-height: 1.6; }
+    .chat-msg.ai .msg-bubble { background: var(--white); color: var(--dark); border: 1px solid var(--gray-200); border-bottom-left-radius: 4px; }
+    .chat-msg.user .msg-bubble { background: var(--dark); color: var(--white); border-bottom-right-radius: 4px; }
+    .msg-time { font-size: 10px; color: var(--gray-400); margin-top: 3px; }
+    .chat-msg.user .msg-time { text-align: right; }
+
+    .msg-context-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--gray-100); font-size: 11px; color: var(--gray-400); }
+    .ctx-ref { display: inline-flex; padding: 2px 8px; background: var(--green-light); color: #059669; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+    .ctx-ref:hover { background: var(--green-mid); }
+
+    .msg-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .msg-suggestion { padding: 5px 12px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 20px; font-size: 12px; font-weight: 500; color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+    .msg-suggestion:hover { border-color: var(--green); color: var(--dark); background: var(--green-light); }
+
+    .msg-doc-card { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 8px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.15s; }
+    .msg-doc-card:hover { border-color: var(--green); background: var(--green-light); }
+    .msg-doc-icon { width: 32px; height: 32px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .msg-doc-icon.brief { background: var(--green-light); color: #059669; }
+    .msg-doc-icon.meeting { background: var(--info-light); color: var(--info); }
+    .msg-doc-info h5 { font-size: 12px; font-weight: 600; margin-bottom: 1px; }
+    .msg-doc-info p { font-size: 10px; color: var(--gray-400); }
+    .msg-doc-action { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--green); white-space: nowrap; }
+
+    .msg-req-list { margin-top: 8px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); overflow: hidden; }
+    .msg-req-item { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--gray-100); cursor: pointer; transition: all 0.15s; }
+    .msg-req-item:last-child { border-bottom: none; }
+    .msg-req-item:hover { background: var(--gray-50); }
+    .msg-req-top { display: flex; align-items: center; gap: 8px; }
+    .msg-req-id { font-weight: 700; color: var(--green); font-size: 11px; flex-shrink: 0; }
+    .msg-req-text { flex: 1; color: var(--gray-700); font-weight: 500; }
+    .msg-req-priority { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; flex-shrink: 0; }
+    .msg-req-priority.must { background: var(--danger-light); color: var(--danger); }
+    .msg-req-priority.should { background: var(--warning-light); color: var(--warning); }
+    .msg-req-actions { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+    .msg-req-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: var(--font); }
+    .msg-req-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .msg-req-btn.approve:hover { border-color: #059669; background: var(--green-light); color: #059669; }
+    .msg-req-btn.reject:hover { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+    .msg-req-btn.view:hover { border-color: var(--info); background: var(--info-light); color: var(--info); }
+    .msg-req-status { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: var(--radius-xs); margin-left: auto; }
+    .msg-req-status.approved { background: var(--green-light); color: #059669; }
+    .msg-req-status.rejected { background: var(--danger-light); color: var(--danger); }
+    .msg-req-item.approved { background: #05966908; }
+    .msg-req-item.approved .msg-req-top { opacity: 0.7; }
+    .msg-req-item.rejected { background: #EF444408; }
+    .msg-req-item.rejected .msg-req-top { opacity: 0.5; }
+    .msg-req-item.rejected .msg-req-text { text-decoration: line-through; }
+
+    .chat-input-area { padding: 0 28px 16px; flex-shrink: 0; position: relative; }
+    .chat-input-box { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 4px; display: flex; align-items: flex-end; gap: 0; transition: all 0.2s; box-shadow: var(--shadow-sm); }
+    .chat-input-box:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light), var(--shadow-md); }
+    .chat-input-box textarea { flex: 1; padding: 9px 8px 9px 0; border: none; font-size: 13px; font-family: var(--font); line-height: 1.5; resize: none; outline: none; background: transparent; color: var(--dark); max-height: 120px; min-height: 40px; }
+    .chat-input-box textarea::placeholder { color: var(--gray-400); }
+    .chat-input-actions { display: flex; align-items: center; gap: 2px; padding: 4px 6px 4px 0; }
+    .input-action-btn { width: 30px; height: 30px; border-radius: var(--radius-xs); border: none; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; color: var(--gray-400); }
+    .input-action-btn:hover { background: var(--gray-100); color: var(--gray-600); }
+    .input-action-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .send-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--green); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .send-btn:hover { background: var(--green-hover); }
+    .send-btn svg { width: 15px; height: 15px; stroke: var(--dark); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .chat-hint { font-size: 10px; color: var(--gray-400); margin-top: 5px; text-align: center; }
+    .chat-hint kbd { display: inline-block; padding: 1px 4px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 3px; font-size: 9px; font-family: var(--font); }
+
+    /* ===== WORKFLOW PLUS BUTTON & POPUP ===== */
+    .wf-plus-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; color: var(--gray-500); flex-shrink: 0; margin: 3px 4px 3px 4px; }
+    .wf-plus-btn:hover { border-color: var(--gray-300); background: var(--gray-50); color: var(--dark); }
+    .wf-plus-btn.active { border-color: var(--green); background: var(--green-light); color: var(--green-hover); transform: rotate(45deg); }
+    .wf-plus-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .wf-popup { position: absolute; bottom: calc(100% + 4px); left: 28px; width: 280px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06); z-index: 50; opacity: 0; visibility: hidden; transform: translateY(8px) scale(0.98); transition: all 0.2s ease; }
+    .wf-popup.open { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+    .wf-popup-header { padding: 12px 16px 8px; border-bottom: 1px solid var(--gray-100); }
+    .wf-popup-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
+    .wf-popup-items { padding: 6px; }
+    .wf-popup-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+    .wf-popup-item:hover { background: var(--gray-50); }
+    .wf-popup-item:hover .wfp-icon { background: var(--green-light); color: var(--green-hover); border-color: var(--green-mid); }
+    .wfp-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--gray-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gray-500); transition: all 0.15s; }
+    .wfp-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .wfp-info { flex: 1; min-width: 0; }
+    .wfp-label { font-size: 13px; font-weight: 600; color: var(--dark); }
+    .wfp-desc { font-size: 11px; color: var(--gray-400); margin-top: 1px; }
+    .wf-popup-divider { height: 1px; background: var(--gray-100); margin: 4px 12px; }
+    .wfp-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 8px; background: var(--green-light); color: #059669; flex-shrink: 0; }
+
+    /* ===== PERSON VIEWER OVERLAY ===== */
+    .person-viewer-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 200;
+      display: none;
+      align-items: stretch;
+      justify-content: flex-end;
+      animation: overlayIn 0.2s ease;
+    }
+    .person-viewer-overlay.open { display: flex; }
+
+    .person-viewer {
+      width: 55%;
+      max-width: 560px;
+      background: var(--white);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.3s ease;
+      overflow: hidden;
+    }
+
+    .pv-header { padding: 24px 28px 20px; border-bottom: 1px solid var(--gray-100); display: flex; gap: 16px; align-items: flex-start; flex-shrink: 0; }
+    .pv-avatar { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; flex-shrink: 0; }
+    .pv-header-info { flex: 1; min-width: 0; }
+    .pv-name { font-size: 17px; font-weight: 700; color: var(--dark); }
+    .pv-role { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    .pv-phase-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; margin-top: 6px; }
+    .pv-close { width: 32px; height: 32px; border-radius: var(--radius-xs); border: none; background: var(--gray-100); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .pv-close:hover { background: var(--gray-200); }
+    .pv-close svg { width: 16px; height: 16px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    .pv-body { flex: 1; overflow-y: auto; padding: 20px 28px; }
+
+    .pv-stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .pv-stat-card { background: var(--gray-50); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+    .pv-stat-num { font-size: 20px; font-weight: 800; color: var(--dark); }
+    .pv-stat-label { font-size: 10px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+    .pv-section { margin-bottom: 18px; }
+    .pv-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--gray-100); }
+
+    .pv-activity-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-50); }
+    .pv-activity-item:last-child { border-bottom: none; }
+    .pv-activity-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .pv-activity-dot.meeting { background: var(--info); }
+    .pv-activity-dot.doc { background: #059669; }
+    .pv-activity-dot.decision { background: var(--purple); }
+    .pv-activity-dot.chat { background: var(--green); }
+    .pv-activity-info { flex: 1; }
+    .pv-activity-text { font-size: 12px; font-weight: 500; color: var(--dark); }
+    .pv-activity-meta { font-size: 10px; color: var(--gray-400); margin-top: 1px; }
+
+    .pv-meeting-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pv-meeting-chip { font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius-xs); background: var(--gray-50); border: 1px solid var(--gray-100); color: var(--gray-600); cursor: pointer; transition: all 0.15s; }
+    .pv-meeting-chip:hover { border-color: var(--green); background: var(--green-light); color: #059669; }
+    .pv-meeting-chip.attended { background: var(--info-light); border-color: transparent; color: var(--info); }
+
+    .pv-decision-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin-bottom: 6px; }
+    .pv-decision-icon { width: 18px; height: 18px; border-radius: 50%; background: var(--green-light); color: #059669; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; margin-top: 1px; }
+    .pv-decision-text { font-size: 12px; color: var(--dark); flex: 1; }
+    .pv-decision-src { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+
+    .pv-footer { padding: 14px 28px; border-top: 1px solid var(--gray-100); display: flex; gap: 8px; flex-shrink: 0; }
+    .pv-btn { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; font-family: var(--font); }
+    .pv-btn.primary { background: var(--green); color: var(--dark); }
+    .pv-btn.primary:hover { background: var(--green-hover); }
+    .pv-btn.secondary { background: var(--gray-100); color: var(--gray-600); }
+    .pv-btn.secondary:hover { background: var(--gray-200); }
+
+    /* ===== DOCUMENT VIEWER OVERLAY ===== */
+    .doc-viewer-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 200;
+      display: none;
+      align-items: stretch;
+      justify-content: flex-end;
+      animation: overlayIn 0.2s ease;
+    }
+    .doc-viewer-overlay.open { display: flex; }
+    @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .doc-viewer {
+      width: 65%;
+      max-width: 720px;
+      background: var(--white);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.3s ease;
+      overflow: hidden;
+    }
+    @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    .doc-viewer-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--gray-200);
+      flex-shrink: 0;
+    }
+    .dv-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+    .dv-icon.meeting { background: var(--info-light); color: var(--info); }
+    .dv-icon.brief { background: var(--green-light); color: #059669; }
+    .dv-title-area { flex: 1; }
+    .dv-title { font-size: 15px; font-weight: 700; }
+    .dv-meta { font-size: 11px; color: var(--gray-400); margin-top: 1px; }
+    .dv-actions { display: flex; gap: 6px; }
+    .dv-action-btn { width: 32px; height: 32px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .dv-action-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
+    .dv-action-btn svg { width: 15px; height: 15px; stroke: var(--gray-500); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .dv-close { width: 32px; height: 32px; border-radius: var(--radius-xs); border: none; background: var(--gray-100); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .dv-close:hover { background: var(--gray-200); }
+    .dv-close svg { width: 16px; height: 16px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    .doc-viewer-body {
+      flex: 1; overflow-y: auto; padding: 28px 32px;
+    }
+    .dv-section { margin-bottom: 24px; }
+    .dv-section-title { font-size: 13px; font-weight: 700; color: var(--dark); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--gray-100); }
+    .dv-text { font-size: 13px; line-height: 1.7; color: var(--gray-700); }
+    .dv-text p { margin-bottom: 8px; }
+    .dv-list { list-style: none; }
+    .dv-list li { padding: 6px 0; font-size: 13px; color: var(--gray-700); display: flex; align-items: flex-start; gap: 8px; border-bottom: 1px solid var(--gray-50); }
+    .dv-list li:last-child { border-bottom: none; }
+    .dv-bullet { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; margin-top: 7px; }
+    .dv-bullet.warn { background: var(--warning); }
+    .dv-decision-box { background: var(--gray-50); border-left: 3px solid var(--green); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; padding: 12px 16px; margin-top: 8px; }
+    .dv-decision-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+    .dv-decision-text { font-size: 12px; color: var(--gray-600); line-height: 1.6; }
+    .dv-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-right: 4px; }
+    .dv-tag.source { background: var(--green-light); color: #059669; }
+    .dv-tag.priority { background: var(--danger-light); color: var(--danger); }
+    .dv-tag.status { background: var(--warning-light); color: var(--warning); }
+
+    .doc-viewer-footer {
+      padding: 14px 24px;
+      border-top: 1px solid var(--gray-200);
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+      background: var(--gray-50);
+    }
+    .dv-footer-ref { font-size: 11px; color: var(--gray-400); }
+    .dv-footer-ref a { color: #059669; font-weight: 600; text-decoration: none; cursor: pointer; }
+    .dv-footer-actions { margin-left: auto; display: flex; gap: 6px; }
+    .dv-btn { padding: 6px 14px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: all 0.15s; }
+    .dv-btn.secondary { background: var(--white); border: 1px solid var(--gray-200); color: var(--gray-600); }
+    .dv-btn.secondary:hover { background: var(--gray-50); }
+    .dv-btn.primary { background: var(--green); border: none; color: var(--dark); }
+    .dv-btn.primary:hover { background: var(--green-hover); }
+
+    /* ===== DISCOVERY DELIVERABLES ===== */
+    .deliverable-progress { margin: 6px 10px 10px; padding: 12px 14px; background: var(--gray-50); border-radius: var(--radius-sm); border: 1px solid var(--gray-100); }
+    .deliverable-progress-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+    .deliverable-progress-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
+    .deliverable-progress-count { font-size: 11px; font-weight: 700; color: var(--gray-600); }
+    .deliverable-progress-count span { color: var(--green); }
+    .deliverable-progress-bar { height: 6px; background: var(--gray-200); border-radius: 3px; overflow: hidden; }
+    .deliverable-progress-bar-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.4s ease; }
+    .deliverable-category { margin: 2px 6px 6px; }
+    .deliverable-category-header { display: flex; align-items: center; gap: 8px; padding: 8px 10px 4px; }
+    .deliverable-category-name { font-size: 11px; font-weight: 700; color: var(--gray-600); }
+    .deliverable-category-meta { font-size: 10px; color: var(--gray-400); margin-left: auto; }
+    .deliverable-item { display: flex; align-items: flex-start; gap: 10px; padding: 7px 12px; border-radius: var(--radius-sm); transition: all 0.15s; margin: 0 0 1px; }
+    .deliverable-item.clickable { cursor: pointer; }
+    .deliverable-item.clickable:hover { background: var(--gray-50); }
+    .deliverable-status { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .deliverable-status svg { width: 16px; height: 16px; }
+    .deliverable-info { flex: 1; min-width: 0; }
+    .deliverable-name { font-size: 12px; font-weight: 600; color: var(--gray-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .deliverable-item.clickable .deliverable-name { color: var(--dark); }
+    .deliverable-desc { font-size: 10px; color: var(--gray-400); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .deliverable-action { flex-shrink: 0; margin-left: auto; align-self: center; }
+    .deliverable-generate { padding: 3px 10px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: var(--font); background: var(--gray-50); border: 1px solid var(--gray-200); color: var(--gray-500); cursor: pointer; transition: all 0.15s; }
+    .deliverable-generate:hover { background: var(--green-light); border-color: var(--green); color: #059669; }
+    .deliverable-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; align-self: center; }
+    .deliverable-badge.new { background: var(--green-light); color: #059669; }
+
+    /* ===== CONTROL POINT DETAIL PANEL ===== */
+    .cp-viewer-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 200;
+      display: none;
+      align-items: stretch;
+      justify-content: flex-end;
+      animation: overlayIn 0.2s ease;
+    }
+    .cp-viewer-overlay.open { display: flex; }
+    .cp-viewer {
+      width: 55%;
+      max-width: 560px;
+      background: var(--white);
+      box-shadow: -8px 0 40px rgba(0,0,0,0.15);
+      display: flex;
+      flex-direction: column;
+      animation: slideIn 0.3s ease;
+      overflow: hidden;
+    }
+    .cpv-header { padding: 24px 28px 20px; border-bottom: 1px solid var(--gray-100); display: flex; gap: 16px; align-items: flex-start; flex-shrink: 0; }
+    .cpv-status-ring { width: 48px; height: 48px; position: relative; flex-shrink: 0; }
+    .cpv-status-ring svg { width: 48px; height: 48px; transform: rotate(-90deg); }
+    .cpv-status-ring .ring-bg { fill: none; stroke: var(--gray-100); stroke-width: 4; }
+    .cpv-status-ring .ring-fg { fill: none; stroke-width: 4; stroke-linecap: round; transition: stroke-dashoffset 0.4s ease; }
+    .cpv-status-ring .ring-fg.good { stroke: #059669; }
+    .cpv-status-ring .ring-fg.warn { stroke: var(--warning); }
+    .cpv-status-ring .ring-fg.bad { stroke: var(--danger); }
+    .cpv-ring-value { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 12px; font-weight: 800; }
+    .cpv-ring-value.good { color: #059669; }
+    .cpv-ring-value.warn { color: var(--warning); }
+    .cpv-ring-value.bad { color: var(--danger); }
+    .cpv-header-info { flex: 1; min-width: 0; }
+    .cpv-name { font-size: 17px; font-weight: 700; color: var(--dark); }
+    .cpv-subtitle { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+    .cpv-close { width: 32px; height: 32px; border-radius: var(--radius-xs); border: none; background: var(--gray-100); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .cpv-close:hover { background: var(--gray-200); }
+    .cpv-close svg { width: 16px; height: 16px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .cpv-body { flex: 1; overflow-y: auto; padding: 20px 28px; }
+    .cpv-breakdown-bar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+    .cpv-breakdown-bar .seg { height: 100%; }
+    .cpv-breakdown-bar .seg.confirmed { background: #059669; }
+    .cpv-breakdown-bar .seg.assumed { background: var(--warning); }
+    .cpv-breakdown-bar .seg.gap { background: var(--danger); }
+    .cpv-breakdown-bar .seg.empty { background: var(--gray-100); }
+    .cpv-breakdown-legend { display: flex; gap: 14px; margin-bottom: 20px; }
+    .cpv-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--gray-500); }
+    .cpv-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cpv-legend-dot.confirmed { background: #059669; }
+    .cpv-legend-dot.assumed { background: var(--warning); }
+    .cpv-legend-dot.gap { background: var(--danger); }
+    .cpv-section { margin-bottom: 20px; }
+    .cpv-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--gray-100); }
+    .cpv-doc-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin-bottom: 6px; transition: all 0.15s; }
+    .cpv-doc-row.clickable { cursor: pointer; }
+    .cpv-doc-row.clickable:hover { background: var(--gray-50); border-color: var(--gray-200); }
+    .cpv-doc-status { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .cpv-doc-status svg { width: 16px; height: 16px; }
+    .cpv-doc-info { flex: 1; min-width: 0; }
+    .cpv-doc-name { font-size: 12px; font-weight: 600; color: var(--dark); }
+    .cpv-doc-desc { font-size: 10px; color: var(--gray-400); margin-top: 1px; }
+    .cpv-generate-btn { padding: 5px 12px; border-radius: var(--radius-xs); font-size: 11px; font-weight: 600; font-family: var(--font); background: var(--green); border: none; color: var(--dark); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .cpv-generate-btn:hover { background: var(--green-hover); }
+    .cpv-gap-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin-bottom: 6px; }
+    .cpv-gap-icon { width: 20px; height: 20px; border-radius: 50%; background: var(--danger-light); color: var(--danger); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+    .cpv-gap-text { font-size: 12px; color: var(--dark); flex: 1; }
+    .cpv-gap-severity { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .cpv-gap-severity.high { background: var(--danger-light); color: var(--danger); }
+    .cpv-gap-severity.medium { background: var(--warning-light); color: #B45309; }
+    .cpv-footer { padding: 14px 28px; border-top: 1px solid var(--gray-100); display: flex; gap: 8px; flex-shrink: 0; }
+    .cpv-btn { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: none; font-family: var(--font); }
+    .cpv-btn.primary { background: var(--green); color: var(--dark); }
+    .cpv-btn.primary:hover { background: var(--green-hover); }
+    .cpv-btn.secondary { background: var(--gray-100); color: var(--gray-600); }
+    .cpv-btn.secondary:hover { background: var(--gray-200); }
+    .cpv-fact-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); }
+    .cpv-fact-item:last-child { border-bottom: none; }
+    .cpv-fact-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; cursor: pointer; transition: transform 0.15s; }
+    .cpv-fact-dot:hover { transform: scale(1.4); }
+    .cpv-fact-dot.confirmed { background: var(--green); }
+    .cpv-fact-dot.assumed { background: #F59E0B; }
+    .cpv-fact-text { font-size: 12px; color: var(--gray-700); flex: 1; }
+    .cpv-fact-source { font-size: 10px; color: var(--gray-500); background: var(--gray-100); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+    .cpv-facts-toggle { font-size: 11px; color: var(--green); cursor: pointer; padding: 6px 0; background: none; border: none; font-family: var(--font); font-weight: 500; }
+    .cpv-facts-toggle:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo"><h1>Crnogorchi<span></span></h1></div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main</div>
+        <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
+        <div class="nav-label">Phases</div>
+        <a href="discovery.html" class="nav-item active"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery<span class="nav-badge">4</span></a>
+        <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
+        <a href="code.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
+        <a href="qa.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA</a>
+        <div class="nav-label">System</div>
+        <a href="documents.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>Documents</a>
+        <a href="knowledge.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>Knowledge Base</a>
+        <a href="settings.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Settings</a>
+      </nav>
+      <div class="sidebar-user"><div class="user-avatar">BT</div><div class="user-info"><div class="user-name">Bojan Tesic</div><div class="user-role">Product Owner</div></div></div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search requirements, facts, documents..."></div>
+        <div class="topbar-actions">
+          <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Upload Document</button>
+        </div>
+      </header>
+
+      <div class="phase-banner">
+        <div class="phase-banner-left"><div class="phase-number">1</div><div><div class="phase-title">Discovery Phase</div><div class="phase-desc">Discover what to build from client conversations, docs, and code</div></div></div>
+        <div class="phase-banner-right">
+          <div class="phase-stat"><div class="phase-stat-value">89%</div><div class="phase-stat-label">Readiness</div></div>
+          <div class="phase-stat"><div class="phase-stat-value">47</div><div class="phase-stat-label">Requirements</div></div>
+          <div class="phase-stat"><div class="phase-stat-value">8</div><div class="phase-stat-label">Meetings</div></div>
+          <div class="phase-stat"><div class="phase-stat-value">4</div><div class="phase-stat-label">Open Gaps</div></div>
+        </div>
+      </div>
+
+      <div class="workspace">
+        <!-- LEFT PANEL -->
+        <div class="left-panel" id="leftPanel">
+          <div class="panel-toggle" id="leftToggle" title="Collapse panel"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></div>
+          <div class="collapse-strip">
+            <button class="collapse-strip-btn active" data-lptab="chat"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></button>
+            <button class="collapse-strip-btn" data-lptab="docs"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>
+            <button class="collapse-strip-btn" data-lptab="status"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button>
+            <button class="collapse-strip-btn" data-lptab="reqs"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+            <button class="collapse-strip-btn" data-lptab="people"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></button>
+            <button class="collapse-strip-btn" data-lptab="graph"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+          </div>
+
+          <div class="tool-icons">
+            <button class="tool-icon-btn active" data-lptab="chat"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></button>
+            <button class="tool-icon-btn" data-lptab="docs"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div class="badge-dot"></div></button>
+            <button class="tool-icon-btn" data-lptab="status"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></button>
+            <button class="tool-icon-btn" data-lptab="reqs"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+            <button class="tool-icon-btn" data-lptab="people"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></button>
+            <button class="tool-icon-btn" data-lptab="graph"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></button>
+          </div>
+
+          <div class="left-panel-body">
+            <!-- CHAT -->
+            <div class="lp-tab-content active" data-lpcontent="chat">
+              <div class="panel-section"><div class="panel-section-header"><div class="panel-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div><span class="panel-section-title">Pinned</span><span class="panel-section-count">3</span></div>
+                <div class="panel-section-items">
+                  <div class="pinned-item"><span class="pinned-icon">&#9733;</span><span class="pinned-label">MVP Scope Decision</span></div>
+                  <div class="pinned-item"><span class="pinned-icon">&#9733;</span><span class="pinned-label">Auth Architecture Summary</span></div>
+                  <div class="pinned-item"><span class="pinned-icon">&#9733;</span><span class="pinned-label">Client Priority Matrix</span></div>
+                </div>
+              </div>
+              <div class="panel-section"><div class="panel-section-header"><div class="panel-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div><span class="panel-section-title">Chats</span><span class="panel-section-count">8</span></div>
+                <div class="panel-section-items">
+                  <div class="session-item active"><span class="session-dot live"></span><div class="session-info"><div class="session-title">Auth & SSO Scope</div><div class="session-meta">Active &middot; 12 msgs</div></div></div>
+                  <div class="session-item"><span class="session-dot live"></span><div class="session-info"><div class="session-title">API Integration Requirements</div><div class="session-meta">Today &middot; 8 msgs</div></div></div>
+                  <div class="session-item"><span class="session-dot done"></span><div class="session-info"><div class="session-title">Meeting 7 Analysis</div><div class="session-meta">Yesterday &middot; 15 msgs</div></div></div>
+                  <div class="session-item"><span class="session-dot done"></span><div class="session-info"><div class="session-title">MVP Scope Freeze</div><div class="session-meta">Feb 28 &middot; 22 msgs</div></div></div>
+                  <div class="session-item"><span class="session-dot done"></span><div class="session-info"><div class="session-title">Whiteboard Deep Dive</div><div class="session-meta">Feb 27 &middot; 11 msgs</div></div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DOCUMENTS -->
+            <div class="lp-tab-content" data-lpcontent="docs">
+              <!-- Upload at top -->
+              <div class="lp-upload"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><div class="lp-upload-text">Upload Document</div></div>
+
+              <!-- Input Documents — collapsible -->
+              <div class="doc-section" id="docInputSection">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Input Documents</span>
+                  <span class="doc-section-count">14</span>
+                </div>
+                <div class="doc-section-items">
+                  <!-- Folder: Meeting Notes -->
+                  <div class="doc-folder">
+                    <div class="doc-folder-header">
+                      <div class="doc-folder-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                      <div class="doc-folder-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+                      <span class="doc-folder-name">Meeting Notes</span>
+                      <span class="doc-folder-count">5</span>
+                    </div>
+                    <div class="doc-folder-files">
+                      <div class="lp-doc-item"><div class="lp-doc-icon doc">DOC</div><div class="lp-doc-info"><div class="lp-doc-name">Meeting 7 — SSO and Auth.docx</div><div class="lp-doc-meta">340 KB &middot; Today</div></div><span class="lp-doc-badge processing">Processing</span></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon doc">DOC</div><div class="lp-doc-info"><div class="lp-doc-name">Meeting 6 — API Review.docx</div><div class="lp-doc-meta">280 KB &middot; Feb 25</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon doc">DOC</div><div class="lp-doc-info"><div class="lp-doc-name">Meeting 4 — Mobile Scope.docx</div><div class="lp-doc-meta">410 KB &middot; Feb 18</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon doc">DOC</div><div class="lp-doc-info"><div class="lp-doc-name">Meeting 3 — Auth Decision.docx</div><div class="lp-doc-meta">520 KB &middot; Feb 20</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon doc">DOC</div><div class="lp-doc-info"><div class="lp-doc-name">Meeting 1 — Kickoff.docx</div><div class="lp-doc-meta">190 KB &middot; Feb 10</div></div></div>
+                    </div>
+                  </div>
+                  <!-- Folder: Product Docs -->
+                  <div class="doc-folder">
+                    <div class="doc-folder-header">
+                      <div class="doc-folder-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                      <div class="doc-folder-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+                      <span class="doc-folder-name">Product Docs</span>
+                      <span class="doc-folder-count">3</span>
+                    </div>
+                    <div class="doc-folder-files">
+                      <div class="lp-doc-item"><div class="lp-doc-icon pdf">PDF</div><div class="lp-doc-info"><div class="lp-doc-name">NacXwan PRD v2.1.pdf</div><div class="lp-doc-meta">2.4 MB &middot; Mar 1</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon pdf">PDF</div><div class="lp-doc-info"><div class="lp-doc-name">System Architecture.pdf</div><div class="lp-doc-meta">1.8 MB &middot; Feb 26</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon pdf">PDF</div><div class="lp-doc-info"><div class="lp-doc-name">Technical Spec — API v1.pdf</div><div class="lp-doc-meta">960 KB &middot; Feb 22</div></div></div>
+                    </div>
+                  </div>
+                  <!-- Folder: Git Repos -->
+                  <div class="doc-folder">
+                    <div class="doc-folder-header">
+                      <div class="doc-folder-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                      <div class="doc-folder-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+                      <span class="doc-folder-name">Git Repos</span>
+                      <span class="doc-folder-count">2</span>
+                    </div>
+                    <div class="doc-folder-files">
+                      <div class="lp-doc-item"><div class="lp-doc-icon repo">GIT</div><div class="lp-doc-info"><div class="lp-doc-name">nacxwan/learning-platform</div><div class="lp-doc-meta">Repository &middot; Feb 27</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon repo">GIT</div><div class="lp-doc-info"><div class="lp-doc-name">nacxwan/api-gateway</div><div class="lp-doc-meta">Repository &middot; Feb 24</div></div></div>
+                    </div>
+                  </div>
+                  <!-- Folder: Emails & Comms -->
+                  <div class="doc-folder">
+                    <div class="doc-folder-header">
+                      <div class="doc-folder-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                      <div class="doc-folder-icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></div>
+                      <span class="doc-folder-name">Emails & Comms</span>
+                      <span class="doc-folder-count">4</span>
+                    </div>
+                    <div class="doc-folder-files">
+                      <div class="lp-doc-item"><div class="lp-doc-icon txt">TXT</div><div class="lp-doc-info"><div class="lp-doc-name">Email — API Integration.txt</div><div class="lp-doc-meta">45 KB &middot; Feb 25</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon txt">TXT</div><div class="lp-doc-info"><div class="lp-doc-name">Email — Timeline Concerns.txt</div><div class="lp-doc-meta">28 KB &middot; Feb 21</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon txt">TXT</div><div class="lp-doc-info"><div class="lp-doc-name">Slack — Design Feedback.txt</div><div class="lp-doc-meta">12 KB &middot; Feb 19</div></div></div>
+                      <div class="lp-doc-item"><div class="lp-doc-icon txt">TXT</div><div class="lp-doc-info"><div class="lp-doc-name">Email — Stakeholder Q&A.txt</div><div class="lp-doc-meta">35 KB &middot; Feb 15</div></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Discovery Deliverables — collapsible -->
+              <div class="doc-section" id="docOutputSection">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Discovery Deliverables</span>
+                  <span class="doc-section-count">7 / 12</span>
+                </div>
+                <div class="doc-section-items">
+
+                  <!-- Progress bar -->
+                  <div class="deliverable-progress">
+                    <div class="deliverable-progress-top">
+                      <span class="deliverable-progress-label">Phase completion</span>
+                      <span class="deliverable-progress-count"><span>7</span> of 12 &mdash; 58%</span>
+                    </div>
+                    <div class="deliverable-progress-bar"><div class="deliverable-progress-bar-fill" style="width:58%"></div></div>
+                  </div>
+
+                  <!-- Core Deliverables -->
+                  <div class="deliverable-category">
+                    <div class="deliverable-category-header">
+                      <span class="deliverable-category-name">Core Deliverables</span>
+                      <span class="deliverable-category-meta">4 / 5</span>
+                    </div>
+
+                    <div class="deliverable-item clickable" onclick="openDocViewer('brief')">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Discovery Brief v1.2</div><div class="deliverable-desc">Project summary, goals, constraints</div></div>
+                      <span class="deliverable-badge new">New</span>
+                    </div>
+
+                    <div class="deliverable-item clickable" onclick="openDocViewer('requirements')">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Requirements Matrix</div><div class="deliverable-desc">All 47 requirements, MoSCoW priority</div></div>
+                    </div>
+
+                    <div class="deliverable-item clickable">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Stakeholder Summary</div><div class="deliverable-desc">Roles, responsibilities, RACI</div></div>
+                    </div>
+
+                    <div class="deliverable-item clickable">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Gap Analysis Report</div><div class="deliverable-desc">Known unknowns, blocking items</div></div>
+                    </div>
+
+                    <div class="deliverable-item">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--gray-300)" stroke-width="1.5"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Risk Register</div><div class="deliverable-desc">Risks, mitigations, owners</div></div>
+                      <div class="deliverable-action"><button class="deliverable-generate">Generate</button></div>
+                    </div>
+                  </div>
+
+                  <!-- Meeting Artifacts -->
+                  <div class="deliverable-category">
+                    <div class="deliverable-category-header">
+                      <span class="deliverable-category-name">Meeting Artifacts</span>
+                      <span class="deliverable-category-meta">2 / 3</span>
+                    </div>
+
+                    <div class="deliverable-item clickable" onclick="openDocViewer('meeting')">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Meeting Prep: Auth Scope</div><div class="deliverable-desc">Auto-generated from Meeting 7</div></div>
+                      <span class="deliverable-badge new">New</span>
+                    </div>
+
+                    <div class="deliverable-item clickable">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Meeting Prep: NFR Review</div><div class="deliverable-desc">Auto-generated from Meeting 6</div></div>
+                    </div>
+
+                    <div class="deliverable-item">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#F59E0B20" stroke="var(--warning)" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="var(--warning)"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Meeting Summary: Sprint Planning</div><div class="deliverable-desc">Pending — Meeting 8 not held yet</div></div>
+                    </div>
+                  </div>
+
+                  <!-- Technical Discovery -->
+                  <div class="deliverable-category">
+                    <div class="deliverable-category-header">
+                      <span class="deliverable-category-name">Technical Discovery</span>
+                      <span class="deliverable-category-meta">1 / 4</span>
+                    </div>
+
+                    <div class="deliverable-item clickable">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">NFR Specification</div><div class="deliverable-desc">Performance, security, scalability targets</div></div>
+                    </div>
+
+                    <div class="deliverable-item">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--gray-300)" stroke-width="1.5"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Technical Feasibility Assessment</div><div class="deliverable-desc">Viability of proposed architecture</div></div>
+                      <div class="deliverable-action"><button class="deliverable-generate">Generate</button></div>
+                    </div>
+
+                    <div class="deliverable-item">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--gray-300)" stroke-width="1.5"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Integration Mapping</div><div class="deliverable-desc">Third-party systems, APIs, data flows</div></div>
+                      <div class="deliverable-action"><button class="deliverable-generate">Generate</button></div>
+                    </div>
+
+                    <div class="deliverable-item">
+                      <div class="deliverable-status"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--gray-300)" stroke-width="1.5"/></svg></div>
+                      <div class="deliverable-info"><div class="deliverable-name">Preliminary Data Model</div><div class="deliverable-desc">Core entities, relationships, constraints</div></div>
+                      <div class="deliverable-action"><button class="deliverable-generate">Generate</button></div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- STATUS (readiness + gaps) -->
+            <div class="lp-tab-content" data-lpcontent="status">
+              <!-- Phase Gate Banner -->
+              <div class="phase-gate">
+                <div class="phase-gate-header">
+                  <div class="pg-ring"><svg viewBox="0 0 56 56"><circle class="ring-bg" cx="28" cy="28" r="22"/><circle class="ring-fg" cx="28" cy="28" r="22"/></svg><div class="pg-value">89%</div></div>
+                  <div class="pg-info">
+                    <div class="pg-title">Discovery Readiness</div>
+                    <div class="pg-subtitle">Ready for Story & Tech?</div>
+                    <div class="pg-trend"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>+7% this week</div>
+                  </div>
+                </div>
+                <div class="phase-gate-bar"><div class="phase-gate-bar-fill"></div></div>
+                <div class="pg-next">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <span class="pg-next-label">Est. completion</span>
+                  <span class="pg-next-value">~3 days</span>
+                </div>
+              </div>
+
+              <!-- Control Points — collapsible -->
+              <div class="doc-section">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Control Points</span>
+                  <span class="doc-section-count">5</span>
+                </div>
+                <div class="doc-section-items">
+                  <div class="cp-card" onclick="openCpViewer('business')">
+                    <div class="cp-card-top"><div class="cp-status-dot good"></div><span class="cp-card-label">Business Context</span><span class="cp-card-value good">95%</span></div>
+                    <div class="cp-bar"><div class="cp-bar-fill good" style="width:95%"></div></div>
+                    <div class="cp-breakdown"><span><div class="cp-bk-dot confirmed"></div>18 confirmed</span><span><div class="cp-bk-dot assumed"></div>2 assumed</span></div>
+                  </div>
+                  <div class="cp-card" onclick="openCpViewer('technical')">
+                    <div class="cp-card-top"><div class="cp-status-dot good"></div><span class="cp-card-label">Technical Requirements</span><span class="cp-card-value good">88%</span></div>
+                    <div class="cp-bar"><div class="cp-bar-fill good" style="width:88%"></div></div>
+                    <div class="cp-breakdown"><span><div class="cp-bk-dot confirmed"></div>14 confirmed</span><span><div class="cp-bk-dot assumed"></div>3 assumed</span><span><div class="cp-bk-dot gap"></div>1 gap</span></div>
+                  </div>
+                  <div class="cp-card" onclick="openCpViewer('integration')">
+                    <div class="cp-card-top"><div class="cp-status-dot warn"></div><span class="cp-card-label">Integration Points</span><span class="cp-card-value warn">72%</span></div>
+                    <div class="cp-bar"><div class="cp-bar-fill warn" style="width:72%"></div></div>
+                    <div class="cp-breakdown"><span><div class="cp-bk-dot confirmed"></div>8 confirmed</span><span><div class="cp-bk-dot assumed"></div>4 assumed</span><span><div class="cp-bk-dot gap"></div>2 gaps</span></div>
+                  </div>
+                  <div class="cp-card" onclick="openCpViewer('userroles')">
+                    <div class="cp-card-top"><div class="cp-status-dot warn"></div><span class="cp-card-label">User Roles & Permissions</span><span class="cp-card-value warn">65%</span></div>
+                    <div class="cp-bar"><div class="cp-bar-fill warn" style="width:65%"></div></div>
+                    <div class="cp-breakdown"><span><div class="cp-bk-dot confirmed"></div>6 confirmed</span><span><div class="cp-bk-dot assumed"></div>5 assumed</span><span><div class="cp-bk-dot gap"></div>1 gap</span></div>
+                  </div>
+                  <div class="cp-card" onclick="openCpViewer('nfr')">
+                    <div class="cp-card-top"><div class="cp-status-dot bad"></div><span class="cp-card-label">Non-Functional Reqs</span><span class="cp-card-value bad">45%</span></div>
+                    <div class="cp-bar"><div class="cp-bar-fill bad" style="width:45%"></div></div>
+                    <div class="cp-breakdown"><span><div class="cp-bk-dot confirmed"></div>3 confirmed</span><span><div class="cp-bk-dot assumed"></div>2 assumed</span><span><div class="cp-bk-dot gap"></div>4 gaps</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Open Gaps — collapsible -->
+              <div class="doc-section">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Open Gaps</span>
+                  <span class="doc-section-count">4</span>
+                </div>
+                <div class="doc-section-items">
+                  <div class="lp-gap-item">
+                    <div class="lp-gap-top"><div class="lp-gap-icon">?</div><div class="lp-gap-q">Auth scope: Social login in MVP?</div></div>
+                    <div class="lp-gap-footer">
+                      <span class="lp-gap-tag high">High</span>
+                      <span class="lp-gap-tag blocks">Blocks: Integration</span>
+                      <span class="lp-gap-src">Meeting 7</span>
+                      <button class="lp-gap-ask" data-gap="Auth scope: Social login in MVP?"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Ask</button>
+                    </div>
+                  </div>
+                  <div class="lp-gap-item">
+                    <div class="lp-gap-top"><div class="lp-gap-icon">?</div><div class="lp-gap-q">Expected concurrent users at launch?</div></div>
+                    <div class="lp-gap-footer">
+                      <span class="lp-gap-tag high">High</span>
+                      <span class="lp-gap-tag blocks">Blocks: NFR</span>
+                      <span class="lp-gap-src">Gap Detection</span>
+                      <button class="lp-gap-ask" data-gap="Expected concurrent users at launch?"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Ask</button>
+                    </div>
+                  </div>
+                  <div class="lp-gap-item">
+                    <div class="lp-gap-top"><div class="lp-gap-icon">?</div><div class="lp-gap-q">Data residency requirements for EU users?</div></div>
+                    <div class="lp-gap-footer">
+                      <span class="lp-gap-tag medium">Medium</span>
+                      <span class="lp-gap-tag blocks">Blocks: NFR</span>
+                      <span class="lp-gap-src">Repo analysis</span>
+                      <button class="lp-gap-ask" data-gap="Data residency requirements for EU users?"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Ask</button>
+                    </div>
+                  </div>
+                  <div class="lp-gap-item">
+                    <div class="lp-gap-top"><div class="lp-gap-icon">?</div><div class="lp-gap-q">Offline mode for mobile learners?</div></div>
+                    <div class="lp-gap-footer">
+                      <span class="lp-gap-tag medium">Medium</span>
+                      <span class="lp-gap-tag blocks">Blocks: User Roles</span>
+                      <span class="lp-gap-src">Meeting 4</span>
+                      <button class="lp-gap-ask" data-gap="Offline mode for mobile learners?"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>Ask</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- REQUIREMENTS -->
+            <div class="lp-tab-content" data-lpcontent="reqs">
+              <div class="doc-group-label">Requirements (47)</div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-001</span><span class="lp-req-pri must">Must</span></div><div class="lp-req-text">Microsoft SSO for all users</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-002</span><span class="lp-req-pri must">Must</span></div><div class="lp-req-text">Real-time collaborative whiteboard</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-003</span><span class="lp-req-pri must">Must</span></div><div class="lp-req-text">REST API for integrations</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-004</span><span class="lp-req-pri should">Should</span></div><div class="lp-req-text">Video conferencing with screen share</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-005</span><span class="lp-req-pri could">Could</span></div><div class="lp-req-text">Gamification with badges</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-045</span><span class="lp-req-pri should">Should</span></div><div class="lp-req-text">Social login (Google, Apple)</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-046</span><span class="lp-req-pri must">Must</span></div><div class="lp-req-text">MFA for admin accounts</div></div>
+              <div class="lp-req-item"><div class="lp-req-top"><span class="lp-req-id">REQ-047</span><span class="lp-req-pri should">Should</span></div><div class="lp-req-text">Session timeout per role</div></div>
+            </div>
+
+            <!-- PEOPLE -->
+            <div class="lp-tab-content" data-lpcontent="people">
+              <div class="doc-section">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Team</span>
+                  <span class="doc-section-count">4</span>
+                </div>
+                <div class="doc-section-items">
+                  <div class="lp-person" onclick="openPersonViewer('bojan')">
+                    <div class="lp-person-avatar" style="background:var(--green);color:var(--dark);">BT</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Bojan Tesic</span><span class="lp-person-phase" style="background:var(--green-light);color:#059669;">Discovery</span></div>
+                      <div class="lp-person-role">Product Owner</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>7</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><strong>5</strong> docs</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>12</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lp-person" onclick="openPersonViewer('sarah')">
+                    <div class="lp-person-avatar" style="background:var(--info-light);color:var(--info);">SC</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Sarah Chen</span><span class="lp-person-phase" style="background:var(--info-light);color:var(--info);">Story&Tech</span></div>
+                      <div class="lp-person-role">Tech Lead</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>5</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><strong>3</strong> docs</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>8</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lp-person" onclick="openPersonViewer('alex')">
+                    <div class="lp-person-avatar" style="background:var(--purple-light);color:var(--purple);">AM</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Alex Markovic</span><span class="lp-person-phase" style="background:var(--purple-light);color:var(--purple);">Code</span></div>
+                      <div class="lp-person-role">Developer</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>3</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><strong>2</strong> docs</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>4</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lp-person" onclick="openPersonViewer('jana')">
+                    <div class="lp-person-avatar" style="background:var(--orange-light);color:var(--orange);">JK</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Jana Kovac</span><span class="lp-person-phase" style="background:var(--orange-light);color:var(--orange);">QA</span></div>
+                      <div class="lp-person-role">QA Engineer</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>2</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><strong>1</strong> doc</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>2</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="doc-section">
+                <div class="doc-section-header">
+                  <div class="doc-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                  <span class="doc-section-title">Client Contacts</span>
+                  <span class="doc-section-count">3</span>
+                </div>
+                <div class="doc-section-items">
+                  <div class="lp-person" onclick="openPersonViewer('david')">
+                    <div class="lp-person-avatar" style="background:var(--gray-200);color:var(--gray-600);">DM</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">David Miller</span></div>
+                      <div class="lp-person-role">CTO, NacXwan</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>6</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>9</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lp-person" onclick="openPersonViewer('lisa')">
+                    <div class="lp-person-avatar" style="background:var(--gray-200);color:var(--gray-600);">LW</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Lisa Wang</span></div>
+                      <div class="lp-person-role">Product Manager, NacXwan</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>7</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>6</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lp-person" onclick="openPersonViewer('raj')">
+                    <div class="lp-person-avatar" style="background:var(--gray-200);color:var(--gray-600);">RP</div>
+                    <div class="lp-person-info">
+                      <div class="lp-person-top"><span class="lp-person-name">Raj Patel</span></div>
+                      <div class="lp-person-role">Lead Developer, NacXwan</div>
+                      <div class="lp-person-stats">
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><strong>4</strong> meetings</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><strong>2</strong> docs</span>
+                        <span class="lp-person-stat"><svg viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><strong>3</strong> decisions</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- GRAPH + SYNC -->
+            <div class="lp-tab-content" data-lpcontent="graph">
+              <div class="graph-stat-row">
+                <div class="gs-pill"><strong>78</strong><span>Entities</span></div>
+                <div class="gs-pill"><strong>234</strong><span>Relations</span></div>
+                <div class="gs-pill"><strong>156</strong><span>Facts</span></div>
+              </div>
+              <div class="lp-graph-container">
+                <svg class="lp-graph-lines" viewBox="0 0 240 200"><line x1="120" y1="30" x2="55" y2="80"/><line x1="120" y1="30" x2="185" y2="70"/><line x1="120" y1="30" x2="120" y2="100"/><line x1="55" y1="80" x2="35" y2="150"/><line x1="55" y1="80" x2="100" y2="150"/><line x1="185" y1="70" x2="200" y2="140"/><line x1="185" y1="70" x2="150" y2="140"/><line x1="120" y1="100" x2="100" y2="150"/><line x1="120" y1="100" x2="150" y2="140"/></svg>
+                <div class="graph-node" style="left:108px;top:16px;"><div class="gn-c entity">NX</div><div class="gn-l">NacXwan</div></div>
+                <div class="graph-node" style="left:43px;top:66px;"><div class="gn-c fact">SS</div><div class="gn-l">SSO Auth</div></div>
+                <div class="graph-node" style="left:173px;top:56px;"><div class="gn-c fact">WB</div><div class="gn-l">Whiteboard</div></div>
+                <div class="graph-node" style="left:108px;top:86px;"><div class="gn-c doc">PR</div><div class="gn-l">PRD v2.1</div></div>
+                <div class="graph-node" style="left:23px;top:136px;"><div class="gn-c person">BT</div><div class="gn-l">Bojan</div></div>
+                <div class="graph-node" style="left:88px;top:136px;"><div class="gn-c fact">AP</div><div class="gn-l">REST API</div></div>
+                <div class="graph-node" style="left:188px;top:126px;"><div class="gn-c entity">MS</div><div class="gn-l">Microsoft</div></div>
+                <div class="graph-node" style="left:138px;top:126px;"><div class="gn-c doc">M7</div><div class="gn-l">Meeting 7</div></div>
+              </div>
+              <div class="graph-legend">
+                <div class="graph-legend-item"><span class="gl-dot entity"></span>Entities</div>
+                <div class="graph-legend-item"><span class="gl-dot fact"></span>Facts</div>
+                <div class="graph-legend-item"><span class="gl-dot doc"></span>Docs</div>
+                <div class="graph-legend-item"><span class="gl-dot person"></span>People</div>
+              </div>
+              <div class="doc-group-label">Connected Services</div>
+              <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--info-light);color:var(--info);">J</div><div class="lp-sync-info"><div class="lp-sync-name">Jira</div><div class="lp-sync-meta">Synced 5 min ago</div></div><span class="lp-sync-status ok"></span></div>
+              <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--info-light);color:var(--info);">C</div><div class="lp-sync-info"><div class="lp-sync-name">Confluence</div><div class="lp-sync-meta">Synced 12 min ago</div></div><span class="lp-sync-status ok"></span></div>
+              <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--dark);color:var(--white);">G</div><div class="lp-sync-info"><div class="lp-sync-name">GitHub</div><div class="lp-sync-meta">Synced 1 hour ago</div></div><span class="lp-sync-status ok"></span></div>
+              <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--green-light);color:#059669;">R</div><div class="lp-sync-info"><div class="lp-sync-name">RAGFlow</div><div class="lp-sync-meta">34 docs indexed</div></div><span class="lp-sync-status ok"></span></div>
+              <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--warning-light);color:var(--warning);">M</div><div class="lp-sync-info"><div class="lp-sync-name">Mem0</div><div class="lp-sync-meta">156 facts &middot; 78 entities</div></div><span class="lp-sync-status ok"></span></div>
+            </div>
+          </div>
+
+          <div class="left-panel-footer"><button class="new-session-btn"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Session</button></div>
+        </div>
+
+        <!-- CHAT AREA -->
+        <div class="chat-area">
+          <div class="chat-session-header">
+            <div class="chat-session-icon">AI</div>
+            <span class="chat-session-title">Auth & SSO Scope</span>
+            <span class="chat-session-badge">Active</span>
+            <div class="chat-session-actions">
+              <button class="chat-action-btn" title="Pin"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></button>
+              <button class="chat-action-btn" title="Export"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              <button class="chat-action-btn" title="More"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+            </div>
+          </div>
+
+          <div class="chat-messages">
+            <div class="chat-date-divider"><span>Today</span></div>
+            <div class="chat-msg ai"><div class="msg-avatar ai-avatar">AI</div><div class="msg-body"><div class="msg-sender">Discovery Assistant</div><div class="msg-bubble">I've finished analyzing <strong>Meeting 7 — SSO and Auth Discussion.docx</strong>.<br><br><strong>3 new requirements extracted:</strong><div class="msg-req-list">
+  <div class="msg-req-item" id="req045">
+    <div class="msg-req-top" onclick="openReqViewer('req045')"><span class="msg-req-id">REQ-045</span><span class="msg-req-text">Social login support (Google, Apple)</span><span class="msg-req-priority should">Should</span></div>
+    <div class="msg-req-actions"><button class="msg-req-btn approve" onclick="approveReq(event,'req045')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button><button class="msg-req-btn reject" onclick="rejectReq(event,'req045')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button><button class="msg-req-btn view" onclick="openReqViewer('req045')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Details</button></div>
+  </div>
+  <div class="msg-req-item" id="req046">
+    <div class="msg-req-top" onclick="openReqViewer('req046')"><span class="msg-req-id">REQ-046</span><span class="msg-req-text">MFA enforcement for admin accounts</span><span class="msg-req-priority must">Must</span></div>
+    <div class="msg-req-actions"><button class="msg-req-btn approve" onclick="approveReq(event,'req046')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button><button class="msg-req-btn reject" onclick="rejectReq(event,'req046')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button><button class="msg-req-btn view" onclick="openReqViewer('req046')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Details</button></div>
+  </div>
+  <div class="msg-req-item" id="req047">
+    <div class="msg-req-top" onclick="openReqViewer('req047')"><span class="msg-req-id">REQ-047</span><span class="msg-req-text">Session timeout configurable per role</span><span class="msg-req-priority should">Should</span></div>
+    <div class="msg-req-actions"><button class="msg-req-btn approve" onclick="approveReq(event,'req047')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button><button class="msg-req-btn reject" onclick="rejectReq(event,'req047')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button><button class="msg-req-btn view" onclick="openReqViewer('req047')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>Details</button></div>
+  </div>
+</div><br>I also found a <strong>potential contradiction</strong> with Meeting 3's auth approach.<div class="msg-context-refs"><span class="label">Context used:</span><a class="ctx-ref">[[Meeting 7]]</a><a class="ctx-ref">[[Meeting 3]]</a><a class="ctx-ref">[[REQ-001]]</a></div></div><div class="msg-time">10:32 AM</div><div class="msg-suggestions"><button class="msg-suggestion">Yes, add to gap analysis</button><button class="msg-suggestion">Show contradiction details</button><button class="msg-suggestion">What did Meeting 3 say?</button></div></div></div>
+            <div class="chat-msg user"><div class="msg-avatar user-avatar">BT</div><div class="msg-body"><div class="msg-sender">Bojan Tesic</div><div class="msg-bubble">Yes, add it to gap analysis. Also prepare talking points for the next client meeting about auth scope.</div><div class="msg-time">10:34 AM</div></div></div>
+            <div class="chat-msg ai"><div class="msg-avatar ai-avatar">AI</div><div class="msg-body"><div class="msg-sender">Discovery Assistant</div><div class="msg-bubble">Done! Gap added and meeting prep generated:<div class="msg-doc-card" onclick="openDocViewer('meeting')"><div class="msg-doc-icon meeting">MP</div><div class="msg-doc-info"><h5>Meeting Prep: Auth Scope Clarification</h5><p>4 talking points &middot; 2 decisions &middot; Just now</p></div><span class="msg-doc-action">Open &rarr;</span></div><strong>Key talking points:</strong><br>1. Current scope: Microsoft SSO only (Meeting 3)<br>2. Meeting 7 introduced social login — need decision<br>3. Impact: +2 sprints if social login in MVP<br>4. Recommendation: SSO for MVP, social login Phase 2<div class="msg-context-refs"><span class="label">Context used:</span><a class="ctx-ref">[[Meeting 3]]</a><a class="ctx-ref">[[Meeting 7]]</a><a class="ctx-ref">[[PRD v2.1]]</a></div></div><div class="msg-time">10:34 AM</div><div class="msg-suggestions"><button class="msg-suggestion">Edit talking points</button><button class="msg-suggestion">Create Discovery Brief</button><button class="msg-suggestion">Show all auth reqs</button></div></div></div>
+            <div class="chat-msg user"><div class="msg-avatar user-avatar">BT</div><div class="msg-body"><div class="msg-sender">Bojan Tesic</div><div class="msg-bubble">Good. What's the current state of non-functional requirements? Readiness is only at 45%.</div><div class="msg-time">10:38 AM</div></div></div>
+            <div class="chat-msg ai"><div class="msg-avatar ai-avatar">AI</div><div class="msg-body"><div class="msg-sender">Discovery Assistant</div><div class="msg-bubble">NFRs are our biggest gap:<br><br><strong>What we have (45%):</strong><br>&bull; Performance: &lt;200ms API response<br>&bull; Availability: 99.9% uptime<br>&bull; Security: SSO + RBAC<br><br><strong>Missing:</strong><br>&bull; Scalability targets<br>&bull; Data residency / compliance<br>&bull; DR and backup SLAs<br>&bull; Browser/device support matrix<br>&bull; Accessibility standards (WCAG)<br><br>I recommend a focused NFR extraction session.<div class="msg-context-refs"><span class="label">Context used:</span><a class="ctx-ref">[[PRD v2.1]]</a><a class="ctx-ref">[[Email thread]]</a><a class="ctx-ref">[[6 facts]]</a></div></div><div class="msg-time">10:39 AM</div><div class="msg-suggestions"><button class="msg-suggestion">Start NFR extraction</button><button class="msg-suggestion">Generate NFR questions</button><button class="msg-suggestion">Compare past projects</button><button class="msg-suggestion">Readiness breakdown</button></div></div></div>
+          </div>
+
+          <div class="chat-input-area">
+            <!-- Workflow popup -->
+            <div class="wf-popup" id="wfPopup">
+              <div class="wf-popup-header"><div class="wf-popup-title">Workflows</div></div>
+              <div class="wf-popup-items">
+                <div class="wf-popup-item" data-wf="prep-meeting-notes">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Prep Meeting Notes</div><div class="wfp-desc">Generate talking points from context</div></div>
+                </div>
+                <div class="wf-popup-item" data-wf="create-discovery-brief">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Create Discovery Brief</div><div class="wfp-desc">Comprehensive project overview document</div></div>
+                </div>
+                <div class="wf-popup-item" data-wf="extract-requirements">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Extract Requirements</div><div class="wfp-desc">Find requirements from documents</div></div>
+                </div>
+                <div class="wf-popup-item" data-wf="run-gap-analysis">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Run Gap Analysis</div><div class="wfp-desc">Identify missing information</div></div>
+                  <span class="wfp-badge">4 gaps</span>
+                </div>
+                <div class="wf-popup-item" data-wf="summarize-stakeholders">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Summarize for Stakeholders</div><div class="wfp-desc">Executive-friendly progress report</div></div>
+                </div>
+                <div class="wf-popup-divider"></div>
+                <div class="wf-popup-item" data-wf="upload-document">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Upload Document</div><div class="wfp-desc">Add files for analysis</div></div>
+                </div>
+                <div class="wf-popup-item" data-wf="deep-analysis">
+                  <div class="wfp-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+                  <div class="wfp-info"><div class="wfp-label">Deep Analysis</div><div class="wfp-desc">Thorough research across all sources</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="chat-input-box">
+              <button class="wf-plus-btn" id="wfPlusBtn" title="Workflows"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
+              <textarea rows="1" placeholder="Ask about the project, request a document, or start an analysis..."></textarea>
+              <div class="chat-input-actions">
+                <button class="input-action-btn" title="Attach"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+                <button class="input-action-btn" title="Voice"><svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+                <button class="send-btn" title="Send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+              </div>
+            </div>
+            <div class="chat-hint"><kbd>Enter</kbd> to send &middot; <kbd>Shift+Enter</kbd> new line &middot; <kbd>+</kbd> workflows &middot; <kbd>/</kbd> commands</div>
+          </div>
+
+          <!-- DOCUMENT VIEWER OVERLAY -->
+          <div class="doc-viewer-overlay" id="docOverlay">
+            <div class="doc-viewer" id="docViewer">
+              <div class="doc-viewer-header">
+                <div class="dv-icon meeting" id="dvIcon">MP</div>
+                <div class="dv-title-area">
+                  <div class="dv-title" id="dvTitle">Meeting Prep: Auth Scope Clarification</div>
+                  <div class="dv-meta" id="dvMeta">Generated today &middot; Discovery Phase &middot; 4 talking points</div>
+                </div>
+                <div class="dv-actions">
+                  <button class="dv-action-btn" title="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+                  <button class="dv-action-btn" title="Download"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                  <button class="dv-action-btn" title="Edit in chat"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>
+                </div>
+                <button class="dv-close" onclick="closeDocViewer()" title="Close"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div class="doc-viewer-body" id="dvBody">
+                <!-- Content injected by JS -->
+              </div>
+              <div class="doc-viewer-footer">
+                <div class="dv-footer-ref">Context used: <a>[[Meeting 3]]</a> <a>[[Meeting 7]]</a> <a>[[PRD v2.1]]</a></div>
+                <div class="dv-footer-actions">
+                  <button class="dv-btn secondary" onclick="closeDocViewer()">Close</button>
+                  <button class="dv-btn primary">Edit in Chat</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PERSON VIEWER OVERLAY -->
+          <div class="person-viewer-overlay" id="personOverlay" onclick="closePersonViewer()">
+            <div class="person-viewer" onclick="event.stopPropagation()">
+              <div class="pv-header">
+                <div class="pv-avatar" id="pvAvatar">BT</div>
+                <div class="pv-header-info">
+                  <div class="pv-name" id="pvName"></div>
+                  <div class="pv-role" id="pvRole"></div>
+                  <span class="pv-phase-badge" id="pvPhase"></span>
+                </div>
+                <button class="pv-close" onclick="closePersonViewer()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div class="pv-body">
+                <div class="pv-stats-grid" id="pvStats"></div>
+                <div id="pvSections"></div>
+              </div>
+              <div class="pv-footer">
+                <button class="pv-btn primary" id="pvMention">Mention in Chat</button>
+                <button class="pv-btn secondary" onclick="closePersonViewer()">Close</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CONTROL POINT VIEWER OVERLAY -->
+          <div class="cp-viewer-overlay" id="cpOverlay" onclick="closeCpViewer()">
+            <div class="cp-viewer" onclick="event.stopPropagation()">
+              <div class="cpv-header">
+                <div class="cpv-status-ring" id="cpvRing">
+                  <svg viewBox="0 0 48 48"><circle class="ring-bg" cx="24" cy="24" r="20"/><circle class="ring-fg good" cx="24" cy="24" r="20" id="cpvRingFg"/></svg>
+                  <div class="cpv-ring-value good" id="cpvValue">95%</div>
+                </div>
+                <div class="cpv-header-info">
+                  <div class="cpv-name" id="cpvName">Business Context</div>
+                  <div class="cpv-subtitle" id="cpvSubtitle">20 facts tracked across 6 sources</div>
+                </div>
+                <button class="cpv-close" onclick="closeCpViewer()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+              </div>
+              <div class="cpv-body">
+                <div id="cpvBreakdown"></div>
+                <div id="cpvSections"></div>
+              </div>
+              <div class="cpv-footer">
+                <button class="cpv-btn primary" id="cpvAskBtn">Ask about this area</button>
+                <button class="cpv-btn secondary" onclick="closeCpViewer()">Close</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const textarea = document.querySelector('.chat-input-box textarea');
+    textarea.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 120) + 'px'; });
+
+    // Left panel tab switching
+    function switchLeftTab(tabName) {
+      document.querySelectorAll('.tool-icon-btn').forEach(b => b.classList.toggle('active', b.dataset.lptab === tabName));
+      document.querySelectorAll('.collapse-strip-btn').forEach(b => b.classList.toggle('active', b.dataset.lptab === tabName));
+      document.querySelectorAll('.lp-tab-content').forEach(c => c.classList.toggle('active', c.dataset.lpcontent === tabName));
+    }
+    document.querySelectorAll('.tool-icon-btn[data-lptab]').forEach(btn => btn.addEventListener('click', () => switchLeftTab(btn.dataset.lptab)));
+    document.querySelectorAll('.collapse-strip-btn[data-lptab]').forEach(btn => btn.addEventListener('click', () => { document.getElementById('leftPanel').classList.remove('collapsed'); switchLeftTab(btn.dataset.lptab); }));
+
+    // Collapse
+    document.getElementById('leftToggle').addEventListener('click', () => document.getElementById('leftPanel').classList.toggle('collapsed'));
+
+    // Sections
+    document.querySelectorAll('.panel-section-header').forEach(h => h.addEventListener('click', () => h.closest('.panel-section').classList.toggle('collapsed')));
+
+    // Sessions
+    document.querySelectorAll('.session-item').forEach(item => item.addEventListener('click', function() { document.querySelectorAll('.session-item').forEach(s => s.classList.remove('active')); this.classList.add('active'); }));
+
+    // Workflow popup (ChatGPT-style + button)
+    const wfPlusBtn = document.getElementById('wfPlusBtn');
+    const wfPopup = document.getElementById('wfPopup');
+    wfPlusBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const isOpen = wfPopup.classList.toggle('open');
+      wfPlusBtn.classList.toggle('active', isOpen);
+    });
+    document.addEventListener('click', function(e) {
+      if (!wfPopup.contains(e.target) && e.target !== wfPlusBtn) {
+        wfPopup.classList.remove('open');
+        wfPlusBtn.classList.remove('active');
+      }
+    });
+    document.querySelectorAll('.wf-popup-item').forEach(item => item.addEventListener('click', function() {
+      const wfName = this.querySelector('.wfp-label').textContent.trim();
+      textarea.value = '/' + wfName.toLowerCase().replace(/\s+/g, '-');
+      textarea.focus();
+      wfPopup.classList.remove('open');
+      wfPlusBtn.classList.remove('active');
+    }));
+
+    // Sidebar workflows (left panel)
+    document.querySelectorAll('.wf-item').forEach(item => item.addEventListener('click', function() { textarea.value = '/' + this.querySelector('.wf-label').textContent.trim().toLowerCase().replace(/\s+/g, '-'); textarea.focus(); }));
+
+    // Doc sections collapse
+    document.querySelectorAll('.doc-section-header').forEach(h => h.addEventListener('click', () => h.closest('.doc-section').classList.toggle('collapsed')));
+
+    // Doc folder collapse
+    document.querySelectorAll('.doc-folder-header').forEach(h => h.addEventListener('click', () => h.closest('.doc-folder').classList.toggle('collapsed')));
+
+    // Suggestions
+    document.querySelectorAll('.msg-suggestion').forEach(btn => btn.addEventListener('click', function() { textarea.value = this.textContent.trim(); textarea.focus(); }));
+
+    // Gap "Ask" buttons -> chat
+    document.querySelectorAll('.lp-gap-ask').forEach(btn => btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      textarea.value = this.dataset.gap;
+      textarea.focus();
+      switchLeftTab('chat');
+    }));
+
+    // Scroll to bottom
+    document.querySelector('.chat-messages').scrollTop = 999999;
+
+    // ===== REQUIREMENT APPROVAL =====
+    const reqDetails = {
+      req045: {
+        id: 'REQ-045', title: 'Social login support (Google, Apple)', priority: 'Should',
+        icon: 'DB', iconClass: 'brief',
+        meta: 'Extracted from Meeting 7 &middot; Today &middot; Pending review',
+        footer: 'Context used: <a>[[Meeting 7]]</a> <a>[[PRD v2.1]]</a>',
+        body: `<div class="dv-section"><div class="dv-section-title">Description</div><div class="dv-text"><p>Users should be able to sign in using their Google or Apple accounts, in addition to the Microsoft SSO already confirmed. This was raised by David Miller (CTO) during Meeting 7 to support external learners who may not have Microsoft accounts.</p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Source</div><div class="dv-text"><p><strong>Meeting 7 — SSO and Auth Discussion</strong><br>David Miller mentioned: <em>"We need to think about external learners who don't have Microsoft accounts. Can we add Google and Apple login?"</em></p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Impact Analysis</div><ul class="dv-list"><li><span class="dv-bullet warn"></span><div><strong>Timeline:</strong> +2 sprints if included in MVP (OAuth integration, account linking, security testing)</div></li><li><span class="dv-bullet"></span><div><strong>Dependencies:</strong> Requires OAuth 2.0 integration with Google and Apple identity providers</div></li><li><span class="dv-bullet"></span><div><strong>Contradiction:</strong> Meeting 3 decided Microsoft SSO only for MVP. This new request conflicts with that decision.</div></li></ul></div>
+          <div class="dv-section"><div class="dv-section-title">AI Recommendation</div><div class="dv-text"><p>Defer to <strong>Phase 2</strong>. Microsoft SSO covers the primary enterprise use case. Social login can be added post-launch for external learners without impacting the Q3 2026 timeline.</p></div></div>`
+      },
+      req046: {
+        id: 'REQ-046', title: 'MFA enforcement for admin accounts', priority: 'Must',
+        icon: 'DB', iconClass: 'brief',
+        meta: 'Extracted from Meeting 7 &middot; Today &middot; Pending review',
+        footer: 'Context used: <a>[[Meeting 7]]</a> <a>[[System Architecture]]</a>',
+        body: `<div class="dv-section"><div class="dv-section-title">Description</div><div class="dv-text"><p>All administrator accounts must enforce Multi-Factor Authentication (MFA) for login. This applies to system admins, content managers, and any role with elevated privileges. Standard learner accounts do not require MFA.</p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Source</div><div class="dv-text"><p><strong>Meeting 7 — SSO and Auth Discussion</strong><br>Sarah Chen confirmed: <em>"MFA should be mandatory for admin roles. Microsoft Authenticator or TOTP-based codes."</em></p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Impact Analysis</div><ul class="dv-list"><li><span class="dv-bullet"></span><div><strong>Timeline:</strong> Minimal — MSAL.js supports MFA natively via Azure AD conditional access policies</div></li><li><span class="dv-bullet"></span><div><strong>Dependencies:</strong> Azure AD Conditional Access configuration, admin role definition in RBAC</div></li><li><span class="dv-bullet"></span><div><strong>Risk:</strong> Low. This is a configuration-level change, not a code-level one.</div></li></ul></div>
+          <div class="dv-section"><div class="dv-section-title">AI Recommendation</div><div class="dv-text"><p><strong>Approve for MVP</strong>. This is a security best practice with minimal implementation overhead. Can be enforced through Azure AD conditional access policies.</p></div></div>`
+      },
+      req047: {
+        id: 'REQ-047', title: 'Session timeout configurable per role', priority: 'Should',
+        icon: 'DB', iconClass: 'brief',
+        meta: 'Extracted from Meeting 7 &middot; Today &middot; Pending review',
+        footer: 'Context used: <a>[[Meeting 7]]</a> <a>[[Email — API Integration]]</a>',
+        body: `<div class="dv-section"><div class="dv-section-title">Description</div><div class="dv-text"><p>Session timeout durations should be configurable per user role. Admins may need longer sessions for management tasks, while learner sessions can have shorter timeouts for security. Suggested defaults: Admin = 8 hours, Instructor = 4 hours, Learner = 1 hour.</p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Source</div><div class="dv-text"><p><strong>Meeting 7 — SSO and Auth Discussion</strong><br>Raj Patel noted: <em>"Our current platform uses a flat 30-minute timeout for everyone. We need more flexibility."</em></p></div></div>
+          <div class="dv-section"><div class="dv-section-title">Impact Analysis</div><ul class="dv-list"><li><span class="dv-bullet"></span><div><strong>Timeline:</strong> ~1 sprint — requires session management middleware and admin UI for configuration</div></li><li><span class="dv-bullet"></span><div><strong>Dependencies:</strong> RBAC system must be in place first, token refresh logic</div></li><li><span class="dv-bullet warn"></span><div><strong>Open question:</strong> Should timeout be per-role or per-user? Per-role is simpler but less flexible.</div></li></ul></div>
+          <div class="dv-section"><div class="dv-section-title">AI Recommendation</div><div class="dv-text"><p><strong>Approve for MVP</strong> with per-role granularity. Per-user configuration can be added later. Implement as part of the RBAC module.</p></div></div>`
+      }
+    };
+
+    function approveReq(e, reqId) {
+      e.stopPropagation();
+      const item = document.getElementById(reqId);
+      item.classList.remove('rejected');
+      item.classList.add('approved');
+      const actions = item.querySelector('.msg-req-actions');
+      actions.innerHTML = '<span class="msg-req-status approved">&#10003; Approved</span>';
+    }
+
+    function rejectReq(e, reqId) {
+      e.stopPropagation();
+      const item = document.getElementById(reqId);
+      item.classList.remove('approved');
+      item.classList.add('rejected');
+      const actions = item.querySelector('.msg-req-actions');
+      actions.innerHTML = '<span class="msg-req-status rejected">&#10007; Rejected</span>';
+    }
+
+    function openReqViewer(reqId) {
+      const r = reqDetails[reqId];
+      if (!r) return;
+      document.getElementById('dvIcon').textContent = r.id.replace('REQ-','R');
+      document.getElementById('dvIcon').className = 'dv-icon brief';
+      document.getElementById('dvTitle').textContent = r.id + ' — ' + r.title;
+      document.getElementById('dvMeta').innerHTML = r.meta;
+      document.getElementById('dvBody').innerHTML = r.body;
+      document.querySelector('.doc-viewer-footer .dv-footer-ref').innerHTML = r.footer;
+      // Update footer buttons for requirement
+      document.querySelector('.doc-viewer-footer .dv-footer-actions').innerHTML =
+        '<button class="dv-btn secondary" onclick="closeDocViewer()">Close</button>' +
+        '<button class="dv-btn primary" style="background:var(--danger-light);color:var(--danger);" onclick="rejectReq(event,\'' + reqId + '\');closeDocViewer()">Reject</button>' +
+        '<button class="dv-btn primary" onclick="approveReq(event,\'' + reqId + '\');closeDocViewer()">Approve</button>';
+      document.getElementById('docOverlay').classList.add('open');
+    }
+
+    // ===== PERSON VIEWER =====
+    const personData = {
+      bojan: {
+        initials: 'BT', name: 'Bojan Tesic', role: 'Product Owner', avatarStyle: 'background:var(--green);color:var(--dark);',
+        phase: 'Discovery', phaseStyle: 'background:var(--green-light);color:#059669;',
+        stats: [
+          { num: '7', label: 'Meetings' },
+          { num: '5', label: 'Documents' },
+          { num: '12', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 1 — Kickoff', attended: true },
+          { name: 'Meeting 2 — Vision', attended: true },
+          { name: 'Meeting 3 — Auth', attended: true },
+          { name: 'Meeting 4 — Mobile', attended: true },
+          { name: 'Meeting 5 — UX', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'Microsoft SSO as primary auth for MVP', src: 'Meeting 3' },
+          { text: 'MVP scope freeze — 47 requirements confirmed', src: 'Meeting 5' },
+          { text: 'React + Node.js tech stack approved', src: 'Meeting 4' },
+          { text: 'Social login deferred to Phase 2', src: 'Meeting 7' }
+        ],
+        activity: [
+          { type: 'chat', text: 'Started chat: Auth & SSO Scope', time: 'Today, 10:30 AM' },
+          { type: 'doc', text: 'Uploaded Meeting 7 — SSO and Auth.docx', time: 'Today, 9:15 AM' },
+          { type: 'decision', text: 'Approved MVP Scope Freeze', time: 'Yesterday' },
+          { type: 'meeting', text: 'Attended Meeting 7 — SSO and Auth', time: 'Yesterday' },
+          { type: 'doc', text: 'Reviewed Discovery Brief v1.2', time: 'Feb 28' }
+        ]
+      },
+      sarah: {
+        initials: 'SC', name: 'Sarah Chen', role: 'Tech Lead', avatarStyle: 'background:var(--info-light);color:var(--info);',
+        phase: 'Story & Tech', phaseStyle: 'background:var(--info-light);color:var(--info);',
+        stats: [
+          { num: '5', label: 'Meetings' },
+          { num: '3', label: 'Documents' },
+          { num: '8', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 1 — Kickoff', attended: true },
+          { name: 'Meeting 3 — Auth', attended: true },
+          { name: 'Meeting 4 — Mobile', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'React + Node.js + PostgreSQL stack', src: 'Meeting 4' },
+          { text: 'WebSocket for real-time whiteboard', src: 'Meeting 3' },
+          { text: 'MSAL.js for SSO integration', src: 'Meeting 7' }
+        ],
+        activity: [
+          { type: 'decision', text: 'Confirmed MSAL.js for SSO integration', time: 'Today, 11:00 AM' },
+          { type: 'meeting', text: 'Attended Meeting 7 — SSO and Auth', time: 'Yesterday' },
+          { type: 'doc', text: 'Contributed to System Architecture.pdf', time: 'Feb 26' },
+          { type: 'chat', text: 'Started chat: API Integration Requirements', time: 'Feb 25' }
+        ]
+      },
+      alex: {
+        initials: 'AM', name: 'Alex Markovic', role: 'Developer', avatarStyle: 'background:var(--purple-light);color:var(--purple);',
+        phase: 'Code', phaseStyle: 'background:var(--purple-light);color:var(--purple);',
+        stats: [
+          { num: '3', label: 'Meetings' },
+          { num: '2', label: 'Documents' },
+          { num: '4', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 4 — Mobile', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'REST API versioning strategy (URL-based)', src: 'Meeting 6' },
+          { text: 'JWT token refresh approach', src: 'Meeting 7' }
+        ],
+        activity: [
+          { type: 'doc', text: 'Analyzed nacxwan/learning-platform repo', time: 'Feb 27' },
+          { type: 'meeting', text: 'Attended Meeting 6 — API Review', time: 'Feb 25' },
+          { type: 'decision', text: 'Proposed REST API versioning strategy', time: 'Feb 25' }
+        ]
+      },
+      jana: {
+        initials: 'JK', name: 'Jana Kovac', role: 'QA Engineer', avatarStyle: 'background:var(--orange-light);color:var(--orange);',
+        phase: 'QA', phaseStyle: 'background:var(--orange-light);color:var(--orange);',
+        stats: [
+          { num: '2', label: 'Meetings' },
+          { num: '1', label: 'Document' },
+          { num: '2', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 1 — Kickoff', attended: true },
+          { name: 'Meeting 5 — UX', attended: true }
+        ],
+        decisions: [
+          { text: 'WCAG 2.1 AA compliance target', src: 'Meeting 5' },
+          { text: 'Browser support matrix: Chrome, Firefox, Safari, Edge', src: 'Meeting 5' }
+        ],
+        activity: [
+          { type: 'doc', text: 'Reviewed NFR section of PRD v2.1', time: 'Feb 26' },
+          { type: 'meeting', text: 'Attended Meeting 5 — UX Review', time: 'Feb 22' }
+        ]
+      },
+      david: {
+        initials: 'DM', name: 'David Miller', role: 'CTO, NacXwan', avatarStyle: 'background:var(--gray-200);color:var(--gray-600);',
+        phase: null, phaseStyle: '',
+        stats: [
+          { num: '6', label: 'Meetings' },
+          { num: '0', label: 'Documents' },
+          { num: '9', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 1 — Kickoff', attended: true },
+          { name: 'Meeting 2 — Vision', attended: true },
+          { name: 'Meeting 3 — Auth', attended: true },
+          { name: 'Meeting 5 — UX', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'Microsoft SSO as primary auth method', src: 'Meeting 3' },
+          { text: 'Q3 2026 launch target confirmed', src: 'Meeting 2' },
+          { text: 'Social login request for external learners', src: 'Meeting 7' }
+        ],
+        activity: [
+          { type: 'decision', text: 'Raised social login requirement', time: 'Yesterday' },
+          { type: 'meeting', text: 'Attended Meeting 7 — SSO and Auth', time: 'Yesterday' },
+          { type: 'decision', text: 'Confirmed API versioning approach', time: 'Feb 25' }
+        ]
+      },
+      lisa: {
+        initials: 'LW', name: 'Lisa Wang', role: 'Product Manager, NacXwan', avatarStyle: 'background:var(--gray-200);color:var(--gray-600);',
+        phase: null, phaseStyle: '',
+        stats: [
+          { num: '7', label: 'Meetings' },
+          { num: '0', label: 'Documents' },
+          { num: '6', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 1 — Kickoff', attended: true },
+          { name: 'Meeting 2 — Vision', attended: true },
+          { name: 'Meeting 3 — Auth', attended: true },
+          { name: 'Meeting 4 — Mobile', attended: true },
+          { name: 'Meeting 5 — UX', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'MVP feature prioritization (MoSCoW)', src: 'Meeting 2' },
+          { text: 'Gamification as Phase 2 feature', src: 'Meeting 5' }
+        ],
+        activity: [
+          { type: 'meeting', text: 'Attended Meeting 7 — SSO and Auth', time: 'Yesterday' },
+          { type: 'decision', text: 'Prioritized learning paths over gamification', time: 'Feb 22' }
+        ]
+      },
+      raj: {
+        initials: 'RP', name: 'Raj Patel', role: 'Lead Developer, NacXwan', avatarStyle: 'background:var(--gray-200);color:var(--gray-600);',
+        phase: null, phaseStyle: '',
+        stats: [
+          { num: '4', label: 'Meetings' },
+          { num: '2', label: 'Documents' },
+          { num: '3', label: 'Decisions' }
+        ],
+        meetings: [
+          { name: 'Meeting 3 — Auth', attended: true },
+          { name: 'Meeting 4 — Mobile', attended: true },
+          { name: 'Meeting 6 — API', attended: true },
+          { name: 'Meeting 7 — SSO', attended: true }
+        ],
+        decisions: [
+          { text: 'Existing API gateway can be extended', src: 'Meeting 6' },
+          { text: 'Microsoft 365 infra supports MSAL.js', src: 'Meeting 3' }
+        ],
+        activity: [
+          { type: 'doc', text: 'Shared nacxwan/api-gateway repo access', time: 'Feb 24' },
+          { type: 'meeting', text: 'Attended Meeting 6 — API Review', time: 'Feb 25' },
+          { type: 'decision', text: 'Confirmed existing API gateway extensibility', time: 'Feb 25' }
+        ]
+      }
+    };
+
+    function openPersonViewer(key) {
+      const p = personData[key];
+      if (!p) return;
+      document.getElementById('pvAvatar').textContent = p.initials;
+      document.getElementById('pvAvatar').style.cssText = p.avatarStyle + 'width:48px;height:48px;';
+      document.getElementById('pvName').textContent = p.name;
+      document.getElementById('pvRole').textContent = p.role;
+      const phaseEl = document.getElementById('pvPhase');
+      if (p.phase) { phaseEl.textContent = p.phase; phaseEl.style.cssText = p.phaseStyle; phaseEl.style.display = 'inline-block'; }
+      else { phaseEl.style.display = 'none'; }
+
+      // Stats
+      document.getElementById('pvStats').innerHTML = p.stats.map(s =>
+        '<div class="pv-stat-card"><div class="pv-stat-num">' + s.num + '</div><div class="pv-stat-label">' + s.label + '</div></div>'
+      ).join('');
+
+      // Sections
+      let html = '';
+
+      // Meetings
+      html += '<div class="pv-section"><div class="pv-section-title">Meetings Attended</div><div class="pv-meeting-list">';
+      p.meetings.forEach(m => { html += '<span class="pv-meeting-chip attended">' + m.name + '</span>'; });
+      html += '</div></div>';
+
+      // Key Decisions
+      if (p.decisions.length) {
+        html += '<div class="pv-section"><div class="pv-section-title">Key Decisions</div>';
+        p.decisions.forEach(d => {
+          html += '<div class="pv-decision-item"><div class="pv-decision-icon">&#10003;</div><div><div class="pv-decision-text">' + d.text + '</div><div class="pv-decision-src">' + d.src + '</div></div></div>';
+        });
+        html += '</div>';
+      }
+
+      // Recent Activity
+      if (p.activity.length) {
+        html += '<div class="pv-section"><div class="pv-section-title">Recent Activity</div>';
+        p.activity.forEach(a => {
+          html += '<div class="pv-activity-item"><div class="pv-activity-dot ' + a.type + '"></div><div class="pv-activity-info"><div class="pv-activity-text">' + a.text + '</div><div class="pv-activity-meta">' + a.time + '</div></div></div>';
+        });
+        html += '</div>';
+      }
+
+      document.getElementById('pvSections').innerHTML = html;
+
+      // Mention button
+      document.getElementById('pvMention').onclick = function() {
+        textarea.value = '@' + p.name.split(' ')[0] + ' ';
+        textarea.focus();
+        closePersonViewer();
+        switchLeftTab('chat');
+      };
+
+      document.getElementById('personOverlay').classList.add('open');
+    }
+
+    function closePersonViewer() {
+      document.getElementById('personOverlay').classList.remove('open');
+    }
+
+    // ===== DOCUMENT VIEWER =====
+    const docContents = {
+      meeting: {
+        icon: 'MP', iconClass: 'meeting',
+        title: 'Meeting Prep: Auth Scope Clarification',
+        meta: 'Generated today &middot; Discovery Phase &middot; 4 talking points',
+        footer: 'Context used: <a>[[Meeting 3]]</a> <a>[[Meeting 7]]</a> <a>[[PRD v2.1]]</a>',
+        body: `
+          <div class="dv-section">
+            <div class="dv-section-title">Objective</div>
+            <div class="dv-text"><p>Clarify the authentication scope for NacXwan MVP. Meeting 7 introduced social login (Google, Apple) which contradicts the Meeting 3 decision of Microsoft SSO only. We need a clear decision before Story & Tech phase.</p></div>
+          </div>
+          <div class="dv-section">
+            <div class="dv-section-title">Talking Points</div>
+            <ul class="dv-list">
+              <li><span class="dv-bullet"></span><div><strong>Current confirmed scope:</strong> Microsoft SSO authentication for all users (REQ-001, confirmed in Meeting 3). This covers the primary enterprise use case and aligns with the client's existing Microsoft 365 infrastructure.</div></li>
+              <li><span class="dv-bullet warn"></span><div><strong>New request from Meeting 7:</strong> Social login via Google and Apple accounts was mentioned. This would serve external learners who may not have Microsoft accounts. Currently tagged as REQ-045 (Should have, Assumed).</div></li>
+              <li><span class="dv-bullet"></span><div><strong>Timeline impact:</strong> Adding social login to MVP would add approximately 2 sprints of work including OAuth integration, account linking logic, and additional security testing.</div></li>
+              <li><span class="dv-bullet"></span><div><strong>Recommendation:</strong> Ship MVP with Microsoft SSO only. Add social login in Phase 2 post-launch. This keeps the launch timeline intact while leaving room for expansion.</div></li>
+            </ul>
+          </div>
+          <div class="dv-section">
+            <div class="dv-section-title">Decisions Needed</div>
+            <div class="dv-decision-box">
+              <div class="dv-decision-title">Decision 1: Social Login Scope</div>
+              <div class="dv-decision-text">Is social login (Google/Apple) required for MVP, or can it be deferred to Phase 2?<br><span class="dv-tag source">Source: Meeting 7</span> <span class="dv-tag priority">High Priority</span></div>
+            </div>
+            <div class="dv-decision-box" style="margin-top:10px;">
+              <div class="dv-decision-title">Decision 2: MFA Policy</div>
+              <div class="dv-decision-text">Confirm MFA enforcement scope — admin accounts only, or all users?<br><span class="dv-tag source">Source: REQ-046</span> <span class="dv-tag status">Needs Confirmation</span></div>
+            </div>
+          </div>
+          <div class="dv-section">
+            <div class="dv-section-title">Related Requirements</div>
+            <ul class="dv-list">
+              <li><span class="dv-bullet"></span><div><strong>REQ-001:</strong> Microsoft SSO authentication for all users <span class="dv-tag source">Confirmed</span></div></li>
+              <li><span class="dv-bullet warn"></span><div><strong>REQ-045:</strong> Social login support (Google, Apple) <span class="dv-tag status">Assumed</span></div></li>
+              <li><span class="dv-bullet"></span><div><strong>REQ-046:</strong> MFA enforcement for admin accounts <span class="dv-tag source">Confirmed</span></div></li>
+              <li><span class="dv-bullet warn"></span><div><strong>REQ-047:</strong> Session timeout configurable per role <span class="dv-tag status">Assumed</span></div></li>
+            </ul>
+          </div>`
+      },
+      brief: {
+        icon: 'DB', iconClass: 'brief',
+        title: 'Discovery Brief v1.2',
+        meta: 'Generated Feb 28 &middot; Discovery Phase &middot; Comprehensive overview',
+        footer: 'Context used: <a>[[14 documents]]</a> <a>[[156 facts]]</a> <a>[[47 requirements]]</a>',
+        body: `
+          <div class="dv-section">
+            <div class="dv-section-title">Project Summary</div>
+            <div class="dv-text"><p><strong>NacXwan Learning Platform</strong> is a real-time collaborative learning environment for enterprise teams. The platform combines video conferencing, interactive whiteboards, and structured learning paths with gamification elements.</p><p>The client (NacXwan Inc.) has an existing Microsoft 365 infrastructure and requires deep integration with their current toolset. Target launch: Q3 2026.</p></div>
+          </div>
+          <div class="dv-section">
+            <div class="dv-section-title">Key Findings</div>
+            <ul class="dv-list">
+              <li><span class="dv-bullet"></span><div><strong>47 requirements</strong> extracted from 14 documents across 8 client meetings, email threads, and repository analysis.</div></li>
+              <li><span class="dv-bullet"></span><div><strong>Core MVP features:</strong> SSO authentication, real-time whiteboard, REST API, role-based access control, basic learning paths.</div></li>
+              <li><span class="dv-bullet warn"></span><div><strong>4 open gaps</strong> remain: auth scope, concurrent user targets, data residency, offline mode requirements.</div></li>
+              <li><span class="dv-bullet"></span><div><strong>Technology stack:</strong> React frontend, Node.js backend, PostgreSQL database, WebSocket for real-time features, Microsoft MSAL.js for SSO.</div></li>
+            </ul>
+          </div>
+          <div class="dv-section">
+            <div class="dv-section-title">Readiness Assessment</div>
+            <div class="dv-text"><p>Overall discovery readiness: <strong>89%</strong>. Business context (95%) and technical requirements (88%) are well-defined. Integration points (72%), user roles (65%), and non-functional requirements (45%) need further clarification before entering Story & Tech phase.</p></div>
+          </div>`
+      }
+    };
+
+    function openDocViewer(docType) {
+      const doc = docContents[docType];
+      if (!doc) return;
+      document.getElementById('dvIcon').className = 'dv-icon ' + doc.iconClass;
+      document.getElementById('dvIcon').textContent = doc.icon;
+      document.getElementById('dvTitle').textContent = doc.title;
+      document.getElementById('dvMeta').innerHTML = doc.meta;
+      document.getElementById('dvBody').innerHTML = doc.body;
+      document.querySelector('.dv-footer-ref').innerHTML = doc.footer;
+      document.getElementById('docOverlay').classList.add('open');
+    }
+
+    function closeDocViewer() {
+      document.getElementById('docOverlay').classList.remove('open');
+    }
+
+    // Close overlay on backdrop click
+    document.getElementById('docOverlay').addEventListener('click', function(e) {
+      if (e.target === this) closeDocViewer();
+    });
+
+    // ===== CONTROL POINT VIEWER =====
+    const cpData = {
+      business: {
+        name: 'Business Context',
+        subtitle: '20 facts tracked across 6 sources',
+        pct: 95, level: 'good',
+        confirmed: 18, assumed: 2, gaps: 0,
+        facts: [
+          { text: 'Target launch: Q3 2026', status: 'confirmed', source: 'Discovery Brief' },
+          { text: 'Client: NacXwan Inc.', status: 'confirmed', source: 'Discovery Brief' },
+          { text: 'Microsoft 365 infrastructure', status: 'confirmed', source: 'Stakeholder Summary' },
+          { text: 'Budget approved for MVP', status: 'confirmed', source: 'Discovery Brief' },
+          { text: '3 user roles: Admin, Instructor, Learner', status: 'confirmed', source: 'Stakeholder Summary' },
+          { text: 'Budget range: $500K–$800K', status: 'assumed', source: 'Discovery Brief' },
+          { text: 'Mobile usage ~30% of traffic', status: 'assumed', source: 'Analytics Estimate' }
+        ],
+        docs: [
+          { name: 'Discovery Brief v1.2', desc: 'Project summary, goals, constraints', done: true, viewer: 'brief' },
+          { name: 'Stakeholder Summary', desc: 'Roles, responsibilities, RACI', done: true }
+        ],
+        openGaps: []
+      },
+      technical: {
+        name: 'Technical Requirements',
+        subtitle: '18 facts tracked across 8 sources',
+        pct: 88, level: 'good',
+        confirmed: 14, assumed: 3, gaps: 1,
+        facts: [
+          { text: 'React frontend', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'Node.js backend', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'PostgreSQL database', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'REST API required', status: 'confirmed', source: 'Technical Assessment' },
+          { text: 'WebSocket for real-time', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'Redis for caching', status: 'assumed', source: 'Technical Assessment' },
+          { text: 'Docker deployment', status: 'assumed', source: 'DevOps Review' },
+          { text: 'CI/CD via GitHub Actions', status: 'assumed', source: 'DevOps Review' }
+        ],
+        docs: [
+          { name: 'Requirements Matrix', desc: 'All 47 requirements, MoSCoW priority', done: true, viewer: 'requirements' },
+          { name: 'Technical Feasibility Assessment', desc: 'Viability of proposed architecture', done: false }
+        ],
+        openGaps: [
+          { text: 'Auth scope: Social login in MVP?', severity: 'high' }
+        ]
+      },
+      integration: {
+        name: 'Integration Points',
+        subtitle: '14 facts tracked across 5 sources',
+        pct: 72, level: 'warn',
+        confirmed: 8, assumed: 4, gaps: 2,
+        facts: [
+          { text: 'Microsoft SSO via MSAL.js', status: 'confirmed', source: 'Integration Mapping' },
+          { text: 'REST API gateway', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'PostgreSQL primary store', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'S3 for file storage', status: 'assumed', source: 'Technical Assessment' },
+          { text: 'SendGrid for emails', status: 'assumed', source: 'Integration Mapping' },
+          { text: 'Webhook support for LMS events', status: 'confirmed', source: 'Gap Analysis' }
+        ],
+        docs: [
+          { name: 'Gap Analysis Report', desc: 'Known unknowns, blocking items', done: true },
+          { name: 'Integration Mapping', desc: 'Third-party systems, APIs, data flows', done: false }
+        ],
+        openGaps: [
+          { text: 'Auth scope: Social login in MVP?', severity: 'high' },
+          { text: 'Data residency requirements for EU users?', severity: 'medium' }
+        ]
+      },
+      userroles: {
+        name: 'User Roles & Permissions',
+        subtitle: '12 facts tracked across 4 sources',
+        pct: 65, level: 'warn',
+        confirmed: 6, assumed: 5, gaps: 1,
+        facts: [
+          { text: '3 roles: Admin, Instructor, Learner', status: 'confirmed', source: 'Stakeholder Summary' },
+          { text: 'Admin has full CRUD', status: 'confirmed', source: 'Stakeholder Summary' },
+          { text: 'RBAC model', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'Learners can self-register', status: 'assumed', source: 'Discovery Brief' },
+          { text: 'Instructors manage own courses', status: 'assumed', source: 'Stakeholder Summary' },
+          { text: 'Role-based dashboard views', status: 'assumed', source: 'Discovery Brief' }
+        ],
+        docs: [
+          { name: 'Stakeholder Summary', desc: 'Roles, responsibilities, RACI', done: true },
+          { name: 'Risk Register', desc: 'Risks, mitigations, owners', done: false }
+        ],
+        openGaps: [
+          { text: 'Offline mode for mobile learners?', severity: 'medium' }
+        ]
+      },
+      nfr: {
+        name: 'Non-Functional Reqs',
+        subtitle: '9 facts tracked across 3 sources',
+        pct: 45, level: 'bad',
+        confirmed: 3, assumed: 2, gaps: 4,
+        facts: [
+          { text: 'API response <200ms', status: 'confirmed', source: 'NFR Specification' },
+          { text: '99.9% uptime SLA', status: 'confirmed', source: 'NFR Specification' },
+          { text: 'SSO + RBAC security', status: 'confirmed', source: 'Requirements Matrix' },
+          { text: 'Horizontal scaling', status: 'assumed', source: 'Technical Assessment' },
+          { text: 'CDN for static assets', status: 'assumed', source: 'Technical Assessment' }
+        ],
+        docs: [
+          { name: 'NFR Specification', desc: 'Performance, security, scalability targets', done: true },
+          { name: 'Preliminary Data Model', desc: 'Core entities, relationships, constraints', done: false }
+        ],
+        openGaps: [
+          { text: 'Expected concurrent users at launch?', severity: 'high' },
+          { text: 'Data residency requirements for EU users?', severity: 'medium' },
+          { text: 'Browser/device support matrix?', severity: 'medium' },
+          { text: 'DR and backup SLA targets?', severity: 'medium' }
+        ]
+      }
+    };
+
+    function openCpViewer(cpKey) {
+      const cp = cpData[cpKey];
+      if (!cp) return;
+      var total = cp.confirmed + cp.assumed + cp.gaps;
+      var circ = 2 * Math.PI * 20;
+
+      // Header ring
+      var ringFg = document.getElementById('cpvRingFg');
+      ringFg.className.baseVal = 'ring-fg ' + cp.level;
+      ringFg.style.strokeDasharray = circ;
+      ringFg.style.strokeDashoffset = circ * (1 - cp.pct / 100);
+      var valEl = document.getElementById('cpvValue');
+      valEl.className = 'cpv-ring-value ' + cp.level;
+      valEl.textContent = cp.pct + '%';
+      document.getElementById('cpvName').textContent = cp.name;
+      document.getElementById('cpvSubtitle').textContent = cp.subtitle;
+
+      // Breakdown bar + legend
+      var brkHtml = '<div class="cpv-breakdown-bar">';
+      if (cp.confirmed) brkHtml += '<div class="seg confirmed" style="width:' + (cp.confirmed/total*100) + '%"></div>';
+      if (cp.assumed) brkHtml += '<div class="seg assumed" style="width:' + (cp.assumed/total*100) + '%"></div>';
+      if (cp.gaps) brkHtml += '<div class="seg gap" style="width:' + (cp.gaps/total*100) + '%"></div>';
+      brkHtml += '</div><div class="cpv-breakdown-legend">';
+      brkHtml += '<span class="cpv-legend-item"><span class="cpv-legend-dot confirmed"></span><strong>' + cp.confirmed + '</strong> confirmed</span>';
+      brkHtml += '<span class="cpv-legend-item"><span class="cpv-legend-dot assumed"></span><strong>' + cp.assumed + '</strong> assumed</span>';
+      if (cp.gaps) brkHtml += '<span class="cpv-legend-item"><span class="cpv-legend-dot gap"></span><strong>' + cp.gaps + '</strong> gap' + (cp.gaps > 1 ? 's' : '') + '</span>';
+      brkHtml += '</div>';
+      document.getElementById('cpvBreakdown').innerHTML = brkHtml;
+
+      // Sections
+      var secHtml = '';
+
+      // Key Facts
+      if (cp.facts && cp.facts.length > 0) {
+        cp.facts.forEach(function(f, i) { f._origIdx = i; });
+        var sorted = cp.facts.slice().sort(function(a, b) {
+          if (a.status === b.status) return 0;
+          return a.status === 'confirmed' ? -1 : 1;
+        });
+        var visibleCount = 5;
+        var cpId = cpKey + '_facts';
+        secHtml += '<div class="cpv-section"><div class="cpv-section-title">Key Facts (' + sorted.length + ')</div>';
+        sorted.forEach(function(f, i) {
+          var hidden = i >= visibleCount ? ' style="display:none" data-facts-extra="' + cpId + '"' : '';
+          secHtml += '<div class="cpv-fact-item"' + hidden + '>';
+          secHtml += '<div class="cpv-fact-dot ' + f.status + '" onclick="toggleFactStatus(\'' + cpKey + '\',' + f._origIdx + ',this)"></div>';
+          secHtml += '<div class="cpv-fact-text">' + f.text + '</div>';
+          secHtml += '<div class="cpv-fact-source">' + f.source + '</div>';
+          secHtml += '</div>';
+        });
+        if (sorted.length > visibleCount) {
+          secHtml += '<button class="cpv-facts-toggle" onclick="toggleFacts(\'' + cpId + '\', this)">Show all ' + sorted.length + ' facts</button>';
+        }
+        secHtml += '</div>';
+      }
+
+      // Related documents
+      secHtml += '<div class="cpv-section"><div class="cpv-section-title">Related Documents</div>';
+      cp.docs.forEach(function(d) {
+        var checkSvg = d.done
+          ? '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#00E5A020" stroke="#00E5A0" stroke-width="1.5"/><path d="M8 12.5l2.5 2.5 5-5" stroke="#00E5A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          : '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#D1D5DB" stroke-width="1.5"/></svg>';
+        secHtml += '<div class="cpv-doc-row' + (d.done ? ' clickable' : '') + '"' + (d.viewer ? ' onclick="closeCpViewer();openDocViewer(\'' + d.viewer + '\')"' : '') + '>';
+        secHtml += '<div class="cpv-doc-status">' + checkSvg + '</div>';
+        secHtml += '<div class="cpv-doc-info"><div class="cpv-doc-name">' + d.name + '</div><div class="cpv-doc-desc">' + d.desc + '</div></div>';
+        if (!d.done) secHtml += '<button class="cpv-generate-btn">Generate</button>';
+        secHtml += '</div>';
+      });
+      secHtml += '</div>';
+
+      // Open gaps
+      if (cp.openGaps.length > 0) {
+        secHtml += '<div class="cpv-section"><div class="cpv-section-title">Open Gaps (' + cp.openGaps.length + ')</div>';
+        cp.openGaps.forEach(function(g) {
+          secHtml += '<div class="cpv-gap-item"><div class="cpv-gap-icon">?</div><div class="cpv-gap-text">' + g.text + '</div><span class="cpv-gap-severity ' + g.severity + '">' + g.severity.charAt(0).toUpperCase() + g.severity.slice(1) + '</span></div>';
+        });
+        secHtml += '</div>';
+      }
+
+      document.getElementById('cpvSections').innerHTML = secHtml;
+
+      // Footer button
+      document.getElementById('cpvAskBtn').onclick = function() {
+        closeCpViewer();
+        textarea.value = 'Tell me more about the ' + cp.name + ' control point — what\'s missing and how can we improve it?';
+        textarea.focus();
+        textarea.dispatchEvent(new Event('input'));
+      };
+
+      document.getElementById('cpOverlay').classList.add('open');
+    }
+
+    function toggleFactStatus(cpKey, factIdx, dotEl) {
+      var fact = cpData[cpKey].facts[factIdx];
+      var newStatus = fact.status === 'confirmed' ? 'assumed' : 'confirmed';
+      fact.status = newStatus;
+      dotEl.className = 'cpv-fact-dot ' + newStatus;
+    }
+
+    function toggleFacts(id, btn) {
+      var extras = document.querySelectorAll('[data-facts-extra="' + id + '"]');
+      var showing = extras[0] && extras[0].style.display !== 'none';
+      extras.forEach(function(el) { el.style.display = showing ? 'none' : 'flex'; });
+      btn.textContent = showing ? 'Show all ' + (extras.length + 5) + ' facts' : 'Show fewer';
+    }
+
+    function closeCpViewer() {
+      document.getElementById('cpOverlay').classList.remove('open');
+    }
+
+    // ESC key closes viewers and popup
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeDocViewer();
+        closePersonViewer();
+        closeCpViewer();
+        wfPopup.classList.remove('open');
+        wfPlusBtn.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+</html>

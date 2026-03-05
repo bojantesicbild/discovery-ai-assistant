@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crnogorchi — Code</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #00E5A0; --green-light: #00E5A020; --green-hover: #00CCA0;
+      --dark: #1A1A1A; --dark-border: #2A2A2A; --dark-hover: #2D2D2D;
+      --white: #FFFFFF; --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB; --gray-300: #D1D5DB;
+      --gray-400: #9CA3AF; --gray-500: #6B7280; --gray-600: #4B5563;
+      --warning: #F59E0B; --warning-light: #F59E0B20; --danger: #EF4444; --danger-light: #EF444420;
+      --info: #3B82F6; --info-light: #3B82F620; --purple: #8B5CF6; --purple-light: #8B5CF620;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --sidebar-width: 260px; --topbar-height: 64px; --radius: 12px; --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04); --shadow-md: 0 2px 8px rgba(0,0,0,0.06); --shadow-hover: 0 8px 24px rgba(0,0,0,0.10);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font); background: var(--gray-50); color: var(--dark); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: var(--sidebar-width); background: var(--dark); position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
+    .sidebar-logo { padding: 24px 24px 32px; border-bottom: 1px solid var(--dark-border); }
+    .sidebar-logo h1 { font-size: 20px; font-weight: 800; color: var(--white); letter-spacing: -0.3px; }
+    .sidebar-logo h1 span { display: inline-block; width: 7px; height: 7px; background: var(--green); border-radius: 1.5px; margin-left: 1px; }
+    .sidebar-nav { flex: 1; padding: 16px 12px; }
+    .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--gray-500); padding: 16px 12px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--gray-400); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-decoration: none; position: relative; }
+    .nav-item:hover { background: var(--dark-hover); color: var(--gray-200); }
+    .nav-item.active { background: var(--green-light); color: var(--green); }
+    .nav-item.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 20px; background: var(--green); border-radius: 0 3px 3px 0; }
+    .nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .nav-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .sidebar-user { padding: 16px 16px 20px; border-top: 1px solid var(--dark-border); display: flex; align-items: center; gap: 12px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--purple); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--white); flex-shrink: 0; }
+    .user-info { flex: 1; }
+    .user-name { font-size: 13px; font-weight: 600; color: var(--white); }
+    .user-role { font-size: 11px; color: var(--gray-500); }
+    .main { flex: 1; margin-left: var(--sidebar-width); min-height: 100vh; }
+    .topbar { height: var(--topbar-height); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; padding: 0 32px; gap: 16px; position: sticky; top: 0; z-index: 50; }
+    .project-selector { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); cursor: pointer; background: var(--white); }
+    .project-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; }
+    .project-name { font-size: 14px; font-weight: 600; }
+    .search-bar { flex: 1; max-width: 400px; position: relative; }
+    .search-bar input { width: 100%; padding: 8px 12px 8px 36px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font); background: var(--gray-50); outline: none; }
+    .search-bar input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light); }
+    .search-bar svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--gray-400); stroke: currentColor; fill: none; stroke-width: 2; }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+    .icon-btn svg { width: 18px; height: 18px; color: var(--gray-600); stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .icon-btn .notif-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; background: var(--green); border-radius: 50%; border: 2px solid var(--white); }
+    .content { padding: 28px 32px 48px; }
+
+    .phase-banner { background: linear-gradient(135deg, var(--dark) 0%, #1a0a2e 100%); border-radius: var(--radius); padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; color: var(--white); animation: fadeInUp 0.4s ease both; }
+    .phase-banner-left { display: flex; align-items: center; gap: 16px; }
+    .phase-number { width: 48px; height: 48px; border-radius: 50%; background: var(--purple); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+    .phase-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    .phase-desc { font-size: 13px; color: var(--gray-400); }
+    .phase-banner-right { display: flex; align-items: center; gap: 24px; }
+    .phase-stat { text-align: center; }
+    .phase-stat-value { font-size: 24px; font-weight: 800; color: var(--purple); }
+    .phase-stat-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--gray-200); margin-bottom: 24px; }
+    .tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+    .tab .tab-count { margin-left: 6px; background: var(--gray-100); color: var(--gray-500); padding: 1px 7px; border-radius: 10px; font-size: 11px; }
+    .tab.active .tab-count { background: var(--purple-light); color: var(--purple); }
+
+    .card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: 24px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--gray-100); }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-action { font-size: 12px; color: var(--purple); font-weight: 600; cursor: pointer; text-decoration: none; }
+    .card-body { padding: 16px 24px 20px; }
+
+    /* PR LIST */
+    .pr-item { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--gray-100); }
+    .pr-item:last-child { border-bottom: none; }
+    .pr-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .pr-icon.open { background: var(--green-light); color: #059669; }
+    .pr-icon.merged { background: var(--purple-light); color: var(--purple); }
+    .pr-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .pr-info { flex: 1; }
+    .pr-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .pr-title a { color: var(--dark); text-decoration: none; }
+    .pr-title a:hover { color: var(--purple); }
+    .pr-meta { font-size: 12px; color: var(--gray-400); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pr-story { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--info-light); color: var(--info); }
+    .pr-stats { display: flex; gap: 12px; flex-shrink: 0; }
+    .pr-stat { font-size: 12px; font-weight: 600; }
+    .pr-stat.add { color: #059669; }
+    .pr-stat.del { color: var(--danger); }
+    .pr-stat.files { color: var(--gray-400); }
+    .pr-review { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+    .pr-review-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .pr-review-dot.approved { background: var(--green); }
+    .pr-review-dot.pending { background: var(--warning); }
+    .pr-review-text { font-size: 11px; color: var(--gray-400); }
+
+    /* STORY PROGRESS */
+    .story-progress { list-style: none; }
+    .sp-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+    .sp-item:last-child { border-bottom: none; }
+    .sp-key { font-size: 12px; font-weight: 700; color: var(--purple); width: 80px; flex-shrink: 0; }
+    .sp-title { flex: 1; font-size: 13px; font-weight: 500; }
+    .sp-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .sp-status.done { background: var(--green-light); color: #059669; }
+    .sp-status.review { background: var(--purple-light); color: var(--purple); }
+    .sp-status.coding { background: var(--info-light); color: var(--info); }
+    .sp-status.todo { background: var(--gray-100); color: var(--gray-500); }
+
+    /* LEARNING + DECISION */
+    .doc-item { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--gray-100); }
+    .doc-item:last-child { border-bottom: none; }
+    .doc-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .doc-icon.decision { background: var(--green-light); color: #059669; }
+    .doc-icon.learning { background: var(--purple-light); color: var(--purple); }
+    .doc-info { flex: 1; }
+    .doc-name { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .doc-meta { font-size: 12px; color: var(--gray-400); }
+    .doc-synced { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--green-light); color: #059669; }
+
+    /* TAB CONTENT */
+    .tab-content { display: none; animation: fadeInUp 0.3s ease both; }
+    .tab-content.active { display: block; }
+
+    /* EXPANDED STORY PROGRESS */
+    .sp-progress-bar { width: 80px; height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
+    .sp-progress-fill { height: 100%; border-radius: 3px; }
+    .sp-branch { font-size: 11px; font-family: 'SF Mono', 'Fira Code', monospace; color: var(--gray-400); background: var(--gray-50); padding: 1px 6px; border-radius: 3px; border: 1px solid var(--gray-200); }
+    .sprint-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--gray-50); border-bottom: 1px solid var(--gray-100); }
+    .sprint-title { font-size: 13px; font-weight: 700; color: var(--purple); }
+    .sprint-meta { font-size: 12px; color: var(--gray-400); }
+    .sp-item-expanded { display: grid; grid-template-columns: 80px 1fr 100px 90px 80px; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--gray-100); font-size: 13px; }
+    .sp-item-expanded:last-child { border-bottom: none; }
+    .sp-item-expanded:hover { background: var(--gray-50); }
+    .sp-assignee { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--gray-500); }
+    .sp-avatar { width: 20px; height: 20px; border-radius: 50%; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; color: var(--white); }
+
+    /* EXPANDED DECISIONS & LEARNINGS */
+    .dl-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .dl-tab { padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-500); transition: all 0.15s; }
+    .dl-tab.active { background: var(--purple); color: var(--white); border-color: var(--purple); }
+    .dl-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow-sm); transition: all 0.2s; }
+    .dl-card:hover { box-shadow: var(--shadow-md); }
+    .dl-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .dl-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 2px 8px; border-radius: 4px; }
+    .dl-type.decision { background: var(--green-light); color: #059669; }
+    .dl-type.learning { background: var(--purple-light); color: var(--purple); }
+    .dl-type.risk { background: var(--danger-light); color: var(--danger); }
+    .dl-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .dl-desc { font-size: 13px; color: var(--gray-600); line-height: 1.6; margin-bottom: 12px; }
+    .dl-footer { display: flex; align-items: center; gap: 16px; font-size: 11px; color: var(--gray-400); padding-top: 12px; border-top: 1px solid var(--gray-100); }
+    .dl-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--gray-100); color: var(--gray-500); }
+    .dl-impact { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .dl-impact.high { background: var(--danger-light); color: var(--danger); }
+    .dl-impact.medium { background: var(--warning-light); color: var(--warning); }
+    .dl-impact.low { background: var(--info-light); color: var(--info); }
+
+    /* DISCOVERY CONTEXT */
+    .context-summary { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
+    .context-summary p { font-size: 14px; color: var(--gray-600); line-height: 1.7; }
+    .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .context-list { list-style: none; }
+    .context-list li { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; gap: 10px; }
+    .context-list li:last-child { border-bottom: none; }
+    .context-num { width: 24px; height: 24px; border-radius: 50%; background: var(--purple-light); color: var(--purple); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .context-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--purple); color: var(--white); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+    .context-link:hover { opacity: 0.9; }
+    .context-link svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .gap-item { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); }
+    .gap-item:last-child { border-bottom: none; }
+    .gap-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .gap-desc { font-size: 12px; color: var(--gray-500); }
+    .gap-severity { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .gap-severity.high { background: var(--danger-light); color: var(--danger); }
+    .gap-severity.medium { background: var(--warning-light); color: var(--warning); }
+    .gap-severity.low { background: var(--info-light); color: var(--info); }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .phase-banner { animation: fadeInUp 0.4s ease both; }
+    .tabs { animation: fadeInUp 0.4s ease 0.05s both; }
+    .tab-content.active { animation: fadeInUp 0.3s ease both; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><h1>Crnogorchi<span></span></h1></div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main</div>
+        <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
+        <div class="nav-label">Phases</div>
+        <a href="discovery.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
+        <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
+        <a href="code.html" class="nav-item active"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
+        <a href="qa.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA</a>
+        <div class="nav-label">System</div>
+        <a href="documents.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>Documents</a>
+        <a href="knowledge.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>Knowledge Base</a>
+        <a href="settings.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Settings</a>
+      </nav>
+      <div class="sidebar-user"><div class="user-avatar">AM</div><div class="user-info"><div class="user-name">Alex Markovic</div><div class="user-role">Developer</div></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search PRs, stories, decisions..."></div>
+        <div class="topbar-actions">
+          <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="phase-banner">
+          <div class="phase-banner-left">
+            <div class="phase-number">3</div>
+            <div><div class="phase-title">Code Assistant</div><div class="phase-desc">Implement stories, produce working code with quality and documentation</div></div>
+          </div>
+          <div class="phase-banner-right">
+            <div class="phase-stat"><div class="phase-stat-value">7</div><div class="phase-stat-label">Open PRs</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">14</div><div class="phase-stat-label">Merged</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">3</div><div class="phase-stat-label">Decisions</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">5</div><div class="phase-stat-label">Learnings</div></div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="prs">Pull Requests <span class="tab-count">7</span></div>
+          <div class="tab" data-tab="progress">Story Progress <span class="tab-count">12</span></div>
+          <div class="tab" data-tab="decisions">Decisions & Learnings <span class="tab-count">8</span></div>
+          <div class="tab" data-tab="discovery">Discovery Context</div>
+        </div>
+
+        <!-- TAB: PULL REQUESTS -->
+        <div class="tab-content active" id="tab-prs">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Open Pull Requests</div><a href="#" class="card-action">View on GitHub &rarr;</a></div>
+            <div class="card-body">
+              <div class="pr-item">
+                <div class="pr-icon open"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v6c0 1.66 1.34 3 3 3h3"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#52 Implement SSO login with MSAL.js v2</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-005</span><span>Alex M.</span><span>Opened 2 hours ago</span></div>
+                  <div class="pr-review"><div class="pr-review-dot approved"></div><span class="pr-review-text">Sarah C. approved</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+842</span><span class="pr-stat del">-56</span><span class="pr-stat files">18 files</span></div>
+              </div>
+              <div class="pr-item">
+                <div class="pr-icon open"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v6c0 1.66 1.34 3 3 3h3"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#51 WebSocket whiteboard sync engine</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-006</span><span>Alex M.</span><span>Opened yesterday</span></div>
+                  <div class="pr-review"><div class="pr-review-dot pending"></div><span class="pr-review-text">Waiting for review</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+1,247</span><span class="pr-stat del">-89</span><span class="pr-stat files">24 files</span></div>
+              </div>
+              <div class="pr-item">
+                <div class="pr-icon open"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v6c0 1.66 1.34 3 3 3h3"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#50 Course enrollment API endpoints</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-007</span><span>Bojan T.</span><span>Opened 2 days ago</span></div>
+                  <div class="pr-review"><div class="pr-review-dot pending"></div><span class="pr-review-text">Changes requested by Sarah C.</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+534</span><span class="pr-stat del">-28</span><span class="pr-stat files">12 files</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Recently Merged</div></div>
+            <div class="card-body">
+              <div class="pr-item">
+                <div class="pr-icon merged"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9a9 9 0 005.99 8.48"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#49 Database schema v2 with Prisma migrations</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-004</span><span>Alex M.</span><span>Merged 1 day ago</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+312</span><span class="pr-stat del">-87</span><span class="pr-stat files">9 files</span></div>
+              </div>
+              <div class="pr-item">
+                <div class="pr-icon merged"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9a9 9 0 005.99 8.48"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#47 User registration and profile setup</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-001</span><span>Alex M.</span><span>Merged 3 days ago</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+456</span><span class="pr-stat del">-12</span><span class="pr-stat files">11 files</span></div>
+              </div>
+              <div class="pr-item">
+                <div class="pr-icon merged"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9a9 9 0 005.99 8.48"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#45 Course catalog with search and filters</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-002</span><span>Alex M.</span><span>Merged 5 days ago</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+623</span><span class="pr-stat del">-34</span><span class="pr-stat files">14 files</span></div>
+              </div>
+              <div class="pr-item">
+                <div class="pr-icon merged"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9a9 9 0 005.99 8.48"/></svg></div>
+                <div class="pr-info">
+                  <div class="pr-title"><a href="#">#43 Student enrollment workflow</a></div>
+                  <div class="pr-meta"><span class="pr-story">NACX-003</span><span>Bojan T.</span><span>Merged 6 days ago</span></div>
+                </div>
+                <div class="pr-stats"><span class="pr-stat add">+389</span><span class="pr-stat del">-21</span><span class="pr-stat files">8 files</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: STORY PROGRESS -->
+        <div class="tab-content" id="tab-progress">
+          <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header"><div class="card-title">Sprint 2 &mdash; Code Progress</div><a href="#" class="card-action">View in Jira &rarr;</a></div>
+            <div class="sprint-header">
+              <div class="sprint-title">Sprint 2 &bull; Mar 3 &ndash; Mar 14</div>
+              <div class="sprint-meta">7 of 12 story points completed</div>
+            </div>
+            <div style="padding: 0;">
+              <div style="display: grid; grid-template-columns: 80px 1fr 100px 90px 80px; gap: 12px; padding: 10px 24px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50);">
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Story</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Title</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Assignee</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Branch</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Status</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-005</span>
+                <span class="sp-title">Microsoft SSO login with MSAL.js v2</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/sso-msal</span>
+                <span class="sp-status review">In Review</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-006</span>
+                <span class="sp-title">Real-time whiteboard sync engine</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/ws-sync</span>
+                <span class="sp-status review">In Review</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-007</span>
+                <span class="sp-title">Course enrollment API endpoints</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--info)">BT</span>Bojan T.</span>
+                <span class="sp-branch">feat/enroll-api</span>
+                <span class="sp-status coding">Coding</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-008</span>
+                <span class="sp-title">Payment integration with Stripe</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--info)">BT</span>Bojan T.</span>
+                <span class="sp-branch">feat/payments</span>
+                <span class="sp-status coding">Coding</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-009</span>
+                <span class="sp-title">Notification service (event-driven)</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--gray-400)">—</span>Unassigned</span>
+                <span class="sp-branch">—</span>
+                <span class="sp-status todo">To Do</span>
+              </div>
+              <div class="sp-item-expanded">
+                <span class="sp-key">NACX-010</span>
+                <span class="sp-title">Video conferencing integration</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--gray-400)">—</span>Unassigned</span>
+                <span class="sp-branch">—</span>
+                <span class="sp-status todo">To Do</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Completed &mdash; Sprint 1</div></div>
+            <div style="padding: 0;">
+              <div style="display: grid; grid-template-columns: 80px 1fr 100px 90px 80px; gap: 12px; padding: 10px 24px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50);">
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Story</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Title</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Assignee</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Branch</span>
+                <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400)">Status</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-001</span>
+                <span class="sp-title">User registration and profile setup</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/user-reg</span>
+                <span class="sp-status done">Done</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-002</span>
+                <span class="sp-title">Course catalog with search and filters</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/catalog</span>
+                <span class="sp-status done">Done</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-003</span>
+                <span class="sp-title">Student enrollment workflow</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--info)">BT</span>Bojan T.</span>
+                <span class="sp-branch">feat/enroll</span>
+                <span class="sp-status done">Done</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-004</span>
+                <span class="sp-title">Database schema v2 with Prisma</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/db-v2</span>
+                <span class="sp-status done">Done</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-011</span>
+                <span class="sp-title">REST API auth middleware</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--purple)">AM</span>Alex M.</span>
+                <span class="sp-branch">feat/auth-mw</span>
+                <span class="sp-status done">Done</span>
+              </div>
+              <div class="sp-item-expanded" style="opacity: 0.7;">
+                <span class="sp-key">NACX-012</span>
+                <span class="sp-title">CI/CD pipeline with GitHub Actions</span>
+                <span class="sp-assignee"><span class="sp-avatar" style="background:var(--info)">BT</span>Bojan T.</span>
+                <span class="sp-branch">feat/ci-cd</span>
+                <span class="sp-status done">Done</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: DECISIONS & LEARNINGS -->
+        <div class="tab-content" id="tab-decisions">
+          <div class="dl-tabs">
+            <div class="dl-tab active" data-filter="all">All <span style="margin-left:4px;opacity:0.6">8</span></div>
+            <div class="dl-tab" data-filter="decision">Decisions <span style="margin-left:4px;opacity:0.6">3</span></div>
+            <div class="dl-tab" data-filter="learning">Learnings <span style="margin-left:4px;opacity:0.6">4</span></div>
+            <div class="dl-tab" data-filter="risk">Risks <span style="margin-left:4px;opacity:0.6">1</span></div>
+          </div>
+
+          <div class="dl-card" data-type="decision">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+              <span class="dl-impact high">High Impact</span>
+            </div>
+            <div class="dl-title">Used MSAL.js v2 with custom token cache strategy</div>
+            <div class="dl-desc">Implemented a custom token cache using sessionStorage instead of the default localStorage approach. This avoids token leakage across tabs and enables per-session auth state. The trade-off is users must re-authenticate when opening a new tab, but this aligns with the security model for an edu platform.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; Today</span>
+              <span class="dl-tag">auth</span>
+              <span class="dl-tag">security</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="learning">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+              <span class="dl-impact high">High Impact</span>
+            </div>
+            <div class="dl-title">MSAL silent refresh fails in cross-origin iframes</div>
+            <div class="dl-desc">When the React app is embedded in an Outlook add-in iframe, MSAL's acquireTokenSilent fails because third-party cookies are blocked. Workaround: use the redirect flow with a dedicated auth page that posts tokens back via postMessage. This adds complexity but is the only reliable approach for iframe contexts.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; Today</span>
+              <span class="dl-tag">auth</span>
+              <span class="dl-tag">iframe</span>
+              <span class="dl-tag">outlook</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="decision">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+              <span class="dl-impact medium">Medium Impact</span>
+            </div>
+            <div class="dl-title">Event-driven architecture for notification service</div>
+            <div class="dl-desc">Using an event bus pattern (Redis Pub/Sub) for notifications instead of direct API calls. This decouples the notification service from the core app, making it easier to add new notification channels (email, Teams, push) without modifying the main codebase.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; Yesterday</span>
+              <span class="dl-tag">architecture</span>
+              <span class="dl-tag">notifications</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="learning">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+              <span class="dl-impact medium">Medium Impact</span>
+            </div>
+            <div class="dl-title">WebSocket reconnect needs exponential backoff with jitter</div>
+            <div class="dl-desc">Initial implementation used a fixed 1s reconnect interval, which caused a thundering herd when the server restarted during deploy. Switched to exponential backoff (1s, 2s, 4s, 8s, max 30s) with random jitter. Connection recovery went from ~45s average to ~4s after the fix.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; 2 days ago</span>
+              <span class="dl-tag">websocket</span>
+              <span class="dl-tag">reliability</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="risk">
+            <div class="dl-card-header">
+              <div><span class="dl-type risk">Risk</span></div>
+              <span class="dl-impact high">High Impact</span>
+            </div>
+            <div class="dl-title">Y.js document size grows unbounded without compaction</div>
+            <div class="dl-desc">Y.js CRDT documents retain full edit history by default. For a whiteboard with heavy use, document size could reach several MB within weeks. Need to implement periodic compaction (snapshot + garbage collect) or the WebSocket sync will degrade. No built-in solution &mdash; requires custom implementation.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; 3 days ago</span>
+              <span class="dl-tag">crdt</span>
+              <span class="dl-tag">performance</span>
+              <span style="margin-left:auto">risk.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="learning">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+              <span class="dl-impact low">Low Impact</span>
+            </div>
+            <div class="dl-title">Prisma client generation must run in CI before type-check</div>
+            <div class="dl-desc">TypeScript build was failing in CI because prisma generate wasn't running before tsc. The generated Prisma client types are git-ignored (correct), so CI needs an explicit generate step. Added to the GitHub Actions workflow before the type-check and test steps.</div>
+            <div class="dl-footer">
+              <span>Bojan T. &bull; 3 days ago</span>
+              <span class="dl-tag">ci/cd</span>
+              <span class="dl-tag">prisma</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="decision">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+              <span class="dl-impact medium">Medium Impact</span>
+            </div>
+            <div class="dl-title">Zod for runtime validation at API boundaries</div>
+            <div class="dl-desc">Chose Zod over Joi for request body validation in Express routes. Zod integrates natively with TypeScript (infers types from schemas), reducing duplication between validation logic and type definitions. Applied to all POST/PUT endpoints with a reusable middleware wrapper.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; 4 days ago</span>
+              <span class="dl-tag">api</span>
+              <span class="dl-tag">validation</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card" data-type="learning">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+              <span class="dl-impact low">Low Impact</span>
+            </div>
+            <div class="dl-title">Vite tree-shaking reduced auth bundle by 40%</div>
+            <div class="dl-desc">Switching MSAL imports from the barrel export to direct module imports (e.g., @azure/msal-browser/dist/auth/PublicClientApplication) allowed Vite to tree-shake unused auth methods. Auth chunk went from 142KB to 86KB gzipped. Worth applying the same pattern to other heavy dependencies.</div>
+            <div class="dl-footer">
+              <span>Alex M. &bull; 5 days ago</span>
+              <span class="dl-tag">performance</span>
+              <span class="dl-tag">bundling</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: DISCOVERY CONTEXT -->
+        <div class="tab-content" id="tab-discovery">
+          <div class="context-summary">
+            <p>The Code phase (Phase 3) implements the stories and specs defined in Phase 2. Key inputs from Discovery and Story & Tech include: 23 user stories prioritized by MoSCoW, a validated tech stack (React + Node.js + PostgreSQL + WebSocket), and 5 architecture decisions (ADRs) that guide implementation choices. All coding decisions and learnings are captured here and synced back to the knowledge base.</p>
+          </div>
+
+          <div class="context-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Inputs from Story & Tech</div></div>
+              <div class="card-body" style="padding: 0;">
+                <ul class="context-list">
+                  <li><span class="context-num">1</span>ADR-001: MSAL.js v2 for Microsoft SSO</li>
+                  <li><span class="context-num">2</span>ADR-002: PostgreSQL with Prisma ORM</li>
+                  <li><span class="context-num">3</span>ADR-003: WebSocket + Y.js for real-time sync</li>
+                  <li><span class="context-num">4</span>ADR-004: React + Vite SPA (no SSR)</li>
+                  <li><span class="context-num">5</span>Auth API Contract spec (complete)</li>
+                  <li><span class="context-num">6</span>Data Model spec for Users & Courses (complete)</li>
+                  <li><span class="context-num">7</span>Whiteboard Architecture spec (in review)</li>
+                  <li><span class="context-num">8</span>Figma designs for Auth, Dashboard, Whiteboard flows</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div class="card-title">Blockers & Dependencies</div></div>
+              <div class="card-body" style="padding: 0;">
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Video provider not finalized</div><div class="gap-desc">NACX-010 blocked until Teams SDK vs Twilio decision</div></div>
+                  <span class="gap-severity high">Blocker</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Y.js compaction strategy needed</div><div class="gap-desc">Whiteboard doc size risk &mdash; no built-in solution</div></div>
+                  <span class="gap-severity high">Risk</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Notification channel selection</div><div class="gap-desc">NACX-009 can start with event bus, channel TBD</div></div>
+                  <span class="gap-severity medium">Pending</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Azure staging environment</div><div class="gap-desc">App Service provisioned, domain config pending</div></div>
+                  <span class="gap-severity low">In Progress</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <a href="story-tech.html" class="context-link">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Story & Tech Phase &rarr;
+            </a>
+            <a href="discovery.html" class="context-link" style="background: var(--gray-600);">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              Discovery Phase &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tabs .tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.tabs .tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+        tab.classList.add('active');
+        var panel = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+        if (panel) panel.classList.add('active');
+      });
+    });
+
+    // Decisions & Learnings filter tabs
+    document.querySelectorAll('.dl-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.dl-tab').forEach(function(t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var filter = tab.getAttribute('data-filter');
+        document.querySelectorAll('.dl-card').forEach(function(card) {
+          if (filter === 'all' || card.getAttribute('data-type') === filter) {
+            card.style.display = '';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

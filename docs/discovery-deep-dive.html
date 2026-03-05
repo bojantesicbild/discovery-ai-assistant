@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discovery Deep Dive — Ingestion, Contradictions &amp; Meeting Lifecycle</title>
+<style>
+  :root {
+    --bg: #0B0D14;
+    --surface: #141722;
+    --surface2: #1C2030;
+    --surface3: #232840;
+    --border: #252A3A;
+    --border-hi: #3A4060;
+    --text: #E8EAF0;
+    --dim: #6B7194;
+    --green: #00E5A0;
+    --green-bg: rgba(0,229,160,0.08);
+    --green-b: rgba(0,229,160,0.2);
+    --orange: #F59E0B;
+    --orange-bg: rgba(245,158,11,0.08);
+    --orange-b: rgba(245,158,11,0.2);
+    --blue: #3B82F6;
+    --blue-bg: rgba(59,130,246,0.08);
+    --blue-b: rgba(59,130,246,0.2);
+    --purple: #A78BFA;
+    --purple-bg: rgba(167,139,250,0.08);
+    --purple-b: rgba(167,139,250,0.2);
+    --cyan: #22D3EE;
+    --cyan-bg: rgba(34,211,238,0.08);
+    --cyan-b: rgba(34,211,238,0.2);
+    --pink: #F472B6;
+    --pink-bg: rgba(244,114,182,0.08);
+    --pink-b: rgba(244,114,182,0.2);
+    --red: #EF4444;
+    --red-bg: rgba(239,68,68,0.08);
+    --red-b: rgba(239,68,68,0.2);
+    --yellow: #FACC15;
+    --yellow-bg: rgba(250,204,21,0.08);
+    --yellow-b: rgba(250,204,21,0.2);
+    --font: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); padding: 48px 40px 80px; min-height: 100vh; }
+
+  /* Header */
+  .hdr { max-width: 1200px; margin: 0 auto 56px; }
+  h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+  h1 span { color: var(--green); }
+  .sub { color: var(--dim); font-size: 14px; line-height: 1.6; max-width: 720px; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
+
+  /* Container */
+  .wrap { max-width: 1200px; margin: 0 auto; }
+
+  /* Chapter */
+  .chapter { margin-bottom: 72px; scroll-margin-top: 24px; }
+  .ch-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 8px; }
+  .ch-num { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; flex-shrink: 0; }
+  .ch-title { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; line-height: 40px; }
+  .ch-desc { color: var(--dim); font-size: 13px; line-height: 1.7; margin-left: 56px; margin-bottom: 28px; max-width: 800px; }
+
+  /* TOC */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; margin-bottom: 56px; }
+  .toc-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin-bottom: 12px; }
+  .toc-list { display: flex; flex-wrap: wrap; gap: 10px; }
+  .toc-item { font-size: 13px; padding: 6px 16px; border-radius: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); text-decoration: none; transition: border-color 0.15s; cursor: pointer; }
+  .toc-item:hover { border-color: var(--green); color: var(--green); }
+
+  /* Pipeline vertical */
+  .pipe { position: relative; padding-left: 48px; }
+  .pipe::before { content:''; position: absolute; left: 19px; top: 0; bottom: 0; width: 2px; background: var(--border); }
+  .pipe-step { position: relative; margin-bottom: 32px; }
+  .pipe-step:last-child { margin-bottom: 0; }
+  .pipe-dot {
+    position: absolute; left: -48px; top: 0; width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800;
+    background: var(--surface); border: 2px solid var(--border); z-index: 1;
+  }
+  .pipe-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .pipe-sub { font-size: 11px; color: var(--dim); margin-bottom: 10px; line-height: 1.6; }
+
+  /* Data box — shows real data examples */
+  .dbox {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin-top: 10px; overflow: hidden;
+  }
+  .dbox-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .dbox-content { font-size: 12px; color: var(--dim); line-height: 1.7; }
+  .dbox-content code { font-family: var(--mono); font-size: 11px; background: var(--surface2); padding: 1px 6px; border-radius: 4px; color: var(--text); }
+  .dbox-content strong { color: var(--text); font-weight: 600; }
+  .dbox-content .hl { color: var(--green); font-weight: 600; }
+  .dbox-content .warn { color: var(--orange); font-weight: 600; }
+  .dbox-content .err { color: var(--red); font-weight: 600; }
+
+  /* Fact row */
+  .fact-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .fact-row:last-child { border-bottom: none; }
+  .fact-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .fact-dot.c { background: var(--green); }
+  .fact-dot.a { background: var(--orange); }
+  .fact-dot.n { background: var(--red); }
+  .fact-text { font-size: 12px; color: var(--text); flex: 1; }
+  .fact-src { font-size: 10px; color: var(--dim); background: var(--surface2); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .fact-action { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; }
+  .fact-action.add { background: var(--green-bg); color: var(--green); }
+  .fact-action.upd { background: var(--blue-bg); color: var(--blue); }
+  .fact-action.dup { background: var(--surface2); color: var(--dim); }
+
+  /* Split layout */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .split.tri { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* Contrast card (before/after, source A vs B) */
+  .contrast { border-radius: 12px; padding: 18px; border: 1px solid var(--border); }
+  .contrast-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .contrast-text { font-size: 13px; line-height: 1.6; }
+  .contrast-meta { font-size: 10px; color: var(--dim); margin-top: 8px; }
+
+  /* Timeline */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .tl-item { display: flex; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .tl-item:last-child { border-bottom: none; }
+  .tl-time { font-size: 11px; color: var(--dim); width: 80px; flex-shrink: 0; font-family: var(--mono); padding-top: 2px; }
+  .tl-content { flex: 1; }
+  .tl-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .tl-desc { font-size: 11px; color: var(--dim); line-height: 1.55; }
+  .tl-tag { display: inline-block; font-size: 9px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-top: 4px; }
+
+  /* Chat bubble */
+  .chat { display: flex; flex-direction: column; gap: 12px; }
+  .chat-msg { max-width: 85%; padding: 14px 18px; border-radius: 14px; font-size: 12px; line-height: 1.65; }
+  .chat-msg.ai { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; align-self: flex-start; }
+  .chat-msg.user { background: var(--green-bg); border: 1px solid var(--green-b); border-bottom-right-radius: 4px; align-self: flex-end; }
+  .chat-name { font-size: 10px; font-weight: 700; margin-bottom: 6px; }
+  .chat-name.ai-n { color: var(--cyan); }
+  .chat-name.user-n { color: var(--green); }
+
+  /* Delta card (readiness change) */
+  .delta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .delta-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+  .delta-name { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+  .delta-vals { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .delta-old { font-size: 18px; font-weight: 700; color: var(--dim); }
+  .delta-arrow { color: var(--green); font-size: 14px; }
+  .delta-new { font-size: 18px; font-weight: 700; }
+  .delta-new.up { color: var(--green); }
+  .delta-new.same { color: var(--dim); }
+
+  /* Connector */
+  .conn { display: flex; align-items: center; justify-content: center; margin: 24px 0; position: relative; }
+  .conn::before { content:''; position: absolute; left: 5%; right: 5%; top: 50%; height: 1px; background: var(--border); }
+  .conn-badge { position: relative; z-index: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 5px 18px; font-size: 10px; color: var(--dim); white-space: nowrap; }
+  .conn-badge .a { color: var(--green); font-weight: 700; }
+
+  /* Alert box */
+  .alert { border-radius: 10px; padding: 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .alert-content { flex: 1; }
+  .alert-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .alert-desc { font-size: 11px; line-height: 1.6; }
+
+  /* Card grid */
+  .cgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .ccard { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .ccard-icon { font-size: 20px; margin-bottom: 10px; }
+  .ccard-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .ccard-desc { font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+  /* Separator */
+  .sep { height: 1px; background: var(--border); margin: 48px 0; }
+
+  /* Responsive */
+  @media (max-width: 800px) {
+    body { padding: 24px 16px; }
+    .split, .split.tri { grid-template-columns: 1fr; }
+    .delta-grid { grid-template-columns: 1fr 1fr; }
+    .cgrid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="badge" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);">NacXwan Learning Platform — Real Example Data</div>
+  <h1>Discovery <span>Deep Dive</span></h1>
+  <p class="sub">Three detailed walkthroughs using real project data: how a document flows through ingestion, how contradictions are detected and resolved, and the full meeting preparation lifecycle.</p>
+</div>
+
+<div class="wrap">
+
+<!-- TOC -->
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <div class="toc-list">
+    <a class="toc-item" href="#ch1">1. Ingestion Pipeline</a>
+    <a class="toc-item" href="#ch2">2. Contradiction Detection</a>
+    <a class="toc-item" href="#ch3">3. Meeting Lifecycle</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 1: INGESTION PIPELINE                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch1">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--blue-bg);color:var(--blue);">1</div>
+    <div class="ch-title">Document Ingestion Pipeline</div>
+  </div>
+  <div class="ch-desc">
+    What happens when <strong>Meeting 7 — SSO and Auth Discussion</strong> ends on Google Meet?
+    The recording is automatically pushed to the system. This walks through every stage — from raw audio/video to updated readiness score — using real NacXwan data.
+  </div>
+
+  <div class="pipe">
+
+    <!-- Step 1: Recording Received -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--blue);color:var(--blue);">1</div>
+      <div class="pipe-title">Google Meet Recording Received</div>
+      <div class="pipe-sub">The meeting ends and Google Meet automatically saves the recording to Google Drive. A webhook triggers the Intake Agent, which pulls the recording directly into the system — no manual upload needed.</div>
+      <div class="dbox">
+        <div class="dbox-label" style="color:var(--blue);">Input</div>
+        <div class="dbox-content">
+          <strong>Source:</strong> Google Meet (auto-push via webhook)<br>
+          <strong>File:</strong> <code>Meeting 7 — SSO and Auth Discussion.webm</code><br>
+          <strong>Size:</strong> 148 MB &nbsp;|&nbsp; <strong>Type:</strong> Audio/Video (WebM) &nbsp;|&nbsp; <strong>Duration:</strong> 58 min<br>
+          <strong>Participants:</strong> David Miller, Sarah Chen, Raj Patel, Lisa Wang, Bojan Tesic<br>
+          <strong>Timestamp:</strong> Today, 9:15 AM (meeting ended)
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Transcription -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--blue);color:var(--blue);">2</div>
+      <div class="pipe-title">Speech-to-Text Transcription</div>
+      <div class="pipe-sub">The audio is extracted from the recording and transcribed with speaker diarization — the system identifies <em>who</em> said <em>what</em> and <em>when</em>.</div>
+      <div class="dbox">
+        <div class="dbox-label" style="color:var(--purple);">Transcription Result</div>
+        <div class="dbox-content">
+          <strong>Engine:</strong> Whisper (large-v3) with speaker diarization<br>
+          <strong>Speakers identified:</strong> 5 (matched to project participants via voice profiles)<br>
+          <strong>Total segments:</strong> 312 &nbsp;|&nbsp; <strong>Word count:</strong> ~8,400<br>
+          <strong>Confidence:</strong> 96.2% average &nbsp;|&nbsp; <strong>Processing time:</strong> ~45 seconds<br><br>
+          <strong>Sample transcript:</strong><br>
+          <code>[14:32]</code> <strong>David Miller:</strong> "We need to think about external learners who don't have Microsoft accounts. Can we add Google and Apple login?"<br>
+          <code>[14:45]</code> <strong>Lisa Wang:</strong> "I agree. Our partner organizations use Google Workspace mostly."<br>
+          <code>[15:02]</code> <strong>Sarah Chen:</strong> "That's feasible but it adds OAuth integration work. We'd need account linking logic too."
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Classification -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--blue);color:var(--blue);">3</div>
+      <div class="pipe-title">Document Classification</div>
+      <div class="pipe-sub">Intake Agent classifies the transcribed content based on structure, participant roles, and conversation flow. This determines the chunking strategy.</div>
+      <div class="dbox">
+        <div class="dbox-label" style="color:var(--purple);">Classification Result</div>
+        <div class="dbox-content">
+          <strong>Detected type:</strong> <span class="hl">Meeting Recording (Transcribed)</span><br>
+          <strong>Chunking strategy:</strong> By topic/agenda item (detected from conversation shifts, not page breaks)<br>
+          <strong>Attendees detected:</strong> David Miller (CTO), Sarah Chen (Tech Lead), Raj Patel (Dev), Lisa Wang (PM), Bojan Tesic (PO)<br>
+          <strong>Meeting date:</strong> Today &nbsp;|&nbsp; <strong>Duration:</strong> 58 min<br>
+          <strong>Topics detected:</strong> SSO implementation, Social login request, MFA policy, Session management
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: DeepDoc Parsing -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--purple);color:var(--purple);">4</div>
+      <div class="pipe-title">DeepDoc Parsing &amp; Smart Chunking</div>
+      <div class="pipe-sub">RAGFlow's DeepDoc engine processes the transcript, detects topic boundaries from conversation flow, and chunks by agenda item. Each chunk gets auto-generated keywords and questions.</div>
+      <div class="split">
+        <div class="dbox">
+          <div class="dbox-label" style="color:var(--cyan);">Chunk 1 of 4 — SSO Implementation</div>
+          <div class="dbox-content">
+            <strong>Content:</strong> "Sarah Chen confirmed MSAL.js for SSO integration. Microsoft 365 infrastructure supports this natively. Raj Patel confirmed existing API gateway can handle SSO tokens."<br><br>
+            <strong>Auto-keywords:</strong> MSAL.js, SSO, Microsoft 365, API gateway<br>
+            <strong>Auto-question:</strong> "What SSO technology was chosen for the NacXwan platform?"
+          </div>
+        </div>
+        <div class="dbox">
+          <div class="dbox-label" style="color:var(--cyan);">Chunk 2 of 4 — Social Login Request</div>
+          <div class="dbox-content">
+            <strong>Content:</strong> "David Miller raised: 'We need to think about external learners who don't have Microsoft accounts. Can we add Google and Apple login?' Lisa Wang supported this for broader reach."<br><br>
+            <strong>Auto-keywords:</strong> social login, Google, Apple, external learners<br>
+            <strong>Auto-question:</strong> "Is social login required for the NacXwan MVP?"
+          </div>
+        </div>
+      </div>
+      <div class="split" style="margin-top:12px;">
+        <div class="dbox">
+          <div class="dbox-label" style="color:var(--cyan);">Chunk 3 of 4 — MFA Policy</div>
+          <div class="dbox-content">
+            <strong>Content:</strong> "Sarah Chen confirmed: 'MFA should be mandatory for admin roles. Microsoft Authenticator or TOTP-based codes.' Agreed: standard learner accounts do not require MFA."<br><br>
+            <strong>Auto-keywords:</strong> MFA, admin, TOTP, Microsoft Authenticator
+          </div>
+        </div>
+        <div class="dbox">
+          <div class="dbox-label" style="color:var(--cyan);">Chunk 4 of 4 — Session Management</div>
+          <div class="dbox-content">
+            <strong>Content:</strong> "Raj Patel noted: 'Our current platform uses a flat 30-minute timeout. We need more flexibility.' Suggested defaults: Admin = 8h, Instructor = 4h, Learner = 1h."<br><br>
+            <strong>Auto-keywords:</strong> session timeout, per-role, configuration
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 5: Embedding -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--purple);color:var(--purple);">5</div>
+      <div class="pipe-title">Vector Embedding &amp; Indexing</div>
+      <div class="pipe-sub">Each chunk is embedded and stored in Elasticsearch with RAPTOR parent-child relationships. The full document is also stored in MinIO for download.</div>
+      <div class="dbox">
+        <div class="dbox-label" style="color:var(--blue);">RAGFlow Storage</div>
+        <div class="dbox-content">
+          <strong>Chunks indexed:</strong> 4 &nbsp;|&nbsp; <strong>Embedding model:</strong> text-embedding-3-small<br>
+          <strong>Parent document:</strong> <code>meeting-7-sso-auth.webm</code> + transcript stored in MinIO<br>
+          <strong>Search mode:</strong> Hybrid (vector 0.7 + keyword 0.3) with reranking<br>
+          <strong>RAPTOR hierarchy:</strong> Meeting 7 (parent) → 4 topic chunks (children)
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 6: Fact Extraction -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--green);color:var(--green);">6</div>
+      <div class="pipe-title">Mem0 Fact Extraction &amp; Deduplication</div>
+      <div class="pipe-sub">LLM extracts discrete facts from each chunk, then compares each against the existing fact store. Decision per fact: <strong>ADD</strong> (new), <strong>UPDATE</strong> (refines existing), <strong>IGNORE</strong> (duplicate), or <strong>DELETE</strong> (contradicts/obsoletes).</div>
+
+      <div class="dbox" style="border-left:3px solid var(--green);">
+        <div class="dbox-label" style="color:var(--green);">Extracted Facts — 7 facts from 4 chunks</div>
+        <div style="display:flex;flex-direction:column;gap:0;">
+
+          <div class="fact-row">
+            <div class="fact-dot c"></div>
+            <div class="fact-text">MSAL.js chosen for SSO integration</div>
+            <div class="fact-src">Meeting 7 — Sarah Chen</div>
+            <div class="fact-action add">Add</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot c"></div>
+            <div class="fact-text">Microsoft 365 infrastructure supports MSAL.js natively</div>
+            <div class="fact-src">Meeting 7 — Raj Patel</div>
+            <div class="fact-action upd">Update</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot a"></div>
+            <div class="fact-text">Social login (Google, Apple) requested for external learners</div>
+            <div class="fact-src">Meeting 7 — David Miller</div>
+            <div class="fact-action add">Add</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot c"></div>
+            <div class="fact-text">MFA mandatory for admin roles via Microsoft Authenticator / TOTP</div>
+            <div class="fact-src">Meeting 7 — Sarah Chen</div>
+            <div class="fact-action add">Add</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot c"></div>
+            <div class="fact-text">Learner accounts do not require MFA</div>
+            <div class="fact-src">Meeting 7 — Agreed</div>
+            <div class="fact-action add">Add</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot a"></div>
+            <div class="fact-text">Session timeout configurable per role (Admin 8h, Instructor 4h, Learner 1h)</div>
+            <div class="fact-src">Meeting 7 — Raj Patel</div>
+            <div class="fact-action add">Add</div>
+          </div>
+          <div class="fact-row">
+            <div class="fact-dot c"></div>
+            <div class="fact-text">Existing API gateway can handle SSO tokens</div>
+            <div class="fact-src">Meeting 7 — Raj Patel</div>
+            <div class="fact-action upd">Update</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="dbox" style="margin-top:12px;">
+        <div class="dbox-label" style="color:var(--dim);">Deduplication Examples</div>
+        <div class="dbox-content">
+          <strong>"Microsoft 365 infrastructure"</strong> — already in fact store from Meeting 3 as <em>"Client uses Microsoft 365"</em>. Mem0 decision: <span class="hl">UPDATE</span> (adds detail: "supports MSAL.js natively").<br><br>
+          <strong>"Existing API gateway"</strong> — already stored from Meeting 6 as <em>"REST API gateway"</em>. Mem0 decision: <span class="hl">UPDATE</span> (adds: "can handle SSO tokens, confirmed by Raj Patel").<br><br>
+          <strong>"David Miller = CTO"</strong> — already known from Meeting 1. Mem0 decision: <span style="color:var(--dim);font-weight:600;">IGNORE</span> (exact duplicate).
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 7: Entity Graph -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--purple);color:var(--purple);">7</div>
+      <div class="pipe-title">Entity Graph Update</div>
+      <div class="pipe-sub">Analysis Agent extracts entities and relationships from new facts, adding them to the Neo4j graph.</div>
+      <div class="dbox">
+        <div class="dbox-label" style="color:var(--purple);">New Graph Relationships</div>
+        <div class="dbox-content">
+          <code>Sarah Chen</code> —<em>decided</em>→ <code>MSAL.js for SSO</code><br>
+          <code>David Miller</code> —<em>requested</em>→ <code>Social Login (Google, Apple)</code><br>
+          <code>Social Login</code> —<em>contradicts</em>→ <code>Microsoft SSO Only (Meeting 3)</code><br>
+          <code>MFA</code> —<em>requires</em>→ <code>Azure AD Conditional Access</code><br>
+          <code>Session Timeout</code> —<em>depends on</em>→ <code>RBAC System</code><br>
+          <code>Raj Patel</code> —<em>confirmed</em>→ <code>API Gateway SSO Support</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 8: Requirement Extraction -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--cyan);color:var(--cyan);">8</div>
+      <div class="pipe-title">Requirement Extraction</div>
+      <div class="pipe-sub">The system identifies 3 new requirements from Meeting 7 content, assigns IDs, MoSCoW priorities, and links them to source quotes.</div>
+
+      <div class="split tri">
+        <div class="dbox" style="border-top:3px solid var(--orange);">
+          <div class="dbox-label" style="color:var(--orange);">REQ-045 — Should</div>
+          <div class="dbox-content">
+            <strong>Social login support (Google, Apple)</strong><br>
+            Status: <span class="warn">Assumed</span><br>
+            Source: David Miller, Meeting 7<br>
+            Note: Contradicts Meeting 3 SSO-only decision
+          </div>
+        </div>
+        <div class="dbox" style="border-top:3px solid var(--green);">
+          <div class="dbox-label" style="color:var(--green);">REQ-046 — Must</div>
+          <div class="dbox-content">
+            <strong>MFA enforcement for admin accounts</strong><br>
+            Status: <span class="hl">Confirmed</span><br>
+            Source: Sarah Chen, Meeting 7<br>
+            Note: Low effort, MSAL.js supports natively
+          </div>
+        </div>
+        <div class="dbox" style="border-top:3px solid var(--orange);">
+          <div class="dbox-label" style="color:var(--orange);">REQ-047 — Should</div>
+          <div class="dbox-content">
+            <strong>Session timeout configurable per role</strong><br>
+            Status: <span class="warn">Assumed</span><br>
+            Source: Raj Patel, Meeting 7<br>
+            Note: Open Q — per-role or per-user?
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 9: Control Point Re-evaluation -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--orange);color:var(--orange);">9</div>
+      <div class="pipe-title">Control Point Re-evaluation</div>
+      <div class="pipe-sub">Control Point Agent re-scores all areas against the updated fact store. Some areas improve; the social login contradiction creates a new gap.</div>
+
+      <div class="delta-grid">
+        <div class="delta-card">
+          <div class="delta-name">Business Context</div>
+          <div class="delta-vals">
+            <div class="delta-old">95%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new same">95%</div>
+          </div>
+        </div>
+        <div class="delta-card">
+          <div class="delta-name">Technical Reqs</div>
+          <div class="delta-vals">
+            <div class="delta-old">84%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new up">88%</div>
+          </div>
+        </div>
+        <div class="delta-card">
+          <div class="delta-name">Integration Points</div>
+          <div class="delta-vals">
+            <div class="delta-old">68%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new up">72%</div>
+          </div>
+        </div>
+        <div class="delta-card">
+          <div class="delta-name">User Roles</div>
+          <div class="delta-vals">
+            <div class="delta-old">60%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new up">65%</div>
+          </div>
+        </div>
+        <div class="delta-card">
+          <div class="delta-name">NFRs</div>
+          <div class="delta-vals">
+            <div class="delta-old">40%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new up">45%</div>
+          </div>
+        </div>
+        <div class="delta-card" style="border-color:var(--green-b);">
+          <div class="delta-name" style="color:var(--green);">Overall Readiness</div>
+          <div class="delta-vals">
+            <div class="delta-old">72%</div>
+            <div class="delta-arrow">→</div>
+            <div class="delta-new up">78%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 10: Confirmation to PO -->
+    <div class="pipe-step">
+      <div class="pipe-dot" style="border-color:var(--green);color:var(--green);">10</div>
+      <div class="pipe-title">PO Notification</div>
+      <div class="pipe-sub">Intake Agent confirms what was ingested, what changed, and flags the contradiction for resolution.</div>
+
+      <div class="chat">
+        <div class="chat-msg ai">
+          <div class="chat-name ai-n">Discovery Assistant</div>
+          I've finished analyzing the recording from <strong>Meeting 7 — SSO and Auth Discussion</strong> (58 min, Google Meet).<br><br>
+          <strong>3 new requirements</strong> extracted:<br>
+          &bull; REQ-045: Social login support (Google, Apple) — <span style="color:var(--orange)">Should</span><br>
+          &bull; REQ-046: MFA enforcement for admin accounts — <span style="color:var(--green)">Must</span><br>
+          &bull; REQ-047: Session timeout configurable per role — <span style="color:var(--orange)">Should</span><br><br>
+          <strong>5 new facts</strong> added, <strong>2 facts</strong> updated.<br>
+          Readiness: <strong>72% → 78%</strong><br><br>
+          ⚠️ I also found a <strong>potential contradiction</strong> with Meeting 3's auth approach — social login vs. SSO-only scope.
+        </div>
+        <div class="chat-msg user">
+          <div class="chat-name user-n">Bojan Tesic</div>
+          Yes, add it to gap analysis. Also prepare talking points for the next client meeting about auth scope.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end pipe -->
+
+  <!-- Summary box -->
+  <div class="dbox" style="margin-top:32px;border-top:3px solid var(--blue);">
+    <div class="dbox-label" style="color:var(--blue);">Ingestion Summary — Total Time: ~90 seconds</div>
+    <div class="dbox-content">
+      <strong>1 Google Meet recording → transcription (312 segments) → 4 chunks → 7 facts (5 new, 2 updated) → 6 graph relationships → 3 requirements → 1 contradiction flagged → readiness +6%</strong><br><br>
+      The entire pipeline runs automatically the moment the meeting ends. No manual upload, no note-taking — the PO only sees the final summary in chat and decides how to act on it.
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 2: CONTRADICTION DETECTION                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch2">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--red-bg);color:var(--red);">2</div>
+    <div class="ch-title">Contradiction Detection &amp; Resolution</div>
+  </div>
+  <div class="ch-desc">
+    Meeting 3 decided <strong>"Microsoft SSO only for MVP"</strong>. Two weeks later, Meeting 7 introduces <strong>"Social login for external learners"</strong>.
+    Here's exactly how the system detects, tracks, and helps resolve this contradiction.
+  </div>
+
+  <!-- Phase A: Detection -->
+  <div style="margin-bottom:32px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+      <span style="color:var(--red);">A</span> Detection — When the Contradiction Surfaces
+    </div>
+
+    <div class="split">
+      <div class="contrast" style="background:var(--green-bg);border-color:var(--green-b);">
+        <div class="contrast-label" style="color:var(--green);">Source A — Meeting 3 (Feb 10)</div>
+        <div class="contrast-text">"Microsoft SSO as primary auth for MVP. All users authenticate through Azure AD. <strong>No other auth methods in MVP scope.</strong>"</div>
+        <div class="contrast-meta">Decided by: David Miller (CTO) &amp; Sarah Chen (Tech Lead)<br>Status: <strong style="color:var(--green)">Confirmed</strong> — stored as fact since Feb 10</div>
+      </div>
+      <div class="contrast" style="background:var(--red-bg);border-color:var(--red-b);">
+        <div class="contrast-label" style="color:var(--red);">Source B — Meeting 7 (Yesterday)</div>
+        <div class="contrast-text">"We need to think about external learners who don't have Microsoft accounts. <strong>Can we add Google and Apple login?</strong>"</div>
+        <div class="contrast-meta">Raised by: David Miller (CTO), supported by Lisa Wang (PM)<br>Status: <strong style="color:var(--orange)">Assumed</strong> — flagged as contradicting Source A</div>
+      </div>
+    </div>
+
+    <div class="dbox" style="margin-top:14px;border-left:3px solid var(--red);">
+      <div class="dbox-label" style="color:var(--red);">How the System Detected This</div>
+      <div class="dbox-content">
+        During Mem0 fact extraction, the new fact <em>"Social login (Google, Apple) requested for external learners"</em> was compared against all existing auth-related facts.<br><br>
+        <strong>Match found:</strong> Existing fact <code>"Microsoft SSO only for MVP — no other auth methods"</code> (confirmed, Meeting 3).<br>
+        <strong>Semantic similarity:</strong> 0.89 — both discuss MVP authentication scope.<br>
+        <strong>Contradiction signal:</strong> "no other auth methods" vs. "add Google and Apple login" — <span class="err">direct conflict</span>.<br><br>
+        The Analysis Agent also checks the <strong>entity graph</strong>: both facts are attributed to <em>David Miller</em>, strengthening the contradiction flag (same stakeholder, changed position).
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase B: Tracking -->
+  <div style="margin-bottom:32px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+      <span style="color:var(--orange);">B</span> Tracking — What the System Records
+    </div>
+
+    <div class="dbox" style="border-left:3px solid var(--orange);">
+      <div class="dbox-label" style="color:var(--orange);">Contradiction Record</div>
+      <div class="dbox-content">
+        <strong>ID:</strong> <code>CONTRA-012</code><br>
+        <strong>Topic:</strong> MVP Authentication Scope<br>
+        <strong>Severity:</strong> <span class="err">High</span> — affects architecture, timeline, and scope<br><br>
+        <strong>Position A:</strong> Microsoft SSO only (Meeting 3, Feb 10) — David Miller, Sarah Chen<br>
+        <strong>Position B:</strong> Add social login (Meeting 7, Yesterday) — David Miller, Lisa Wang<br><br>
+        <strong>Impact if Position B adopted:</strong><br>
+        &bull; +2 sprints (OAuth integration, account linking, security testing)<br>
+        &bull; New dependencies: Google &amp; Apple OAuth providers<br>
+        &bull; REQ-045 moves from "Assumed" to "Confirmed"<br>
+        &bull; REQ-001 (Microsoft SSO) needs scope update<br><br>
+        <strong>Affected control points:</strong> Technical Reqs, Integration Points, NFRs<br>
+        <strong>Status:</strong> <span class="warn">Unresolved</span> — awaiting PO decision
+      </div>
+    </div>
+
+    <div class="alert" style="margin-top:14px;background:var(--orange-bg);border:1px solid var(--orange-b);border-radius:10px;">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-content">
+        <div class="alert-title" style="color:var(--orange);">Gap Created: "Auth scope — Social login in MVP?"</div>
+        <div class="alert-desc" style="color:var(--dim);">Added to Gap Analysis with <strong>High</strong> severity. Mapped to stakeholders: David Miller (CTO) and Sarah Chen (Tech Lead). Blocks: Integration Mapping document generation.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase C: Resolution -->
+  <div style="margin-bottom:32px;">
+    <div style="font-size:14px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+      <span style="color:var(--green);">C</span> Resolution — How It Gets Resolved
+    </div>
+
+    <div class="chat">
+      <div class="chat-msg ai">
+        <div class="chat-name ai-n">Discovery Assistant</div>
+        Done! Gap added and meeting prep generated.<br><br>
+        <strong>Key talking points:</strong><br>
+        1. Current scope: Microsoft SSO only (Meeting 3)<br>
+        2. Meeting 7 introduced social login — need decision<br>
+        3. Impact: +2 sprints if social login in MVP<br>
+        4. Recommendation: SSO for MVP, social login Phase 2
+      </div>
+      <div class="chat-msg user">
+        <div class="chat-name user-n">Bojan Tesic</div>
+        Good. What's the current state of non-functional requirements? Readiness is only at 45%.
+      </div>
+      <div class="chat-msg ai">
+        <div class="chat-name ai-n">Discovery Assistant</div>
+        NFRs are our biggest gap.<br><br>
+        <strong>What we have (45%):</strong><br>
+        &bull; Performance: &lt;200ms API response<br>
+        &bull; Availability: 99.9% uptime<br>
+        &bull; Security: SSO + RBAC<br><br>
+        <strong>Missing:</strong><br>
+        &bull; Scalability targets<br>
+        &bull; Data residency / compliance<br>
+        &bull; DR and backup SLAs<br>
+        &bull; Browser/device support matrix<br>
+        &bull; Accessibility standards (WCAG)<br><br>
+        I recommend a focused NFR extraction session.
+      </div>
+    </div>
+
+    <div class="conn" style="margin:24px 0;">
+      <div class="conn-badge"><span class="a">⟳</span> &nbsp;PO brings talking points to next client meeting → resolves contradiction</div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-time">Meeting 8</div>
+        <div class="tl-content">
+          <div class="tl-title">PO raises auth scope with David Miller</div>
+          <div class="tl-desc">Uses the system-generated talking points. Presents impact: +2 sprints. David agrees to defer social login to Phase 2.</div>
+          <div class="tl-tag" style="background:var(--green-bg);color:var(--green);">Decision Made</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">Post-meeting</div>
+        <div class="tl-content">
+          <div class="tl-title">PO uploads Meeting 8 notes</div>
+          <div class="tl-desc">System extracts fact: "Social login deferred to Phase 2" (confirmed, Meeting 8). Updates REQ-045 to "Out of MVP scope".</div>
+          <div class="tl-tag" style="background:var(--blue-bg);color:var(--blue);">Fact Updated</div>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time">Auto</div>
+        <div class="tl-content">
+          <div class="tl-title">Contradiction resolved</div>
+          <div class="tl-desc">CONTRA-012 status → <strong style="color:var(--green)">Resolved</strong>. Position A (SSO only) stands. Gap "Auth scope — Social login in MVP?" closed. Integration Points readiness improves.</div>
+          <div class="tl-tag" style="background:var(--green-bg);color:var(--green);">Gap Closed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key insight -->
+  <div class="dbox" style="border-top:3px solid var(--red);">
+    <div class="dbox-label" style="color:var(--red);">Why This Matters</div>
+    <div class="dbox-content">
+      <strong>Without the system:</strong> The PO might not notice the contradiction between meetings that happened 2 weeks apart. Social login could silently enter scope, bloating the MVP by 2 sprints — discovered only during Phase 2 when the tech lead asks "wait, are we doing social login?"<br><br>
+      <strong>With the system:</strong> Contradiction flagged immediately, quantified (+2 sprints), and tracked until resolved. The decision is recorded with full provenance: who decided, when, and why.
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 3: MEETING LIFECYCLE                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch3">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--pink-bg);color:var(--pink);">3</div>
+    <div class="ch-title">Meeting Lifecycle</div>
+  </div>
+  <div class="ch-desc">
+    The full cycle around a client meeting: how the system prepares you, what happens during the meeting, and how results flow back into the knowledge base. Example: preparing for <strong>Meeting 8 — NFR &amp; Auth Follow-up</strong>.
+  </div>
+
+  <!-- Phase A: BEFORE -->
+  <div style="margin-bottom:40px;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:6px;color:var(--blue);">Before the Meeting</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:20px;">PO asks the system to prepare. Gap Detection + Meeting Prep agents collaborate.</div>
+
+    <div class="chat" style="margin-bottom:20px;">
+      <div class="chat-msg user">
+        <div class="chat-name user-n">Bojan Tesic</div>
+        Prepare my meeting agenda for the next client call. Focus on the auth contradiction and NFR gaps.
+      </div>
+    </div>
+
+    <div class="pipe">
+      <div class="pipe-step">
+        <div class="pipe-dot" style="border-color:var(--green);color:var(--green);">G</div>
+        <div class="pipe-title">Gap Detection Agent Runs</div>
+        <div class="pipe-sub">Scans all control points, identifies the most impactful gaps, and prioritizes them.</div>
+
+        <div class="dbox">
+          <div class="dbox-label" style="color:var(--red);">Critical Gaps (Blocking)</div>
+          <div class="dbox-content">
+            1. <strong>Auth scope: Social login in MVP?</strong> — Contradiction unresolved. Blocks Integration Mapping.<br>
+            2. <strong>Expected concurrent users at launch?</strong> — No scalability target. Blocks NFR Specification.
+          </div>
+        </div>
+        <div class="dbox" style="margin-top:8px;">
+          <div class="dbox-label" style="color:var(--orange);">Important Gaps</div>
+          <div class="dbox-content">
+            3. <strong>Data residency requirements for EU users?</strong> — Compliance unknown.<br>
+            4. <strong>DR and backup SLA targets?</strong> — No disaster recovery plan.<br>
+            5. <strong>Browser/device support matrix?</strong> — Jana needs this for test planning.
+          </div>
+        </div>
+        <div class="dbox" style="margin-top:8px;">
+          <div class="dbox-label" style="color:var(--dim);">Minor Gaps</div>
+          <div class="dbox-content">
+            6. <strong>Offline mode for mobile learners?</strong> — Nice to know for architecture decisions.
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-dot" style="border-color:var(--purple);color:var(--purple);">M</div>
+        <div class="pipe-title">Meeting Prep Agent Generates Agenda</div>
+        <div class="pipe-sub">Builds an agenda that maps gaps to stakeholders, creates talking points, and includes confirmation prompts.</div>
+
+        <div class="dbox" style="border-left:3px solid var(--purple);">
+          <div class="dbox-label" style="color:var(--purple);">Generated Meeting Agenda — Meeting 8</div>
+          <div class="dbox-content">
+            <strong style="font-size:14px;">Auth Scope &amp; NFR Follow-up</strong><br>
+            Attendees: David Miller (CTO), Sarah Chen (Tech Lead), Raj Patel (Dev), Lisa Wang (PM)<br>
+            Duration: 45 min<br><br>
+
+            <strong>Agenda Item 1 — Auth Scope Decision (15 min)</strong> → Ask: David Miller<br>
+            &bull; Current confirmed: Microsoft SSO only (Meeting 3)<br>
+            &bull; New request: Social login for external learners (Meeting 7)<br>
+            &bull; Impact: +2 sprints if included in MVP<br>
+            &bull; <em>Recommendation: Defer social login to Phase 2</em><br>
+            &bull; <span class="hl">Confirmation prompt:</span> "Can we confirm that MVP ships with Microsoft SSO only, and social login is added in Phase 2?"<br><br>
+
+            <strong>Agenda Item 2 — Scalability Targets (10 min)</strong> → Ask: David Miller, Raj Patel<br>
+            &bull; Currently unknown: expected concurrent users at launch<br>
+            &bull; Needed for: infrastructure sizing, database architecture, caching strategy<br>
+            &bull; <span class="hl">Confirmation prompt:</span> "What's the expected number of concurrent users at launch? And growth projection for Year 1?"<br><br>
+
+            <strong>Agenda Item 3 — Data Residency (10 min)</strong> → Ask: David Miller<br>
+            &bull; Unknown: Are there EU users requiring GDPR compliance?<br>
+            &bull; Impact: hosting region, data processing, consent flows<br>
+            &bull; <span class="hl">Confirmation prompt:</span> "Will NacXwan serve EU-based users? If yes, do we need EU data residency?"<br><br>
+
+            <strong>Agenda Item 4 — DR &amp; Browser Support (10 min)</strong> → Ask: Raj Patel, Lisa Wang<br>
+            &bull; Backup SLA and disaster recovery targets needed<br>
+            &bull; Browser/device matrix needed for test planning<br>
+            &bull; <span class="hl">Confirmation prompt:</span> "What's the acceptable data loss window (RPO) and recovery time (RTO)?"
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe-step">
+        <div class="pipe-dot" style="border-color:var(--cyan);color:var(--cyan);">C</div>
+        <div class="pipe-title">Context Summary for PO</div>
+        <div class="pipe-sub">A brief summary of "here's what we know, here's what we need" — so the PO walks in prepared.</div>
+
+        <div class="dbox" style="border-left:3px solid var(--cyan);">
+          <div class="dbox-label" style="color:var(--cyan);">Current State Briefing</div>
+          <div class="dbox-content">
+            <strong>Overall readiness: 78%</strong> (conditional — 7% short of "ready" threshold)<br><br>
+            <strong>Strong areas:</strong> Business Context (95%), Technical Requirements (88%)<br>
+            <strong>Weak areas:</strong> NFRs (45%), User Roles (65%), Integration Points (72%)<br><br>
+            <strong>Key decisions already made:</strong><br>
+            &bull; React + Node.js + PostgreSQL stack (Meeting 4, Sarah Chen)<br>
+            &bull; Microsoft SSO as primary auth (Meeting 3, David Miller)<br>
+            &bull; MVP scope: 47 requirements confirmed (Meeting 5)<br>
+            &bull; WebSocket for real-time whiteboard (Meeting 3)<br><br>
+            <strong>If all 4 agenda items are resolved:</strong> Estimated readiness → <span class="hl">~89%</span> (Ready)
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="conn"><div class="conn-badge"><span class="a">▸</span>&nbsp; PO goes to Meeting 8 with agenda, talking points &amp; confirmation prompts &nbsp;<span class="a">▸</span></div></div>
+
+  <!-- Phase B: DURING -->
+  <div style="margin-bottom:40px;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:6px;color:var(--orange);">During the Meeting</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:20px;">The system is not present during the meeting. The PO uses the agenda as a guide, takes notes, and captures decisions.</div>
+
+    <div class="cgrid">
+      <div class="ccard">
+        <div class="ccard-icon">📋</div>
+        <div class="ccard-title">PO Uses Agenda</div>
+        <div class="ccard-desc">Follows the generated agenda. Uses confirmation prompts to get explicit yes/no decisions from stakeholders. Notes who said what.</div>
+      </div>
+      <div class="ccard">
+        <div class="ccard-icon">✍️</div>
+        <div class="ccard-title">PO Takes Notes</div>
+        <div class="ccard-desc">Captures key quotes, decisions, and action items. Doesn't need to be formal — the system will extract structure from raw notes.</div>
+      </div>
+      <div class="ccard">
+        <div class="ccard-icon">✓</div>
+        <div class="ccard-title">Decisions Captured</div>
+        <div class="ccard-desc">Social login → Phase 2. Concurrent users → 500 at launch, 2000 by Year 1. EU hosting → yes, needed. RTO → 4 hours, RPO → 1 hour.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="conn"><div class="conn-badge"><span class="a">▸</span>&nbsp; PO uploads Meeting 8 notes &nbsp;<span class="a">▸</span></div></div>
+
+  <!-- Phase C: AFTER -->
+  <div style="margin-bottom:40px;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:6px;color:var(--green);">After the Meeting</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:20px;">PO uploads Meeting 8 notes. The full ingestion pipeline runs (see Chapter 1). Here's the result — the "before vs. after" snapshot.</div>
+
+    <!-- Facts extracted -->
+    <div class="dbox" style="border-left:3px solid var(--green);margin-bottom:16px;">
+      <div class="dbox-label" style="color:var(--green);">New Facts Extracted from Meeting 8</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div class="fact-row">
+          <div class="fact-dot c"></div>
+          <div class="fact-text">Social login deferred to Phase 2</div>
+          <div class="fact-src">Meeting 8 — David Miller</div>
+          <div class="fact-action add">Add</div>
+        </div>
+        <div class="fact-row">
+          <div class="fact-dot c"></div>
+          <div class="fact-text">500 concurrent users at launch, 2000 by Year 1</div>
+          <div class="fact-src">Meeting 8 — David Miller</div>
+          <div class="fact-action add">Add</div>
+        </div>
+        <div class="fact-row">
+          <div class="fact-dot c"></div>
+          <div class="fact-text">EU data residency required — GDPR compliance</div>
+          <div class="fact-src">Meeting 8 — David Miller</div>
+          <div class="fact-action add">Add</div>
+        </div>
+        <div class="fact-row">
+          <div class="fact-dot c"></div>
+          <div class="fact-text">RTO: 4 hours, RPO: 1 hour</div>
+          <div class="fact-src">Meeting 8 — Raj Patel</div>
+          <div class="fact-action add">Add</div>
+        </div>
+        <div class="fact-row">
+          <div class="fact-dot c"></div>
+          <div class="fact-text">Browser support: Chrome, Firefox, Safari, Edge (latest 2 versions)</div>
+          <div class="fact-src">Meeting 8 — Lisa Wang</div>
+          <div class="fact-action add">Add</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gaps closed -->
+    <div class="dbox" style="border-left:3px solid var(--cyan);margin-bottom:16px;">
+      <div class="dbox-label" style="color:var(--cyan);">Gaps Resolved</div>
+      <div class="dbox-content">
+        <span style="text-decoration:line-through;color:var(--dim);">Auth scope: Social login in MVP?</span> → <span class="hl">Resolved</span> (SSO only, social login Phase 2)<br>
+        <span style="text-decoration:line-through;color:var(--dim);">Expected concurrent users at launch?</span> → <span class="hl">Resolved</span> (500 launch, 2000 Y1)<br>
+        <span style="text-decoration:line-through;color:var(--dim);">Data residency requirements for EU users?</span> → <span class="hl">Resolved</span> (EU required, GDPR)<br>
+        <span style="text-decoration:line-through;color:var(--dim);">DR and backup SLA targets?</span> → <span class="hl">Resolved</span> (RTO 4h, RPO 1h)<br>
+        <span style="text-decoration:line-through;color:var(--dim);">Browser/device support matrix?</span> → <span class="hl">Resolved</span> (Chrome, FF, Safari, Edge)<br><br>
+        <strong>5 of 6 gaps closed in one meeting.</strong> Remaining: <span class="warn">Offline mode for mobile learners?</span> (not discussed)
+      </div>
+    </div>
+
+    <!-- Readiness delta -->
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px;">Readiness: Before vs. After Meeting 8</div>
+
+    <div class="delta-grid">
+      <div class="delta-card">
+        <div class="delta-name">Business Context</div>
+        <div class="delta-vals">
+          <div class="delta-old">95%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">97%</div>
+        </div>
+      </div>
+      <div class="delta-card">
+        <div class="delta-name">Technical Reqs</div>
+        <div class="delta-vals">
+          <div class="delta-old">88%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">92%</div>
+        </div>
+      </div>
+      <div class="delta-card">
+        <div class="delta-name">Integration Points</div>
+        <div class="delta-vals">
+          <div class="delta-old">72%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">85%</div>
+        </div>
+      </div>
+      <div class="delta-card">
+        <div class="delta-name">User Roles</div>
+        <div class="delta-vals">
+          <div class="delta-old">65%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">72%</div>
+        </div>
+      </div>
+      <div class="delta-card">
+        <div class="delta-name">NFRs</div>
+        <div class="delta-vals">
+          <div class="delta-old">45%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">78%</div>
+        </div>
+      </div>
+      <div class="delta-card" style="border-color:var(--green-b);">
+        <div class="delta-name" style="color:var(--green);font-weight:700;">Overall Readiness</div>
+        <div class="delta-vals">
+          <div class="delta-old">78%</div>
+          <div class="delta-arrow">→</div>
+          <div class="delta-new up">89%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Final chat -->
+    <div class="chat" style="margin-top:20px;">
+      <div class="chat-msg ai">
+        <div class="chat-name ai-n">Discovery Assistant</div>
+        Meeting 8 processed. Excellent progress!<br><br>
+        <strong>5 new confirmed facts</strong> added. <strong>5 gaps closed.</strong><br>
+        <strong>1 contradiction resolved:</strong> Social login → Phase 2 (David Miller confirmed).<br><br>
+        Readiness: <strong style="color:var(--green);">78% → 89%</strong> — you've crossed the <strong style="color:var(--green);">Ready</strong> threshold (85%).<br><br>
+        <strong>Remaining gap:</strong> Offline mode for mobile learners (medium priority).<br><br>
+        You can now generate the discovery documents, or schedule one more call to close the final gap. What would you like to do?
+      </div>
+      <div class="chat-msg user">
+        <div class="chat-name user-n">Bojan Tesic</div>
+        Generate the discovery documents. We can address offline mode in Phase 2 planning.
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="dbox" style="border-top:3px solid var(--pink);">
+    <div class="dbox-label" style="color:var(--pink);">Meeting Lifecycle Summary</div>
+    <div class="dbox-content">
+      <strong>Before:</strong> System identifies 6 gaps, generates an agenda with 4 items, creates talking points with confirmation prompts, and estimates that resolving all items would bring readiness to ~89%.<br><br>
+      <strong>During:</strong> PO follows the agenda, captures decisions with explicit yes/no answers. No system involvement during the meeting itself.<br><br>
+      <strong>After:</strong> PO uploads notes → 5 facts extracted → 5 gaps closed → 1 contradiction resolved → readiness jumps from 78% to 89%. The system's pre-meeting estimate (89%) was accurate.<br><br>
+      <strong>Key insight:</strong> The meeting was maximally efficient because every minute was spent on the highest-impact gaps. No time wasted on already-known information or low-priority items.
+    </div>
+  </div>
+</div>
+
+</div><!-- end .wrap -->
+</body>
+</html>

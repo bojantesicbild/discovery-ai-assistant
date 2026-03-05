@@ -1,0 +1,1575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crnogorchi — Project Overview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ========================================
+       DESIGN TOKENS
+       ======================================== */
+    :root {
+      /* Colors — Bild Studio Brand */
+      --green: #00E5A0;
+      --green-light: #00E5A020;
+      --green-mid: #00E5A040;
+      --green-hover: #00CCA0;
+      --dark: #1A1A1A;
+      --dark-deep: #111111;
+      --dark-card: #222222;
+      --dark-border: #2A2A2A;
+      --dark-hover: #2D2D2D;
+      --white: #FFFFFF;
+      --gray-50: #F9FAFB;
+      --gray-100: #F3F4F6;
+      --gray-200: #E5E7EB;
+      --gray-300: #D1D5DB;
+      --gray-400: #9CA3AF;
+      --gray-500: #6B7280;
+      --gray-600: #4B5563;
+      --gray-700: #374151;
+      --warning: #F59E0B;
+      --warning-light: #F59E0B20;
+      --danger: #EF4444;
+      --danger-light: #EF444420;
+      --info: #3B82F6;
+
+      /* Typography */
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+      /* Spacing */
+      --sidebar-width: 260px;
+      --topbar-height: 64px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --radius-xs: 6px;
+
+      /* Shadows */
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+      --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+      --shadow-hover: 0 8px 24px rgba(0,0,0,0.10);
+    }
+
+    /* ========================================
+       RESET & BASE
+       ======================================== */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--gray-50);
+      color: var(--dark);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ========================================
+       LAYOUT
+       ======================================== */
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ========================================
+       SIDEBAR
+       ======================================== */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--dark);
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 24px 24px 32px;
+      border-bottom: 1px solid var(--dark-border);
+    }
+
+    .sidebar-logo h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.3px;
+    }
+
+    .sidebar-logo h1 span {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      background: var(--green);
+      border-radius: 1.5px;
+      margin-left: 1px;
+      vertical-align: baseline;
+      position: relative;
+      top: 0px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--gray-500);
+      padding: 16px 12px 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      color: var(--gray-400);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      position: relative;
+    }
+
+    .nav-item:hover {
+      background: var(--dark-hover);
+      color: var(--gray-200);
+    }
+
+    .nav-item.active {
+      background: var(--green-light);
+      color: var(--green);
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 20px;
+      background: var(--green);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .nav-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .nav-badge {
+      margin-left: auto;
+      background: var(--green);
+      color: var(--dark);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 10px;
+    }
+
+    .sidebar-user {
+      padding: 16px 16px 20px;
+      border-top: 1px solid var(--dark-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--green);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--dark);
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .user-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--white);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-role {
+      font-size: 11px;
+      color: var(--gray-500);
+    }
+
+    /* ========================================
+       MAIN CONTENT
+       ======================================== */
+    .main {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      min-height: 100vh;
+    }
+
+    /* ========================================
+       TOP BAR
+       ======================================== */
+    .topbar {
+      height: var(--topbar-height);
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .project-selector {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: border-color 0.15s;
+      background: var(--white);
+    }
+
+    .project-selector:hover {
+      border-color: var(--gray-400);
+    }
+
+    .project-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+    }
+
+    .project-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .project-chevron {
+      width: 16px;
+      height: 16px;
+      color: var(--gray-400);
+    }
+
+    .search-bar {
+      flex: 1;
+      max-width: 400px;
+      position: relative;
+    }
+
+    .search-bar input {
+      width: 100%;
+      padding: 8px 12px 8px 36px;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-family: var(--font);
+      background: var(--gray-50);
+      color: var(--dark);
+      transition: all 0.15s;
+      outline: none;
+    }
+
+    .search-bar input::placeholder {
+      color: var(--gray-400);
+    }
+
+    .search-bar input:focus {
+      border-color: var(--green);
+      background: var(--white);
+      box-shadow: 0 0 0 3px var(--green-light);
+    }
+
+    .search-bar svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--gray-400);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--gray-200);
+      background: var(--white);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+    }
+
+    .icon-btn:hover {
+      border-color: var(--gray-300);
+      background: var(--gray-50);
+    }
+
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+      color: var(--gray-600);
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+    }
+
+    .icon-btn .notif-dot {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      border: 2px solid var(--white);
+    }
+
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--green);
+      color: var(--dark);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary:hover {
+      background: var(--green-hover);
+      box-shadow: 0 2px 8px rgba(0, 229, 160, 0.3);
+    }
+
+    .btn-primary svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* ========================================
+       CONTENT AREA
+       ======================================== */
+    .content {
+      padding: 28px 32px 48px;
+    }
+
+    .page-header {
+      margin-bottom: 28px;
+    }
+
+    .page-header h2 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
+    }
+
+    .page-header p {
+      font-size: 14px;
+      color: var(--gray-500);
+    }
+
+    /* ========================================
+       PHASE PIPELINE
+       ======================================== */
+    .pipeline {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pipeline-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--gray-400);
+      margin-bottom: 20px;
+    }
+
+    .pipeline-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .pipeline-step {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .step-content {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      transition: all 0.2s;
+      cursor: pointer;
+      min-width: 0;
+    }
+
+    .step-content:hover {
+      background: var(--gray-50);
+    }
+
+    .step-indicator {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .step-complete .step-indicator {
+      background: var(--green);
+      color: var(--dark);
+    }
+
+    .step-active .step-indicator {
+      background: var(--green-light);
+      color: var(--green);
+      position: relative;
+    }
+
+    .step-active .step-indicator::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 2px solid var(--green);
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.08); }
+    }
+
+    .step-upcoming .step-indicator {
+      background: var(--gray-100);
+      color: var(--gray-400);
+    }
+
+    .step-info h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      white-space: nowrap;
+    }
+
+    .step-status {
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .step-complete .step-status { color: var(--green); }
+    .step-active .step-status { color: var(--green); }
+    .step-upcoming .step-status { color: var(--gray-400); }
+
+    .step-connector {
+      flex-shrink: 0;
+      width: 40px;
+      height: 2px;
+      background: var(--gray-200);
+      position: relative;
+    }
+
+    .step-connector.done {
+      background: var(--green);
+    }
+
+    .step-connector svg {
+      position: absolute;
+      right: -4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 10px;
+      fill: var(--gray-300);
+    }
+
+    .step-connector.done svg {
+      fill: var(--green);
+    }
+
+    /* ========================================
+       STATS ROW
+       ======================================== */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+      box-shadow: var(--shadow-hover);
+      transform: translateY(-1px);
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--gray-500);
+      font-weight: 500;
+    }
+
+    .stat-trend {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .stat-trend.up { color: var(--green); }
+    .stat-trend.neutral { color: var(--gray-400); }
+
+    .stat-trend svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* ========================================
+       TWO COLUMN LAYOUT
+       ======================================== */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .card-action {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .card-action:hover {
+      opacity: 0.8;
+    }
+
+    .card-body {
+      padding: 16px 24px 20px;
+    }
+
+    /* ========================================
+       ACTIVITY TIMELINE
+       ======================================== */
+    .timeline {
+      list-style: none;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 14px;
+      padding: 12px 0;
+      position: relative;
+    }
+
+    .timeline-item:not(:last-child) {
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .timeline-dot-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 3px;
+    }
+
+    .timeline-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .timeline-dot.gray {
+      background: var(--gray-300);
+    }
+
+    .timeline-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .timeline-text p {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--dark);
+      margin-bottom: 3px;
+    }
+
+    .timeline-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--gray-400);
+    }
+
+    .timeline-phase {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 8px;
+      background: var(--green-light);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+    }
+
+    .timeline-phase.phase-2 {
+      background: #3B82F620;
+      color: #3B82F6;
+    }
+
+    /* ========================================
+       KNOWLEDGE SYSTEM CARD
+       ======================================== */
+    .knowledge-item {
+      padding: 14px 0;
+    }
+
+    .knowledge-item:not(:last-child) {
+      border-bottom: 1px solid var(--gray-100);
+    }
+
+    .knowledge-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .knowledge-label {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .knowledge-label .k-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: var(--radius-xs);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+
+    .k-icon.search { background: #3B82F615; color: #3B82F6; }
+    .k-icon.know { background: var(--green-light); color: var(--green); }
+    .k-icon.connect { background: #8B5CF615; color: #8B5CF6; }
+
+    .knowledge-value {
+      font-size: 13px;
+      color: var(--gray-500);
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--gray-100);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .progress-fill.green { background: var(--green); }
+    .progress-fill.blue { background: #3B82F6; }
+    .progress-fill.purple { background: #8B5CF6; }
+
+    .knowledge-breakdown {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .kb-item {
+      font-size: 11px;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .kb-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .kb-dot.confirmed { background: var(--green); }
+    .kb-dot.assumed { background: var(--warning); }
+    .kb-dot.pending { background: var(--gray-300); }
+
+    /* ========================================
+       TEAM CARD
+       ======================================== */
+    .team-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .team-member {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--gray-100);
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+
+    .team-member:hover {
+      border-color: var(--gray-200);
+      background: var(--gray-50);
+    }
+
+    .team-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .team-avatar.green { background: var(--green-light); color: #059669; }
+    .team-avatar.blue { background: #3B82F620; color: #3B82F6; }
+    .team-avatar.purple { background: #8B5CF620; color: #8B5CF6; }
+    .team-avatar.orange { background: #F59E0B20; color: #D97706; }
+
+    .team-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .team-phase {
+      font-size: 11px;
+      color: var(--gray-400);
+    }
+
+    /* ========================================
+       CONTROL POINTS
+       ======================================== */
+    .control-section {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s;
+    }
+
+    .control-section:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: 1fr 200px;
+      gap: 32px;
+      padding: 24px;
+    }
+
+    .control-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 12px;
+    }
+
+    .control-icon.pass { background: var(--green-light); color: var(--green); }
+    .control-icon.warn { background: var(--warning-light); color: var(--warning); }
+    .control-icon.fail { background: var(--danger-light); color: var(--danger); }
+
+    .control-info {
+      flex: 1;
+    }
+
+    .control-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .control-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--gray-100);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .control-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+
+    .control-fill.green { background: var(--green); }
+    .control-fill.yellow { background: var(--warning); }
+    .control-fill.red { background: var(--danger); }
+
+    .control-pct {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gray-600);
+      width: 36px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* Circular Progress */
+    .readiness-circle {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .circle-wrap {
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .circle-wrap svg {
+      width: 140px;
+      height: 140px;
+      transform: rotate(-90deg);
+    }
+
+    .circle-bg {
+      fill: none;
+      stroke: var(--gray-100);
+      stroke-width: 8;
+    }
+
+    .circle-progress {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 8;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1.5s ease;
+    }
+
+    .circle-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .circle-value {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1;
+    }
+
+    .circle-label {
+      font-size: 11px;
+      color: var(--gray-400);
+      font-weight: 500;
+      margin-top: 2px;
+    }
+
+    .readiness-status {
+      margin-top: 12px;
+      padding: 4px 12px;
+      background: var(--green-light);
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ========================================
+       RIGHT COLUMN STACK
+       ======================================== */
+    .right-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ========================================
+       SCROLLBAR STYLING
+       ======================================== */
+    .sidebar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--dark-border);
+      border-radius: 2px;
+    }
+
+    /* ========================================
+       ANIMATIONS
+       ======================================== */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pipeline { animation: fadeInUp 0.4s ease both; }
+    .stats-row { animation: fadeInUp 0.4s ease 0.05s both; }
+    .two-col { animation: fadeInUp 0.4s ease 0.1s both; }
+    .control-section { animation: fadeInUp 0.4s ease 0.15s both; }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- ======== SIDEBAR ======== -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <h1>Crnogorchi<span></span></h1>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main</div>
+
+        <a href="#" class="nav-item active">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+          </div>
+          Overview
+        </a>
+
+        <div class="nav-label">Phases</div>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          Discovery
+          <span class="nav-badge">4</span>
+        </a>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          Story & Tech
+        </a>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          Code
+        </a>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          QA
+        </a>
+
+        <div class="nav-label">System</div>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+          </div>
+          Documents
+        </a>
+
+        <a href="#" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          Knowledge Base
+        </a>
+
+        <a href="settings.html" class="nav-item">
+          <div class="nav-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </div>
+          Settings
+        </a>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="user-avatar">BT</div>
+        <div class="user-info">
+          <div class="user-name">Bojan Tesic</div>
+          <div class="user-role">Product Owner</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ======== MAIN ======== -->
+    <main class="main">
+
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="project-selector">
+          <div class="project-dot"></div>
+          <span class="project-name">NacXwan</span>
+          <svg class="project-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div class="search-bar">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Search requirements, stories, decisions...">
+        </div>
+
+        <div class="topbar-actions">
+          <button class="icon-btn">
+            <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            <div class="notif-dot"></div>
+          </button>
+          <button class="btn-primary">
+            <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            New Project
+          </button>
+        </div>
+      </header>
+
+      <!-- Content -->
+      <div class="content">
+
+        <div class="page-header">
+          <h2>Project Overview</h2>
+          <p>NacXwan — EdTech platform for interactive learning</p>
+        </div>
+
+        <!-- Phase Pipeline -->
+        <div class="pipeline">
+          <div class="pipeline-label">Development Pipeline</div>
+          <div class="pipeline-steps">
+
+            <div class="pipeline-step step-complete">
+              <div class="step-content">
+                <div class="step-indicator">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="step-info">
+                  <h4>Discovery</h4>
+                  <div class="step-status">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="6"/></svg>
+                    Complete
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-connector done">
+              <svg viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10"/></svg>
+            </div>
+
+            <div class="pipeline-step step-active">
+              <div class="step-content">
+                <div class="step-indicator">2</div>
+                <div class="step-info">
+                  <h4>Story & Tech</h4>
+                  <div class="step-status">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="6"/></svg>
+                    In Progress
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-connector">
+              <svg viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10"/></svg>
+            </div>
+
+            <div class="pipeline-step step-upcoming">
+              <div class="step-content">
+                <div class="step-indicator">3</div>
+                <div class="step-info">
+                  <h4>Code</h4>
+                  <div class="step-status">Upcoming</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step-connector">
+              <svg viewBox="0 0 10 10"><polygon points="5,0 10,5 5,10"/></svg>
+            </div>
+
+            <div class="pipeline-step step-upcoming">
+              <div class="step-content">
+                <div class="step-indicator">4</div>
+                <div class="step-info">
+                  <h4>QA</h4>
+                  <div class="step-status">Upcoming</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-value">47</div>
+            <div class="stat-label">Requirements Captured</div>
+            <div class="stat-trend up">
+              <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              +8 this week
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">23</div>
+            <div class="stat-label">Stories Created</div>
+            <div class="stat-trend up">
+              <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              +12 this week
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" style="color: var(--green);">89%</div>
+            <div class="stat-label">Discovery Readiness</div>
+            <div class="stat-trend up">
+              <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              +6% from last check
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">156</div>
+            <div class="stat-label">Knowledge Facts</div>
+            <div class="stat-trend up">
+              <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              +23 this week
+            </div>
+          </div>
+        </div>
+
+        <!-- Two Column -->
+        <div class="two-col">
+
+          <!-- Left: Recent Activity -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Recent Activity</div>
+              <a href="#" class="card-action">View all &rarr;</a>
+            </div>
+            <div class="card-body">
+              <ul class="timeline">
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot"></div></div>
+                  <div class="timeline-text">
+                    <p>Discovery Brief generated and approved</p>
+                    <div class="timeline-meta">
+                      <span>2 hours ago</span>
+                      <span class="timeline-phase">Phase 1</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot"></div></div>
+                  <div class="timeline-text">
+                    <p>MVP Scope Freeze approved by stakeholders</p>
+                    <div class="timeline-meta">
+                      <span>Yesterday</span>
+                      <span class="timeline-phase">Phase 1</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot"></div></div>
+                  <div class="timeline-text">
+                    <p>3 new requirements extracted from meeting notes</p>
+                    <div class="timeline-meta">
+                      <span>Yesterday</span>
+                      <span class="timeline-phase">Phase 1</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot gray"></div></div>
+                  <div class="timeline-text">
+                    <p>Client repository analysis completed — 12 services identified</p>
+                    <div class="timeline-meta">
+                      <span>2 days ago</span>
+                      <span class="timeline-phase">Phase 1</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot gray"></div></div>
+                  <div class="timeline-text">
+                    <p>Gap analysis: 4 open questions identified for next meeting</p>
+                    <div class="timeline-meta">
+                      <span>3 days ago</span>
+                      <span class="timeline-phase">Phase 1</span>
+                    </div>
+                  </div>
+                </li>
+                <li class="timeline-item">
+                  <div class="timeline-dot-wrap"><div class="timeline-dot gray"></div></div>
+                  <div class="timeline-text">
+                    <p>12 user stories created from functional requirements</p>
+                    <div class="timeline-meta">
+                      <span>3 days ago</span>
+                      <span class="timeline-phase phase-2">Phase 2</span>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Right: Knowledge + Team -->
+          <div class="right-stack">
+
+            <!-- Knowledge System -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Knowledge System</div>
+                <a href="#" class="card-action">Explore &rarr;</a>
+              </div>
+              <div class="card-body">
+                <div class="knowledge-item">
+                  <div class="knowledge-row">
+                    <div class="knowledge-label">
+                      <div class="k-icon search">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="6"/><line x1="17" y1="17" x2="21" y2="21"/></svg>
+                      </div>
+                      RAGFlow
+                    </div>
+                    <div class="knowledge-value">34 documents</div>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill blue" style="width: 68%"></div></div>
+                </div>
+
+                <div class="knowledge-item">
+                  <div class="knowledge-row">
+                    <div class="knowledge-label">
+                      <div class="k-icon know">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      </div>
+                      Mem0 Facts
+                    </div>
+                    <div class="knowledge-value">156 facts</div>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill green" style="width: 82%"></div></div>
+                  <div class="knowledge-breakdown">
+                    <div class="kb-item"><div class="kb-dot confirmed"></div> 89 confirmed</div>
+                    <div class="kb-item"><div class="kb-dot assumed"></div> 42 assumed</div>
+                    <div class="kb-item"><div class="kb-dot pending"></div> 25 pending</div>
+                  </div>
+                </div>
+
+                <div class="knowledge-item">
+                  <div class="knowledge-row">
+                    <div class="knowledge-label">
+                      <div class="k-icon connect">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.59 8.59L15.42 15.42"/></svg>
+                      </div>
+                      Mem0 Graph
+                    </div>
+                    <div class="knowledge-value">78 entities</div>
+                  </div>
+                  <div class="progress-bar"><div class="progress-fill purple" style="width: 55%"></div></div>
+                  <div class="knowledge-breakdown">
+                    <div class="kb-item" style="color: var(--gray-500);">234 relationships</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Team -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title">Team</div>
+                <a href="#" class="card-action">Manage &rarr;</a>
+              </div>
+              <div class="card-body">
+                <div class="team-grid">
+                  <div class="team-member">
+                    <div class="team-avatar green">BT</div>
+                    <div>
+                      <div class="team-name">Bojan T.</div>
+                      <div class="team-phase">Discovery</div>
+                    </div>
+                  </div>
+                  <div class="team-member">
+                    <div class="team-avatar blue">SC</div>
+                    <div>
+                      <div class="team-name">Sarah C.</div>
+                      <div class="team-phase">Story & Tech</div>
+                    </div>
+                  </div>
+                  <div class="team-member">
+                    <div class="team-avatar purple">AM</div>
+                    <div>
+                      <div class="team-name">Alex M.</div>
+                      <div class="team-phase">Code</div>
+                    </div>
+                  </div>
+                  <div class="team-member">
+                    <div class="team-avatar orange">JK</div>
+                    <div>
+                      <div class="team-name">Jana K.</div>
+                      <div class="team-phase">QA</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Control Points -->
+        <div class="control-section">
+          <div class="card-header">
+            <div class="card-title">Control Points — Discovery Readiness</div>
+            <a href="#" class="card-action">Configure &rarr;</a>
+          </div>
+          <div class="control-grid">
+            <ul class="control-list">
+              <li class="control-item">
+                <div class="control-icon pass">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="control-info">
+                  <div class="control-name">Business Context</div>
+                  <div class="control-bar"><div class="control-fill green" style="width: 95%"></div></div>
+                </div>
+                <div class="control-pct">95%</div>
+              </li>
+              <li class="control-item">
+                <div class="control-icon pass">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </div>
+                <div class="control-info">
+                  <div class="control-name">Technical Requirements</div>
+                  <div class="control-bar"><div class="control-fill green" style="width: 88%"></div></div>
+                </div>
+                <div class="control-pct">88%</div>
+              </li>
+              <li class="control-item">
+                <div class="control-icon warn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
+                </div>
+                <div class="control-info">
+                  <div class="control-name">Integration Points</div>
+                  <div class="control-bar"><div class="control-fill yellow" style="width: 72%"></div></div>
+                </div>
+                <div class="control-pct">72%</div>
+              </li>
+              <li class="control-item">
+                <div class="control-icon warn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg>
+                </div>
+                <div class="control-info">
+                  <div class="control-name">User Roles & Permissions</div>
+                  <div class="control-bar"><div class="control-fill yellow" style="width: 65%"></div></div>
+                </div>
+                <div class="control-pct">65%</div>
+              </li>
+              <li class="control-item">
+                <div class="control-icon fail">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </div>
+                <div class="control-info">
+                  <div class="control-name">Non-Functional Requirements</div>
+                  <div class="control-bar"><div class="control-fill red" style="width: 45%"></div></div>
+                </div>
+                <div class="control-pct">45%</div>
+              </li>
+            </ul>
+
+            <div class="readiness-circle">
+              <div class="circle-wrap">
+                <svg viewBox="0 0 140 140">
+                  <circle class="circle-bg" cx="70" cy="70" r="58"/>
+                  <circle class="circle-progress" cx="70" cy="70" r="58"
+                    stroke-dasharray="364.42"
+                    stroke-dashoffset="40.09"/>
+                </svg>
+                <div class="circle-text">
+                  <div class="circle-value">89%</div>
+                  <div class="circle-label">Readiness</div>
+                </div>
+              </div>
+              <div class="readiness-status">READY FOR HANDOFF</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discovery Extended — Architecture, Simulation, Comparison, Handoff &amp; Timeline</title>
+<style>
+  :root {
+    --bg: #0B0D14; --surface: #141722; --surface2: #1C2030; --surface3: #232840;
+    --border: #252A3A; --border-hi: #3A4060; --text: #E8EAF0; --dim: #6B7194;
+    --green: #00E5A0; --green-bg: rgba(0,229,160,0.08); --green-b: rgba(0,229,160,0.2);
+    --orange: #F59E0B; --orange-bg: rgba(245,158,11,0.08); --orange-b: rgba(245,158,11,0.2);
+    --blue: #3B82F6; --blue-bg: rgba(59,130,246,0.08); --blue-b: rgba(59,130,246,0.2);
+    --purple: #A78BFA; --purple-bg: rgba(167,139,250,0.08); --purple-b: rgba(167,139,250,0.2);
+    --cyan: #22D3EE; --cyan-bg: rgba(34,211,238,0.08); --cyan-b: rgba(34,211,238,0.2);
+    --pink: #F472B6; --pink-bg: rgba(244,114,182,0.08); --pink-b: rgba(244,114,182,0.2);
+    --red: #EF4444; --red-bg: rgba(239,68,68,0.08); --red-b: rgba(239,68,68,0.2);
+    --yellow: #FACC15; --yellow-bg: rgba(250,204,21,0.08); --yellow-b: rgba(250,204,21,0.2);
+    --font: 'Inter', -apple-system, system-ui, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font);padding:48px 40px 80px;min-height:100vh;}
+  .hdr{max-width:1200px;margin:0 auto 56px;}
+  h1{font-size:32px;font-weight:800;letter-spacing:-.5px;margin-bottom:8px;}
+  h1 span{color:var(--green);}
+  .sub{color:var(--dim);font-size:14px;line-height:1.6;max-width:720px;}
+  .badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;padding:4px 12px;border-radius:4px;margin-bottom:12px;}
+  .wrap{max-width:1200px;margin:0 auto;}
+
+  /* Chapter */
+  .chapter{margin-bottom:80px;scroll-margin-top:24px;}
+  .ch-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:8px;}
+  .ch-num{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;flex-shrink:0;}
+  .ch-title{font-size:22px;font-weight:800;letter-spacing:-.3px;line-height:40px;}
+  .ch-desc{color:var(--dim);font-size:13px;line-height:1.7;margin-left:56px;margin-bottom:28px;max-width:800px;}
+
+  /* TOC */
+  .toc{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px 28px;margin-bottom:56px;}
+  .toc-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin-bottom:12px;}
+  .toc-list{display:flex;flex-wrap:wrap;gap:10px;}
+  .toc-item{font-size:13px;padding:6px 16px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);text-decoration:none;transition:border-color .15s;cursor:pointer;}
+  .toc-item:hover{border-color:var(--green);color:var(--green);}
+
+  /* Separator */
+  .sep{height:1px;background:var(--border);margin:56px 0;}
+
+  /* Data box */
+  .dbox{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:10px;overflow:hidden;}
+  .dbox-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .dbox-content{font-size:12px;color:var(--dim);line-height:1.7;}
+  .dbox-content code{font-family:var(--mono);font-size:11px;background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--text);}
+  .dbox-content strong{color:var(--text);font-weight:600;}
+  .hl{color:var(--green);font-weight:600;}
+  .warn{color:var(--orange);font-weight:600;}
+  .err{color:var(--red);font-weight:600;}
+
+  /* Split */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .split.tri{grid-template-columns:1fr 1fr 1fr;}
+  .split.quad{grid-template-columns:1fr 1fr 1fr 1fr;}
+
+  /* Card */
+  .ccard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s,transform .15s;}
+  .ccard:hover{border-color:var(--border-hi);transform:translateY(-2px);}
+  .ccard-icon{font-size:20px;margin-bottom:10px;}
+  .ccard-title{font-size:13px;font-weight:700;margin-bottom:6px;}
+  .ccard-desc{font-size:11px;color:var(--dim);line-height:1.6;}
+  .ccard-tag{display:inline-block;font-size:9px;padding:2px 8px;border-radius:4px;font-weight:600;margin-top:8px;}
+
+  /* Connector */
+  .conn{display:flex;align-items:center;justify-content:center;margin:24px 0;position:relative;}
+  .conn::before{content:'';position:absolute;left:5%;right:5%;top:50%;height:1px;background:var(--border);}
+  .conn-badge{position:relative;z-index:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 18px;font-size:10px;color:var(--dim);white-space:nowrap;}
+  .conn-badge .a{color:var(--green);font-weight:700;}
+
+  /* Layer column */
+  .layer-col{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;}
+  .layer-col::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .layer-col.l1::before{background:var(--blue);}
+  .layer-col.l2::before{background:var(--green);}
+  .layer-col.l3::before{background:var(--purple);}
+  .layer-col.l4::before{background:var(--cyan);}
+  .layer-num{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+  .layer-name{font-size:15px;font-weight:700;margin-bottom:2px;}
+  .layer-tech{font-size:10px;color:var(--dim);font-family:var(--mono);margin-bottom:10px;}
+  .layer-items{display:flex;flex-direction:column;gap:4px;}
+  .layer-item{font-size:11px;color:var(--dim);line-height:1.5;padding-left:12px;position:relative;}
+  .layer-item::before{content:'→';position:absolute;left:0;color:var(--border-hi);}
+
+  /* Query comparison */
+  .qbox{border-radius:10px;padding:16px;border:1px solid var(--border);}
+  .qbox-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+  .qbox-q{font-size:13px;font-weight:600;font-style:italic;margin-bottom:10px;color:var(--text);}
+  .qbox-a{font-size:12px;color:var(--dim);line-height:1.7;}
+
+  /* Perspective cards */
+  .persp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;}
+  .persp-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;overflow:hidden;}
+  .persp-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+  .persp-role{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+  .persp-name{font-size:15px;font-weight:700;margin-bottom:8px;}
+  .persp-items{display:flex;flex-direction:column;gap:6px;}
+  .persp-item{font-size:11px;color:var(--dim);line-height:1.55;padding-left:16px;position:relative;}
+  .persp-item::before{content:'';position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:50%;}
+  .persp-item.pos::before{background:var(--green);}
+  .persp-item.neg::before{background:var(--red);}
+  .persp-item.warn::before{background:var(--orange);}
+  .persp-item.neutral::before{background:var(--dim);}
+  .persp-verdict{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;font-weight:600;}
+
+  /* Comparison table */
+  .cmp-table{width:100%;border-collapse:collapse;}
+  .cmp-table th,.cmp-table td{padding:14px 18px;text-align:left;border-bottom:1px solid var(--border);font-size:12px;}
+  .cmp-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--dim);}
+  .cmp-table tr:last-child td{border-bottom:none;}
+  .cmp-table .dim{color:var(--dim);}
+  .cmp-table .old{background:var(--red-bg);}
+  .cmp-table .new{background:var(--green-bg);}
+  .cmp-col-head{font-size:13px;font-weight:700;margin-bottom:2px;}
+  .cmp-col-sub{font-size:10px;color:var(--dim);font-weight:400;}
+
+  /* Handoff doc card */
+  .ho-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;border-top:3px solid var(--green);}
+  .ho-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:8px;}
+  .ho-title{font-size:15px;font-weight:700;margin-bottom:6px;}
+  .ho-desc{font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:10px;}
+  .ho-sections{display:flex;flex-direction:column;gap:3px;}
+  .ho-sec{font-size:11px;color:var(--dim);padding-left:12px;position:relative;line-height:1.5;}
+  .ho-sec::before{content:'§';position:absolute;left:0;color:var(--green);font-weight:700;}
+  .ho-sources{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;}
+  .ho-src{font-size:9px;padding:2px 8px;border-radius:4px;font-weight:600;background:var(--surface2);color:var(--dim);border:1px solid var(--border);}
+
+  /* Timeline interactive */
+  .tl-track{position:relative;padding:0 0 0 0;}
+  .tl-bar{display:flex;align-items:stretch;height:8px;border-radius:4px;overflow:hidden;background:var(--surface2);margin-bottom:8px;}
+  .tl-seg{height:100%;transition:all .3s;}
+  .tl-labels{display:flex;justify-content:space-between;margin-bottom:24px;}
+  .tl-label{font-size:10px;color:var(--dim);}
+
+  .tl-week{position:relative;margin-bottom:0;border-left:2px solid var(--border);padding-left:24px;padding-bottom:32px;}
+  .tl-week:last-child{padding-bottom:0;border-left-color:transparent;}
+  .tl-dot{position:absolute;left:-8px;top:0;width:14px;height:14px;border-radius:50%;border:3px solid var(--border);background:var(--bg);z-index:1;cursor:pointer;transition:all .2s;}
+  .tl-dot:hover{transform:scale(1.3);}
+  .tl-dot.done{border-color:var(--green);background:var(--green);}
+  .tl-dot.active{border-color:var(--orange);background:var(--orange);}
+  .tl-week-head{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .tl-week-title{font-size:14px;font-weight:700;}
+  .tl-week-pct{font-size:12px;font-weight:700;padding:2px 10px;border-radius:10px;}
+  .tl-week-desc{font-size:11px;color:var(--dim);line-height:1.6;margin-bottom:10px;}
+
+  .tl-detail{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;}
+  .tl-detail-row{display:flex;gap:12px;padding:4px 0;}
+  .tl-detail-label{font-size:10px;font-weight:700;color:var(--dim);width:90px;flex-shrink:0;text-transform:uppercase;letter-spacing:.5px;}
+  .tl-detail-val{font-size:11px;color:var(--text);line-height:1.5;flex:1;}
+
+  .tl-meetings{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .tl-mtg{font-size:10px;padding:4px 10px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--dim);}
+  .tl-mtg.key{border-color:var(--green-b);color:var(--green);background:var(--green-bg);}
+
+  /* Alert */
+  .alert{border-radius:10px;padding:16px;display:flex;gap:12px;align-items:flex-start;}
+  .alert-icon{font-size:18px;flex-shrink:0;margin-top:1px;}
+  .alert-title{font-size:13px;font-weight:700;margin-bottom:4px;}
+  .alert-desc{font-size:11px;line-height:1.6;}
+
+  /* Conflict card */
+  .conflict{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px;}
+  .conflict-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .conflict-icon{font-size:14px;}
+  .conflict-title{font-size:12px;font-weight:700;}
+  .conflict-desc{font-size:11px;color:var(--dim);line-height:1.55;}
+  .conflict-resolution{font-size:11px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+
+  /* Feedback loop */
+  .fb-wrap{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;position:relative;overflow:hidden;}
+  .fb-wrap::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--green),var(--blue),var(--purple),var(--pink));}
+  .fb-flow{display:flex;align-items:center;gap:0;flex-wrap:wrap;justify-content:center;}
+  .fb-node{padding:10px 18px;border-radius:10px;font-size:12px;font-weight:600;white-space:nowrap;border:1px solid var(--border);}
+  .fb-arrow{font-size:18px;color:var(--border-hi);padding:0 4px;}
+
+  /* Quality bar */
+  .qbar{display:flex;align-items:center;gap:6px;margin:4px 0;}
+  .qbar-fill{height:6px;border-radius:3px;background:var(--green);}
+  .qbar-empty{height:6px;border-radius:3px;background:var(--surface2);flex:1;}
+  .qbar-label{font-size:10px;color:var(--dim);width:50px;text-align:right;}
+
+  @media(max-width:900px){
+    .split,.split.tri,.split.quad{grid-template-columns:1fr;}
+    .persp-grid{grid-template-columns:1fr;}
+  }
+  @media(max-width:600px){body{padding:24px 16px;}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="badge" style="background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);">NacXwan Learning Platform — Extended Documentation</div>
+  <h1>Discovery <span>Extended</span></h1>
+  <p class="sub">Knowledge architecture internals, role simulation in action, before/after comparison with traditional discovery, Phase 2 handoff details, and a week-by-week interactive timeline.</p>
+</div>
+
+<div class="wrap">
+
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <div class="toc-list">
+    <a class="toc-item" href="#ch1">1. Knowledge Architecture</a>
+    <a class="toc-item" href="#ch2">2. Role Simulation</a>
+    <a class="toc-item" href="#ch3">3. Traditional vs. AI-Assisted</a>
+    <a class="toc-item" href="#ch4">4. Phase 2 Handoff</a>
+    <a class="toc-item" href="#ch5">5. Interactive Timeline</a>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 1: KNOWLEDGE ARCHITECTURE                                  -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch1">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--blue-bg);color:var(--blue);">1</div>
+    <div class="ch-title">Knowledge Architecture</div>
+  </div>
+  <div class="ch-desc">
+    The system uses 4 specialized knowledge layers. Each serves a different purpose — and the key insight is that <strong>traditional RAG (Layer 1) alone cannot power deterministic readiness checks</strong>. That requires Layer 2 (facts). Here's how they work together.
+  </div>
+
+  <!-- 4 Layers -->
+  <div class="split quad" style="margin-bottom:24px;">
+    <div class="layer-col l1">
+      <div class="layer-num">Layer 1</div>
+      <div class="layer-name">Document Search</div>
+      <div class="layer-tech">RAGFlow — Elasticsearch + MinIO</div>
+      <div class="layer-items">
+        <div class="layer-item">Stores full document content as chunks</div>
+        <div class="layer-item">Hybrid search: vector (0.7) + keyword (0.3)</div>
+        <div class="layer-item">RAPTOR parent-child chunking</div>
+        <div class="layer-item">Auto-keywords &amp; auto-questions per chunk</div>
+        <div class="layer-item">13+ reranking providers</div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;padding:6px 10px;border-radius:6px;background:var(--blue-bg);color:var(--blue);font-weight:600;">Best for: "What did the client say about X?"</div>
+    </div>
+    <div class="layer-col l2">
+      <div class="layer-num">Layer 2</div>
+      <div class="layer-name">Fact Store</div>
+      <div class="layer-tech">Mem0 — PGVector + Neo4j</div>
+      <div class="layer-items">
+        <div class="layer-item">Discrete, deduplicated knowledge units</div>
+        <div class="layer-item">LLM-powered: ADD / UPDATE / DELETE / IGNORE</div>
+        <div class="layer-item">Version history with timestamps &amp; sources</div>
+        <div class="layer-item">Confirmed vs. Assumed status per fact</div>
+        <div class="layer-item">Entity deduplication ("Sarah Chen" = "S. Chen")</div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;padding:6px 10px;border-radius:6px;background:var(--green-bg);color:var(--green);font-weight:600;">Best for: "Do we know X? Yes/No."</div>
+    </div>
+    <div class="layer-col l3">
+      <div class="layer-num">Layer 3</div>
+      <div class="layer-name">Entity Graph</div>
+      <div class="layer-tech">Neo4j</div>
+      <div class="layer-items">
+        <div class="layer-item">People, Orgs, Features, Decisions</div>
+        <div class="layer-item">Integrations, Constraints, Dependencies</div>
+        <div class="layer-item">Relationships: decided, requires, blocks</div>
+        <div class="layer-item">Stakeholder mapping &amp; decision provenance</div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;padding:6px 10px;border-radius:6px;background:var(--purple-bg);color:var(--purple);font-weight:600;">Best for: "Who decided X? What depends on Y?"</div>
+    </div>
+    <div class="layer-col l4">
+      <div class="layer-num">Layer 4</div>
+      <div class="layer-name">Code Understanding</div>
+      <div class="layer-tech">Claude Code — Claude API</div>
+      <div class="layer-items">
+        <div class="layer-item">Architecture &amp; tech stack analysis</div>
+        <div class="layer-item">API surface &amp; integration points</div>
+        <div class="layer-item">Technical debt &amp; code quality</div>
+        <div class="layer-item">Outputs feed into Layers 1 &amp; 2</div>
+      </div>
+      <div style="margin-top:12px;font-size:10px;padding:6px 10px;border-radius:6px;background:var(--cyan-bg);color:var(--cyan);font-weight:600;">Best for: "What does the existing code do?"</div>
+    </div>
+  </div>
+
+  <!-- Same question, different layers -->
+  <div style="font-size:16px;font-weight:700;margin:32px 0 16px;">Same Question, Different Layers</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">The PO asks: <strong>"What authentication method are we using?"</strong> — watch how each layer answers differently.</p>
+
+  <div class="split" style="margin-bottom:16px;">
+    <div class="qbox" style="background:var(--blue-bg);border-color:var(--blue-b);">
+      <div class="qbox-label" style="color:var(--blue);">Layer 1 — RAGFlow (Document Search)</div>
+      <div class="qbox-q">"What authentication method are we using?"</div>
+      <div class="qbox-a">
+        Returns <strong>3 relevant chunks</strong> ranked by similarity:<br><br>
+        1. <em>"Sarah Chen confirmed MSAL.js for SSO integration. Microsoft 365 infrastructure supports this natively..."</em> (Meeting 7, similarity: 0.91)<br><br>
+        2. <em>"Microsoft SSO as primary auth for MVP. All users authenticate through Azure AD..."</em> (Meeting 3, similarity: 0.88)<br><br>
+        3. <em>"David Miller raised: We need to think about external learners... Can we add Google and Apple login?"</em> (Meeting 7, similarity: 0.82)<br><br>
+        <strong style="color:var(--blue);">Limitation:</strong> Returns raw text. Doesn't resolve the contradiction between chunks 2 &amp; 3. Doesn't tell you which is the <em>current</em> decision.
+      </div>
+    </div>
+    <div class="qbox" style="background:var(--green-bg);border-color:var(--green-b);">
+      <div class="qbox-label" style="color:var(--green);">Layer 2 — Mem0 (Fact Store)</div>
+      <div class="qbox-q">"What authentication method are we using?"</div>
+      <div class="qbox-a">
+        Returns <strong>discrete, resolved facts</strong>:<br><br>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;"></span> <strong>Microsoft SSO via MSAL.js</strong> — confirmed, Meeting 7, Sarah Chen<br><br>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;"></span> <strong>MFA for admin roles</strong> — confirmed, Meeting 7, Sarah Chen<br><br>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;"></span> <strong>Social login deferred to Phase 2</strong> — confirmed, Meeting 8, David Miller<br><br>
+        <strong style="color:var(--green);">Advantage:</strong> Contradiction already resolved. Facts deduplicated. Current state only — no ambiguity. Control Point Agent can check: "Auth method confirmed? <span class="hl">YES</span>."
+      </div>
+    </div>
+  </div>
+  <div class="split">
+    <div class="qbox" style="background:var(--purple-bg);border-color:var(--purple-b);">
+      <div class="qbox-label" style="color:var(--purple);">Layer 3 — Neo4j (Entity Graph)</div>
+      <div class="qbox-q">"What authentication method are we using?"</div>
+      <div class="qbox-a">
+        Returns <strong>relationships and provenance</strong>:<br><br>
+        <code>MSAL.js</code> ←<em>decided by</em>← <code>Sarah Chen</code> (Meeting 7)<br>
+        <code>MSAL.js</code> ←<em>supported by</em>← <code>Azure AD</code> ←<em>part of</em>← <code>Microsoft 365 Infra</code><br>
+        <code>Social Login</code> ←<em>deferred by</em>← <code>David Miller</code> (Meeting 8)<br>
+        <code>MFA</code> →<em>requires</em>→ <code>Azure AD Conditional Access</code><br>
+        <code>MFA</code> →<em>applies to</em>→ <code>Admin Role</code><br><br>
+        <strong style="color:var(--purple);">Advantage:</strong> Shows <em>who</em> decided, what <em>depends on</em> what, and the full decision chain. Enables: "Why MSAL.js?" → "Because Sarah Chen chose it in Meeting 7, and it's supported by the client's existing Microsoft 365 infrastructure."
+      </div>
+    </div>
+    <div class="qbox" style="background:var(--cyan-bg);border-color:var(--cyan-b);">
+      <div class="qbox-label" style="color:var(--cyan);">Layer 4 — Claude Code (Repo Analysis)</div>
+      <div class="qbox-q">"What authentication method are we using?"</div>
+      <div class="qbox-a">
+        Returns <strong>what the existing code actually does</strong>:<br><br>
+        <code>nacxwan/api-gateway</code> analysis:<br>
+        &bull; Current auth: Basic token validation middleware<br>
+        &bull; No SSO integration present<br>
+        &bull; <code>auth/</code> directory has JWT helpers (unused)<br>
+        &bull; <code>package.json</code>: no MSAL or OAuth dependencies<br>
+        &bull; API gateway architecture supports adding auth middleware<br><br>
+        <strong style="color:var(--cyan);">Advantage:</strong> Grounds technical decisions in reality. Sarah chose MSAL.js, and Raj confirmed the gateway can handle it — Claude Code confirms the gateway's architecture is compatible. No surprises in Phase 2.
+      </div>
+    </div>
+  </div>
+
+  <!-- Key insight -->
+  <div class="dbox" style="margin-top:24px;border-top:3px solid var(--green);">
+    <div class="dbox-label" style="color:var(--green);">The Critical Difference</div>
+    <div class="dbox-content">
+      <strong>Layer 1 alone (traditional RAG):</strong> "Here are some relevant paragraphs — good luck figuring out the current state."<br>
+      <strong>Layer 1 + Layer 2:</strong> "Auth method is MSAL.js, confirmed. Social login was considered but deferred. Control point: <span class="hl">covered</span>."<br>
+      <strong>All 4 layers:</strong> "MSAL.js confirmed by Sarah Chen, depends on Azure AD, existing code supports it, social login deferred by David Miller in Meeting 8. Readiness for this item: <span class="hl">100%</span>."<br><br>
+      This is why control point readiness is <strong>deterministic, not probabilistic</strong>. We don't search and hope — we check discrete facts.
+    </div>
+  </div>
+
+  <!-- How agents use layers -->
+  <div style="font-size:16px;font-weight:700;margin:32px 0 16px;">Which Agent Uses Which Layer</div>
+  <div style="overflow-x:auto;">
+    <table class="cmp-table" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th style="text-align:center;">L1 Search</th>
+          <th style="text-align:center;">L2 Facts</th>
+          <th style="text-align:center;">L3 Graph</th>
+          <th style="text-align:center;">L4 Code</th>
+          <th>Primary Use</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Intake</strong></td><td style="text-align:center;color:var(--green);">Write</td><td style="text-align:center;color:var(--green);">Write</td><td style="text-align:center;color:var(--dim);">—</td><td style="text-align:center;color:var(--green);">Trigger</td><td class="dim">Parse, chunk, store, extract facts</td></tr>
+        <tr><td><strong>Analysis</strong></td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--green);">Write</td><td style="text-align:center;color:var(--blue);">Read</td><td class="dim">Cross-reference, build graph, find contradictions</td></tr>
+        <tr><td><strong>Control Point</strong></td><td style="text-align:center;color:var(--dim);">—</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--dim);">—</td><td class="dim">Evaluate facts against checklist, score readiness</td></tr>
+        <tr><td><strong>Gap Detection</strong></td><td style="text-align:center;color:var(--dim);">—</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--dim);">—</td><td class="dim">Find missing info, prioritize questions</td></tr>
+        <tr><td><strong>Meeting Prep</strong></td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--dim);">—</td><td class="dim">Build agenda from gaps, create talking points</td></tr>
+        <tr><td><strong>Doc Generator</strong></td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td class="dim">Compose deliverables from all sources</td></tr>
+        <tr><td><strong>Role Simulation</strong></td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td style="text-align:center;color:var(--blue);">Read</td><td class="dim">Analyze requirements from 5 perspectives</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 2: ROLE SIMULATION                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch2">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--purple-bg);color:var(--purple);">2</div>
+    <div class="ch-title">Role Simulation in Action</div>
+  </div>
+  <div class="ch-desc">
+    Before generating final documents, the Role Simulation Agent analyzes requirements from 5 cognitive perspectives.
+    Here's <strong>REQ-045 (Social Login)</strong> examined through each lens — revealing conflicts that a single viewpoint would miss.
+    <br><br>Based on Tarik Zaimovic's cognitive simulation methodology.
+  </div>
+
+  <!-- Requirement being analyzed -->
+  <div class="dbox" style="border-left:3px solid var(--orange);margin-bottom:24px;">
+    <div class="dbox-label" style="color:var(--orange);">Requirement Under Analysis</div>
+    <div class="dbox-content">
+      <strong>REQ-045: Social login support (Google, Apple)</strong><br>
+      Priority: <span class="warn">Should Have</span> &nbsp;|&nbsp; Status: <span class="warn">Assumed</span> &nbsp;|&nbsp; Source: David Miller, Meeting 7<br>
+      "Users should be able to sign in using their Google or Apple accounts, in addition to Microsoft SSO."
+    </div>
+  </div>
+
+  <div class="persp-grid">
+    <!-- End User -->
+    <div class="persp-card" style="border-left:3px solid var(--green);">
+      <div class="persp-role" style="color:var(--green);">Perspective 1</div>
+      <div class="persp-name">🧑 End User</div>
+      <div class="persp-items">
+        <div class="persp-item pos"><strong>Reduces friction</strong> — external learners don't need a Microsoft account they'll never use elsewhere</div>
+        <div class="persp-item pos"><strong>Familiar flow</strong> — "Sign in with Google" is a pattern users already trust</div>
+        <div class="persp-item warn"><strong>Account confusion</strong> — if a user signs in with Google once and Microsoft later, are they the same person?</div>
+        <div class="persp-item neutral"><strong>Mobile experience</strong> — social login is significantly smoother on mobile (no password typing)</div>
+      </div>
+      <div class="persp-verdict" style="color:var(--green);">Verdict: Positive — improves accessibility for external learners</div>
+    </div>
+
+    <!-- Admin -->
+    <div class="persp-card" style="border-left:3px solid var(--orange);">
+      <div class="persp-role" style="color:var(--orange);">Perspective 2</div>
+      <div class="persp-name">⚙️ Platform Admin</div>
+      <div class="persp-items">
+        <div class="persp-item neg"><strong>Identity management complexity</strong> — now managing 3 identity providers instead of 1</div>
+        <div class="persp-item warn"><strong>Account linking</strong> — need admin tools to merge/unlink accounts when users sign in with different providers</div>
+        <div class="persp-item neg"><strong>Security policy gaps</strong> — can MFA be enforced on Google/Apple accounts? Not natively through Azure AD</div>
+        <div class="persp-item warn"><strong>Audit trail</strong> — need unified logging across all auth providers</div>
+      </div>
+      <div class="persp-verdict" style="color:var(--orange);">Verdict: Cautious — significantly increases admin overhead</div>
+    </div>
+
+    <!-- Developer -->
+    <div class="persp-card" style="border-left:3px solid var(--cyan);">
+      <div class="persp-role" style="color:var(--cyan);">Perspective 3</div>
+      <div class="persp-name">💻 Developer</div>
+      <div class="persp-items">
+        <div class="persp-item neg"><strong>+2 sprints estimated</strong> — OAuth 2.0 integration with Google + Apple, account linking logic, session unification</div>
+        <div class="persp-item neg"><strong>Apple Sign In quirks</strong> — email relay, limited user info, different token format than Google</div>
+        <div class="persp-item warn"><strong>Token management</strong> — refresh tokens from 3 providers with different expiry policies</div>
+        <div class="persp-item pos"><strong>MSAL.js reusable patterns</strong> — OAuth flow architecture can be extended for social providers</div>
+      </div>
+      <div class="persp-verdict" style="color:var(--red);">Verdict: High effort — viable but non-trivial, not recommended for MVP</div>
+    </div>
+
+    <!-- Business Owner -->
+    <div class="persp-card" style="border-left:3px solid var(--yellow);">
+      <div class="persp-role" style="color:var(--yellow);">Perspective 4</div>
+      <div class="persp-name">📊 Business Owner</div>
+      <div class="persp-items">
+        <div class="persp-item pos"><strong>Market reach</strong> — external learners are a growth segment; frictionless onboarding drives adoption</div>
+        <div class="persp-item neg"><strong>Timeline risk</strong> — +2 sprints threatens Q3 2026 launch target</div>
+        <div class="persp-item warn"><strong>ROI unclear</strong> — what % of users would actually be external learners at launch?</div>
+        <div class="persp-item pos"><strong>Competitive advantage</strong> — competitors require enterprise SSO only; social login differentiates</div>
+      </div>
+      <div class="persp-verdict" style="color:var(--orange);">Verdict: Strategically valuable but premature for MVP</div>
+    </div>
+
+    <!-- QA -->
+    <div class="persp-card" style="border-left:3px solid var(--pink);">
+      <div class="persp-role" style="color:var(--pink);">Perspective 5</div>
+      <div class="persp-name">🧪 QA Engineer</div>
+      <div class="persp-items">
+        <div class="persp-item neg"><strong>Test matrix explosion</strong> — 3 auth providers × account states × session scenarios = 3x testing effort</div>
+        <div class="persp-item neg"><strong>Account linking edge cases</strong> — same email, different provider; provider account deleted; email changed</div>
+        <div class="persp-item warn"><strong>Provider outage testing</strong> — what happens when Google/Apple auth is down? Graceful fallback needed</div>
+        <div class="persp-item warn"><strong>Security testing</strong> — CSRF, token theft, session hijacking across 3 providers</div>
+      </div>
+      <div class="persp-verdict" style="color:var(--red);">Verdict: Significantly increases test scope and security risk surface</div>
+    </div>
+  </div>
+
+  <!-- Conflicts detected -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 14px;">Conflicts Between Perspectives</div>
+
+  <div class="split" style="margin-bottom:16px;">
+    <div class="conflict">
+      <div class="conflict-head">
+        <div class="conflict-icon">⚡</div>
+        <div class="conflict-title" style="color:var(--red);">End User vs. Developer</div>
+      </div>
+      <div class="conflict-desc">Users want frictionless login; developers estimate +2 sprints and significant complexity. The user benefit is real but the implementation cost is high for MVP.</div>
+      <div class="conflict-resolution"><strong style="color:var(--green);">Resolution:</strong> Defer to Phase 2. Ship with SSO — add social login when the auth architecture is stable and the team has bandwidth.</div>
+    </div>
+    <div class="conflict">
+      <div class="conflict-head">
+        <div class="conflict-icon">⚡</div>
+        <div class="conflict-title" style="color:var(--red);">Business Owner vs. QA</div>
+      </div>
+      <div class="conflict-desc">Business sees competitive advantage and growth; QA sees 3x test matrix and security risk. Both are right — the question is timing.</div>
+      <div class="conflict-resolution"><strong style="color:var(--green);">Resolution:</strong> Validate external learner demand before investing. If &lt;10% of launch users are external, social login can wait.</div>
+    </div>
+  </div>
+
+  <!-- Synthesized recommendation -->
+  <div class="dbox" style="border-top:3px solid var(--purple);">
+    <div class="dbox-label" style="color:var(--purple);">Synthesized Recommendation</div>
+    <div class="dbox-content">
+      <strong>REQ-045: Defer to Phase 2</strong><br><br>
+      &bull; 4 of 5 perspectives recommend deferral (End User is the exception, and even they flag account confusion risk)<br>
+      &bull; Developer: +2 sprints, non-trivial complexity<br>
+      &bull; QA: 3x test scope increase<br>
+      &bull; Business: timeline risk outweighs near-term value<br>
+      &bull; Admin: identity management overhead significant<br><br>
+      <strong>Proposed path:</strong> Ship MVP with Microsoft SSO. Track external learner sign-up requests as a metric. If demand validates, prioritize social login for first post-launch sprint.<br><br>
+      <strong>This recommendation aligns with:</strong> David Miller's Meeting 8 decision to defer social login.
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 3: TRADITIONAL VS AI-ASSISTED                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch3">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--red-bg);color:var(--red);">3</div>
+    <div class="ch-title">Traditional vs. AI-Assisted Discovery</div>
+  </div>
+  <div class="ch-desc">
+    How does a PO currently run discovery — and what changes with this system? A side-by-side comparison across every dimension that matters.
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table class="cmp-table" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+      <thead>
+        <tr>
+          <th style="width:22%;">Dimension</th>
+          <th style="width:39%;" class="old">
+            <div class="cmp-col-head" style="color:var(--red);">Traditional Discovery</div>
+            <div class="cmp-col-sub">Manual, PO-dependent</div>
+          </th>
+          <th style="width:39%;" class="new">
+            <div class="cmp-col-head" style="color:var(--green);">AI-Assisted Discovery</div>
+            <div class="cmp-col-sub">Systematic, measurable</div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Meeting Input</strong></td>
+          <td class="old">PO takes notes during meeting, types them up afterwards. Key details often lost or paraphrased. Depends on PO's note-taking skill.</td>
+          <td class="new">Google Meet recording auto-pushed to system. Whisper transcribes with speaker diarization. Every word captured, attributed to who said it.</td>
+        </tr>
+        <tr>
+          <td><strong>Knowledge Tracking</strong></td>
+          <td class="old">Confluence pages, spreadsheets, PO's memory. Facts scattered across 10+ documents. No single source of truth.</td>
+          <td class="new">Mem0 fact store — every fact is discrete, sourced, timestamped, and deduplicated. Confirmed vs. assumed. One source of truth.</td>
+        </tr>
+        <tr>
+          <td><strong>Contradiction Detection</strong></td>
+          <td class="old">PO might notice if they remember Meeting 3 said something different. Often discovered in Phase 2 when the dev team asks "wait, which one?"</td>
+          <td class="new">Automatic. New facts compared against all existing facts. Semantic similarity + entity matching. Flagged within seconds of ingestion.</td>
+        </tr>
+        <tr>
+          <td><strong>Readiness Assessment</strong></td>
+          <td class="old">Gut feeling. "I think we're ready." No objective measure. Different POs have different thresholds. Some hand off too early, some too late.</td>
+          <td class="new">Deterministic. Each control point item checked against facts. Weighted score. 85% = Ready, 65-84% = Conditional, &lt;65% = Not Ready.</td>
+        </tr>
+        <tr>
+          <td><strong>Meeting Preparation</strong></td>
+          <td class="old">PO reviews notes the night before. Creates agenda from memory. Misses gaps they don't know about. Wastes time on already-covered topics.</td>
+          <td class="new">System generates agenda from actual gaps, mapped to stakeholders, with confirmation prompts. Every minute focused on highest-impact unknowns.</td>
+        </tr>
+        <tr>
+          <td><strong>Gap Analysis</strong></td>
+          <td class="old">Periodic manual review. "What are we missing?" Limited by PO's experience and domain knowledge. Blind spots invisible by definition.</td>
+          <td class="new">Continuous. Control Point Agent evaluates after every ingestion. Gaps prioritized by severity and mapped to who can answer them.</td>
+        </tr>
+        <tr>
+          <td><strong>Document Generation</strong></td>
+          <td class="old">PO writes Discovery Brief, requirements, scope docs manually. 2-3 days of writing. Quality varies by PO. Assumptions not explicitly tracked.</td>
+          <td class="new">System generates all 3 documents pulling from 4 knowledge layers. Assumptions explicitly marked. Source traceability for every statement. Minutes, not days.</td>
+        </tr>
+        <tr>
+          <td><strong>Stakeholder Knowledge</strong></td>
+          <td class="old">"Who said what?" — PO's memory. Decision provenance lost after a few weeks. Attribution disputes in Phase 2.</td>
+          <td class="new">Entity graph: who decided what, in which meeting, with full context. Provenance preserved permanently.</td>
+        </tr>
+        <tr>
+          <td><strong>Cross-Project Learning</strong></td>
+          <td class="old">Starts from zero every time. Senior POs carry experience in their heads. Junior POs repeat mistakes of past projects.</td>
+          <td class="new">Decision logs and learnings from all previous projects feed into future discoveries. System gets smarter with every project.</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 2 Handoff Quality</strong></td>
+          <td class="old">Tech lead asks 15 clarifying questions in the first week. "What about X?" "Was that decided?" "Which meeting was that?" Discovery debt accumulates.</td>
+          <td class="new">Documents answer questions before they're asked. Every statement sourced. Assumptions flagged. Tech lead can trace any claim to its origin.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Impact numbers -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Projected Impact</div>
+
+  <div class="split tri">
+    <div class="ccard" style="border-top:3px solid var(--green);text-align:center;">
+      <div style="font-size:36px;font-weight:800;color:var(--green);margin-bottom:4px;">60%</div>
+      <div class="ccard-title">Less PO Writing Time</div>
+      <div class="ccard-desc">Documents generated from knowledge layers instead of written from scratch. PO reviews and edits, not authors.</div>
+    </div>
+    <div class="ccard" style="border-top:3px solid var(--cyan);text-align:center;">
+      <div style="font-size:36px;font-weight:800;color:var(--cyan);margin-bottom:4px;">0</div>
+      <div class="ccard-title">Missed Contradictions</div>
+      <div class="ccard-desc">Every new fact compared against all existing facts. Semantic matching catches what human memory misses.</div>
+    </div>
+    <div class="ccard" style="border-top:3px solid var(--purple);text-align:center;">
+      <div style="font-size:36px;font-weight:800;color:var(--purple);margin-bottom:4px;">85%</div>
+      <div class="ccard-title">Objective Readiness Gate</div>
+      <div class="ccard-desc">No more "gut feeling" handoffs. Deterministic threshold based on confirmed facts vs. control point checklist.</div>
+    </div>
+  </div>
+
+  <!-- The real cost -->
+  <div class="alert" style="margin-top:20px;background:var(--red-bg);border:1px solid var(--red-b);border-radius:10px;">
+    <div class="alert-icon">💸</div>
+    <div class="alert-content">
+      <div class="alert-title" style="color:var(--red);">The Real Cost of Bad Discovery</div>
+      <div class="alert-desc" style="color:var(--dim);">Every gap not caught in discovery becomes a Phase 2 blocker. A missing NFR is a 1-minute question in discovery but a 2-week architecture change in implementation. A missed contradiction is a 5-minute conversation with the client vs. a scope renegotiation that delays the sprint. <strong>Discovery debt compounds exponentially downstream.</strong></div>
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 4: PHASE 2 HANDOFF                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch4">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--cyan-bg);color:var(--cyan);">4</div>
+    <div class="ch-title">Phase 2 Handoff</div>
+  </div>
+  <div class="ch-desc">
+    What exactly does the Phase 2 team (Story &amp; Tech Docs Assistant) receive? What's the quality bar? And what happens when Phase 2 discovers something was wrong or missing?
+  </div>
+
+  <!-- 3 Primary Documents -->
+  <div style="font-size:16px;font-weight:700;margin-bottom:16px;">Primary Handoff Documents</div>
+
+  <div class="split tri" style="margin-bottom:24px;">
+    <div class="ho-card">
+      <div class="ho-label">Document 1</div>
+      <div class="ho-title">Discovery Brief</div>
+      <div class="ho-desc">The "what and why" — everything the Phase 2 team needs to understand the project without asking the PO basic questions.</div>
+      <div class="ho-sections">
+        <div class="ho-sec">Client overview &amp; business context</div>
+        <div class="ho-sec">Target users &amp; personas</div>
+        <div class="ho-sec">Competitive / market context</div>
+        <div class="ho-sec">Existing system context</div>
+        <div class="ho-sec">Discovery status &amp; open assumptions</div>
+        <div class="ho-sec">Stakeholder map &amp; decision log</div>
+      </div>
+      <div class="ho-sources">
+        <span class="ho-src">RAGFlow narratives</span>
+        <span class="ho-src">Mem0 facts</span>
+        <span class="ho-src">Graph stakeholders</span>
+        <span class="ho-src">Claude Code</span>
+      </div>
+    </div>
+    <div class="ho-card">
+      <div class="ho-label">Document 2</div>
+      <div class="ho-title">MVP Scope Freeze</div>
+      <div class="ho-desc">The "what's in and what's out" — the definitive boundary of the MVP. No grey areas.</div>
+      <div class="ho-sections">
+        <div class="ho-sec">MVP purpose &amp; goal statement</div>
+        <div class="ho-sec">Supported platforms &amp; auth</div>
+        <div class="ho-sec">Core features (Must / Should / Could)</div>
+        <div class="ho-sec">Integration points &amp; deployment</div>
+        <div class="ho-sec">Explicitly out-of-scope items</div>
+        <div class="ho-sec">Assumptions, risks &amp; mitigations</div>
+      </div>
+      <div class="ho-sources">
+        <span class="ho-src">Mem0 features</span>
+        <span class="ho-src">Mem0 decisions</span>
+        <span class="ho-src">Graph dependencies</span>
+        <span class="ho-src">Claude Code</span>
+      </div>
+    </div>
+    <div class="ho-card">
+      <div class="ho-label">Document 3</div>
+      <div class="ho-title">Functional Requirements</div>
+      <div class="ho-desc">The "how it should work" — every requirement the Phase 2 team will break into stories and technical tasks.</div>
+      <div class="ho-sections">
+        <div class="ho-sec">User roles &amp; permissions matrix</div>
+        <div class="ho-sec">47+ functional requirements (MoSCoW)</div>
+        <div class="ho-sec">Non-functional requirements</div>
+        <div class="ho-sec">Technical context &amp; constraints</div>
+        <div class="ho-sec">Dependency map</div>
+        <div class="ho-sec">Glossary of client-specific terms</div>
+      </div>
+      <div class="ho-sources">
+        <span class="ho-src">RAGFlow details</span>
+        <span class="ho-src">Mem0 priorities</span>
+        <span class="ho-src">Graph relations</span>
+        <span class="ho-src">Claude Code</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quality bar -->
+  <div style="font-size:16px;font-weight:700;margin-bottom:16px;">Quality Bar</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Every document is validated against these 5 criteria before handoff. The system enforces these automatically.</p>
+
+  <div class="dbox" style="border-left:3px solid var(--green);">
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <strong style="font-size:12px;">Self-Sufficient</strong>
+          <span style="font-size:11px;color:var(--green);">Pass</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Phase 2 team understands the project without asking the PO basic questions</div>
+        <div class="qbar"><div class="qbar-label">100%</div><div class="qbar-fill" style="width:100%;"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <strong style="font-size:12px;">Assumptions Labeled</strong>
+          <span style="font-size:11px;color:var(--green);">Pass</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Every assumed fact is explicitly marked — Phase 2 knows what to flag if it doesn't hold</div>
+        <div class="qbar"><div class="qbar-label">100%</div><div class="qbar-fill" style="width:100%;"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <strong style="font-size:12px;">Scope Clarity</strong>
+          <span style="font-size:11px;color:var(--green);">Pass</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">What's in, what's out, no grey areas. Explicitly listed out-of-scope items prevent scope creep.</div>
+        <div class="qbar"><div class="qbar-label">100%</div><div class="qbar-fill" style="width:100%;"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <strong style="font-size:12px;">Source Traceability</strong>
+          <span style="font-size:11px;color:var(--green);">Pass</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Every statement traces back to which meeting, email, or repo analysis produced it</div>
+        <div class="qbar"><div class="qbar-label">98%</div><div class="qbar-fill" style="width:98%;"></div><div class="qbar-empty"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <strong style="font-size:12px;">Readiness Threshold</strong>
+          <span style="font-size:11px;color:var(--green);">89% (≥85% required)</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Overall readiness must be ≥85% or PO must explicitly acknowledge conditional handoff risks</div>
+        <div class="qbar"><div class="qbar-label">89%</div><div class="qbar-fill" style="width:89%;"></div><div class="qbar-empty"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- What Phase 2 sees -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">What Phase 2 Consumers See</div>
+
+  <div class="split tri" style="margin-bottom:24px;">
+    <div class="ccard" style="text-align:center;">
+      <div class="ccard-icon">👨‍💻</div>
+      <div class="ccard-title">Tech Lead</div>
+      <div class="ccard-desc">Reads Functional Requirements + Discovery Brief. Breaks requirements into epics and technical tasks. Uses Claude Code repo analysis as starting context.</div>
+      <div class="ccard-tag" style="background:var(--cyan-bg);color:var(--cyan);">Primary: Requirements</div>
+    </div>
+    <div class="ccard" style="text-align:center;">
+      <div class="ccard-icon">🏗️</div>
+      <div class="ccard-title">Solution Architect</div>
+      <div class="ccard-desc">Reads Technical Context + NFRs + Integration Points. Designs system architecture informed by existing codebase analysis and client infrastructure.</div>
+      <div class="ccard-tag" style="background:var(--purple-bg);color:var(--purple);">Primary: NFRs + Tech</div>
+    </div>
+    <div class="ccard" style="text-align:center;">
+      <div class="ccard-icon">📋</div>
+      <div class="ccard-title">Phase 2 PO</div>
+      <div class="ccard-desc">Reads MVP Scope Freeze + Discovery Brief. Creates user stories within the defined scope boundary. Knows what's explicitly out of scope.</div>
+      <div class="ccard-tag" style="background:var(--green-bg);color:var(--green);">Primary: Scope + Brief</div>
+    </div>
+  </div>
+
+  <!-- Feedback loop when Phase 2 finds issues -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">When Phase 2 Finds a Problem</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Discovery documents are not perfect. Sometimes Phase 2 discovers an assumption was wrong, a requirement is ambiguous, or a constraint was missed. Here's the feedback loop.</p>
+
+  <div class="dbox" style="border-left:3px solid var(--orange);">
+    <div class="dbox-label" style="color:var(--orange);">Example: Tech Lead Finds Ambiguity</div>
+    <div class="dbox-content">
+      <strong>Scenario:</strong> Tech Lead reads REQ-047 ("Session timeout configurable per role") and asks: "Per-role or per-user? The requirement says per-role but the meeting notes mention per-user flexibility."<br><br>
+      <strong>What happens:</strong><br>
+      1. Tech Lead clicks the source link → sees Meeting 7 transcript: Raj said "per-role" but also mentioned "more flexibility"<br>
+      2. The assumption is flagged — system creates a gap: "Session timeout granularity: per-role vs. per-user?"<br>
+      3. Gap is routed back to PO → PO confirms with Raj → answer: "per-role for MVP, per-user in Phase 2"<br>
+      4. Fact updated in Mem0, requirement clarified, decision logged with provenance<br><br>
+      <strong>Key:</strong> The source traceability meant the Tech Lead could verify the original context in seconds, not days. The feedback updated the knowledge base for future reference.
+    </div>
+  </div>
+
+  <!-- Feedback artifacts -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Phase 2-4 Feedback Artifacts</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">As Phases 2, 3, and 4 progress, they produce artifacts that feed back into the knowledge base for future discoveries.</p>
+
+  <div class="split" style="margin-bottom:16px;">
+    <div class="ccard" style="border-left:3px solid var(--blue);">
+      <div class="ccard-icon">📝</div>
+      <div class="ccard-title">decision.md</div>
+      <div class="ccard-desc">
+        Produced at every significant decision point in Phases 2-4.<br><br>
+        <strong>Example:</strong><br>
+        "We chose PostgreSQL over MongoDB because the data is highly relational (user→course→lesson→progress). Document DB would require complex joins or denormalization."<br><br>
+        <strong>Future value:</strong> Next project considering MongoDB will see this decision and its rationale during discovery.
+      </div>
+    </div>
+    <div class="ccard" style="border-left:3px solid var(--pink);">
+      <div class="ccard-icon">💡</div>
+      <div class="ccard-title">learning.md</div>
+      <div class="ccard-desc">
+        Produced when something went wrong or a significant lesson was learned.<br><br>
+        <strong>Example:</strong><br>
+        "Auth migration from JWT to SSO took 3 sprints, not the 1 sprint estimated. Account linking was the hidden complexity — plan for 2x on any auth migration."<br><br>
+        <strong>Future value:</strong> Next project estimating auth work will see this learning surfaced automatically.
+      </div>
+    </div>
+  </div>
+
+  <div class="fb-wrap">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px;">The Compound Intelligence Loop</div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:20px;">Every project makes the system smarter. A greenfield web app discovery in 2026 benefits from every previous project's decisions, mistakes, and lessons.</div>
+    <div class="fb-flow">
+      <div class="fb-node" style="background:var(--green-bg);border-color:var(--green-b);color:var(--green);">Discovery</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--blue-bg);border-color:var(--blue-b);color:var(--blue);">Story &amp; Tech</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--purple-bg);border-color:var(--purple-b);color:var(--purple);">Implementation</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--pink-bg);border-color:var(--pink-b);color:var(--pink);">QA &amp; Deploy</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--yellow-bg);border-color:var(--yellow-b);color:var(--yellow);">decision.md + learning.md</div>
+      <div class="fb-arrow" style="font-size:22px;">⤴</div>
+      <div class="fb-node" style="background:var(--green-bg);border-color:var(--green-b);color:var(--green);">Next Discovery</div>
+    </div>
+  </div>
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 5: INTERACTIVE TIMELINE                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch5">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--pink-bg);color:var(--pink);">5</div>
+    <div class="ch-title">NacXwan Discovery Timeline</div>
+  </div>
+  <div class="ch-desc">
+    Week-by-week, how readiness grew from 0% to 89% across 8 meetings over 3 weeks. Each point shows what happened, what changed, and the readiness delta.
+  </div>
+
+  <!-- Progress bar -->
+  <div style="margin-bottom:32px;">
+    <div style="font-size:11px;color:var(--dim);margin-bottom:6px;">Overall Readiness Progression</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <div style="flex:1;height:10px;border-radius:5px;background:var(--surface2);overflow:hidden;position:relative;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:89%;border-radius:5px;background:linear-gradient(90deg,var(--red) 0%,var(--orange) 40%,var(--yellow) 65%,var(--green) 85%);"></div>
+      </div>
+      <div style="font-size:14px;font-weight:800;color:var(--green);">89%</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);">
+      <span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Ready</span>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div style="display:flex;flex-direction:column;gap:0;">
+
+    <!-- Week 1 -->
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 1 — Day 1</div>
+        <div class="tl-week-pct" style="background:var(--red-bg);color:var(--red);">0% → 12%</div>
+      </div>
+      <div class="tl-week-desc">Project kickoff. Bojan creates the discovery project and uploads initial client materials.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Trigger</div><div class="tl-detail-val">Project created, initial docs uploaded (client brief, project charter)</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">8 facts — client name, business domain, high-level goal, budget range, timeline target, primary contact</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Gaps Found</div><div class="tl-detail-val">42 gaps across all control points — almost everything is unknown</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">System immediately generates 12 prioritized questions for the first client meeting</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg">📄 Initial docs uploaded</div>
+      </div>
+    </div>
+
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 1 — Meeting 1 (Kickoff)</div>
+        <div class="tl-week-pct" style="background:var(--red-bg);color:var(--red);">12% → 25%</div>
+      </div>
+      <div class="tl-week-desc">First client meeting. General introductions, project vision, business goals. Recording auto-pushed from Google Meet.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Attendees</div><div class="tl-detail-val">Bojan (PO), David Miller (CTO), Lisa Wang (PM), Sarah Chen (Tech Lead), Jana Kovac (QA)</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+14 — business goals, target users (3 roles), Microsoft 365 infrastructure, Q3 2026 target, stakeholder roles</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Gaps Closed</div><div class="tl-detail-val">8 gaps closed in Business Context area</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Business context improving fast but zero technical detail. System flags: "No architecture, no tech stack, no integrations discussed."</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 1 — Kickoff</div>
+      </div>
+    </div>
+
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 1 — Meeting 2 (Vision &amp; Scope)</div>
+        <div class="tl-week-pct" style="background:var(--orange-bg);color:var(--orange);">25% → 38%</div>
+      </div>
+      <div class="tl-week-desc">Deep dive into product vision. Lisa walks through feature priorities. David confirms Q3 2026 timeline and budget.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Attendees</div><div class="tl-detail-val">Bojan, David Miller, Lisa Wang</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+11 — MVP features identified, MoSCoW prioritization started, gamification deferred, learning paths prioritized</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Decisions</div><div class="tl-detail-val">Q3 2026 confirmed, MVP feature set scoped, gamification = Phase 2</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Functional requirements area jumps from 5% to 28%. Still no technical context.</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 2 — Vision</div>
+      </div>
+    </div>
+
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 1 — Meeting 3 (Auth &amp; Architecture)</div>
+        <div class="tl-week-pct" style="background:var(--orange-bg);color:var(--orange);">38% → 52%</div>
+      </div>
+      <div class="tl-week-desc">First technical meeting. Sarah and Raj join. Auth approach decided, WebSocket for whiteboard confirmed, initial architecture discussed.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Attendees</div><div class="tl-detail-val">Bojan, David Miller, Sarah Chen, Raj Patel, Lisa Wang</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+16 — Microsoft SSO decided, WebSocket for real-time, Microsoft 365 integration, initial API design, RBAC model</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Decisions</div><div class="tl-detail-val"><strong>Microsoft SSO as primary auth</strong> (this becomes important later), WebSocket for real-time whiteboard</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Technical Requirements jumps from 12% to 55%. Integration Points area unlocked. Big single-meeting improvement.</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 3 — Auth</div>
+      </div>
+    </div>
+
+    <!-- Week 2 -->
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 2 — Meetings 4 &amp; 5 + Email Exchanges</div>
+        <div class="tl-week-pct" style="background:var(--orange-bg);color:var(--orange);">52% → 68%</div>
+      </div>
+      <div class="tl-week-desc">Mobile requirements (Meeting 4), UX review (Meeting 5). Client sends API specs and existing platform docs via email. Alex analyzes the client repo.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Meeting 4</div><div class="tl-detail-val">Mobile requirements, React + Node.js stack approved, responsive design approach</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Meeting 5</div><div class="tl-detail-val">UX review, WCAG 2.1 AA target, browser support discussed, MVP scope freeze — 47 requirements confirmed</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Email Uploads</div><div class="tl-detail-val">API specs (PDF), existing platform screenshots, user flow diagrams — 9 additional facts extracted</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Repo Analysis</div><div class="tl-detail-val">Alex shares <code>nacxwan/learning-platform</code> — Claude Code extracts 12 technical facts about existing architecture</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Biggest week: +16%. Functional Requirements reaches 74%. Repo analysis unlocks Technical Context. NFRs still lagging at 30%.</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 4 — Mobile</div>
+        <div class="tl-mtg key">Meeting 5 — UX</div>
+        <div class="tl-mtg">📧 Client emails</div>
+        <div class="tl-mtg">💻 Repo analyzed</div>
+      </div>
+    </div>
+
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 2 — Meeting 6 (API Review)</div>
+        <div class="tl-week-pct" style="background:var(--orange-bg);color:var(--orange);">68% → 72%</div>
+      </div>
+      <div class="tl-week-desc">Technical deep-dive on API design. Raj confirms existing gateway is extensible. REST versioning strategy decided.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Attendees</div><div class="tl-detail-val">Bojan, Sarah Chen, Alex Markovic, Raj Patel, David Miller, Lisa Wang</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+6 — REST API versioning (URL-based), gateway extensibility confirmed, webhook support for LMS events</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Decisions</div><div class="tl-detail-val">REST API versioning strategy, existing API gateway reuse confirmed</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Integration Points improving but NFRs still at 35%. System flags: "NFR area critically underserved. 4 high-severity gaps remain."</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 6 — API Review</div>
+      </div>
+    </div>
+
+    <!-- Week 3 -->
+    <div class="tl-week">
+      <div class="tl-dot done"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 3 — Meeting 7 (SSO &amp; Auth Deep Dive)</div>
+        <div class="tl-week-pct" style="background:var(--orange-bg);color:var(--orange);">72% → 78%</div>
+      </div>
+      <div class="tl-week-desc">Auth implementation details. MSAL.js chosen. <strong>David raises social login — contradicts Meeting 3 SSO-only decision.</strong> MFA and session management discussed.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+5 new, 2 updated — MSAL.js confirmed, MFA for admins, session timeout per-role, social login requested</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Requirements</div><div class="tl-detail-val">REQ-045 (social login), REQ-046 (MFA), REQ-047 (session timeout) extracted</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label" style="color:var(--red);">Contradiction</div><div class="tl-detail-val" style="color:var(--red);">CONTRA-012: Meeting 3 "SSO only" vs. Meeting 7 "add social login" — both from David Miller</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Key Insight</div><div class="tl-detail-val">Good progress (+6%) but contradiction needs resolution before documents can be generated. System blocks Integration Mapping generation.</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 7 — SSO &amp; Auth</div>
+        <div class="tl-mtg" style="border-color:var(--red-b);color:var(--red);background:var(--red-bg);">⚠ Contradiction detected</div>
+      </div>
+    </div>
+
+    <div class="tl-week">
+      <div class="tl-dot" style="border-color:var(--green);background:var(--green);box-shadow:0 0 12px rgba(0,229,160,0.4);"></div>
+      <div class="tl-week-head">
+        <div class="tl-week-title">Week 3 — Meeting 8 (NFR &amp; Auth Follow-up)</div>
+        <div class="tl-week-pct" style="background:var(--green-bg);color:var(--green);">78% → 89% ✓ Ready</div>
+      </div>
+      <div class="tl-week-desc">System-prepared agenda focused on contradiction + NFR gaps. 5 of 6 gaps closed in one meeting. Social login deferred to Phase 2. Readiness crosses 85% threshold.</div>
+      <div class="tl-detail">
+        <div class="tl-detail-row"><div class="tl-detail-label">Facts Added</div><div class="tl-detail-val">+5 confirmed — social login deferred, 500 concurrent users, EU data residency, RTO/RPO targets, browser matrix</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Gaps Closed</div><div class="tl-detail-val">5 of 6: auth scope, concurrent users, data residency, DR/backup SLA, browser support</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Contradiction</div><div class="tl-detail-val" style="color:var(--green);">CONTRA-012 resolved — SSO only for MVP, social login Phase 2 (David Miller confirmed)</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label">Remaining</div><div class="tl-detail-val">1 gap: offline mode for mobile learners (medium priority, deferred to Phase 2 planning)</div></div>
+        <div class="tl-detail-row"><div class="tl-detail-label" style="color:var(--green);">Outcome</div><div class="tl-detail-val" style="color:var(--green);font-weight:700;">Readiness 89% — Ready threshold crossed. PO triggers document generation.</div></div>
+      </div>
+      <div class="tl-meetings">
+        <div class="tl-mtg key">Meeting 8 — NFR Follow-up</div>
+        <div class="tl-mtg" style="border-color:var(--green-b);color:var(--green);background:var(--green-bg);">✓ Ready for handoff</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Summary stats -->
+  <div style="font-size:16px;font-weight:700;margin:32px 0 16px;">Discovery Summary</div>
+
+  <div class="split quad">
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--green);">
+      <div style="font-size:32px;font-weight:800;color:var(--green);">3 weeks</div>
+      <div class="ccard-desc">Total discovery duration</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--blue);">
+      <div style="font-size:32px;font-weight:800;color:var(--blue);">8 meetings</div>
+      <div class="ccard-desc">Client interactions recorded</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--purple);">
+      <div style="font-size:32px;font-weight:800;color:var(--purple);">73 facts</div>
+      <div class="ccard-desc">Extracted, deduplicated, sourced</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--cyan);">
+      <div style="font-size:32px;font-weight:800;color:var(--cyan);">47 requirements</div>
+      <div class="ccard-desc">Prioritized (MoSCoW)</div>
+    </div>
+  </div>
+  <div class="split quad" style="margin-top:14px;">
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--orange);">
+      <div style="font-size:32px;font-weight:800;color:var(--orange);">1</div>
+      <div class="ccard-desc">Contradiction caught &amp; resolved</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--pink);">
+      <div style="font-size:32px;font-weight:800;color:var(--pink);">41 of 42</div>
+      <div class="ccard-desc">Gaps closed (98%)</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--yellow);">
+      <div style="font-size:32px;font-weight:800;color:var(--yellow);">3 docs</div>
+      <div class="ccard-desc">Generated for Phase 2 handoff</div>
+    </div>
+    <div class="ccard" style="text-align:center;border-top:3px solid var(--green);">
+      <div style="font-size:32px;font-weight:800;color:var(--green);">89%</div>
+      <div class="ccard-desc">Final readiness score</div>
+    </div>
+  </div>
+
+</div>
+
+</div><!-- end .wrap -->
+</body>
+</html>

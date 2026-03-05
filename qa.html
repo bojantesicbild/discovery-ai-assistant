@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crnogorchi — QA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green: #00E5A0; --green-light: #00E5A020; --green-hover: #00CCA0;
+      --dark: #1A1A1A; --dark-border: #2A2A2A; --dark-hover: #2D2D2D;
+      --white: #FFFFFF; --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB; --gray-300: #D1D5DB;
+      --gray-400: #9CA3AF; --gray-500: #6B7280; --gray-600: #4B5563;
+      --warning: #F59E0B; --warning-light: #F59E0B20; --danger: #EF4444; --danger-light: #EF444420;
+      --info: #3B82F6; --info-light: #3B82F620; --purple: #8B5CF6; --purple-light: #8B5CF620;
+      --orange: #F97316; --orange-light: #F9731620;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --sidebar-width: 260px; --topbar-height: 64px; --radius: 12px; --radius-sm: 8px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04); --shadow-md: 0 2px 8px rgba(0,0,0,0.06); --shadow-hover: 0 8px 24px rgba(0,0,0,0.10);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font); background: var(--gray-50); color: var(--dark); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: var(--sidebar-width); background: var(--dark); position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
+    .sidebar-logo { padding: 24px 24px 32px; border-bottom: 1px solid var(--dark-border); }
+    .sidebar-logo h1 { font-size: 20px; font-weight: 800; color: var(--white); letter-spacing: -0.3px; }
+    .sidebar-logo h1 span { display: inline-block; width: 7px; height: 7px; background: var(--green); border-radius: 1.5px; margin-left: 1px; }
+    .sidebar-nav { flex: 1; padding: 16px 12px; }
+    .nav-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--gray-500); padding: 16px 12px 8px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--gray-400); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-decoration: none; position: relative; }
+    .nav-item:hover { background: var(--dark-hover); color: var(--gray-200); }
+    .nav-item.active { background: var(--green-light); color: var(--green); }
+    .nav-item.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 20px; background: var(--green); border-radius: 0 3px 3px 0; }
+    .nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .nav-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .nav-badge { margin-left: auto; background: var(--danger); color: var(--white); font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+    .sidebar-user { padding: 16px 16px 20px; border-top: 1px solid var(--dark-border); display: flex; align-items: center; gap: 12px; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--orange); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: var(--white); flex-shrink: 0; }
+    .user-info { flex: 1; }
+    .user-name { font-size: 13px; font-weight: 600; color: var(--white); }
+    .user-role { font-size: 11px; color: var(--gray-500); }
+    .main { flex: 1; margin-left: var(--sidebar-width); min-height: 100vh; }
+    .topbar { height: var(--topbar-height); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; padding: 0 32px; gap: 16px; position: sticky; top: 0; z-index: 50; }
+    .project-selector { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); cursor: pointer; background: var(--white); }
+    .project-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; }
+    .project-name { font-size: 14px; font-weight: 600; }
+    .search-bar { flex: 1; max-width: 400px; position: relative; }
+    .search-bar input { width: 100%; padding: 8px 12px 8px 36px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; font-family: var(--font); background: var(--gray-50); outline: none; }
+    .search-bar input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light); }
+    .search-bar svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--gray-400); stroke: currentColor; fill: none; stroke-width: 2; }
+    .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+    .icon-btn svg { width: 18px; height: 18px; color: var(--gray-600); stroke: currentColor; fill: none; stroke-width: 1.8; }
+    .icon-btn .notif-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; border: 2px solid var(--white); }
+    .btn-primary { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green); color: var(--dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; }
+    .btn-primary svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .content { padding: 28px 32px 48px; }
+
+    .phase-banner { background: linear-gradient(135deg, var(--dark) 0%, #2e1a0a 100%); border-radius: var(--radius); padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; color: var(--white); animation: fadeInUp 0.4s ease both; }
+    .phase-banner-left { display: flex; align-items: center; gap: 16px; }
+    .phase-number { width: 48px; height: 48px; border-radius: 50%; background: var(--orange); color: var(--white); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+    .phase-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    .phase-desc { font-size: 13px; color: var(--gray-400); }
+    .phase-banner-right { display: flex; align-items: center; gap: 24px; }
+    .phase-stat { text-align: center; }
+    .phase-stat-value { font-size: 24px; font-weight: 800; color: var(--orange); }
+    .phase-stat-label { font-size: 11px; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--gray-200); margin-bottom: 24px; }
+    .tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab.active { color: var(--orange); border-bottom-color: var(--orange); }
+    .tab .tab-count { margin-left: 6px; background: var(--gray-100); color: var(--gray-500); padding: 1px 7px; border-radius: 10px; font-size: 11px; }
+    .tab.active .tab-count { background: var(--orange-light); color: var(--orange); }
+
+    /* STATS */
+    .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: var(--white); border-radius: var(--radius); padding: 20px; border: 1px solid var(--gray-200); text-align: center; }
+    .stat-value { font-size: 32px; font-weight: 800; letter-spacing: -1px; line-height: 1; margin-bottom: 4px; }
+    .stat-label { font-size: 12px; color: var(--gray-500); }
+
+    .card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); box-shadow: var(--shadow-sm); margin-bottom: 24px; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--gray-100); }
+    .card-title { font-size: 15px; font-weight: 700; }
+    .card-action { font-size: 12px; color: var(--orange); font-weight: 600; cursor: pointer; text-decoration: none; }
+    .card-body { padding: 16px 24px 20px; }
+
+    /* TEST RESULTS TABLE */
+    .test-table { width: 100%; border-collapse: collapse; }
+    .test-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .test-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid var(--gray-100); }
+    .test-table tr:hover td { background: var(--gray-50); }
+    .test-suite { font-weight: 600; }
+    .test-result { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .test-result.pass { background: var(--green-light); color: #059669; }
+    .test-result.fail { background: var(--danger-light); color: var(--danger); }
+    .test-result.skip { background: var(--gray-100); color: var(--gray-500); }
+    .test-coverage { display: flex; align-items: center; gap: 8px; }
+    .coverage-bar { flex: 1; height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; max-width: 80px; }
+    .coverage-fill { height: 100%; border-radius: 3px; }
+    .coverage-fill.high { background: var(--green); }
+    .coverage-fill.mid { background: var(--warning); }
+    .coverage-fill.low { background: var(--danger); }
+
+    /* BUG LIST */
+    .bug-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--gray-100); }
+    .bug-item:last-child { border-bottom: none; }
+    .bug-severity { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+    .bug-severity.critical { background: var(--danger-light); color: var(--danger); }
+    .bug-severity.major { background: var(--warning-light); color: var(--warning); }
+    .bug-severity.minor { background: var(--info-light); color: var(--info); }
+    .bug-info { flex: 1; }
+    .bug-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .bug-meta { font-size: 12px; color: var(--gray-400); display: flex; gap: 8px; }
+    .bug-key { font-size: 11px; font-weight: 700; color: var(--danger); }
+    .bug-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .bug-status.open { background: var(--danger-light); color: var(--danger); }
+    .bug-status.fixed { background: var(--green-light); color: #059669; }
+    .bug-status.investigating { background: var(--warning-light); color: var(--warning); }
+
+    /* TRACEABILITY */
+    .trace-item { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+    .trace-item:last-child { border-bottom: none; }
+    .trace-chain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .trace-node { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+    .trace-node.req { background: var(--green-light); color: #059669; }
+    .trace-node.story { background: var(--info-light); color: var(--info); }
+    .trace-node.test { background: var(--orange-light); color: var(--orange); }
+    .trace-node.bug { background: var(--danger-light); color: var(--danger); }
+    .trace-arrow { color: var(--gray-300); font-size: 14px; }
+    .trace-label { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+
+    /* TAB CONTENT */
+    .tab-content { display: none; animation: fadeInUp 0.3s ease both; }
+    .tab-content.active { display: block; }
+
+    /* REPORT PORTAL */
+    .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .report-chart { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 24px; box-shadow: var(--shadow-sm); }
+    .report-chart-title { font-size: 13px; font-weight: 700; margin-bottom: 16px; }
+    .donut-container { display: flex; align-items: center; gap: 24px; }
+    .donut { width: 120px; height: 120px; border-radius: 50%; position: relative; flex-shrink: 0; }
+    .donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+    .donut-value { font-size: 24px; font-weight: 800; }
+    .donut-label { font-size: 10px; color: var(--gray-400); text-transform: uppercase; }
+    .donut-legend { list-style: none; }
+    .donut-legend li { font-size: 12px; color: var(--gray-600); padding: 3px 0; display: flex; align-items: center; gap: 8px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+    .bar-row { display: flex; align-items: center; gap: 12px; }
+    .bar-label { font-size: 12px; color: var(--gray-600); width: 100px; flex-shrink: 0; text-align: right; }
+    .bar-track { flex: 1; height: 20px; background: var(--gray-100); border-radius: 4px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; }
+    .bar-fill span { font-size: 10px; font-weight: 700; color: var(--white); }
+    .run-history { list-style: none; }
+    .run-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); }
+    .run-item:last-child { border-bottom: none; }
+    .run-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .run-status.pass { background: var(--green); }
+    .run-status.fail { background: var(--danger); }
+    .run-status.partial { background: var(--warning); }
+    .run-info { flex: 1; }
+    .run-name { font-size: 13px; font-weight: 600; }
+    .run-meta { font-size: 11px; color: var(--gray-400); }
+    .run-result { font-size: 12px; font-weight: 600; }
+
+    /* DECISIONS & LEARNINGS */
+    .dl-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow-sm); transition: all 0.2s; }
+    .dl-card:hover { box-shadow: var(--shadow-md); }
+    .dl-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .dl-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 2px 8px; border-radius: 4px; }
+    .dl-type.decision { background: var(--green-light); color: #059669; }
+    .dl-type.learning { background: var(--orange-light); color: var(--orange); }
+    .dl-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .dl-desc { font-size: 13px; color: var(--gray-600); line-height: 1.6; margin-bottom: 12px; }
+    .dl-footer { display: flex; align-items: center; gap: 16px; font-size: 11px; color: var(--gray-400); padding-top: 12px; border-top: 1px solid var(--gray-100); }
+    .dl-tag { font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--gray-100); color: var(--gray-500); }
+
+    /* DISCOVERY CONTEXT */
+    .context-summary { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
+    .context-summary p { font-size: 14px; color: var(--gray-600); line-height: 1.7; }
+    .context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+    .context-list { list-style: none; }
+    .context-list li { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; gap: 10px; }
+    .context-list li:last-child { border-bottom: none; }
+    .context-num { width: 24px; height: 24px; border-radius: 50%; background: var(--orange-light); color: var(--orange); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .context-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--orange); color: var(--white); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+    .context-link:hover { opacity: 0.9; }
+    .context-link svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .gap-item { padding: 12px 16px; border-bottom: 1px solid var(--gray-100); }
+    .gap-item:last-child { border-bottom: none; }
+    .gap-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .gap-desc { font-size: 12px; color: var(--gray-500); }
+    .gap-severity { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+    .gap-severity.high { background: var(--danger-light); color: var(--danger); }
+    .gap-severity.medium { background: var(--warning-light); color: var(--warning); }
+    .gap-severity.low { background: var(--info-light); color: var(--info); }
+
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .phase-banner { animation: fadeInUp 0.4s ease both; }
+    .tabs { animation: fadeInUp 0.4s ease 0.05s both; }
+    .tab-content.active { animation: fadeInUp 0.3s ease both; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><h1>Crnogorchi<span></span></h1></div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main</div>
+        <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
+        <div class="nav-label">Phases</div>
+        <a href="discovery.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
+        <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
+        <a href="code.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
+        <a href="qa.html" class="nav-item active"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA<span class="nav-badge">2</span></a>
+        <div class="nav-label">System</div>
+        <a href="documents.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>Documents</a>
+        <a href="knowledge.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>Knowledge Base</a>
+        <a href="settings.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Settings</a>
+      </nav>
+      <div class="sidebar-user"><div class="user-avatar">JK</div><div class="user-info"><div class="user-name">Jana Kovac</div><div class="user-role">QA Engineer</div></div></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
+        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search tests, bugs, results..."></div>
+        <div class="topbar-actions">
+          <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
+          <button class="btn-primary"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Run Tests</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <div class="phase-banner">
+          <div class="phase-banner-left">
+            <div class="phase-number">4</div>
+            <div><div class="phase-title">QA Assistant</div><div class="phase-desc">Validate implementation against requirements, find bugs, ensure quality</div></div>
+          </div>
+          <div class="phase-banner-right">
+            <div class="phase-stat"><div class="phase-stat-value">92%</div><div class="phase-stat-label">Pass Rate</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">156</div><div class="phase-stat-label">Tests</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">2</div><div class="phase-stat-label">Open Bugs</div></div>
+            <div class="phase-stat"><div class="phase-stat-value">84%</div><div class="phase-stat-label">Coverage</div></div>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="tests">Test Results <span class="tab-count">12</span></div>
+          <div class="tab" data-tab="bugs">Bugs <span class="tab-count">2</span></div>
+          <div class="tab" data-tab="traceability">Traceability</div>
+          <div class="tab" data-tab="report">Report Portal</div>
+          <div class="tab" data-tab="decisions">Decisions & Learnings</div>
+          <div class="tab" data-tab="discovery">Discovery Context</div>
+        </div>
+
+        <!-- TAB: TEST RESULTS -->
+        <div class="tab-content active" id="tab-tests">
+          <div class="stats-row">
+            <div class="stat-card"><div class="stat-value" style="color: var(--green);">144</div><div class="stat-label">Passed</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: var(--danger);">8</div><div class="stat-label">Failed</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: var(--gray-400);">4</div><div class="stat-label">Skipped</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: var(--orange);">92%</div><div class="stat-label">Pass Rate</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: var(--info);">84%</div><div class="stat-label">Coverage</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Test Suite Results</div><a href="#" class="card-action">Open Report Portal &rarr;</a></div>
+            <div class="card-body" style="padding: 0;">
+              <table class="test-table">
+                <thead><tr><th>Suite</th><th>Passed</th><th>Failed</th><th>Result</th><th>Coverage</th><th>Feature</th></tr></thead>
+                <tbody>
+                  <tr><td class="test-suite">SSO Integration Tests</td><td>12</td><td>1</td><td><span class="test-result fail">1 FAIL</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:92%"></div></div>92%</div></td><td style="font-size:12px;color:var(--gray-500)">Auth (SSO)</td></tr>
+                  <tr><td class="test-suite">User Registration</td><td>18</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:96%"></div></div>96%</div></td><td style="font-size:12px;color:var(--gray-500)">Accounts</td></tr>
+                  <tr><td class="test-suite">Course Catalog API</td><td>24</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:89%"></div></div>89%</div></td><td style="font-size:12px;color:var(--gray-500)">Catalog</td></tr>
+                  <tr><td class="test-suite">Whiteboard Sync</td><td>8</td><td>3</td><td><span class="test-result fail">3 FAIL</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill mid" style="width:68%"></div></div>68%</div></td><td style="font-size:12px;color:var(--gray-500)">Whiteboard</td></tr>
+                  <tr><td class="test-suite">Enrollment Flow</td><td>15</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:91%"></div></div>91%</div></td><td style="font-size:12px;color:var(--gray-500)">Enrollment</td></tr>
+                  <tr><td class="test-suite">Payment Integration</td><td>6</td><td>2</td><td><span class="test-result fail">2 FAIL</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill low" style="width:45%"></div></div>45%</div></td><td style="font-size:12px;color:var(--gray-500)">Payments</td></tr>
+                  <tr><td class="test-suite">Database Migrations</td><td>9</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:100%"></div></div>100%</div></td><td style="font-size:12px;color:var(--gray-500)">DB Schema</td></tr>
+                  <tr><td class="test-suite">REST API Auth Middleware</td><td>14</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:94%"></div></div>94%</div></td><td style="font-size:12px;color:var(--gray-500)">Auth (API)</td></tr>
+                  <tr><td class="test-suite">E2E Login Flow</td><td>6</td><td>1</td><td><span class="test-result fail">1 FAIL</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill mid" style="width:72%"></div></div>72%</div></td><td style="font-size:12px;color:var(--gray-500)">E2E</td></tr>
+                  <tr><td class="test-suite">Accessibility (axe-core)</td><td>22</td><td>1</td><td><span class="test-result fail">1 FAIL</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill mid" style="width:78%"></div></div>78%</div></td><td style="font-size:12px;color:var(--gray-500)">A11y</td></tr>
+                  <tr><td class="test-suite">CI Pipeline Smoke</td><td>5</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill high" style="width:100%"></div></div>100%</div></td><td style="font-size:12px;color:var(--gray-500)">DevOps</td></tr>
+                  <tr><td class="test-suite">Performance Benchmarks</td><td>5</td><td>0</td><td><span class="test-result pass">PASS</span></td><td><div class="test-coverage"><div class="coverage-bar"><div class="coverage-fill mid" style="width:60%"></div></div>60%</div></td><td style="font-size:12px;color:var(--gray-500)">Perf</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: BUGS -->
+        <div class="tab-content" id="tab-bugs">
+          <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header"><div class="card-title">Open Bugs</div><a href="#" class="card-action">View in Jira &rarr;</a></div>
+            <div class="card-body">
+              <div class="bug-item">
+                <div class="bug-severity critical">!</div>
+                <div class="bug-info">
+                  <div class="bug-title">SSO fails with MFA prompt in Outlook add-in iframe</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-023</span><span>NACX-005</span><span>Found today</span></div>
+                </div>
+                <span class="bug-status open">Open</span>
+              </div>
+              <div class="bug-item">
+                <div class="bug-severity major">!</div>
+                <div class="bug-info">
+                  <div class="bug-title">Whiteboard cursor desync after 3+ concurrent participants</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-024</span><span>NACX-006</span><span>Found yesterday</span></div>
+                </div>
+                <span class="bug-status investigating">Investigating</span>
+              </div>
+              <div class="bug-item">
+                <div class="bug-severity major">!</div>
+                <div class="bug-info">
+                  <div class="bug-title">Payment webhook timeout on Stripe callback (504 after 30s)</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-025</span><span>NACX-008</span><span>Found today</span></div>
+                </div>
+                <span class="bug-status open">Open</span>
+              </div>
+              <div class="bug-item">
+                <div class="bug-severity minor">i</div>
+                <div class="bug-info">
+                  <div class="bug-title">Accessibility: missing aria-label on whiteboard toolbar icons</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-026</span><span>NACX-006</span><span>Found today</span></div>
+                </div>
+                <span class="bug-status open">Open</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Recently Closed</div></div>
+            <div class="card-body">
+              <div class="bug-item" style="opacity: 0.6;">
+                <div class="bug-severity minor">i</div>
+                <div class="bug-info">
+                  <div class="bug-title">Course thumbnail not loading on slow connections</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-021</span><span>NACX-002</span><span>Closed 2 days ago</span></div>
+                </div>
+                <span class="bug-status fixed">Fixed</span>
+              </div>
+              <div class="bug-item" style="opacity: 0.6;">
+                <div class="bug-severity minor">i</div>
+                <div class="bug-info">
+                  <div class="bug-title">Registration form accepts empty display name</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-020</span><span>NACX-001</span><span>Closed 4 days ago</span></div>
+                </div>
+                <span class="bug-status fixed">Fixed</span>
+              </div>
+              <div class="bug-item" style="opacity: 0.6;">
+                <div class="bug-severity major">!</div>
+                <div class="bug-info">
+                  <div class="bug-title">Enrollment API returns 500 for duplicate course IDs</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-019</span><span>NACX-003</span><span>Closed 5 days ago</span></div>
+                </div>
+                <span class="bug-status fixed">Fixed</span>
+              </div>
+              <div class="bug-item" style="opacity: 0.6;">
+                <div class="bug-severity critical">!</div>
+                <div class="bug-info">
+                  <div class="bug-title">Token not refreshed after session expiry &mdash; 401 loop</div>
+                  <div class="bug-meta"><span class="bug-key">BUG-018</span><span>NACX-005</span><span>Closed 6 days ago</span></div>
+                </div>
+                <span class="bug-status fixed">Fixed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: TRACEABILITY -->
+        <div class="tab-content" id="tab-traceability">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Requirement &rarr; Story &rarr; Test &rarr; Bug Traceability</div><a href="#" class="card-action">Export full map &rarr;</a></div>
+            <div class="card-body">
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-001</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-005</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-089..TC-101</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node bug">BUG-023</span>
+                </div>
+                <div class="trace-label">Microsoft SSO &mdash; 12 passed, 1 failed &mdash; open critical bug (MFA in iframe)</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-002</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-006</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-112..TC-122</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node bug">BUG-024</span>
+                </div>
+                <div class="trace-label">Whiteboard real-time sync &mdash; 8 passed, 3 failed &mdash; cursor desync under investigation</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-003</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-002</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-030..TC-054</span>
+                </div>
+                <div class="trace-label">Course catalog &amp; search &mdash; all 24 tests passing, 89% coverage</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-004</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-003</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-055..TC-070</span>
+                </div>
+                <div class="trace-label">Student enrollment workflow &mdash; all 15 tests passing, 91% coverage</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-005</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-001</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-001..TC-018</span>
+                </div>
+                <div class="trace-label">User registration &amp; profile &mdash; all 18 tests passing, 96% coverage</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-006</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-011</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-071..TC-084</span>
+                </div>
+                <div class="trace-label">REST API auth middleware &mdash; all 14 tests passing, 94% coverage</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-007</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-008</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-130..TC-137</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node bug">BUG-025</span>
+                </div>
+                <div class="trace-label">Payment integration &mdash; 6 passed, 2 failed &mdash; webhook timeout bug open</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-008</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-010</span>
+                </div>
+                <div class="trace-label" style="color: var(--warning);">Video conferencing &mdash; no tests yet (provider decision pending)</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-009</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-009</span>
+                </div>
+                <div class="trace-label" style="color: var(--warning);">Notification system &mdash; no tests yet (story not started)</div>
+              </div>
+              <div class="trace-item">
+                <div class="trace-chain">
+                  <span class="trace-node req">REQ-010</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node story">NACX-012</span><span class="trace-arrow">&rarr;</span>
+                  <span class="trace-node test">TC-150..TC-154</span>
+                </div>
+                <div class="trace-label">GDPR compliance &mdash; data export &amp; deletion &mdash; 5 smoke tests passing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: REPORT PORTAL -->
+        <div class="tab-content" id="tab-report">
+          <div class="report-grid">
+            <div class="report-chart">
+              <div class="report-chart-title">Test Results Breakdown</div>
+              <div class="donut-container">
+                <div class="donut" style="background: conic-gradient(var(--green) 0% 92%, var(--danger) 92% 97%, var(--gray-300) 97% 100%);">
+                  <div class="donut-center"><div class="donut-value">156</div><div class="donut-label">Total</div></div>
+                </div>
+                <ul class="donut-legend">
+                  <li><span class="legend-dot" style="background: var(--green);"></span>144 Passed (92.3%)</li>
+                  <li><span class="legend-dot" style="background: var(--danger);"></span>8 Failed (5.1%)</li>
+                  <li><span class="legend-dot" style="background: var(--gray-300);"></span>4 Skipped (2.6%)</li>
+                </ul>
+              </div>
+            </div>
+            <div class="report-chart">
+              <div class="report-chart-title">Coverage by Feature</div>
+              <div class="bar-chart">
+                <div class="bar-row"><span class="bar-label">Accounts</span><div class="bar-track"><div class="bar-fill" style="width:96%;background:var(--green)"><span>96%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Auth (API)</span><div class="bar-track"><div class="bar-fill" style="width:94%;background:var(--green)"><span>94%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Auth (SSO)</span><div class="bar-track"><div class="bar-fill" style="width:92%;background:var(--green)"><span>92%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Enrollment</span><div class="bar-track"><div class="bar-fill" style="width:91%;background:var(--green)"><span>91%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Catalog</span><div class="bar-track"><div class="bar-fill" style="width:89%;background:var(--green)"><span>89%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">A11y</span><div class="bar-track"><div class="bar-fill" style="width:78%;background:var(--warning)"><span>78%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">E2E</span><div class="bar-track"><div class="bar-fill" style="width:72%;background:var(--warning)"><span>72%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Whiteboard</span><div class="bar-track"><div class="bar-fill" style="width:68%;background:var(--warning)"><span>68%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Perf</span><div class="bar-track"><div class="bar-fill" style="width:60%;background:var(--warning)"><span>60%</span></div></div></div>
+                <div class="bar-row"><span class="bar-label">Payments</span><div class="bar-track"><div class="bar-fill" style="width:45%;background:var(--danger)"><span>45%</span></div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><div class="card-title">Recent Test Runs</div><a href="#" class="card-action">Open Report Portal &rarr;</a></div>
+            <div class="card-body">
+              <ul class="run-history">
+                <li class="run-item">
+                  <div class="run-status partial"></div>
+                  <div class="run-info"><div class="run-name">Full Suite &mdash; main @ 5f7bae3</div><div class="run-meta">Today 14:32 &bull; 2m 48s &bull; Jana K.</div></div>
+                  <span class="run-result" style="color:var(--warning);">144/156 passed</span>
+                </li>
+                <li class="run-item">
+                  <div class="run-status partial"></div>
+                  <div class="run-info"><div class="run-name">Full Suite &mdash; main @ a3c1f92</div><div class="run-meta">Yesterday 18:15 &bull; 2m 52s &bull; CI Pipeline</div></div>
+                  <span class="run-result" style="color:var(--warning);">142/154 passed</span>
+                </li>
+                <li class="run-item">
+                  <div class="run-status pass"></div>
+                  <div class="run-info"><div class="run-name">Enrollment Suite &mdash; feat/enroll-api @ b7d2e01</div><div class="run-meta">Yesterday 10:20 &bull; 32s &bull; Bojan T.</div></div>
+                  <span class="run-result" style="color:var(--green);">15/15 passed</span>
+                </li>
+                <li class="run-item">
+                  <div class="run-status fail"></div>
+                  <div class="run-info"><div class="run-name">Whiteboard Suite &mdash; feat/ws-sync @ e4a8f71</div><div class="run-meta">2 days ago 16:44 &bull; 1m 12s &bull; Alex M.</div></div>
+                  <span class="run-result" style="color:var(--danger);">7/11 passed</span>
+                </li>
+                <li class="run-item">
+                  <div class="run-status pass"></div>
+                  <div class="run-info"><div class="run-name">Full Suite &mdash; main @ d91bc43</div><div class="run-meta">3 days ago 09:00 &bull; 2m 31s &bull; CI Pipeline</div></div>
+                  <span class="run-result" style="color:var(--green);">148/148 passed</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: DECISIONS & LEARNINGS -->
+        <div class="tab-content" id="tab-decisions">
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+            </div>
+            <div class="dl-title">Adopted axe-core for automated accessibility testing</div>
+            <div class="dl-desc">Integrated @axe-core/playwright into the E2E suite to catch WCAG 2.1 AA violations automatically. Runs on every PR against key user flows (login, catalog, enrollment). Catches ~70% of common a11y issues without manual audit.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; Today</span>
+              <span class="dl-tag">a11y</span>
+              <span class="dl-tag">testing</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+            </div>
+            <div class="dl-title">MSAL iframe MFA test requires dedicated test tenant</div>
+            <div class="dl-desc">Cannot reliably test MFA-in-iframe scenarios with the shared dev tenant because MFA policies are org-wide. Created a separate Azure AD test tenant with configurable conditional access to isolate SSO integration tests. This unblocked BUG-023 reproduction.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; Today</span>
+              <span class="dl-tag">auth</span>
+              <span class="dl-tag">test-infra</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+            </div>
+            <div class="dl-title">Report Portal over Allure for test reporting</div>
+            <div class="dl-desc">Chose Report Portal (self-hosted) over Allure because it supports real-time test result streaming from CI, has built-in defect classification (product bug vs automation bug vs system issue), and integrates with Jira for auto-linking bugs to failed tests.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; Yesterday</span>
+              <span class="dl-tag">reporting</span>
+              <span class="dl-tag">ci/cd</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+            </div>
+            <div class="dl-title">WebSocket tests need deterministic timing via fake timers</div>
+            <div class="dl-desc">Whiteboard sync tests were flaky because they relied on real setTimeout for reconnect logic. Switching to sinon fake timers made the suite deterministic. Flake rate dropped from ~15% to 0% on CI. Applied the same pattern to all time-dependent WebSocket tests.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; 2 days ago</span>
+              <span class="dl-tag">websocket</span>
+              <span class="dl-tag">flaky-tests</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type learning">Learning</span></div>
+            </div>
+            <div class="dl-title">Playwright test isolation requires fresh browser context per spec</div>
+            <div class="dl-desc">E2E login tests leaked session state across specs when sharing a browser context. One test's SSO token polluted another's expected unauthenticated state. Fixed by creating a new browser context (not just a new page) for each test file. Adds ~2s overhead but eliminates all cross-test contamination.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; 3 days ago</span>
+              <span class="dl-tag">e2e</span>
+              <span class="dl-tag">playwright</span>
+              <span style="margin-left:auto">learning.md &bull; Synced</span>
+            </div>
+          </div>
+
+          <div class="dl-card">
+            <div class="dl-card-header">
+              <div><span class="dl-type decision">Decision</span></div>
+            </div>
+            <div class="dl-title">Minimum 80% coverage gate on all new code</div>
+            <div class="dl-desc">Added a CI coverage gate: PRs fail if new/changed files drop below 80% line coverage. Existing code is exempt (tracked separately). This prevents coverage erosion while not blocking work on legacy areas. Payment module (45%) is flagged for a dedicated coverage sprint.</div>
+            <div class="dl-footer">
+              <span>Jana K. &bull; 4 days ago</span>
+              <span class="dl-tag">coverage</span>
+              <span class="dl-tag">ci/cd</span>
+              <span style="margin-left:auto">decision.md &bull; Synced</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: DISCOVERY CONTEXT -->
+        <div class="tab-content" id="tab-discovery">
+          <div class="context-summary">
+            <p>The QA phase (Phase 4) validates that all code produced in Phase 3 meets the requirements defined in Discovery and Story & Tech. Test coverage targets, traceability from requirements through stories to test cases, and automated regression suites ensure quality gates are met before release. All QA decisions and learnings feed back into the knowledge base.</p>
+          </div>
+
+          <div class="context-grid">
+            <div class="card">
+              <div class="card-header"><div class="card-title">Quality Targets from Discovery</div></div>
+              <div class="card-body" style="padding: 0;">
+                <ul class="context-list">
+                  <li><span class="context-num">1</span>Minimum 80% code coverage on all modules</li>
+                  <li><span class="context-num">2</span>100% traceability: requirement &rarr; story &rarr; test</li>
+                  <li><span class="context-num">3</span>Zero critical bugs at release (P0 = blocker)</li>
+                  <li><span class="context-num">4</span>E2E tests for all auth flows (SSO, token refresh, logout)</li>
+                  <li><span class="context-num">5</span>WCAG 2.1 AA compliance on all public screens</li>
+                  <li><span class="context-num">6</span>Performance: API p95 &lt; 200ms, WebSocket &lt; 100ms</li>
+                  <li><span class="context-num">7</span>Automated regression suite runs on every PR</li>
+                  <li><span class="context-num">8</span>GDPR: data export &amp; deletion endpoints verified</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><div class="card-title">Current Gaps</div></div>
+              <div class="card-body" style="padding: 0;">
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Payment module coverage at 45%</div><div class="gap-desc">Below 80% target &mdash; dedicated sprint needed</div></div>
+                  <span class="gap-severity high">High</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Video conferencing &mdash; untested</div><div class="gap-desc">Blocked by provider decision (Teams vs Twilio)</div></div>
+                  <span class="gap-severity high">High</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Notification system &mdash; untested</div><div class="gap-desc">Story NACX-009 not started yet</div></div>
+                  <span class="gap-severity medium">Medium</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Load testing not configured</div><div class="gap-desc">Need k6 or Artillery setup for WebSocket load</div></div>
+                  <span class="gap-severity medium">Medium</span>
+                </div>
+                <div class="gap-item" style="display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1;"><div class="gap-title">Manual a11y audit not scheduled</div><div class="gap-desc">axe-core covers ~70%, manual audit needed for rest</div></div>
+                  <span class="gap-severity low">Low</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 12px;">
+            <a href="code.html" class="context-link">
+              <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              Code Phase &rarr;
+            </a>
+            <a href="story-tech.html" class="context-link" style="background: var(--gray-600);">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Story & Tech Phase &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.querySelectorAll('.tabs .tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.tabs .tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+        tab.classList.add('active');
+        var panel = document.getElementById('tab-' + tab.getAttribute('data-tab'));
+        if (panel) panel.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>
