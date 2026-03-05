@@ -185,11 +185,17 @@
       z-index: 10;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 4px;
+      background: rgba(26,29,39,0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid #2A2D37;
+      border-radius: 8px;
+      padding: 4px;
     }
     .graph-search-wrap {
       position: relative;
-      width: 280px;
+      width: 200px;
     }
     .graph-search-wrap svg {
       position: absolute;
@@ -208,50 +214,59 @@
     }
     .graph-search-input {
       width: 100%;
-      padding: 8px 12px 8px 36px;
+      padding: 6px 10px 6px 32px;
       background: #1A1D27;
       border: 1px solid #2A2D37;
-      border-radius: var(--radius-sm);
+      border-radius: 6px;
       color: #E5E7EB;
-      font-size: 13px;
+      font-size: 12px;
       font-family: var(--font);
       outline: none;
       transition: border-color 0.15s;
     }
     .graph-search-input:focus {
       border-color: var(--green);
-      box-shadow: 0 0 0 3px rgba(0,229,160,0.12);
+      box-shadow: 0 0 0 2px rgba(0,229,160,0.12);
     }
     .graph-search-input::placeholder { color: #6B7280; }
-    .graph-search-tag {
-      display: none;
-      align-items: center;
+    .graph-search-tags {
+      position: absolute;
+      top: 58px;
+      left: 16px;
+      z-index: 10;
+      display: flex;
       gap: 6px;
-      padding: 5px 10px;
-      background: #1A1D27;
-      border: 1px solid #2A2D37;
-      border-radius: 20px;
-      color: #E5E7EB;
-      font-size: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .graph-search-tags:empty { display: none; }
+    .graph-search-pill {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: rgba(0,229,160,0.12);
+      border-radius: 12px;
+      font-size: 11px;
       font-weight: 600;
-      font-family: var(--font);
+      color: #00E5A0;
       white-space: nowrap;
     }
-    .graph-search-tag .tag-count {
-      background: #2A2D37;
-      padding: 1px 7px;
-      border-radius: 10px;
-      font-size: 10px;
-      color: #9CA3AF;
-    }
-    .graph-search-tag .tag-close {
+    .graph-search-pill .pill-x {
       cursor: pointer;
-      opacity: 0.5;
-      font-size: 16px;
+      opacity: 0.6;
+      font-size: 14px;
       line-height: 1;
       transition: opacity 0.15s;
     }
-    .graph-search-tag .tag-close:hover { opacity: 1; }
+    .graph-search-pill .pill-x:hover { opacity: 1; }
+    .graph-search-pill .pill-count {
+      font-size: 9px;
+      background: rgba(0,229,160,0.15);
+      padding: 1px 5px;
+      border-radius: 8px;
+      color: #059669;
+    }
 
     #cy {
       width: 100%;
@@ -310,29 +325,13 @@
     }
     .graph-info {
       position: absolute;
-      bottom: 12px;
+      bottom: 68px;
       left: 16px;
       font-size: 11px;
       color: #4B5563;
       z-index: 10;
     }
-    .graph-close-btn {
-      position: absolute;
-      top: 16px;
-      right: 190px;
-      padding: 6px 14px;
-      background: #1A1D27;
-      border: 1px solid #2A2D37;
-      border-radius: var(--radius-sm);
-      color: #9CA3AF;
-      font-size: 12px;
-      font-weight: 600;
-      font-family: var(--font);
-      cursor: pointer;
-      z-index: 10;
-      transition: all 0.15s;
-    }
-    .graph-close-btn:hover { color: #E5E7EB; border-color: #4B5563; }
+    .graph-close-btn { display: none; /* replaced by in-bar button */ }
 
     /* NODE INFO PANEL */
     .node-info-panel {
@@ -608,6 +607,271 @@
 
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .layers { animation: fadeInUp 0.4s ease both; }
+
+    /* EDGE POPOVER */
+    .edge-popover {
+      position: absolute;
+      width: 260px;
+      background: #13151D;
+      border: 1px solid #2A2D37;
+      border-radius: 10px;
+      padding: 16px;
+      z-index: 25;
+      display: none;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .edge-popover.visible { display: block; }
+    .ep-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .ep-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #F3F4F6;
+      text-transform: capitalize;
+    }
+    .ep-close {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      color: #6B7280;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ep-close:hover { background: #1E2028; color: #E5E7EB; }
+    .ep-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #1E2028;
+    }
+    .ep-row:last-child { border-bottom: none; }
+    .ep-key {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ep-val {
+      font-size: 12px;
+      color: #D1D5DB;
+      font-weight: 500;
+    }
+    .ep-link {
+      color: #93C5FD;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .ep-link:hover { color: #BFDBFE; }
+    .ep-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .ep-conf-high { background: rgba(0,229,160,0.15); color: #00E5A0; }
+    .ep-conf-medium { background: rgba(245,158,11,0.15); color: #F59E0B; }
+    .ep-conf-low { background: rgba(239,68,68,0.15); color: #EF4444; }
+
+    /* TIMELINE BAR */
+    .timeline-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: rgba(19,21,29,0.95);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid #2A2D37;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 20px;
+      z-index: 15;
+    }
+    .tl-play {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid #2A2D37;
+      background: #1A1D27;
+      color: #9CA3AF;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .tl-play:hover { border-color: #4B5563; color: #E5E7EB; }
+    .tl-play.playing { background: var(--green); color: var(--dark); border-color: var(--green); }
+    .tl-track {
+      flex: 1;
+      height: 24px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .tl-track-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: #2A2D37;
+      transform: translateY(-50%);
+      border-radius: 1px;
+    }
+    .tl-fill {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      height: 2px;
+      background: var(--green);
+      transform: translateY(-50%);
+      border-radius: 1px;
+      transition: width 0.3s;
+      width: 100%;
+    }
+    .tl-dots {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      z-index: 1;
+    }
+    .tl-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1A1D27;
+      border: 2px solid #2A2D37;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: 700;
+      color: #4B5563;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .tl-dot:hover { border-color: #4B5563; color: #9CA3AF; }
+    .tl-dot.reached { border-color: var(--green); background: #13151D; color: #9CA3AF; }
+    .tl-dot.active { background: var(--green); border-color: var(--green); color: var(--dark); }
+    .tl-dot .tl-tooltip {
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-bottom: 6px;
+      padding: 4px 8px;
+      background: #1A1D27;
+      border: 1px solid #2A2D37;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #D1D5DB;
+      white-space: nowrap;
+      display: none;
+      pointer-events: none;
+    }
+    .tl-dot:hover .tl-tooltip { display: block; }
+    .tl-stats {
+      font-size: 11px;
+      color: #6B7280;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .tl-diff-badge {
+      display: none;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(0,229,160,0.12);
+      color: #00E5A0;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* MINIMAP */
+    #minimap {
+      position: absolute;
+      bottom: 68px;
+      right: 16px;
+      width: 180px;
+      height: 120px;
+      border: 1px solid #2A2D37;
+      border-radius: 8px;
+      z-index: 10;
+      cursor: crosshair;
+      background: rgba(15,17,23,0.9);
+    }
+
+    /* FULLSCREEN */
+    .graph-view.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      border-radius: 0;
+      border: none;
+    }
+    .graph-view.fullscreen #cy {
+      height: 100vh;
+    }
+
+    /* LAYOUT SELECTOR */
+    .graph-layout-bar {
+      display: flex;
+      gap: 2px;
+      align-items: center;
+    }
+    .gl-btn {
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font);
+      color: #6B7280;
+      background: transparent;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .gl-btn:hover { color: #D1D5DB; background: #1E2028; }
+    .gl-btn.active { color: #00E5A0; background: rgba(0,229,160,0.1); }
+    .gl-btn.gl-action {
+      color: #9CA3AF;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .gl-btn.gl-action:hover { color: #E5E7EB; }
+    .gl-divider {
+      width: 1px;
+      height: 16px;
+      background: #2A2D37;
+      margin: 0 4px;
+      align-self: center;
+    }
   </style>
 </head>
 <body>
@@ -715,15 +979,26 @@
             <div class="graph-toolbar">
               <div class="graph-search-wrap">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input id="graphSearch" class="graph-search-input" type="text" placeholder="Search entities...">
+                <input id="graphSearch" class="graph-search-input" type="text" placeholder="Search...">
               </div>
-              <div id="graphSearchTag" class="graph-search-tag">
-                <span id="graphSearchTagText"></span>
-                <span class="tag-count" id="graphSearchTagCount"></span>
-                <span class="tag-close" onclick="clearGraphSearch()">&times;</span>
+              <div class="gl-divider"></div>
+              <div class="graph-layout-bar">
+                <button class="gl-btn active" data-layout="force" onclick="setGraphLayout('force')">Force</button>
+                <button class="gl-btn" data-layout="circle" onclick="setGraphLayout('circle')">Circle</button>
+                <button class="gl-btn" data-layout="grid" onclick="setGraphLayout('grid')">Grid</button>
+                <button class="gl-btn" data-layout="tree" onclick="setGraphLayout('tree')">Tree</button>
+                <button class="gl-btn" data-layout="clusters" onclick="setGraphLayout('clusters')">Clusters</button>
+                <button class="gl-btn" data-layout="timeline-layout" onclick="setGraphLayout('timeline-layout')">Timeline</button>
+                <button class="gl-btn" data-layout="free" onclick="setGraphLayout('free')">Free</button>
               </div>
+              <div class="gl-divider"></div>
+              <button class="gl-btn gl-action" onclick="resetGraphView()">Reset</button>
+              <button class="gl-btn gl-action" id="graphFullscreenBtn" onclick="toggleGraphFullscreen()">
+                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                <span id="fsLabel">Fullscreen</span>
+              </button>
             </div>
-            <button class="graph-close-btn" onclick="resetGraphView()">Reset View</button>
+            <div id="graphSearchTags" class="graph-search-tags"></div>
             <div id="cy"></div>
             <div class="graph-legend-panel">
               <div class="graph-legend-title">Entity Types</div>
@@ -799,6 +1074,51 @@
                   <div id="nipChunksEmpty" style="text-align:center;padding:20px;color:#4B5563;font-size:12px;">No document references</div>
                 </div>
               </div>
+            </div>
+            <!-- Edge Popover -->
+            <div id="edgePopover" class="edge-popover">
+              <div class="ep-header">
+                <div class="ep-label" id="epLabel"></div>
+                <span class="ep-close" onclick="closeEdgePopover()">&times;</span>
+              </div>
+              <div class="ep-row">
+                <span class="ep-key">From</span>
+                <span class="ep-val ep-link" id="epFrom"></span>
+              </div>
+              <div class="ep-row">
+                <span class="ep-key">To</span>
+                <span class="ep-val ep-link" id="epTo"></span>
+              </div>
+              <div class="ep-row">
+                <span class="ep-key">Source</span>
+                <span class="ep-val" id="epOrigin"></span>
+              </div>
+              <div class="ep-row">
+                <span class="ep-key">Confidence</span>
+                <span class="ep-badge" id="epConfidence"></span>
+              </div>
+            </div>
+            <!-- Minimap Canvas -->
+            <canvas id="minimap" width="180" height="120"></canvas>
+            <!-- Timeline Bar -->
+            <div class="timeline-bar">
+              <button class="tl-play" id="tlPlay" onclick="toggleTimelinePlay()">&#9654;</button>
+              <div class="tl-track">
+                <div class="tl-track-line"></div>
+                <div class="tl-fill" id="tlFill"></div>
+                <div class="tl-dots">
+                  <div class="tl-dot reached active" data-meeting="1" onclick="setTimelineMeeting(1)"><span class="tl-tooltip">M1 &mdash; Team Kickoff<br><span style="color:#6B7280">Jan 15, 2025</span></span>1</div>
+                  <div class="tl-dot reached" data-meeting="2" onclick="setTimelineMeeting(2)"><span class="tl-tooltip">M2 &mdash; Requirements<br><span style="color:#6B7280">Jan 22, 2025</span></span>2</div>
+                  <div class="tl-dot reached" data-meeting="3" onclick="setTimelineMeeting(3)"><span class="tl-tooltip">M3 &mdash; Auth Deep-dive<br><span style="color:#6B7280">Feb 3, 2025</span></span>3</div>
+                  <div class="tl-dot reached" data-meeting="4" onclick="setTimelineMeeting(4)"><span class="tl-tooltip">M4 &mdash; API &amp; Roles<br><span style="color:#6B7280">Feb 12, 2025</span></span>4</div>
+                  <div class="tl-dot reached" data-meeting="5" onclick="setTimelineMeeting(5)"><span class="tl-tooltip">M5 &mdash; Whiteboard Scope<br><span style="color:#6B7280">Feb 24, 2025</span></span>5</div>
+                  <div class="tl-dot reached" data-meeting="6" onclick="setTimelineMeeting(6)"><span class="tl-tooltip">M6 &mdash; Backend Stack<br><span style="color:#6B7280">Mar 5, 2025</span></span>6</div>
+                  <div class="tl-dot reached" data-meeting="7" onclick="setTimelineMeeting(7)"><span class="tl-tooltip">M7 &mdash; Video &amp; Offline<br><span style="color:#6B7280">Mar 14, 2025</span></span>7</div>
+                  <div class="tl-dot reached" data-meeting="8" onclick="setTimelineMeeting(8)"><span class="tl-tooltip">M8 &mdash; Bug Review<br><span style="color:#6B7280">Mar 21, 2025</span></span>8</div>
+                </div>
+              </div>
+              <div class="tl-stats" id="tlStats">26 entities &middot; 33 relations</div>
+              <div class="tl-diff-badge" id="tlDiffBadge"></div>
             </div>
           </div>
         </div>
@@ -882,68 +1202,68 @@
     };
 
     var graphNodes = [
-      { data: { id: 'bojan',   label: 'Bojan Tesic',        group: 'People' } },
-      { data: { id: 'sarah',   label: 'Sarah Chen',         group: 'People' } },
-      { data: { id: 'alex',    label: 'Alex Mercer',        group: 'People' } },
-      { data: { id: 'jana',    label: 'Jana Kovac',         group: 'People' } },
-      { data: { id: 'sso',     label: 'SSO Authentication', group: 'Features' } },
-      { data: { id: 'wb',      label: 'Whiteboard',         group: 'Features' } },
-      { data: { id: 'courses', label: 'Course Management',  group: 'Features' } },
-      { data: { id: 'video',   label: 'Video Conferencing', group: 'Features' } },
-      { data: { id: 'dash',    label: 'User Dashboard',     group: 'Features' } },
-      { data: { id: 'rest',    label: 'REST API',           group: 'Features' } },
-      { data: { id: 'msal',    label: 'MSAL.js v2',         group: 'Decisions' } },
-      { data: { id: 'pg',      label: 'PostgreSQL',         group: 'Decisions' } },
-      { data: { id: 'ws',      label: 'WebSocket Protocol', group: 'Decisions' } },
-      { data: { id: 'react',   label: 'React 18',           group: 'Technology' } },
-      { data: { id: 'node',    label: 'Node.js',            group: 'Technology' } },
-      { data: { id: 'es',      label: 'Elasticsearch',      group: 'Technology' } },
-      { data: { id: 'n005',    label: 'NACX-005',           group: 'Stories' } },
-      { data: { id: 'n006',    label: 'NACX-006',           group: 'Stories' } },
-      { data: { id: 'n012',    label: 'NACX-012',           group: 'Stories' } },
-      { data: { id: 'n015',    label: 'NACX-015',           group: 'Stories' } },
-      { data: { id: 'social',  label: 'Social Login',       group: 'Requirements' } },
-      { data: { id: 'rbac',    label: 'Role-Based Access',  group: 'Requirements' } },
-      { data: { id: 'rt',      label: 'Real-time Sync',     group: 'Requirements' } },
-      { data: { id: 'offline', label: 'Offline Support',    group: 'Requirements' } },
-      { data: { id: 'b023',    label: 'BUG-023',            group: 'Bugs' } },
-      { data: { id: 'b041',    label: 'BUG-041',            group: 'Bugs' } }
+      { data: { id: 'bojan',   label: 'Bojan Tesic',        group: 'People',       meeting: 1 } },
+      { data: { id: 'sarah',   label: 'Sarah Chen',         group: 'People',       meeting: 1 } },
+      { data: { id: 'alex',    label: 'Alex Mercer',        group: 'People',       meeting: 1 } },
+      { data: { id: 'jana',    label: 'Jana Kovac',         group: 'People',       meeting: 1 } },
+      { data: { id: 'courses', label: 'Course Management',  group: 'Features',     meeting: 2 } },
+      { data: { id: 'dash',    label: 'User Dashboard',     group: 'Features',     meeting: 2 } },
+      { data: { id: 'video',   label: 'Video Conferencing', group: 'Features',     meeting: 2 } },
+      { data: { id: 'sso',     label: 'SSO Authentication', group: 'Features',     meeting: 3 } },
+      { data: { id: 'msal',    label: 'MSAL.js v2',         group: 'Decisions',    meeting: 3 } },
+      { data: { id: 'pg',      label: 'PostgreSQL',         group: 'Decisions',    meeting: 3 } },
+      { data: { id: 'rest',    label: 'REST API',           group: 'Features',     meeting: 4 } },
+      { data: { id: 'rbac',    label: 'Role-Based Access',  group: 'Requirements', meeting: 4 } },
+      { data: { id: 'react',   label: 'React 18',           group: 'Technology',   meeting: 4 } },
+      { data: { id: 'wb',      label: 'Whiteboard',         group: 'Features',     meeting: 5 } },
+      { data: { id: 'ws',      label: 'WebSocket Protocol', group: 'Decisions',    meeting: 5 } },
+      { data: { id: 'rt',      label: 'Real-time Sync',     group: 'Requirements', meeting: 5 } },
+      { data: { id: 'n005',    label: 'NACX-005',           group: 'Stories',      meeting: 5 } },
+      { data: { id: 'n006',    label: 'NACX-006',           group: 'Stories',      meeting: 5 } },
+      { data: { id: 'node',    label: 'Node.js',            group: 'Technology',   meeting: 6 } },
+      { data: { id: 'es',      label: 'Elasticsearch',      group: 'Technology',   meeting: 6 } },
+      { data: { id: 'n012',    label: 'NACX-012',           group: 'Stories',      meeting: 6 } },
+      { data: { id: 'social',  label: 'Social Login',       group: 'Requirements', meeting: 7 } },
+      { data: { id: 'offline', label: 'Offline Support',    group: 'Requirements', meeting: 7 } },
+      { data: { id: 'n015',    label: 'NACX-015',           group: 'Stories',      meeting: 7 } },
+      { data: { id: 'b023',    label: 'BUG-023',            group: 'Bugs',         meeting: 8 } },
+      { data: { id: 'b041',    label: 'BUG-041',            group: 'Bugs',         meeting: 8 } }
     ];
 
     var graphEdges = [
-      { data: { source: 'sarah', target: 'sso',     label: 'owns' } },
-      { data: { source: 'sarah', target: 'msal',    label: 'decided' } },
-      { data: { source: 'sarah', target: 'react',   label: 'decided' } },
-      { data: { source: 'bojan', target: 'courses', label: 'owns' } },
-      { data: { source: 'bojan', target: 'dash',    label: 'owns' } },
-      { data: { source: 'alex',  target: 'wb',      label: 'implements' } },
-      { data: { source: 'alex',  target: 'rest',    label: 'implements' } },
-      { data: { source: 'alex',  target: 'ws',      label: 'implements' } },
-      { data: { source: 'jana',  target: 'b023',    label: 'reported' } },
-      { data: { source: 'jana',  target: 'b041',    label: 'reported' } },
-      { data: { source: 'sso',   target: 'msal',    label: 'uses' } },
-      { data: { source: 'sso',   target: 'n005',    label: 'tracked in' } },
-      { data: { source: 'sso',   target: 'social',  label: 'relates to' } },
-      { data: { source: 'sso',   target: 'rbac',    label: 'requires' } },
-      { data: { source: 'wb',    target: 'ws',      label: 'uses' } },
-      { data: { source: 'wb',    target: 'n006',    label: 'tracked in' } },
-      { data: { source: 'wb',    target: 'rt',      label: 'requires' } },
-      { data: { source: 'courses', target: 'pg',    label: 'uses' } },
-      { data: { source: 'courses', target: 'n012',  label: 'tracked in' } },
-      { data: { source: 'video',   target: 'n015',  label: 'tracked in' } },
-      { data: { source: 'video',   target: 'social', label: 'requires' } },
-      { data: { source: 'rest',    target: 'node',  label: 'runs on' } },
-      { data: { source: 'dash',    target: 'react', label: 'built with' } },
-      { data: { source: 'pg',      target: 'node',  label: 'connects to' } },
-      { data: { source: 'rt',      target: 'ws',    label: 'uses' } },
-      { data: { source: 'offline', target: 'courses', label: 'applies to' } },
-      { data: { source: 'rbac',    target: 'dash',  label: 'applies to' } },
-      { data: { source: 'b023',    target: 'msal',  label: 'affects' } },
-      { data: { source: 'b023',    target: 'sso',   label: 'affects' } },
-      { data: { source: 'b041',    target: 'ws',    label: 'affects' } },
-      { data: { source: 'b041',    target: 'wb',    label: 'affects' } },
-      { data: { source: 'es',      target: 'courses', label: 'indexes' } },
-      { data: { source: 'es',      target: 'node',  label: 'runs on' } }
+      { data: { source: 'sarah',   target: 'sso',     label: 'owns',       confidence: 'high',   origin: 'Meeting 3 — Auth Deep-dive' } },
+      { data: { source: 'sarah',   target: 'msal',    label: 'decided',    confidence: 'high',   origin: 'Meeting 3 — Auth Deep-dive' } },
+      { data: { source: 'sarah',   target: 'react',   label: 'decided',    confidence: 'high',   origin: 'Meeting 4 — API & Roles' } },
+      { data: { source: 'bojan',   target: 'courses', label: 'owns',       confidence: 'high',   origin: 'Meeting 2 — Requirements' } },
+      { data: { source: 'bojan',   target: 'dash',    label: 'owns',       confidence: 'high',   origin: 'Meeting 2 — Requirements' } },
+      { data: { source: 'alex',    target: 'wb',      label: 'implements', confidence: 'high',   origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'alex',    target: 'rest',    label: 'implements', confidence: 'high',   origin: 'Meeting 4 — API & Roles' } },
+      { data: { source: 'alex',    target: 'ws',      label: 'implements', confidence: 'high',   origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'jana',    target: 'b023',    label: 'reported',   confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'jana',    target: 'b041',    label: 'reported',   confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'sso',     target: 'msal',    label: 'uses',       confidence: 'high',   origin: 'Meeting 3 — Auth Deep-dive' } },
+      { data: { source: 'sso',     target: 'n005',    label: 'tracked in', confidence: 'medium', origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'sso',     target: 'social',  label: 'relates to', confidence: 'medium', origin: 'Meeting 7 — Video & Offline' } },
+      { data: { source: 'sso',     target: 'rbac',    label: 'requires',   confidence: 'high',   origin: 'Meeting 4 — API & Roles' } },
+      { data: { source: 'wb',      target: 'ws',      label: 'uses',       confidence: 'high',   origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'wb',      target: 'n006',    label: 'tracked in', confidence: 'medium', origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'wb',      target: 'rt',      label: 'requires',   confidence: 'high',   origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'courses', target: 'pg',      label: 'uses',       confidence: 'high',   origin: 'Meeting 3 — Auth Deep-dive' } },
+      { data: { source: 'courses', target: 'n012',    label: 'tracked in', confidence: 'medium', origin: 'Meeting 6 — Backend Stack' } },
+      { data: { source: 'video',   target: 'n015',    label: 'tracked in', confidence: 'medium', origin: 'Meeting 7 — Video & Offline' } },
+      { data: { source: 'video',   target: 'social',  label: 'requires',   confidence: 'medium', origin: 'Meeting 7 — Video & Offline' } },
+      { data: { source: 'rest',    target: 'node',    label: 'runs on',    confidence: 'high',   origin: 'Meeting 6 — Backend Stack' } },
+      { data: { source: 'dash',    target: 'react',   label: 'built with', confidence: 'high',   origin: 'Meeting 4 — API & Roles' } },
+      { data: { source: 'pg',      target: 'node',    label: 'connects to',confidence: 'high',   origin: 'Meeting 6 — Backend Stack' } },
+      { data: { source: 'rt',      target: 'ws',      label: 'uses',       confidence: 'high',   origin: 'Meeting 5 — Whiteboard Scope' } },
+      { data: { source: 'offline', target: 'courses', label: 'applies to', confidence: 'medium', origin: 'Meeting 7 — Video & Offline' } },
+      { data: { source: 'rbac',    target: 'dash',    label: 'applies to', confidence: 'high',   origin: 'Meeting 4 — API & Roles' } },
+      { data: { source: 'b023',    target: 'msal',    label: 'affects',    confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'b023',    target: 'sso',     label: 'affects',    confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'b041',    target: 'ws',      label: 'affects',    confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'b041',    target: 'wb',      label: 'affects',    confidence: 'high',   origin: 'Meeting 8 — Bug Review' } },
+      { data: { source: 'es',      target: 'courses', label: 'indexes',    confidence: 'high',   origin: 'Meeting 6 — Backend Stack' } },
+      { data: { source: 'es',      target: 'node',    label: 'runs on',    confidence: 'high',   origin: 'Meeting 6 — Backend Stack' } }
     ];
 
     /* Compute degree → node size */
@@ -958,6 +1278,23 @@
       n.data.size = Math.max(28, Math.min(65, 20 + deg * 6));
       n.data.color = graphGroups[n.data.group].color;
       n.data.borderColor = graphGroups[n.data.group].border;
+    });
+
+    /* Meeting lookup for auto-computing edge meeting */
+    var meetingNames = {
+      1: 'Team Kickoff', 2: 'Requirements', 3: 'Auth Deep-dive',
+      4: 'API & Roles', 5: 'Whiteboard Scope', 6: 'Backend Stack',
+      7: 'Video & Offline', 8: 'Bug Review'
+    };
+    var meetingDates = {
+      1: 'Jan 15, 2025', 2: 'Jan 22, 2025', 3: 'Feb 3, 2025',
+      4: 'Feb 12, 2025', 5: 'Feb 24, 2025', 6: 'Mar 5, 2025',
+      7: 'Mar 14, 2025', 8: 'Mar 21, 2025'
+    };
+    var meetingLookup = {};
+    graphNodes.forEach(function(n) { meetingLookup[n.data.id] = n.data.meeting; });
+    graphEdges.forEach(function(e) {
+      e.data.meeting = Math.max(meetingLookup[e.data.source] || 1, meetingLookup[e.data.target] || 1);
     });
 
     /* ===== CYTOSCAPE INIT ===== */
@@ -1068,6 +1405,40 @@
           style: {
             'opacity': 0.01
           }
+        },
+        {
+          selector: 'node.timeline-hidden',
+          style: {
+            'opacity': 0.06,
+            'color': 'transparent'
+          }
+        },
+        {
+          selector: 'edge.timeline-hidden',
+          style: {
+            'opacity': 0.015
+          }
+        },
+        {
+          selector: 'node.diff-new',
+          style: {
+            'border-width': 5,
+            'border-color': '#00E5A0',
+            'border-opacity': 0.8,
+            'background-opacity': 1,
+            'z-index': 15
+          }
+        },
+        {
+          selector: 'edge.diff-new',
+          style: {
+            'line-color': '#00E5A0',
+            'opacity': 0.6,
+            'width': 2,
+            'z-index': 10,
+            'color': '#F3F4F6',
+            'text-background-opacity': 0.9
+          }
         }
       ],
       layout: {
@@ -1104,24 +1475,67 @@
       }, 80);
     });
 
-    /* ===== SEARCH ===== */
+    /* ===== MULTI-SEARCH ===== */
     var searchInput = document.getElementById('graphSearch');
-    var tagEl = document.getElementById('graphSearchTag');
-    var tagText = document.getElementById('graphSearchTagText');
-    var tagCount = document.getElementById('graphSearchTagCount');
+    var searchTagsEl = document.getElementById('graphSearchTags');
+    var searchTerms = [];
 
-    function graphSearch(query) {
-      cy.elements().removeClass('dm hl nb edm ehl');
-      if (!query) { tagEl.style.display = 'none'; return; }
-      var q = query.toLowerCase();
-      var matches = cy.nodes().filter(function(n) {
-        return n.data('label').toLowerCase().indexOf(q) !== -1 ||
-               n.data('group').toLowerCase().indexOf(q) !== -1;
+    function addSearchTerm(term) {
+      term = term.trim();
+      if (!term) return;
+      var lower = term.toLowerCase();
+      for (var i = 0; i < searchTerms.length; i++) {
+        if (searchTerms[i].toLowerCase() === lower) return;
+      }
+      searchTerms.push(term);
+      searchInput.value = '';
+      renderSearchTags();
+      applyMultiSearch();
+    }
+
+    function removeSearchTerm(idx) {
+      searchTerms.splice(idx, 1);
+      renderSearchTags();
+      if (searchTerms.length === 0) {
+        cy.elements().removeClass('dm hl nb edm ehl');
+        cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 400 });
+      } else {
+        applyMultiSearch();
+      }
+    }
+
+    function renderSearchTags() {
+      if (searchTerms.length === 0) { searchTagsEl.innerHTML = ''; return; }
+      var html = '';
+      searchTerms.forEach(function(t, i) {
+        var count = cy.nodes().filter(function(n) {
+          if (n.hasClass('timeline-hidden')) return false;
+          var ql = t.toLowerCase();
+          return n.data('label').toLowerCase().indexOf(ql) !== -1 ||
+                 n.data('group').toLowerCase().indexOf(ql) !== -1;
+        }).length;
+        html += '<div class="graph-search-pill">' +
+          '<span>' + t + '</span>' +
+          '<span class="pill-count">' + count + '</span>' +
+          '<span class="pill-x" onclick="removeSearchTerm(' + i + ')">&times;</span>' +
+        '</div>';
       });
-      if (matches.length === 0) { tagEl.style.display = 'none'; return; }
-      tagText.textContent = query;
-      tagCount.textContent = matches.length;
-      tagEl.style.display = 'inline-flex';
+      searchTagsEl.innerHTML = html;
+    }
+
+    function applyMultiSearch() {
+      cy.elements().removeClass('dm hl nb edm ehl');
+      var matches = cy.nodes().filter(function(n) {
+        if (n.hasClass('timeline-hidden')) return false;
+        var label = n.data('label').toLowerCase();
+        var group = n.data('group').toLowerCase();
+        for (var i = 0; i < searchTerms.length; i++) {
+          var ql = searchTerms[i].toLowerCase();
+          if (label.indexOf(ql) !== -1 || group.indexOf(ql) !== -1) return true;
+        }
+        return false;
+      });
+      if (matches.length === 0) return;
       var nbrs = matches.neighborhood().nodes();
       cy.elements().addClass('dm').addClass('edm');
       matches.removeClass('dm').addClass('hl');
@@ -1130,20 +1544,46 @@
       cy.animate({ fit: { eles: matches.union(nbrs), padding: 80 }, duration: 400 });
     }
 
+    /* Live preview while typing */
     var searchTimer;
     searchInput.addEventListener('input', function() {
       clearTimeout(searchTimer);
       var v = this.value;
-      searchTimer = setTimeout(function() { graphSearch(v); }, 200);
+      searchTimer = setTimeout(function() {
+        if (searchTerms.length === 0 && v) {
+          /* Preview single term */
+          cy.elements().removeClass('dm hl nb edm ehl');
+          var q = v.toLowerCase();
+          var matches = cy.nodes().filter(function(n) {
+            if (n.hasClass('timeline-hidden')) return false;
+            return n.data('label').toLowerCase().indexOf(q) !== -1 ||
+                   n.data('group').toLowerCase().indexOf(q) !== -1;
+          });
+          if (matches.length === 0) return;
+          var nbrs = matches.neighborhood().nodes();
+          cy.elements().addClass('dm').addClass('edm');
+          matches.removeClass('dm').addClass('hl');
+          nbrs.removeClass('dm').addClass('nb');
+          matches.connectedEdges().removeClass('edm').addClass('ehl');
+        } else if (searchTerms.length > 0 && !v) {
+          applyMultiSearch();
+        }
+      }, 200);
     });
+
     searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { addSearchTerm(this.value); }
       if (e.key === 'Escape') { clearGraphSearch(); }
+      if (e.key === 'Backspace' && !this.value && searchTerms.length > 0) {
+        removeSearchTerm(searchTerms.length - 1);
+      }
     });
 
     function clearGraphSearch() {
+      searchTerms = [];
       searchInput.value = '';
+      searchTagsEl.innerHTML = '';
       cy.elements().removeClass('dm hl nb edm ehl');
-      tagEl.style.display = 'none';
       cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 400 });
     }
 
@@ -1151,8 +1591,36 @@
       clearGraphSearch();
       Object.keys(activeGroups).forEach(function(g) { activeGroups[g] = true; });
       document.querySelectorAll('.graph-legend-item').forEach(function(el) { el.classList.remove('dimmed'); });
-      cy.nodes().removeClass('fo');
-      cy.edges().removeClass('efo');
+      cy.nodes().removeClass('fo timeline-hidden diff-new');
+      cy.edges().removeClass('efo timeline-hidden diff-new');
+      /* Reset timeline to M8 */
+      currentTimelineMeeting = 8;
+      document.querySelectorAll('.tl-dot').forEach(function(d) {
+        d.classList.add('reached');
+        d.classList.toggle('active', d.getAttribute('data-meeting') === '8');
+      });
+      document.getElementById('tlFill').style.width = '100%';
+      updateTimelineStats(8);
+      document.getElementById('tlDiffBadge').style.display = 'none';
+      /* Stop play if running */
+      if (timelinePlaying) {
+        timelinePlaying = false;
+        clearInterval(timelineInterval);
+        var btn = document.getElementById('tlPlay');
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#9654;';
+      }
+      closeNodeInfo();
+      closeEdgePopover();
+      /* Reset layout to force */
+      if (currentLayout !== 'force') {
+        floatEnabled = true;
+        if (!floatRaf) { floatStart = Date.now(); floatLoop(); }
+        currentLayout = 'force';
+        document.querySelectorAll('.gl-btn').forEach(function(b) {
+          b.classList.toggle('active', b.getAttribute('data-layout') === 'force');
+        });
+      }
       cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 400 });
     }
 
@@ -1185,14 +1653,16 @@
     var floatRaf;
     var floatStart = Date.now();
     var origPositions = {};
+    var floatEnabled = true;
     cy.on('layoutstop', function() {
       cy.nodes().forEach(function(n) {
         origPositions[n.id()] = { x: n.position('x'), y: n.position('y') };
       });
       floatStart = Date.now();
-      if (!floatRaf) floatLoop();
+      if (!floatRaf && floatEnabled) floatLoop();
     });
     function floatLoop() {
+      if (!floatEnabled) { floatRaf = null; return; }
       var t = (Date.now() - floatStart) / 1000;
       cy.nodes().forEach(function(n, i) {
         var orig = origPositions[n.id()];
@@ -1335,6 +1805,7 @@
     cy.on('tap', 'node', function(e) {
       var n = e.target;
       selectedNode = n;
+      closeEdgePopover();
       var id = n.data('id');
       var label = n.data('label');
       var group = n.data('group');
@@ -1473,9 +1944,9 @@
       document.getElementById('nodeInfoPanel').classList.add('open');
     });
 
-    /* Close panel on background tap */
+    /* Close panel/popover on background tap */
     cy.on('tap', function(e) {
-      if (e.target === cy) { closeNodeInfo(); }
+      if (e.target === cy) { closeNodeInfo(); closeEdgePopover(); }
     });
 
     function closeNodeInfo() {
@@ -1495,6 +1966,398 @@
       /* Trigger the tap to open its info */
       setTimeout(function() { n.emit('tap'); }, 420);
     }
+
+    /* ===== EDGE CLICK POPOVER ===== */
+    var edgePopover = document.getElementById('edgePopover');
+    var selectedEdge = null;
+
+    cy.on('tap', 'edge', function(e) {
+      var edge = e.target;
+      selectedEdge = edge;
+      closeNodeInfo();
+
+      document.getElementById('epLabel').textContent = edge.data('label');
+
+      var sourceNode = edge.source();
+      var targetNode = edge.target();
+      var epFrom = document.getElementById('epFrom');
+      epFrom.textContent = sourceNode.data('label');
+      epFrom.onclick = function() { closeEdgePopover(); navigateToNode(sourceNode.id()); };
+
+      var epTo = document.getElementById('epTo');
+      epTo.textContent = targetNode.data('label');
+      epTo.onclick = function() { closeEdgePopover(); navigateToNode(targetNode.id()); };
+
+      document.getElementById('epOrigin').textContent = edge.data('origin') || '';
+      var confBadge = document.getElementById('epConfidence');
+      var conf = edge.data('confidence') || 'medium';
+      confBadge.textContent = conf;
+      confBadge.className = 'ep-badge ep-conf-' + conf;
+
+      /* Position at edge midpoint */
+      var sp = sourceNode.renderedPosition();
+      var tp = targetNode.renderedPosition();
+      var mx = (sp.x + tp.x) / 2;
+      var my = (sp.y + tp.y) / 2;
+      var cyEl = document.getElementById('cy');
+      var cyRect = cyEl.getBoundingClientRect();
+      var gvRect = document.querySelector('.graph-view').getBoundingClientRect();
+      var left = mx + (cyRect.left - gvRect.left) - 130;
+      var top = my + (cyRect.top - gvRect.top) - 10;
+      left = Math.max(8, Math.min(left, gvRect.width - 268));
+      top = Math.max(8, Math.min(top, gvRect.height - 200));
+      edgePopover.style.left = left + 'px';
+      edgePopover.style.top = top + 'px';
+      edgePopover.classList.add('visible');
+    });
+
+    function closeEdgePopover() {
+      edgePopover.classList.remove('visible');
+      selectedEdge = null;
+    }
+
+    /* ===== TIMELINE ===== */
+    var currentTimelineMeeting = 8;
+    var timelinePlaying = false;
+    var timelineInterval = null;
+
+    function setTimelineMeeting(n) {
+      currentTimelineMeeting = n;
+      document.querySelectorAll('.tl-dot').forEach(function(dot) {
+        var m = parseInt(dot.getAttribute('data-meeting'));
+        dot.classList.toggle('active', m === n);
+        dot.classList.toggle('reached', m <= n);
+      });
+      document.getElementById('tlFill').style.width = ((n - 1) / 7 * 100) + '%';
+
+      cy.nodes().forEach(function(node) {
+        if (node.data('meeting') > n) { node.addClass('timeline-hidden'); }
+        else { node.removeClass('timeline-hidden'); }
+      });
+      cy.edges().forEach(function(edge) {
+        if (edge.data('meeting') > n) { edge.addClass('timeline-hidden'); }
+        else { edge.removeClass('timeline-hidden'); }
+      });
+
+      updateTimelineStats(n);
+      applyDiffHighlight(n);
+      drawMinimap();
+    }
+
+    function updateTimelineStats(n) {
+      var nc = cy.nodes().filter(function(node) { return node.data('meeting') <= n; }).length;
+      var ec = cy.edges().filter(function(edge) { return edge.data('meeting') <= n; }).length;
+      document.getElementById('tlStats').textContent = nc + ' entities \u00b7 ' + ec + ' relations';
+    }
+
+    function toggleTimelinePlay() {
+      timelinePlaying = !timelinePlaying;
+      var btn = document.getElementById('tlPlay');
+      if (timelinePlaying) {
+        btn.classList.add('playing');
+        btn.innerHTML = '\u275A\u275A';
+        currentTimelineMeeting = 0;
+        timelineInterval = setInterval(function() {
+          currentTimelineMeeting++;
+          if (currentTimelineMeeting > 8) {
+            currentTimelineMeeting = 8;
+            timelinePlaying = false;
+            btn.classList.remove('playing');
+            btn.innerHTML = '&#9654;';
+            clearInterval(timelineInterval);
+            return;
+          }
+          setTimelineMeeting(currentTimelineMeeting);
+        }, 1500);
+      } else {
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#9654;';
+        clearInterval(timelineInterval);
+      }
+    }
+
+    /* ===== DIFF HIGHLIGHT ===== */
+    function applyDiffHighlight(meeting) {
+      cy.nodes().removeClass('diff-new');
+      cy.edges().removeClass('diff-new');
+      if (meeting >= 1 && meeting <= 8) {
+        var newNodes = cy.nodes().filter(function(n) { return n.data('meeting') === meeting; });
+        var newEdges = cy.edges().filter(function(e) { return e.data('meeting') === meeting; });
+        newNodes.addClass('diff-new');
+        newEdges.addClass('diff-new');
+        var badge = document.getElementById('tlDiffBadge');
+        if (newNodes.length > 0 || newEdges.length > 0) {
+          badge.textContent = '+' + newNodes.length + ' entities, +' + newEdges.length + ' relations';
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    }
+
+    /* ===== MINIMAP ===== */
+    var minimapCanvas = document.getElementById('minimap');
+    var minimapCtx = minimapCanvas.getContext('2d');
+    var MINIMAP_W = 180, MINIMAP_H = 120;
+
+    function drawMinimap() {
+      var ctx = minimapCtx;
+      ctx.clearRect(0, 0, MINIMAP_W, MINIMAP_H);
+      ctx.fillStyle = 'rgba(15,17,23,0.9)';
+      ctx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
+
+      var bb = cy.elements().boundingBox();
+      if (bb.w === 0 || bb.h === 0) return;
+
+      var pad = 10;
+      var scaleX = (MINIMAP_W - 2 * pad) / bb.w;
+      var scaleY = (MINIMAP_H - 2 * pad) / bb.h;
+      var sc = Math.min(scaleX, scaleY);
+      var offX = pad + ((MINIMAP_W - 2 * pad) - bb.w * sc) / 2;
+      var offY = pad + ((MINIMAP_H - 2 * pad) - bb.h * sc) / 2;
+      function mapX(x) { return offX + (x - bb.x1) * sc; }
+      function mapY(y) { return offY + (y - bb.y1) * sc; }
+
+      /* Draw edges */
+      cy.edges().forEach(function(edge) {
+        if (edge.hasClass('timeline-hidden') || edge.hasClass('efo')) return;
+        var sp = edge.source().position();
+        var tp = edge.target().position();
+        ctx.beginPath();
+        ctx.moveTo(mapX(sp.x), mapY(sp.y));
+        ctx.lineTo(mapX(tp.x), mapY(tp.y));
+        if (edge.hasClass('diff-new')) {
+          ctx.strokeStyle = 'rgba(0,229,160,0.5)';
+          ctx.lineWidth = 1;
+        } else {
+          ctx.strokeStyle = 'rgba(75,85,99,0.3)';
+          ctx.lineWidth = 0.5;
+        }
+        ctx.stroke();
+      });
+
+      /* Draw nodes */
+      cy.nodes().forEach(function(node) {
+        if (node.hasClass('timeline-hidden') || node.hasClass('fo')) return;
+        var pos = node.position();
+        var x = mapX(pos.x);
+        var y = mapY(pos.y);
+        var color = node.data('color');
+        var r = Math.max(2, Math.min(5, node.data('size') * sc * 0.4));
+        if (node.hasClass('diff-new')) {
+          ctx.beginPath();
+          ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,229,160,0.3)';
+          ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+      });
+
+      /* Draw viewport rectangle */
+      var ext = cy.extent();
+      var vx1 = Math.max(0, mapX(ext.x1));
+      var vy1 = Math.max(0, mapY(ext.y1));
+      var vx2 = Math.min(MINIMAP_W, mapX(ext.x2));
+      var vy2 = Math.min(MINIMAP_H, mapY(ext.y2));
+      ctx.strokeStyle = 'rgba(0,229,160,0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(vx1, vy1, vx2 - vx1, vy2 - vy1);
+    }
+
+    /* Click-to-pan on minimap */
+    minimapCanvas.addEventListener('click', function(e) {
+      var rect = minimapCanvas.getBoundingClientRect();
+      var mx = e.clientX - rect.left;
+      var my = e.clientY - rect.top;
+      var bb = cy.elements().boundingBox();
+      if (bb.w === 0 || bb.h === 0) return;
+      var pad = 10;
+      var scaleX = (MINIMAP_W - 2 * pad) / bb.w;
+      var scaleY = (MINIMAP_H - 2 * pad) / bb.h;
+      var sc = Math.min(scaleX, scaleY);
+      var offX = pad + ((MINIMAP_W - 2 * pad) - bb.w * sc) / 2;
+      var offY = pad + ((MINIMAP_H - 2 * pad) - bb.h * sc) / 2;
+      var gx = (mx - offX) / sc + bb.x1;
+      var gy = (my - offY) / sc + bb.y1;
+      var zoom = cy.zoom();
+      cy.animate({
+        pan: { x: cy.width() / 2 - gx * zoom, y: cy.height() / 2 - gy * zoom },
+        duration: 300
+      });
+    });
+
+    /* Throttled minimap redraws */
+    var minimapTimer;
+    function throttledMinimap() {
+      clearTimeout(minimapTimer);
+      minimapTimer = setTimeout(drawMinimap, 200);
+    }
+    cy.on('pan zoom resize', throttledMinimap);
+    cy.on('layoutstop', function() {
+      setTimeout(drawMinimap, 100);
+    });
+
+    /* ===== LAYOUT SELECTOR ===== */
+    var currentLayout = 'force';
+
+    function setGraphLayout(name) {
+      currentLayout = name;
+      document.querySelectorAll('.gl-btn').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-layout') === name);
+      });
+
+      floatEnabled = (name !== 'free');
+
+      if (name === 'free') {
+        if (floatRaf) { cancelAnimationFrame(floatRaf); floatRaf = null; }
+        /* Save current positions so they stick */
+        cy.nodes().forEach(function(n) {
+          origPositions[n.id()] = { x: n.position('x'), y: n.position('y') };
+        });
+        return;
+      }
+
+      /* Restart float if it was stopped */
+      if (!floatRaf) {
+        floatStart = Date.now();
+        floatLoop();
+      }
+
+      var layoutOpts;
+      switch (name) {
+        case 'force':
+          layoutOpts = {
+            name: 'cose',
+            animate: true,
+            animationDuration: 800,
+            nodeRepulsion: function() { return 7000; },
+            idealEdgeLength: function() { return 130; },
+            edgeElasticity: function() { return 80; },
+            gravity: 0.25,
+            numIter: 350,
+            padding: 70,
+            randomize: false
+          };
+          break;
+
+        case 'circle':
+          layoutOpts = {
+            name: 'circle',
+            animate: true,
+            animationDuration: 600,
+            padding: 60
+          };
+          break;
+
+        case 'grid':
+          layoutOpts = {
+            name: 'grid',
+            animate: true,
+            animationDuration: 600,
+            padding: 60,
+            rows: Math.ceil(Math.sqrt(cy.nodes().length))
+          };
+          break;
+
+        case 'tree':
+          layoutOpts = {
+            name: 'breadthfirst',
+            animate: true,
+            animationDuration: 600,
+            directed: true,
+            padding: 60,
+            spacingFactor: 1.5
+          };
+          break;
+
+        case 'clusters':
+          var groups = {};
+          cy.nodes().forEach(function(n) {
+            var g = n.data('group');
+            if (!groups[g]) groups[g] = [];
+            groups[g].push(n);
+          });
+          var gKeys = Object.keys(graphGroups);
+          var cols = Math.ceil(Math.sqrt(gKeys.length));
+          var spacing = 350;
+          var cPositions = {};
+          gKeys.forEach(function(g, gi) {
+            var col = gi % cols;
+            var row = Math.floor(gi / cols);
+            var cx = col * spacing;
+            var cyPos = row * spacing;
+            var nodes = groups[g] || [];
+            var subCols = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
+            nodes.forEach(function(n, ni) {
+              var sc = ni % subCols;
+              var sr = Math.floor(ni / subCols);
+              cPositions[n.id()] = {
+                x: cx + sc * 80 - (subCols * 80) / 2 + 40,
+                y: cyPos + sr * 80 - (Math.ceil(nodes.length / subCols) * 80) / 2 + 40
+              };
+            });
+          });
+          layoutOpts = {
+            name: 'preset',
+            positions: function(node) { return cPositions[node.id()]; },
+            animate: true,
+            animationDuration: 600,
+            padding: 60
+          };
+          break;
+
+        case 'timeline-layout':
+          var meetingNodes = {};
+          cy.nodes().forEach(function(n) {
+            var m = n.data('meeting');
+            if (!meetingNodes[m]) meetingNodes[m] = [];
+            meetingNodes[m].push(n);
+          });
+          var tPositions = {};
+          var xSpacing = 180;
+          for (var m = 1; m <= 8; m++) {
+            var mNodes = meetingNodes[m] || [];
+            var ySpacing = 80;
+            var startY = -(mNodes.length - 1) * ySpacing / 2;
+            mNodes.forEach(function(n, i) {
+              tPositions[n.id()] = {
+                x: (m - 1) * xSpacing,
+                y: startY + i * ySpacing
+              };
+            });
+          }
+          layoutOpts = {
+            name: 'preset',
+            positions: function(node) { return tPositions[node.id()]; },
+            animate: true,
+            animationDuration: 600,
+            padding: 60
+          };
+          break;
+      }
+
+      cy.layout(layoutOpts).run();
+    }
+
+    /* ===== FULLSCREEN ===== */
+    function toggleGraphFullscreen() {
+      var gv = document.querySelector('.graph-view');
+      gv.classList.toggle('fullscreen');
+      var isFs = gv.classList.contains('fullscreen');
+      document.getElementById('fsLabel').textContent = isFs ? 'Exit' : 'Fullscreen';
+      setTimeout(function() { cy.resize(); cy.fit(undefined, 60); drawMinimap(); }, 50);
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.querySelector('.graph-view.fullscreen')) {
+        toggleGraphFullscreen();
+      }
+    });
+
+    /* Initial timeline state */
+    setTimelineMeeting(8);
   </script>
 </body>
 </html>
