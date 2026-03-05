@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crnogorchi — Knowledge Base</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
   <style>
     :root {
       --green: #00E5A0; --green-light: #00E5A020; --green-hover: #00CCA0;
@@ -164,6 +165,447 @@
     .cross-meta { font-size: 12px; color: var(--gray-400); margin-top: 4px; }
 
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    /* TAB CONTENT */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* KNOWLEDGE GRAPH VIEW */
+    .graph-view {
+      background: #0F1117;
+      border-radius: var(--radius);
+      border: 1px solid #1E2028;
+      position: relative;
+      overflow: hidden;
+    }
+    .graph-toolbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .graph-search-wrap {
+      position: relative;
+      width: 280px;
+    }
+    .graph-search-wrap svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: #6B7280;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .graph-search-input {
+      width: 100%;
+      padding: 8px 12px 8px 36px;
+      background: #1A1D27;
+      border: 1px solid #2A2D37;
+      border-radius: var(--radius-sm);
+      color: #E5E7EB;
+      font-size: 13px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .graph-search-input:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(0,229,160,0.12);
+    }
+    .graph-search-input::placeholder { color: #6B7280; }
+    .graph-search-tag {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: #1A1D27;
+      border: 1px solid #2A2D37;
+      border-radius: 20px;
+      color: #E5E7EB;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font);
+      white-space: nowrap;
+    }
+    .graph-search-tag .tag-count {
+      background: #2A2D37;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 10px;
+      color: #9CA3AF;
+    }
+    .graph-search-tag .tag-close {
+      cursor: pointer;
+      opacity: 0.5;
+      font-size: 16px;
+      line-height: 1;
+      transition: opacity 0.15s;
+    }
+    .graph-search-tag .tag-close:hover { opacity: 1; }
+
+    #cy {
+      width: 100%;
+      height: 600px;
+      background: #0F1117;
+      background-image: radial-gradient(circle, #1E2028 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .graph-legend-panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(26,29,39,0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid #2A2D37;
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      z-index: 10;
+      min-width: 155px;
+    }
+    .graph-legend-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6B7280;
+      margin-bottom: 10px;
+    }
+    .graph-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .graph-legend-item:hover { opacity: 0.8; }
+    .graph-legend-item.dimmed { opacity: 0.25; }
+    .graph-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .graph-legend-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #D1D5DB;
+      flex: 1;
+    }
+    .graph-legend-count {
+      font-size: 10px;
+      color: #6B7280;
+    }
+    .graph-info {
+      position: absolute;
+      bottom: 12px;
+      left: 16px;
+      font-size: 11px;
+      color: #4B5563;
+      z-index: 10;
+    }
+    .graph-close-btn {
+      position: absolute;
+      top: 16px;
+      right: 190px;
+      padding: 6px 14px;
+      background: #1A1D27;
+      border: 1px solid #2A2D37;
+      border-radius: var(--radius-sm);
+      color: #9CA3AF;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.15s;
+    }
+    .graph-close-btn:hover { color: #E5E7EB; border-color: #4B5563; }
+
+    /* NODE INFO PANEL */
+    .node-info-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 320px;
+      background: #13151D;
+      border-left: 1px solid #2A2D37;
+      z-index: 20;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+      overflow: hidden;
+    }
+    .node-info-panel.open { transform: translateX(0); }
+    .nip-header {
+      padding: 20px;
+      border-bottom: 1px solid #2A2D37;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .nip-dot {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 3px solid rgba(255,255,255,0.15);
+    }
+    .nip-title-wrap { flex: 1; min-width: 0; }
+    .nip-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #F3F4F6;
+      margin-bottom: 4px;
+      word-wrap: break-word;
+    }
+    .nip-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .nip-close {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: #6B7280;
+      font-size: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .nip-close:hover { background: #1E2028; color: #E5E7EB; }
+    .nip-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px 20px;
+    }
+    .nip-section { margin-bottom: 20px; }
+    .nip-section:last-child { margin-bottom: 0; }
+    .nip-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6B7280;
+      margin-bottom: 10px;
+    }
+    .nip-stat-row {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 4px;
+    }
+    .nip-stat {
+      flex: 1;
+      background: #1A1D27;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .nip-stat-val {
+      font-size: 22px;
+      font-weight: 800;
+      color: #F3F4F6;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .nip-stat-label {
+      font-size: 10px;
+      color: #6B7280;
+    }
+    .nip-conn-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .nip-conn-item:hover { background: #1A1D27; }
+    .nip-conn-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .nip-conn-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #D1D5DB;
+      flex: 1;
+    }
+    .nip-conn-type {
+      font-size: 10px;
+      font-weight: 600;
+      color: #6B7280;
+    }
+    .nip-fact-item {
+      padding: 10px 12px;
+      background: #1A1D27;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: #D1D5DB;
+      line-height: 1.5;
+    }
+    .nip-fact-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+    .nip-fact-status {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+    .nip-fact-status.confirmed { background: rgba(5,150,105,0.15); color: #059669; }
+    .nip-fact-status.assumed { background: rgba(245,158,11,0.15); color: #F59E0B; }
+    .nip-fact-src {
+      font-size: 10px;
+      color: #4B5563;
+    }
+
+    /* RAG CHUNK REFERENCES */
+    .nip-chunk-item {
+      padding: 12px;
+      background: #1A1D27;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      border-left: 3px solid var(--info);
+    }
+    .nip-chunk-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .nip-chunk-doc-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      background: rgba(59,130,246,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .nip-chunk-doc-icon svg {
+      width: 12px;
+      height: 12px;
+      stroke: #3B82F6;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .nip-chunk-doc {
+      font-size: 11px;
+      font-weight: 700;
+      color: #93C5FD;
+      flex: 1;
+    }
+    .nip-chunk-score {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(59,130,246,0.12);
+      color: #60A5FA;
+    }
+    .nip-chunk-text {
+      font-size: 12px;
+      color: #9CA3AF;
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .nip-chunk-text em {
+      color: #E5E7EB;
+      font-style: normal;
+      font-weight: 600;
+      background: rgba(0,229,160,0.1);
+      padding: 0 2px;
+      border-radius: 2px;
+    }
+    .nip-chunk-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+      font-size: 10px;
+      color: #4B5563;
+    }
+    .nip-chunk-type {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #2A2D37;
+      color: #9CA3AF;
+    }
+    .nip-layer-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid #2A2D37;
+      margin: 0 -20px;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+    .nip-layer-tab {
+      padding: 8px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #4B5563;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .nip-layer-tab:hover { color: #9CA3AF; }
+    .nip-layer-tab.active { color: #E5E7EB; border-bottom-color: var(--green); }
+    .nip-layer-tab .nip-tab-count {
+      margin-left: 4px;
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 8px;
+      background: #2A2D37;
+      color: #6B7280;
+    }
+    .nip-layer-tab.active .nip-tab-count { background: rgba(0,229,160,0.15); color: #00E5A0; }
+    .nip-tab-content { display: none; }
+    .nip-tab-content.active { display: block; }
+
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .layers { animation: fadeInUp 0.4s ease both; }
   </style>
@@ -238,13 +680,14 @@
         </div>
 
         <div class="tabs">
-          <div class="tab active">Facts <span class="tab-count">156</span></div>
-          <div class="tab">Entity Graph</div>
-          <div class="tab">Cross-Project Learnings <span class="tab-count">12</span></div>
-          <div class="tab">Sync Status</div>
+          <div class="tab active" data-tab="facts" onclick="switchKnowledgeTab(this)">Facts <span class="tab-count">156</span></div>
+          <div class="tab" data-tab="graph" onclick="switchKnowledgeTab(this)">Entity Graph</div>
+          <div class="tab" data-tab="cross" onclick="switchKnowledgeTab(this)">Cross-Project Learnings <span class="tab-count">12</span></div>
+          <div class="tab" data-tab="sync" onclick="switchKnowledgeTab(this)">Sync Status</div>
         </div>
 
-        <!-- FACTS TABLE -->
+        <!-- TAB: FACTS -->
+        <div id="tab-facts" class="tab-content active">
         <div class="card">
           <div class="card-header"><div class="card-title">Knowledge Facts</div><a href="#" class="card-action">Export &rarr;</a></div>
           <div class="card-body" style="padding:0;">
@@ -264,33 +707,104 @@
           </div>
         </div>
 
-        <!-- GRAPH + CROSS PROJECT -->
-        <div class="two-col">
-          <div class="card">
-            <div class="card-header"><div class="card-title">Entity Graph</div><a href="#" class="card-action">Full view &rarr;</a></div>
-            <div class="card-body" style="padding: 0;">
-              <div class="graph-placeholder">
-                <div class="graph-node feature" style="top:40px;left:45%">SSO Auth</div>
-                <div class="graph-node person" style="top:30px;left:15%">Sarah Chen</div>
-                <div class="graph-node decision" style="top:100px;left:25%">MSAL.js v2</div>
-                <div class="graph-node story" style="top:90px;left:60%">NACX-005</div>
-                <div class="graph-node feature" style="top:160px;left:50%">Whiteboard</div>
-                <div class="graph-node story" style="top:170px;left:20%">NACX-006</div>
-                <div class="graph-node bug" style="top:140px;left:78%">BUG-023</div>
-                <div class="graph-node tech" style="top:60px;left:78%">WebSocket</div>
-                <div class="graph-node person" style="top:210px;left:68%">Alex M.</div>
-                <div class="graph-node feature" style="top:230px;left:35%">REST API</div>
-                <div class="graph-legend">
-                  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Feature</div>
-                  <div class="legend-item"><div class="legend-dot" style="background:var(--info)"></div>Person</div>
-                  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Decision</div>
-                  <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div>Story</div>
-                  <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div>Bug</div>
+        </div><!-- end tab-facts -->
+
+        <!-- TAB: ENTITY GRAPH -->
+        <div id="tab-graph" class="tab-content">
+          <div class="graph-view">
+            <div class="graph-toolbar">
+              <div class="graph-search-wrap">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="graphSearch" class="graph-search-input" type="text" placeholder="Search entities...">
+              </div>
+              <div id="graphSearchTag" class="graph-search-tag">
+                <span id="graphSearchTagText"></span>
+                <span class="tag-count" id="graphSearchTagCount"></span>
+                <span class="tag-close" onclick="clearGraphSearch()">&times;</span>
+              </div>
+            </div>
+            <button class="graph-close-btn" onclick="resetGraphView()">Reset View</button>
+            <div id="cy"></div>
+            <div class="graph-legend-panel">
+              <div class="graph-legend-title">Entity Types</div>
+              <div class="graph-legend-item" data-group="People" onclick="toggleGraphGroup('People')">
+                <div class="graph-legend-dot" style="background:#3B82F6"></div>
+                <div class="graph-legend-label">People</div>
+                <div class="graph-legend-count">4</div>
+              </div>
+              <div class="graph-legend-item" data-group="Features" onclick="toggleGraphGroup('Features')">
+                <div class="graph-legend-dot" style="background:#00E5A0"></div>
+                <div class="graph-legend-label">Features</div>
+                <div class="graph-legend-count">6</div>
+              </div>
+              <div class="graph-legend-item" data-group="Decisions" onclick="toggleGraphGroup('Decisions')">
+                <div class="graph-legend-dot" style="background:#8B5CF6"></div>
+                <div class="graph-legend-label">Decisions</div>
+                <div class="graph-legend-count">3</div>
+              </div>
+              <div class="graph-legend-item" data-group="Technology" onclick="toggleGraphGroup('Technology')">
+                <div class="graph-legend-dot" style="background:#6B7280"></div>
+                <div class="graph-legend-label">Technology</div>
+                <div class="graph-legend-count">3</div>
+              </div>
+              <div class="graph-legend-item" data-group="Stories" onclick="toggleGraphGroup('Stories')">
+                <div class="graph-legend-dot" style="background:#F59E0B"></div>
+                <div class="graph-legend-label">Stories</div>
+                <div class="graph-legend-count">4</div>
+              </div>
+              <div class="graph-legend-item" data-group="Requirements" onclick="toggleGraphGroup('Requirements')">
+                <div class="graph-legend-dot" style="background:#14B8A6"></div>
+                <div class="graph-legend-label">Requirements</div>
+                <div class="graph-legend-count">4</div>
+              </div>
+              <div class="graph-legend-item" data-group="Bugs" onclick="toggleGraphGroup('Bugs')">
+                <div class="graph-legend-dot" style="background:#EF4444"></div>
+                <div class="graph-legend-label">Bugs</div>
+                <div class="graph-legend-count">2</div>
+              </div>
+            </div>
+            <div class="graph-info">78 entities &bull; 234 relationships &bull; Scroll to zoom &bull; Drag to pan</div>
+            <!-- Node Info Panel -->
+            <div id="nodeInfoPanel" class="node-info-panel">
+              <div class="nip-header">
+                <div id="nipDot" class="nip-dot"></div>
+                <div class="nip-title-wrap">
+                  <div id="nipTitle" class="nip-title"></div>
+                  <span id="nipBadge" class="nip-badge"></span>
+                </div>
+                <button class="nip-close" onclick="closeNodeInfo()">&times;</button>
+              </div>
+              <div class="nip-body" style="padding-top:0;">
+                <div class="nip-section" style="margin-bottom:12px;padding-top:12px;">
+                  <div class="nip-stat-row">
+                    <div class="nip-stat"><div id="nipConns" class="nip-stat-val">0</div><div class="nip-stat-label">Connections</div></div>
+                    <div class="nip-stat"><div id="nipFCount" class="nip-stat-val">0</div><div class="nip-stat-label">Facts</div></div>
+                    <div class="nip-stat"><div id="nipRCount" class="nip-stat-val">0</div><div class="nip-stat-label">Chunks</div></div>
+                  </div>
+                </div>
+                <div class="nip-layer-tabs">
+                  <div class="nip-layer-tab active" data-niptab="graph" onclick="switchNipTab(this)">Graph <span id="nipGraphCount" class="nip-tab-count">0</span></div>
+                  <div class="nip-layer-tab" data-niptab="facts" onclick="switchNipTab(this)">Facts <span id="nipFactsCount" class="nip-tab-count">0</span></div>
+                  <div class="nip-layer-tab" data-niptab="rag" onclick="switchNipTab(this)">Documents <span id="nipRagCount" class="nip-tab-count">0</span></div>
+                </div>
+                <div id="nipTabGraph" class="nip-tab-content active" style="padding-top:14px;">
+                  <div id="nipConnections"></div>
+                </div>
+                <div id="nipTabFacts" class="nip-tab-content" style="padding-top:14px;">
+                  <div id="nipFacts"></div>
+                  <div id="nipFactsEmpty" style="text-align:center;padding:20px;color:#4B5563;font-size:12px;">No facts for this entity</div>
+                </div>
+                <div id="nipTabRag" class="nip-tab-content" style="padding-top:14px;">
+                  <div id="nipChunks"></div>
+                  <div id="nipChunksEmpty" style="text-align:center;padding:20px;color:#4B5563;font-size:12px;">No document references</div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- TAB: CROSS-PROJECT LEARNINGS -->
+        <div id="tab-cross" class="tab-content">
           <div class="card">
             <div class="card-header"><div class="card-title">Cross-Project Learnings</div><a href="#" class="card-action">12 available &rarr;</a></div>
             <div class="card-body">
@@ -317,8 +831,670 @@
             </div>
           </div>
         </div>
+
+        <!-- TAB: SYNC STATUS -->
+        <div id="tab-sync" class="tab-content">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Sync Status</div></div>
+            <div class="card-body">
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius-sm);">
+                  <div style="display:flex;align-items:center;gap:10px;"><div style="width:8px;height:8px;border-radius:50%;background:#059669;"></div><span style="font-size:13px;font-weight:600;">RAGFlow</span></div>
+                  <span style="font-size:12px;color:#059669;font-weight:600;">Synced</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius-sm);">
+                  <div style="display:flex;align-items:center;gap:10px;"><div style="width:8px;height:8px;border-radius:50%;background:#059669;"></div><span style="font-size:13px;font-weight:600;">Mem0 Facts</span></div>
+                  <span style="font-size:12px;color:#059669;font-weight:600;">Synced</span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--gray-50);border-radius:var(--radius-sm);">
+                  <div style="display:flex;align-items:center;gap:10px;"><div style="width:8px;height:8px;border-radius:50%;background:var(--warning);"></div><span style="font-size:13px;font-weight:600;">Neo4j Graph</span></div>
+                  <span style="font-size:12px;color:var(--warning);font-weight:600;">Syncing... (78/82 entities)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
+  <script>
+    /* ===== TAB SWITCHING ===== */
+    function switchKnowledgeTab(el) {
+      var tabName = el.getAttribute('data-tab');
+      document.querySelectorAll('.tabs .tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      el.classList.add('active');
+      document.getElementById('tab-' + tabName).classList.add('active');
+      if (tabName === 'graph' && window.cy) {
+        setTimeout(function() { cy.resize(); cy.fit(undefined, 60); }, 50);
+      }
+    }
+
+    /* ===== GRAPH DATA — NacXwan Project ===== */
+    var graphGroups = {
+      'People':       { color: '#3B82F6', border: '#60A5FA' },
+      'Features':     { color: '#00E5A0', border: '#34D399' },
+      'Decisions':    { color: '#8B5CF6', border: '#A78BFA' },
+      'Technology':   { color: '#6B7280', border: '#9CA3AF' },
+      'Stories':      { color: '#F59E0B', border: '#FBBF24' },
+      'Requirements': { color: '#14B8A6', border: '#2DD4BF' },
+      'Bugs':         { color: '#EF4444', border: '#F87171' }
+    };
+
+    var graphNodes = [
+      { data: { id: 'bojan',   label: 'Bojan Tesic',        group: 'People' } },
+      { data: { id: 'sarah',   label: 'Sarah Chen',         group: 'People' } },
+      { data: { id: 'alex',    label: 'Alex Mercer',        group: 'People' } },
+      { data: { id: 'jana',    label: 'Jana Kovac',         group: 'People' } },
+      { data: { id: 'sso',     label: 'SSO Authentication', group: 'Features' } },
+      { data: { id: 'wb',      label: 'Whiteboard',         group: 'Features' } },
+      { data: { id: 'courses', label: 'Course Management',  group: 'Features' } },
+      { data: { id: 'video',   label: 'Video Conferencing', group: 'Features' } },
+      { data: { id: 'dash',    label: 'User Dashboard',     group: 'Features' } },
+      { data: { id: 'rest',    label: 'REST API',           group: 'Features' } },
+      { data: { id: 'msal',    label: 'MSAL.js v2',         group: 'Decisions' } },
+      { data: { id: 'pg',      label: 'PostgreSQL',         group: 'Decisions' } },
+      { data: { id: 'ws',      label: 'WebSocket Protocol', group: 'Decisions' } },
+      { data: { id: 'react',   label: 'React 18',           group: 'Technology' } },
+      { data: { id: 'node',    label: 'Node.js',            group: 'Technology' } },
+      { data: { id: 'es',      label: 'Elasticsearch',      group: 'Technology' } },
+      { data: { id: 'n005',    label: 'NACX-005',           group: 'Stories' } },
+      { data: { id: 'n006',    label: 'NACX-006',           group: 'Stories' } },
+      { data: { id: 'n012',    label: 'NACX-012',           group: 'Stories' } },
+      { data: { id: 'n015',    label: 'NACX-015',           group: 'Stories' } },
+      { data: { id: 'social',  label: 'Social Login',       group: 'Requirements' } },
+      { data: { id: 'rbac',    label: 'Role-Based Access',  group: 'Requirements' } },
+      { data: { id: 'rt',      label: 'Real-time Sync',     group: 'Requirements' } },
+      { data: { id: 'offline', label: 'Offline Support',    group: 'Requirements' } },
+      { data: { id: 'b023',    label: 'BUG-023',            group: 'Bugs' } },
+      { data: { id: 'b041',    label: 'BUG-041',            group: 'Bugs' } }
+    ];
+
+    var graphEdges = [
+      { data: { source: 'sarah', target: 'sso',     label: 'owns' } },
+      { data: { source: 'sarah', target: 'msal',    label: 'decided' } },
+      { data: { source: 'sarah', target: 'react',   label: 'decided' } },
+      { data: { source: 'bojan', target: 'courses', label: 'owns' } },
+      { data: { source: 'bojan', target: 'dash',    label: 'owns' } },
+      { data: { source: 'alex',  target: 'wb',      label: 'implements' } },
+      { data: { source: 'alex',  target: 'rest',    label: 'implements' } },
+      { data: { source: 'alex',  target: 'ws',      label: 'implements' } },
+      { data: { source: 'jana',  target: 'b023',    label: 'reported' } },
+      { data: { source: 'jana',  target: 'b041',    label: 'reported' } },
+      { data: { source: 'sso',   target: 'msal',    label: 'uses' } },
+      { data: { source: 'sso',   target: 'n005',    label: 'tracked in' } },
+      { data: { source: 'sso',   target: 'social',  label: 'relates to' } },
+      { data: { source: 'sso',   target: 'rbac',    label: 'requires' } },
+      { data: { source: 'wb',    target: 'ws',      label: 'uses' } },
+      { data: { source: 'wb',    target: 'n006',    label: 'tracked in' } },
+      { data: { source: 'wb',    target: 'rt',      label: 'requires' } },
+      { data: { source: 'courses', target: 'pg',    label: 'uses' } },
+      { data: { source: 'courses', target: 'n012',  label: 'tracked in' } },
+      { data: { source: 'video',   target: 'n015',  label: 'tracked in' } },
+      { data: { source: 'video',   target: 'social', label: 'requires' } },
+      { data: { source: 'rest',    target: 'node',  label: 'runs on' } },
+      { data: { source: 'dash',    target: 'react', label: 'built with' } },
+      { data: { source: 'pg',      target: 'node',  label: 'connects to' } },
+      { data: { source: 'rt',      target: 'ws',    label: 'uses' } },
+      { data: { source: 'offline', target: 'courses', label: 'applies to' } },
+      { data: { source: 'rbac',    target: 'dash',  label: 'applies to' } },
+      { data: { source: 'b023',    target: 'msal',  label: 'affects' } },
+      { data: { source: 'b023',    target: 'sso',   label: 'affects' } },
+      { data: { source: 'b041',    target: 'ws',    label: 'affects' } },
+      { data: { source: 'b041',    target: 'wb',    label: 'affects' } },
+      { data: { source: 'es',      target: 'courses', label: 'indexes' } },
+      { data: { source: 'es',      target: 'node',  label: 'runs on' } }
+    ];
+
+    /* Compute degree → node size */
+    var degreeMap = {};
+    graphEdges.forEach(function(e) {
+      degreeMap[e.data.source] = (degreeMap[e.data.source] || 0) + 1;
+      degreeMap[e.data.target] = (degreeMap[e.data.target] || 0) + 1;
+    });
+    graphNodes.forEach(function(n) {
+      var deg = degreeMap[n.data.id] || 1;
+      n.data.degree = deg;
+      n.data.size = Math.max(28, Math.min(65, 20 + deg * 6));
+      n.data.color = graphGroups[n.data.group].color;
+      n.data.borderColor = graphGroups[n.data.group].border;
+    });
+
+    /* ===== CYTOSCAPE INIT ===== */
+    var cy = cytoscape({
+      container: document.getElementById('cy'),
+      elements: { nodes: graphNodes, edges: graphEdges },
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'background-color': 'data(color)',
+            'background-opacity': 0.85,
+            'border-width': 3,
+            'border-color': 'data(borderColor)',
+            'border-opacity': 0.3,
+            'label': 'data(label)',
+            'text-valign': 'bottom',
+            'text-halign': 'center',
+            'text-margin-y': 8,
+            'color': '#9CA3AF',
+            'font-size': 11,
+            'font-family': 'Inter, sans-serif',
+            'font-weight': 500,
+            'width': 'data(size)',
+            'height': 'data(size)',
+            'text-max-width': 110,
+            'text-wrap': 'ellipsis',
+            'overlay-opacity': 0,
+            'transition-property': 'opacity, border-width, border-opacity, background-opacity',
+            'transition-duration': '0.15s'
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'curve-style': 'bezier',
+            'line-color': '#4B5563',
+            'width': 1,
+            'opacity': 0.18,
+            'target-arrow-shape': 'none',
+            'label': 'data(label)',
+            'font-size': 9,
+            'font-family': 'Inter, sans-serif',
+            'font-weight': 600,
+            'color': 'transparent',
+            'text-background-color': '#13151D',
+            'text-background-opacity': 0,
+            'text-background-padding': '3px',
+            'text-background-shape': 'roundrectangle',
+            'text-rotation': 'autorotate',
+            'transition-property': 'opacity, line-color, width, color, text-background-opacity',
+            'transition-duration': '0.15s'
+          }
+        },
+        {
+          selector: 'node.hl',
+          style: {
+            'border-width': 4,
+            'border-opacity': 0.9,
+            'border-color': '#ffffff',
+            'background-opacity': 1,
+            'color': '#F3F4F6',
+            'font-weight': 700,
+            'z-index': 20
+          }
+        },
+        {
+          selector: 'node.nb',
+          style: {
+            'opacity': 0.85,
+            'border-opacity': 0.5,
+            'color': '#D1D5DB'
+          }
+        },
+        {
+          selector: 'node.dm',
+          style: {
+            'opacity': 0.1,
+            'color': 'transparent'
+          }
+        },
+        {
+          selector: 'edge.ehl',
+          style: {
+            'opacity': 0.65,
+            'width': 2,
+            'line-color': '#9CA3AF',
+            'color': '#D1D5DB',
+            'text-background-opacity': 0.9,
+            'z-index': 10
+          }
+        },
+        {
+          selector: 'edge.edm',
+          style: {
+            'opacity': 0.025
+          }
+        },
+        {
+          selector: 'node.fo',
+          style: {
+            'opacity': 0.06,
+            'color': 'transparent'
+          }
+        },
+        {
+          selector: 'edge.efo',
+          style: {
+            'opacity': 0.01
+          }
+        }
+      ],
+      layout: {
+        name: 'cose',
+        animate: true,
+        animationDuration: 800,
+        nodeRepulsion: function() { return 7000; },
+        idealEdgeLength: function() { return 130; },
+        edgeElasticity: function() { return 80; },
+        gravity: 0.25,
+        numIter: 350,
+        padding: 70,
+        randomize: true
+      },
+      minZoom: 0.3,
+      maxZoom: 3,
+      wheelSensitivity: 0.25
+    });
+
+    /* ===== HOVER ===== */
+    var hoverTimer;
+    cy.on('mouseover', 'node', function(e) {
+      clearTimeout(hoverTimer);
+      var n = e.target;
+      var hood = n.neighborhood();
+      cy.elements().addClass('dm').addClass('edm');
+      n.removeClass('dm').addClass('hl');
+      hood.nodes().removeClass('dm').addClass('nb');
+      n.connectedEdges().removeClass('edm').addClass('ehl');
+    });
+    cy.on('mouseout', 'node', function() {
+      hoverTimer = setTimeout(function() {
+        cy.elements().removeClass('dm hl nb edm ehl');
+      }, 80);
+    });
+
+    /* ===== SEARCH ===== */
+    var searchInput = document.getElementById('graphSearch');
+    var tagEl = document.getElementById('graphSearchTag');
+    var tagText = document.getElementById('graphSearchTagText');
+    var tagCount = document.getElementById('graphSearchTagCount');
+
+    function graphSearch(query) {
+      cy.elements().removeClass('dm hl nb edm ehl');
+      if (!query) { tagEl.style.display = 'none'; return; }
+      var q = query.toLowerCase();
+      var matches = cy.nodes().filter(function(n) {
+        return n.data('label').toLowerCase().indexOf(q) !== -1 ||
+               n.data('group').toLowerCase().indexOf(q) !== -1;
+      });
+      if (matches.length === 0) { tagEl.style.display = 'none'; return; }
+      tagText.textContent = query;
+      tagCount.textContent = matches.length;
+      tagEl.style.display = 'inline-flex';
+      var nbrs = matches.neighborhood().nodes();
+      cy.elements().addClass('dm').addClass('edm');
+      matches.removeClass('dm').addClass('hl');
+      nbrs.removeClass('dm').addClass('nb');
+      matches.connectedEdges().removeClass('edm').addClass('ehl');
+      cy.animate({ fit: { eles: matches.union(nbrs), padding: 80 }, duration: 400 });
+    }
+
+    var searchTimer;
+    searchInput.addEventListener('input', function() {
+      clearTimeout(searchTimer);
+      var v = this.value;
+      searchTimer = setTimeout(function() { graphSearch(v); }, 200);
+    });
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') { clearGraphSearch(); }
+    });
+
+    function clearGraphSearch() {
+      searchInput.value = '';
+      cy.elements().removeClass('dm hl nb edm ehl');
+      tagEl.style.display = 'none';
+      cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 400 });
+    }
+
+    function resetGraphView() {
+      clearGraphSearch();
+      Object.keys(activeGroups).forEach(function(g) { activeGroups[g] = true; });
+      document.querySelectorAll('.graph-legend-item').forEach(function(el) { el.classList.remove('dimmed'); });
+      cy.nodes().removeClass('fo');
+      cy.edges().removeClass('efo');
+      cy.animate({ fit: { eles: cy.elements(), padding: 60 }, duration: 400 });
+    }
+
+    /* ===== LEGEND FILTER ===== */
+    var activeGroups = {};
+    Object.keys(graphGroups).forEach(function(g) { activeGroups[g] = true; });
+
+    function toggleGraphGroup(group) {
+      activeGroups[group] = !activeGroups[group];
+      var item = document.querySelector('.graph-legend-item[data-group="' + group + '"]');
+      if (activeGroups[group]) { item.classList.remove('dimmed'); }
+      else { item.classList.add('dimmed'); }
+      cy.nodes().forEach(function(n) {
+        if (!activeGroups[n.data('group')]) {
+          n.addClass('fo');
+          n.connectedEdges().addClass('efo');
+        } else {
+          n.removeClass('fo');
+          n.connectedEdges().forEach(function(e) {
+            var s = e.source(), t = e.target();
+            if (activeGroups[s.data('group')] && activeGroups[t.data('group')]) {
+              e.removeClass('efo');
+            }
+          });
+        }
+      });
+    }
+
+    /* ===== GENTLE FLOAT ANIMATION ===== */
+    var floatRaf;
+    var floatStart = Date.now();
+    var origPositions = {};
+    cy.on('layoutstop', function() {
+      cy.nodes().forEach(function(n) {
+        origPositions[n.id()] = { x: n.position('x'), y: n.position('y') };
+      });
+      floatStart = Date.now();
+      if (!floatRaf) floatLoop();
+    });
+    function floatLoop() {
+      var t = (Date.now() - floatStart) / 1000;
+      cy.nodes().forEach(function(n, i) {
+        var orig = origPositions[n.id()];
+        if (!orig || n.grabbed()) return;
+        var ox = Math.sin(t * 0.4 + i * 1.7) * 1.5;
+        var oy = Math.cos(t * 0.35 + i * 2.3) * 1.5;
+        n.position({ x: orig.x + ox, y: orig.y + oy });
+      });
+      floatRaf = requestAnimationFrame(floatLoop);
+    }
+    /* Update orig position after drag */
+    cy.on('dragfree', 'node', function(e) {
+      var n = e.target;
+      origPositions[n.id()] = { x: n.position('x'), y: n.position('y') };
+    });
+
+    /* ===== NODE INFO PANEL ===== */
+    function switchNipTab(el) {
+      var tab = el.getAttribute('data-niptab');
+      document.querySelectorAll('.nip-layer-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.nip-tab-content').forEach(function(c) { c.classList.remove('active'); });
+      el.classList.add('active');
+      document.getElementById('nipTab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    }
+
+    /* RAG document chunks per entity */
+    var nodeChunks = {
+      'sso': [
+        { doc: 'Meeting 3 Transcript', type: 'transcript', score: 0.94, text: 'Client confirmed <em>SSO Authentication</em> via Microsoft Entra ID. All users will authenticate through the organization\'s existing Azure AD tenant. No local accounts.' },
+        { doc: 'Auth API Spec.pdf', type: 'document', score: 0.91, text: 'The <em>SSO</em> flow uses authorization code grant with PKCE. Redirect URI must be registered in Azure portal. Token refresh handled via MSAL.js silent flow.' },
+        { doc: 'Meeting 7 Transcript', type: 'transcript', score: 0.82, text: 'Discussion about whether external users (guest lecturers) need <em>SSO</em> or if social login should be added as a secondary auth path.' }
+      ],
+      'msal': [
+        { doc: 'Auth API Spec.pdf', type: 'document', score: 0.96, text: '<em>MSAL.js v2</em> browser library handles token acquisition, caching, and silent renewal. Configuration requires clientId, authority, and redirectUri parameters.' },
+        { doc: 'learning.md', type: 'document', score: 0.93, text: '<em>MSAL</em> silent refresh fails when app is loaded inside an iframe due to third-party cookie restrictions. Workaround: use popup-based auth fallback for embedded contexts.' },
+        { doc: 'Meeting 3 Transcript', type: 'transcript', score: 0.85, text: 'Sarah recommended <em>MSAL.js v2</em> over ADAL.js. Team agreed to use the newer library for better TypeScript support and reduced bundle size.' }
+      ],
+      'wb': [
+        { doc: 'Meeting 5 Transcript', type: 'transcript', score: 0.92, text: 'The <em>Whiteboard</em> feature should support real-time collaborative drawing with multiple cursors visible. Client wants shapes, text, and freehand tools.' },
+        { doc: 'decision.md', type: 'document', score: 0.88, text: '<em>Whiteboard</em> sync will use WebSocket connections for sub-100ms latency. Canvas state persisted to PostgreSQL via periodic snapshots.' }
+      ],
+      'ws': [
+        { doc: 'decision.md', type: 'document', score: 0.95, text: '<em>WebSocket Protocol</em> chosen for all real-time features. Socket.io library provides auto-reconnection, room-based broadcasting, and binary data support.' },
+        { doc: 'TeamSync Learnings', type: 'cross-project', score: 0.78, text: '<em>WebSocket</em> reconnect logic needs exponential backoff with jitter. Fixed 90% of user complaints about dropped connections in the TeamSync project.' }
+      ],
+      'courses': [
+        { doc: 'Meeting 2 Transcript', type: 'transcript', score: 0.93, text: '<em>Course Management</em> is the core module. Instructors create courses with modules containing video lectures, reading materials, and interactive quizzes.' },
+        { doc: 'Meeting 5 Transcript', type: 'transcript', score: 0.87, text: 'Each <em>course</em> has an enrollment workflow: student requests access, instructor approves, system provisions content. Progress tracking per module.' },
+        { doc: 'Gap Analysis Report', type: 'document', score: 0.71, text: 'Open question: should <em>Course Management</em> support offline access for downloaded content? Mobile use case needs clarification.' }
+      ],
+      'pg': [
+        { doc: 'decision.md', type: 'document', score: 0.97, text: '<em>PostgreSQL</em> selected as the primary relational database. Schema uses normalized tables for users, courses, enrollments, and progress tracking.' },
+        { doc: 'Auth API Spec.pdf', type: 'document', score: 0.74, text: 'User session data stored in <em>PostgreSQL</em> with express-session. Token metadata (not the tokens themselves) logged for audit purposes.' }
+      ],
+      'react': [
+        { doc: 'decision.md', type: 'document', score: 0.94, text: '<em>React 18</em> with TypeScript chosen for the frontend. Concurrent rendering features will be used for the dashboard and whiteboard components.' }
+      ],
+      'node': [
+        { doc: 'decision.md', type: 'document', score: 0.93, text: '<em>Node.js</em> with Express for the backend API layer. Chosen for team familiarity and the ability to share validation logic with the React frontend.' }
+      ],
+      'rest': [
+        { doc: 'Auth API Spec.pdf', type: 'document', score: 0.90, text: '<em>REST API</em> follows OpenAPI 3.0 specification. JSON request/response format. Versioning via URL path prefix (/api/v1/).' },
+        { doc: 'Meeting 4 Transcript', type: 'transcript', score: 0.84, text: 'Team discussed GraphQL vs <em>REST</em>. Decided on REST for simplicity since most endpoints are straightforward CRUD operations.' }
+      ],
+      'video': [
+        { doc: 'Meeting 7 Transcript', type: 'transcript', score: 0.91, text: '<em>Video Conferencing</em> integration for live classes. Client wants screen sharing, breakout rooms, and recording capabilities.' },
+        { doc: 'Gap Analysis Report', type: 'document', score: 0.76, text: '<em>Video</em> platform selection still open: build on WebRTC or integrate third-party (Twilio, Daily.co). Cost analysis needed.' }
+      ],
+      'social': [
+        { doc: 'Meeting 7 Transcript', type: 'transcript', score: 0.89, text: 'Bojan raised the question of <em>Social Login</em> for guest lecturers and external participants who don\'t have Microsoft accounts.' }
+      ],
+      'rbac': [
+        { doc: 'Meeting 4 Transcript', type: 'transcript', score: 0.88, text: '<em>Role-Based Access</em> needed: Admin, Instructor, Student, and Guest roles. Permissions differ per module — e.g., only Instructors can create courses.' }
+      ],
+      'b023': [
+        { doc: 'learning.md', type: 'document', score: 0.95, text: '<em>BUG-023</em>: MSAL silent token refresh fails inside iframes. Root cause: browsers block third-party cookies in embedded contexts. Workaround: use popup-based auth.' }
+      ],
+      'b041': [
+        { doc: 'TeamSync Learnings', type: 'cross-project', score: 0.88, text: '<em>BUG-041</em>: WebSocket connections drop after idle timeout. Fix from TeamSync project: implement heartbeat pings every 30s and exponential backoff reconnection.' }
+      ],
+      'dash': [
+        { doc: 'Meeting 2 Transcript', type: 'transcript', score: 0.86, text: '<em>User Dashboard</em> shows enrolled courses, upcoming deadlines, progress charts, and recent activity feed. Different layout per role.' }
+      ],
+      'es': [
+        { doc: 'decision.md', type: 'document', score: 0.91, text: '<em>Elasticsearch</em> used for full-text search across course content, documents, and knowledge base. Hybrid retrieval: BM25 + vector similarity.' }
+      ]
+    };
+
+    var nodeFacts = {
+      'sso':     [
+        { text: 'Auth method: Microsoft SSO using MSAL.js v2', status: 'confirmed', src: 'Meeting 3' },
+        { text: 'SSO Integration: 92% pass rate, 12/13 cases', status: 'confirmed', src: 'Report Portal' }
+      ],
+      'msal':    [
+        { text: 'MSAL silent refresh fails in iframes — need popup fallback', status: 'confirmed', src: 'learning.md' },
+        { text: 'Auth method: Microsoft SSO using MSAL.js v2', status: 'confirmed', src: 'Meeting 3' }
+      ],
+      'rest':    [
+        { text: 'API style: REST (not GraphQL)', status: 'confirmed', src: 'Auth API Spec' }
+      ],
+      'pg':      [
+        { text: 'Database: PostgreSQL (relational model for courses/users)', status: 'confirmed', src: 'decision.md' }
+      ],
+      'ws':      [
+        { text: 'WebSocket for real-time whiteboard sync', status: 'confirmed', src: 'decision.md' },
+        { text: 'WebSocket reconnect needs exponential backoff', status: 'confirmed', src: 'TeamSync' }
+      ],
+      'social':  [
+        { text: 'Video conferencing: social login may be needed', status: 'assumed', src: 'Meeting 7' }
+      ],
+      'video':   [
+        { text: 'Video conferencing: social login may be needed', status: 'assumed', src: 'Meeting 7' }
+      ],
+      'offline': [
+        { text: 'Expected concurrent users: TBD (gap)', status: 'assumed', src: 'Gap Analysis' }
+      ],
+      'wb':      [
+        { text: 'WebSocket for real-time whiteboard sync', status: 'confirmed', src: 'decision.md' }
+      ],
+      'react':   [
+        { text: 'Frontend: React 18 with TypeScript', status: 'confirmed', src: 'decision.md' }
+      ],
+      'node':    [
+        { text: 'Backend: Node.js with Express', status: 'confirmed', src: 'decision.md' }
+      ],
+      'courses': [
+        { text: 'Database: PostgreSQL (relational model for courses/users)', status: 'confirmed', src: 'decision.md' },
+        { text: 'Course content supports video, text, quizzes', status: 'assumed', src: 'Meeting 5' }
+      ],
+      'b023':    [
+        { text: 'MSAL silent refresh fails in iframes — need popup fallback', status: 'confirmed', src: 'learning.md' }
+      ],
+      'b041':    [
+        { text: 'WebSocket reconnect needs exponential backoff', status: 'confirmed', src: 'TeamSync' }
+      ]
+    };
+
+    var selectedNode = null;
+
+    cy.on('tap', 'node', function(e) {
+      var n = e.target;
+      selectedNode = n;
+      var id = n.data('id');
+      var label = n.data('label');
+      var group = n.data('group');
+      var color = graphGroups[group].color;
+      var degree = n.degree();
+
+      /* Header */
+      document.getElementById('nipDot').style.background = color;
+      document.getElementById('nipTitle').textContent = label;
+      var badge = document.getElementById('nipBadge');
+      badge.textContent = group;
+      badge.style.background = color + '20';
+      badge.style.color = color;
+
+      /* Data lookups */
+      var neighbors = n.neighborhood().nodes();
+      var facts = nodeFacts[id] || [];
+      var chunks = nodeChunks[id] || [];
+
+      /* Stats row */
+      document.getElementById('nipConns').textContent = neighbors.length;
+      document.getElementById('nipFCount').textContent = facts.length;
+      document.getElementById('nipRCount').textContent = chunks.length;
+
+      /* Tab counts */
+      document.getElementById('nipGraphCount').textContent = neighbors.length;
+      document.getElementById('nipFactsCount').textContent = facts.length;
+      document.getElementById('nipRagCount').textContent = chunks.length;
+
+      /* Reset to Graph tab */
+      document.querySelectorAll('.nip-layer-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.nip-tab-content').forEach(function(c) { c.classList.remove('active'); });
+      document.querySelector('.nip-layer-tab[data-niptab="graph"]').classList.add('active');
+      document.getElementById('nipTabGraph').classList.add('active');
+
+      /* Graph tab — connections list with relationship labels */
+      var connHtml = '';
+      /* Build connection data with relationship info */
+      var connData = [];
+      neighbors.forEach(function(nb) {
+        /* Find the edge between the clicked node and this neighbor */
+        var edges = n.edgesWith(nb);
+        var rel = '';
+        if (edges.length > 0) {
+          var e = edges[0];
+          var rawLabel = e.data('label') || '';
+          /* Determine direction: show "owns" vs "owned by" */
+          if (e.data('source') === id) {
+            rel = rawLabel;
+          } else {
+            /* Reverse the label for readability */
+            var reverseMap = {
+              'owns': 'owned by',
+              'decided': 'decided by',
+              'implements': 'implemented by',
+              'reported': 'reported by',
+              'uses': 'used by',
+              'tracked in': 'tracks',
+              'relates to': 'relates to',
+              'requires': 'required by',
+              'runs on': 'runs',
+              'built with': 'powers',
+              'connects to': 'connects to',
+              'applies to': 'applies to',
+              'affects': 'affected by',
+              'indexes': 'indexed by'
+            };
+            rel = reverseMap[rawLabel] || rawLabel;
+          }
+        }
+        connData.push({ node: nb, rel: rel });
+      });
+      /* Sort by group */
+      connData.sort(function(a, b) {
+        var ga = a.node.data('group'), gb = b.node.data('group');
+        return ga < gb ? -1 : ga > gb ? 1 : 0;
+      });
+      connData.forEach(function(c) {
+        var nbColor = graphGroups[c.node.data('group')].color;
+        connHtml += '<div class="nip-conn-item" onclick="navigateToNode(\'' + c.node.id() + '\')">' +
+          '<div class="nip-conn-dot" style="background:' + nbColor + '"></div>' +
+          '<div class="nip-conn-label">' + c.node.data('label') +
+            (c.rel ? '<div style="font-size:10px;color:#6B7280;margin-top:1px;">' + c.rel + '</div>' : '') +
+          '</div>' +
+          '<div class="nip-conn-type">' + c.node.data('group') + '</div>' +
+        '</div>';
+      });
+      document.getElementById('nipConnections').innerHTML = connHtml;
+
+      /* Facts tab */
+      var factsContainer = document.getElementById('nipFacts');
+      var factsEmpty = document.getElementById('nipFactsEmpty');
+      if (facts.length > 0) {
+        var factsHtml = '';
+        facts.forEach(function(f) {
+          factsHtml += '<div class="nip-fact-item">' + f.text +
+            '<div class="nip-fact-meta">' +
+              '<span class="nip-fact-status ' + f.status + '">' + f.status + '</span>' +
+              '<span class="nip-fact-src">' + f.src + '</span>' +
+            '</div></div>';
+        });
+        factsContainer.innerHTML = factsHtml;
+        factsEmpty.style.display = 'none';
+      } else {
+        factsContainer.innerHTML = '';
+        factsEmpty.style.display = 'block';
+      }
+
+      /* Documents tab — RAG chunks */
+      var chunksContainer = document.getElementById('nipChunks');
+      var chunksEmpty = document.getElementById('nipChunksEmpty');
+      if (chunks.length > 0) {
+        var chunksHtml = '';
+        chunks.forEach(function(c) {
+          chunksHtml += '<div class="nip-chunk-item">' +
+            '<div class="nip-chunk-head">' +
+              '<div class="nip-chunk-doc-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>' +
+              '<div class="nip-chunk-doc">' + c.doc + '</div>' +
+              '<span class="nip-chunk-score">' + Math.round(c.score * 100) + '%</span>' +
+            '</div>' +
+            '<div class="nip-chunk-text">' + c.text + '</div>' +
+            '<div class="nip-chunk-meta">' +
+              '<span class="nip-chunk-type">' + c.type + '</span>' +
+              '<span>Relevance: ' + c.score.toFixed(2) + '</span>' +
+            '</div>' +
+          '</div>';
+        });
+        chunksContainer.innerHTML = chunksHtml;
+        chunksEmpty.style.display = 'none';
+      } else {
+        chunksContainer.innerHTML = '';
+        chunksEmpty.style.display = 'block';
+      }
+
+      /* Open panel */
+      document.getElementById('nodeInfoPanel').classList.add('open');
+    });
+
+    /* Close panel on background tap */
+    cy.on('tap', function(e) {
+      if (e.target === cy) { closeNodeInfo(); }
+    });
+
+    function closeNodeInfo() {
+      document.getElementById('nodeInfoPanel').classList.remove('open');
+      selectedNode = null;
+    }
+
+    function navigateToNode(nodeId) {
+      var n = cy.getElementById(nodeId);
+      if (n.length === 0) return;
+      /* Animate camera to the node */
+      cy.animate({
+        center: { eles: n },
+        zoom: 1.5,
+        duration: 400
+      });
+      /* Trigger the tap to open its info */
+      setTimeout(function() { n.emit('tap'); }, 420);
+    }
+  </script>
 </body>
 </html>
