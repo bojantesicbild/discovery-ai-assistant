@@ -51,39 +51,120 @@
     .icon-btn { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; }
     .icon-btn svg { width: 18px; height: 18px; color: var(--gray-600); stroke: currentColor; fill: none; stroke-width: 1.8; }
     .content { padding: 28px 32px 48px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+
+    /* PAGE HEADER */
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
     .page-header h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
 
-    /* FILTERS */
-    .filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
-    .filter-chip {
-      display: flex; align-items: center; gap: 6px;
-      padding: 6px 14px; border-radius: 20px;
-      font-size: 12px; font-weight: 600;
-      border: 1px solid var(--gray-200); background: var(--white);
-      cursor: pointer; transition: all 0.15s;
+    /* STAT CARDS — Dark with shadow hover + active border */
+    .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .stat-card-wrap { position: relative; }
+    .stat-card {
+      --accent: #00E5A0;
+      background: linear-gradient(145deg, #1A1A1A 0%, #222222 100%);
+      border-radius: var(--radius); border: 1.5px solid #2E2E2E;
+      padding: 20px 20px 16px; cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative; overflow: hidden;
     }
-    .filter-chip:hover { border-color: var(--gray-300); }
-    .filter-chip.active { background: var(--green-light); border-color: var(--green); color: var(--green); }
-    .filter-chip .chip-dot { width: 6px; height: 6px; border-radius: 50%; }
-    .chip-dot.p1 { background: var(--green); }
-    .chip-dot.p2 { background: var(--info); }
-    .chip-dot.p3 { background: var(--purple); }
-    .chip-dot.p4 { background: var(--orange); }
+    .stat-card.s-approved { --accent: #34D399; }
+    .stat-card.s-review { --accent: #60A5FA; }
+    .stat-card.s-draft { --accent: #FBBF24; }
+    .stat-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 15px color-mix(in srgb, var(--accent) 15%, transparent); transform: translateY(-1px); }
+    .stat-card.active { border-color: var(--accent); box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent); }
+    /* Value — large tinted number */
+    .stat-card-value { font-size: 32px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; margin-bottom: 6px; position: relative; z-index: 1; }
+    .s-total .stat-card-value { color: var(--white); }
+    .s-approved .stat-card-value { color: #34D399; }
+    .s-review .stat-card-value { color: #60A5FA; }
+    .s-draft .stat-card-value { color: #FBBF24; }
+    /* Label */
+    .stat-card-label { font-size: 10px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.8px; position: relative; z-index: 1; }
+    /* Icon */
+    .stat-card-icon {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 1; transition: transform 0.3s;
+    }
+    .stat-card-wrap:hover .stat-card-icon { transform: translateY(-50%) scale(1.08); }
+    .stat-card-icon svg { width: 20px; height: 20px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+    .s-total .stat-card-icon { background: rgba(0, 229, 160, 0.1); }
+    .s-total .stat-card-icon svg { stroke: var(--green); }
+    .s-approved .stat-card-icon { background: rgba(52, 211, 153, 0.1); }
+    .s-approved .stat-card-icon svg { stroke: #34D399; }
+    .s-review .stat-card-icon { background: rgba(96, 165, 250, 0.1); }
+    .s-review .stat-card-icon svg { stroke: #60A5FA; }
+    .s-draft .stat-card-icon { background: rgba(251, 191, 36, 0.1); }
+    .s-draft .stat-card-icon svg { stroke: #FBBF24; }
 
-    /* DOC GRID */
-    .doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-    .doc-card {
-      background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200);
-      padding: 20px; cursor: pointer; transition: all 0.2s;
+    /* FILTER ROW */
+    .filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-select {
+      padding: 7px 30px 7px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; font-family: var(--font); color: var(--gray-600);
+      background: var(--white) url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239CA3AF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+      appearance: none; cursor: pointer; outline: none; min-width: 120px;
     }
-    .doc-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
-    .doc-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .filter-select:focus { border-color: var(--green); box-shadow: 0 0 0 2px var(--green-light); }
+    .filter-select:not([data-default]) { border-color: var(--green); color: var(--green); background-color: var(--green-light); }
+    .filter-clear {
+      padding: 7px 14px; border: 1px dashed var(--gray-300); border-radius: var(--radius-sm);
+      font-size: 12px; font-weight: 600; font-family: var(--font); color: var(--gray-400);
+      background: transparent; cursor: pointer; transition: all 0.15s; display: none;
+    }
+    .filter-clear:hover { border-color: var(--danger); color: var(--danger); }
+    .filter-clear.visible { display: inline-flex; }
+    .filter-count { font-size: 12px; color: var(--gray-400); margin-left: auto; }
+
+    /* BULK ACTION BAR */
+    .bulk-bar {
+      display: none; align-items: center; gap: 12px; padding: 10px 16px;
+      background: var(--dark); border-radius: var(--radius-sm); margin-bottom: 12px; color: var(--white);
+    }
+    .bulk-bar.visible { display: flex; }
+    .bulk-bar-count { font-size: 13px; font-weight: 600; }
+    .bulk-bar-actions { display: flex; gap: 6px; margin-left: auto; }
+    .bulk-btn {
+      padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+      font-family: var(--font); cursor: pointer; border: 1px solid rgba(255,255,255,0.2);
+      background: transparent; color: var(--white); transition: all 0.15s;
+    }
+    .bulk-btn:hover { background: rgba(255,255,255,0.1); }
+    .bulk-btn.danger:hover { background: var(--danger); border-color: var(--danger); }
+
+    /* TABLE */
+    .table-card {
+      background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); overflow: hidden;
+    }
+    .doc-table { width: 100%; border-collapse: collapse; }
+    .doc-table th {
+      text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400);
+      border-bottom: 1px solid var(--gray-200); background: var(--gray-50); cursor: pointer;
+      user-select: none; white-space: nowrap; transition: color 0.15s;
+    }
+    .doc-table th:hover { color: var(--gray-600); }
+    .doc-table th.sorted { color: var(--green); }
+    .doc-table th .sort-icon { display: inline-block; width: 12px; height: 12px; vertical-align: middle; margin-left: 3px; opacity: 0; transition: opacity 0.15s; }
+    .doc-table th:hover .sort-icon, .doc-table th.sorted .sort-icon { opacity: 1; }
+    .doc-table th.sorted .sort-icon { color: var(--green); }
+    .doc-table th.no-sort { cursor: default; }
+    .doc-table th.no-sort:hover { color: var(--gray-400); }
+    .doc-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    .doc-table tbody tr:nth-child(even) td { background: #FAFBFC; }
+    .doc-table tbody tr:hover td { background: #F0FDF9 !important; }
+    .doc-table tbody tr { cursor: pointer; transition: background 0.1s; }
+    .doc-table tr.hidden { display: none; }
+    .doc-table tbody tr.selected td { background: var(--green-light) !important; }
+
+    /* TYPE ICON */
     .doc-type-icon {
       width: 40px; height: 40px; border-radius: var(--radius-sm);
       display: flex; align-items: center; justify-content: center;
       font-size: 11px; font-weight: 700;
     }
+    .doc-type-icon.inline { width: 28px; height: 28px; font-size: 9px; border-radius: 6px; }
     .doc-type-icon.brief { background: var(--green-light); color: #059669; }
     .doc-type-icon.spec { background: var(--info-light); color: var(--info); }
     .doc-type-icon.story { background: var(--info-light); color: var(--info); }
@@ -92,23 +173,199 @@
     .doc-type-icon.test { background: var(--orange-light); color: var(--orange); }
     .doc-type-icon.pr { background: var(--purple-light); color: var(--purple); }
     .doc-type-icon.meeting { background: var(--gray-100); color: var(--gray-500); }
-    .doc-phase-tag {
-      font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px;
-      text-transform: uppercase; letter-spacing: 0.5px;
+
+    /* TITLE CELL */
+    .doc-table-title { font-weight: 600; color: var(--dark); display: block; }
+    .doc-table tbody tr:hover .doc-table-title { color: #059669; }
+    .doc-table-desc { font-size: 11px; color: var(--gray-400); display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 380px; }
+    .doc-ai-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+      background: linear-gradient(135deg, #8B5CF620, #3B82F620);
+      color: var(--purple); letter-spacing: 0.3px; vertical-align: middle; margin-left: 6px;
     }
+
+    /* PHASE TAG */
+    .doc-phase-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
     .doc-phase-tag.p1 { background: var(--green-light); color: #059669; }
     .doc-phase-tag.p2 { background: var(--info-light); color: var(--info); }
     .doc-phase-tag.p3 { background: var(--purple-light); color: var(--purple); }
     .doc-phase-tag.p4 { background: var(--orange-light); color: var(--orange); }
-    .doc-card-title { font-size: 14px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
-    .doc-card-desc { font-size: 12px; color: var(--gray-500); margin-bottom: 12px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .doc-card-footer { display: flex; align-items: center; justify-content: space-between; }
-    .doc-card-meta { font-size: 11px; color: var(--gray-400); }
-    .doc-card-source { font-size: 11px; font-weight: 600; color: var(--gray-500); display: flex; align-items: center; gap: 4px; }
-    .doc-card-source svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* STATUS with icons */
+    .doc-status {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+      text-transform: uppercase; letter-spacing: 0.3px; cursor: pointer; position: relative;
+    }
+    .doc-status svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    .doc-status.draft { background: var(--gray-100); color: var(--gray-500); }
+    .doc-status.in-review { background: var(--info-light); color: var(--info); }
+    .doc-status.approved { background: var(--green-light); color: #059669; }
+    .doc-status.archived { background: var(--gray-100); color: var(--gray-400); }
+
+    /* STATUS DROPDOWN */
+    .status-dropdown {
+      position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 20;
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 4px; min-width: 140px; display: none;
+    }
+    .status-dropdown.open { display: block; }
+    .status-option {
+      display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 4px;
+      font-size: 11px; font-weight: 600; color: var(--gray-600); cursor: pointer; transition: background 0.1s;
+    }
+    .status-option:hover { background: var(--gray-50); }
+    .status-option .opt-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* OWNER AVATAR */
+    .owner-cell { display: flex; align-items: center; gap: 6px; }
+    .owner-avatar {
+      width: 22px; height: 22px; border-radius: 50%; font-size: 8px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--white);
+    }
+    .owner-name { font-size: 12px; color: var(--gray-500); white-space: nowrap; }
+
+    /* CHECKBOX */
+    .row-check {
+      width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--gray-300);
+      appearance: none; cursor: pointer; transition: all 0.15s; position: relative; flex-shrink: 0;
+      display: inline-block; vertical-align: middle;
+    }
+    .row-check:checked { background: var(--green); border-color: var(--green); }
+    .row-check:checked::after {
+      content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 8px;
+      border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg);
+    }
+    .header-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--gray-300); appearance: none; cursor: pointer; vertical-align: middle; position: relative; }
+    .header-check:checked { background: var(--green); border-color: var(--green); }
+    .header-check:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 8px; border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+    .header-check:indeterminate { background: var(--green); border-color: var(--green); }
+    .header-check:indeterminate::after { content: ''; position: absolute; left: 3px; top: 6px; width: 8px; height: 2px; background: var(--white); border-radius: 1px; }
+
+    /* DELETE */
+    .btn-delete {
+      width: 28px; height: 28px; border-radius: 6px; border: none;
+      background: transparent; display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s; opacity: 0;
+    }
+    .btn-delete svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .doc-table tbody tr:hover .btn-delete { opacity: 1; }
+    .btn-delete:hover { background: var(--danger-light); }
+    .btn-delete:hover svg { stroke: var(--danger); }
+
+    /* APPROVE */
+    .btn-approve {
+      width: 28px; height: 28px; border-radius: 6px; border: none;
+      background: transparent; display: inline-flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s; opacity: 0;
+    }
+    .btn-approve svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .doc-table tbody tr:hover .btn-approve { opacity: 1; }
+    .btn-approve:hover { background: var(--green-light); }
+    .btn-approve:hover svg { stroke: #059669; }
+    .btn-approve.is-approved { opacity: 0.5; cursor: default; }
+    .btn-approve.is-approved svg { stroke: #059669; }
+    .doc-table tbody tr:hover .btn-approve.is-approved { opacity: 0.5; }
+
+    /* ACTIONS CELL */
+    .actions-cell { display: flex; align-items: center; gap: 2px; justify-content: flex-end; }
+
+    /* VERSION */
+    .doc-version { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--gray-100); color: var(--gray-500); }
+
+    /* DATE TOOLTIP */
+    .date-cell { font-size: 12px; color: var(--gray-400); white-space: nowrap; cursor: default; }
+    .date-cell:hover .date-full { display: block; }
+    .date-full {
+      display: none; position: absolute; background: var(--dark); color: var(--white); font-size: 11px;
+      padding: 4px 8px; border-radius: 4px; white-space: nowrap; margin-top: 4px; z-index: 10;
+    }
+
+    /* PAGINATION */
+    .pagination {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-top: 1px solid var(--gray-200);
+    }
+    .pagination-info { font-size: 12px; color: var(--gray-500); }
+    .pagination-controls { display: flex; align-items: center; gap: 4px; }
+    .page-btn {
+      width: 32px; height: 32px; border-radius: 6px; border: 1px solid var(--gray-200);
+      background: var(--white); font-size: 12px; font-weight: 600; font-family: var(--font);
+      color: var(--gray-600); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+    .page-btn.active { background: var(--green); border-color: var(--green); color: var(--dark); font-weight: 700; }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .page-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .page-size-select {
+      padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 6px;
+      font-size: 12px; font-family: var(--font); color: var(--gray-600);
+      background: var(--white); margin-left: 12px; cursor: pointer; outline: none;
+    }
+
+    /* NO RESULTS */
+    .no-results { text-align: center; padding: 60px 20px; color: var(--gray-400); font-size: 14px; display: none; }
+    .no-results.visible { display: block; }
+
+    /* DELETE CONFIRM MODAL */
+    .delete-modal {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4); z-index: 300; display: none; align-items: center; justify-content: center;
+    }
+    .delete-modal.open { display: flex; }
+    .delete-modal-box { background: var(--white); border-radius: var(--radius); padding: 28px; width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    .delete-modal-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+    .delete-modal-box p { font-size: 13px; color: var(--gray-500); margin-bottom: 20px; line-height: 1.5; }
+    .delete-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-modal {
+      padding: 8px 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600;
+      font-family: var(--font); cursor: pointer; transition: all 0.15s; border: 1px solid var(--gray-200);
+      background: var(--white); color: var(--gray-600);
+    }
+    .btn-modal:hover { background: var(--gray-50); }
+    .btn-modal.danger { background: var(--danger); border-color: var(--danger); color: var(--white); }
+    .btn-modal.danger:hover { background: #DC2626; }
+
+    /* DOC DETAIL OVERLAY */
+    .doc-detail-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 200; opacity: 0; visibility: hidden; transition: all 0.3s; }
+    .doc-detail-overlay.open { opacity: 1; visibility: visible; }
+    .doc-detail-viewer { position: fixed; top: 0; right: -520px; bottom: 0; width: 520px; background: var(--white); z-index: 201; overflow-y: auto; box-shadow: -4px 0 24px rgba(0,0,0,0.12); transition: right 0.3s ease; }
+    .doc-detail-overlay.open .doc-detail-viewer { right: 0; }
+    .doc-detail-header { padding: 24px 28px; border-bottom: 1px solid var(--gray-200); position: sticky; top: 0; background: var(--white); z-index: 1; }
+    .doc-detail-header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .doc-detail-title { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; flex: 1; }
+    .doc-detail-badges { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .doc-detail-close { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
+    .doc-detail-close:hover { background: var(--gray-50); border-color: var(--gray-300); }
+    .doc-detail-close svg { width: 16px; height: 16px; stroke: var(--gray-500); fill: none; stroke-width: 2; }
+    .doc-detail-body { padding: 24px 28px; }
+    .doc-detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding: 16px; background: var(--gray-50); border-radius: var(--radius-sm); margin-bottom: 24px; }
+    .doc-meta-item label { display: block; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 2px; }
+    .doc-meta-item span { font-size: 13px; font-weight: 600; color: var(--dark); }
+    .doc-detail-section { margin-bottom: 24px; }
+    .doc-detail-section h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-bottom: 12px; }
+    .doc-detail-content { font-size: 13px; line-height: 1.7; color: var(--gray-600); padding: 16px; background: var(--gray-50); border-radius: var(--radius-sm); border-left: 3px solid var(--green); }
+    .version-timeline { list-style: none; position: relative; padding-left: 20px; }
+    .version-timeline::before { content: ''; position: absolute; left: 6px; top: 4px; bottom: 4px; width: 2px; background: var(--gray-200); }
+    .version-timeline li { position: relative; padding-bottom: 16px; font-size: 12px; }
+    .version-timeline li:last-child { padding-bottom: 0; }
+    .version-timeline li::before { content: ''; position: absolute; left: -17px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--green); border: 2px solid var(--white); }
+    .version-timeline .vt-version { font-weight: 700; color: var(--dark); }
+    .version-timeline .vt-date { color: var(--gray-400); margin-left: 6px; }
+    .version-timeline .vt-author { color: var(--gray-500); font-weight: 600; }
+    .version-timeline .vt-changes { color: var(--gray-500); display: block; margin-top: 2px; }
+    .related-docs-list { list-style: none; }
+    .related-docs-list li { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; color: var(--dark); cursor: pointer; margin-bottom: 6px; transition: all 0.15s; }
+    .related-docs-list li:hover { background: var(--green-light); border-color: var(--green); color: #059669; }
+    .doc-detail-footer { padding: 16px 28px; border-top: 1px solid var(--gray-200); display: flex; align-items: center; gap: 8px; position: sticky; bottom: 0; background: var(--white); }
+    .btn-detail { padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: all 0.15s; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600); }
+    .btn-detail:hover { background: var(--gray-50); border-color: var(--gray-300); }
+    .btn-detail.primary { background: var(--green); border-color: var(--green); color: var(--dark); font-weight: 700; }
+    .btn-detail.primary:hover { background: var(--green-hover); }
 
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .doc-grid { animation: fadeInUp 0.4s ease 0.1s both; }
+    .table-card { animation: fadeInUp 0.4s ease 0.1s both; }
   </style>
 </head>
 <body>
@@ -119,7 +376,7 @@
         <div class="nav-label">Main</div>
         <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
         <div class="nav-label">Phases</div>
-        <a href="discovery.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
+        <a href="discovery-v2.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
         <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
         <a href="code.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
         <a href="qa.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA</a>
@@ -134,87 +391,509 @@
     <main class="main">
       <header class="topbar">
         <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
-        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search all documents..."></div>
+        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="searchInput" type="text" placeholder="Search documents..."></div>
         <div class="topbar-actions"><button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></button></div>
       </header>
 
       <div class="content">
         <div class="page-header">
           <h2>Documents</h2>
-          <span style="font-size:14px;color:var(--gray-500)">42 documents across all phases</span>
+          <span id="docCount" style="font-size:14px;color:var(--gray-500)">15 documents</span>
         </div>
 
-        <div class="filter-bar">
-          <div class="filter-chip active">All Phases</div>
-          <div class="filter-chip"><div class="chip-dot p1"></div> Discovery</div>
-          <div class="filter-chip"><div class="chip-dot p2"></div> Story & Tech</div>
-          <div class="filter-chip"><div class="chip-dot p3"></div> Code</div>
-          <div class="filter-chip"><div class="chip-dot p4"></div> QA</div>
-          <div style="width:1px;height:24px;background:var(--gray-200);margin:0 4px"></div>
-          <div class="filter-chip">Briefs</div>
-          <div class="filter-chip">Specs</div>
-          <div class="filter-chip">Decisions</div>
-          <div class="filter-chip">Learnings</div>
+        <!-- STAT CARDS -->
+        <div class="stat-cards">
+          <div class="stat-card-wrap wrap-total active-wrap">
+            <div class="stat-card s-total active" data-stat="all" onclick="filterByStat('all')">
+              <div class="stat-card-value" id="statTotal">15</div>
+              <div class="stat-card-label">Total Documents</div>
+              <div class="stat-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            </div>
+          </div>
+          <div class="stat-card-wrap wrap-approved">
+            <div class="stat-card s-approved" data-stat="approved" onclick="filterByStat('approved')">
+              <div class="stat-card-value" id="statApproved">6</div>
+              <div class="stat-card-label">Approved</div>
+              <div class="stat-card-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+            </div>
+          </div>
+          <div class="stat-card-wrap wrap-review">
+            <div class="stat-card s-review" data-stat="in-review" onclick="filterByStat('in-review')">
+              <div class="stat-card-value" id="statReview">3</div>
+              <div class="stat-card-label">In Review</div>
+              <div class="stat-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            </div>
+          </div>
+          <div class="stat-card-wrap wrap-draft">
+            <div class="stat-card s-draft" data-stat="draft" onclick="filterByStat('draft')">
+              <div class="stat-card-value" id="statDraft">4</div>
+              <div class="stat-card-label">Drafts</div>
+              <div class="stat-card-icon"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+            </div>
+          </div>
         </div>
 
-        <div class="doc-grid">
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon brief">DOC</div><span class="doc-phase-tag p1">Discovery</span></div>
-            <div class="doc-card-title">Project Discovery Brief</div>
-            <div class="doc-card-desc">Comprehensive overview of the NacXwan EdTech platform — requirements, stakeholders, architecture vision, and MVP scope.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Mar 1, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>RAGFlow</span></div>
+        <!-- FILTER ROW -->
+        <div class="filter-row">
+          <select class="filter-select" id="filterPhase" data-default onchange="onFilterChange()">
+            <option value="">All Phases</option>
+            <option value="discovery">Discovery</option>
+            <option value="story-tech">Story & Tech</option>
+            <option value="code">Code</option>
+            <option value="qa">QA</option>
+          </select>
+          <select class="filter-select" id="filterType" data-default onchange="onFilterChange()">
+            <option value="">All Types</option>
+            <option value="brief">Briefs</option>
+            <option value="spec">Specs</option>
+            <option value="decision">Decisions</option>
+            <option value="learning">Learnings</option>
+            <option value="meeting">Meetings</option>
+            <option value="test">Tests</option>
+            <option value="pr">PRs</option>
+          </select>
+          <select class="filter-select" id="filterStatus" data-default onchange="onFilterChange()">
+            <option value="">All Statuses</option>
+            <option value="approved">Approved</option>
+            <option value="in-review">In Review</option>
+            <option value="draft">Draft</option>
+            <option value="archived">Archived</option>
+          </select>
+          <button class="filter-clear" id="filterClear" onclick="clearAllFilters()">Clear filters</button>
+          <span class="filter-count" id="filterCount"></span>
+        </div>
+
+        <!-- BULK ACTION BAR -->
+        <div class="bulk-bar" id="bulkBar">
+          <span class="bulk-bar-count" id="bulkCount">0 selected</span>
+          <div class="bulk-bar-actions">
+            <button class="bulk-btn" onclick="bulkExport()">Export</button>
+            <button class="bulk-btn" onclick="bulkStatusChange('approved')">Mark Approved</button>
+            <button class="bulk-btn danger" onclick="bulkDelete()">Delete</button>
           </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon brief">DOC</div><span class="doc-phase-tag p1">Discovery</span></div>
-            <div class="doc-card-title">MVP Scope Freeze</div>
-            <div class="doc-card-desc">Approved MVP features, excluded items, and agreed timeline. Signed off by Sarah Chen and client stakeholders.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Feb 28, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>RAGFlow</span></div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="table-card">
+        <table class="doc-table">
+          <thead>
+            <tr>
+              <th class="no-sort" style="width:36px"><input type="checkbox" class="header-check" id="headerCheck" onclick="toggleSelectAll(this)"></th>
+              <th class="no-sort" style="width:42px">Type</th>
+              <th data-sort="title" onclick="sortBy('title')">Title <span class="sort-icon">&#9650;</span></th>
+              <th data-sort="phase" onclick="sortBy('phase')">Phase <span class="sort-icon">&#9650;</span></th>
+              <th data-sort="status" onclick="sortBy('status')">Status <span class="sort-icon">&#9650;</span></th>
+              <th class="no-sort">Ver</th>
+              <th data-sort="owner" onclick="sortBy('owner')">Owner <span class="sort-icon">&#9650;</span></th>
+              <th data-sort="date" class="sorted" onclick="sortBy('date')">Date <span class="sort-icon">&#9660;</span></th>
+              <th class="no-sort" style="width:72px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="docTableBody"></tbody>
+        </table>
+        <div class="pagination" id="pagination">
+          <span class="pagination-info" id="paginationInfo"></span>
+          <div style="display:flex;align-items:center">
+            <div class="pagination-controls" id="paginationControls">
+              <button class="page-btn" id="prevPage" onclick="changePage(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+              <button class="page-btn" id="nextPage" onclick="changePage(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+            <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize(this.value)">
+              <option value="10">10 / page</option>
+              <option value="15">15 / page</option>
+              <option value="25">25 / page</option>
+            </select>
           </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon brief">DOC</div><span class="doc-phase-tag p1">Discovery</span></div>
-            <div class="doc-card-title">Functional Requirements</div>
-            <div class="doc-card-desc">47 requirements with priorities (must/should/could), confirmation status, and source traceability.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Feb 28, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>RAGFlow</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon spec">SPEC</div><span class="doc-phase-tag p2">Story & Tech</span></div>
-            <div class="doc-card-title">Auth API Contract</div>
-            <div class="doc-card-desc">REST API specification for authentication endpoints — SSO flow, token refresh, session management.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Mar 5, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>Confluence</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon spec">SPEC</div><span class="doc-phase-tag p2">Story & Tech</span></div>
-            <div class="doc-card-title">Whiteboard Architecture</div>
-            <div class="doc-card-desc">WebSocket-based real-time sync engine design — conflict resolution, cursor tracking, state management.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Mar 4, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/></svg>Confluence</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon decision">DEC</div><span class="doc-phase-tag p2">Story & Tech</span></div>
-            <div class="doc-card-title">MSAL.js v2 over v1 for SSO</div>
-            <div class="doc-card-desc">Architecture decision: chose MSAL.js v2 for better iframe support. Alternatives: v1, custom JWT, ADAL.js.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Mar 3, 2025</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>decision.md</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon learning">LRN</div><span class="doc-phase-tag p3">Code</span></div>
-            <div class="doc-card-title">MSAL silent refresh fails in iframes</div>
-            <div class="doc-card-desc">Discovered nested iframe blocked by browser security. Solution: popup fallback for token renewal in add-ins.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Today</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>learning.md</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon pr">PR</div><span class="doc-phase-tag p3">Code</span></div>
-            <div class="doc-card-title">PR #52 — SSO login with MSAL.js v2</div>
-            <div class="doc-card-desc">Full SSO implementation including silent refresh, popup fallback, token cache, and session management.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Today</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/></svg>GitHub</span></div>
-          </div>
-          <div class="doc-card">
-            <div class="doc-card-top"><div class="doc-type-icon test">TEST</div><span class="doc-phase-tag p4">QA</span></div>
-            <div class="doc-card-title">SSO Integration Test Results</div>
-            <div class="doc-card-desc">12 passed, 1 failed. MFA prompt issue discovered in Outlook add-in iframe context. Bug BUG-023 filed.</div>
-            <div class="doc-card-footer"><span class="doc-card-meta">Today</span><span class="doc-card-source"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/></svg>Report Portal</span></div>
+        </div>
+        </div>
+        <div class="no-results" id="noResults">No documents match the current filters.</div>
+
+        <!-- DELETE MODAL -->
+        <div class="delete-modal" id="deleteModal">
+          <div class="delete-modal-box">
+            <h3 id="deleteTitle">Delete Document</h3>
+            <p id="deleteDesc">Are you sure you want to delete <strong id="deleteDocName"></strong>? This action cannot be undone.</p>
+            <div class="delete-modal-actions">
+              <button class="btn-modal" onclick="closeDeleteModal()">Cancel</button>
+              <button class="btn-modal danger" onclick="confirmDelete()">Delete</button>
+            </div>
           </div>
         </div>
       </div>
     </main>
+
+    <!-- DOC DETAIL OVERLAY -->
+    <div class="doc-detail-overlay" id="docDetailOverlay" onclick="if(event.target===this)closeDocDetail()">
+      <div class="doc-detail-viewer">
+        <div class="doc-detail-header">
+          <div class="doc-detail-header-top">
+            <div id="detailIcon" class="doc-type-icon brief" style="width:36px;height:36px;font-size:10px">DOC</div>
+            <div class="doc-detail-title" id="detailTitle">Document Title</div>
+            <button class="doc-detail-close" onclick="closeDocDetail()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="doc-detail-badges" id="detailBadges"></div>
+        </div>
+        <div class="doc-detail-body">
+          <div class="doc-detail-meta" id="detailMeta"></div>
+          <div class="doc-detail-section"><h4>Content Preview</h4><div class="doc-detail-content" id="detailContent"></div></div>
+          <div class="doc-detail-section"><h4>Version History</h4><ul class="version-timeline" id="detailVersions"></ul></div>
+          <div class="doc-detail-section"><h4>Related Documents</h4><ul class="related-docs-list" id="detailRelated"></ul></div>
+        </div>
+        <div class="doc-detail-footer">
+          <button class="btn-detail primary" id="detailOpenSource">Open Source</button>
+          <button class="btn-detail" id="detailDownload">Download</button>
+          <button class="btn-detail" onclick="closeDocDetail()" style="margin-left:auto">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <script>
+    /* ── Document Data ── */
+    const docData = {
+      'project-discovery-brief': { title: 'Project Discovery Brief', typeLabel: 'DOC', typeClass: 'brief', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v2.1', aiGenerated: true, owner: 'RAGFlow AI', ownerInitials: 'AI', ownerColor: '#8B5CF6', source: 'RAGFlow', date: 'Mar 1, 2025', dateSort: '2025-03-01', description: 'Comprehensive overview of the NacXwan EdTech platform — requirements, stakeholders, architecture vision, and MVP scope.', content: 'This document captures the full discovery output for the NacXwan EdTech platform. It covers the business context (corporate L&D for distributed teams), the key stakeholders (Sarah Chen — Product, Milan Kovac — Tech Lead, client sponsors), and the technical architecture vision built around a React + Node.js stack with Azure AD SSO.\n\nThe MVP scope was refined over 8 meetings and includes: course catalog with search, SSO-based authentication, real-time collaborative whiteboard, video playback with bookmarking, and basic analytics dashboard. Items explicitly excluded from MVP: gamification, mobile native apps, SCORM import, and multi-tenant support.\n\nRequirements traceability links each feature back to the original meeting transcript and stakeholder request.', versionHistory: [ { version: 'v2.1', date: 'Mar 1, 2025', author: 'RAGFlow AI', changes: 'Added stakeholder sign-off section and risk matrix' }, { version: 'v2.0', date: 'Feb 25, 2025', author: 'RAGFlow AI', changes: 'Major restructure — separated MVP from future scope' }, { version: 'v1.0', date: 'Feb 15, 2025', author: 'RAGFlow AI', changes: 'Initial generation from meeting transcripts 1-5' } ], relatedDocs: ['MVP Scope Freeze', 'Functional Requirements', 'Meeting 7 — SSO & Auth Discussion'] },
+      'mvp-scope-freeze': { title: 'MVP Scope Freeze', typeLabel: 'DOC', typeClass: 'brief', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v1.3', aiGenerated: true, owner: 'Sarah Chen', ownerInitials: 'SC', ownerColor: '#059669', source: 'RAGFlow', date: 'Feb 28, 2025', dateSort: '2025-02-28', description: 'Approved MVP features, excluded items, and agreed timeline. Signed off by Sarah Chen and client stakeholders.', content: 'The MVP Scope Freeze document formally locks the feature set for Sprint 1-3 delivery. It was approved after Meeting 6 with unanimous stakeholder agreement.\n\nIncluded features: User authentication via Azure AD SSO, course catalog with filtering and search, video playback engine with bookmarking, real-time collaborative whiteboard (WebSocket-based), basic progress tracking, and admin dashboard.\n\nExcluded from MVP: Gamification/badges, SCORM/xAPI import, mobile native apps, multi-tenant architecture, advanced analytics, and AI-powered recommendations.\n\nTimeline: Sprint 1 (Auth + Catalog) — 2 weeks, Sprint 2 (Whiteboard + Video) — 2 weeks, Sprint 3 (Polish + Testing) — 1 week.', versionHistory: [ { version: 'v1.3', date: 'Feb 28, 2025', author: 'Sarah Chen', changes: 'Final sign-off with client approval notes' }, { version: 'v1.2', date: 'Feb 26, 2025', author: 'RAGFlow AI', changes: 'Added timeline estimates from Milan' }, { version: 'v1.0', date: 'Feb 22, 2025', author: 'RAGFlow AI', changes: 'Initial scope extraction from meetings' } ], relatedDocs: ['Project Discovery Brief', 'Functional Requirements', 'Video Provider Cost Analysis'] },
+      'functional-requirements': { title: 'Functional Requirements', typeLabel: 'SPEC', typeClass: 'spec', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v3.0', aiGenerated: true, owner: 'RAGFlow AI', ownerInitials: 'AI', ownerColor: '#8B5CF6', source: 'RAGFlow', date: 'Feb 28, 2025', dateSort: '2025-02-28', description: '47 requirements with priorities (must/should/could), confirmation status, and source traceability.', content: 'This document contains 47 functional requirements organized by feature area. Each requirement has a unique ID (FR-001 through FR-047), a MoSCoW priority, a confirmation status, and a source reference back to the meeting transcript.\n\nKey "Must Have" requirements include: FR-001 Azure AD SSO authentication, FR-005 Course catalog with full-text search, FR-012 Real-time whiteboard with multi-user cursors, FR-018 Video playback with position bookmarking, FR-031 Role-based access control (Admin, Instructor, Learner).\n\nAll 23 "Must Have" requirements are confirmed. 15 of 18 "Should Have" items are confirmed. 6 "Could Have" items remain unconfirmed pending client feedback.', versionHistory: [ { version: 'v3.0', date: 'Feb 28, 2025', author: 'RAGFlow AI', changes: 'All Must Have items confirmed — ready for sprint planning' }, { version: 'v2.0', date: 'Feb 24, 2025', author: 'RAGFlow AI', changes: 'Added 12 new requirements from meetings 6-7' }, { version: 'v1.0', date: 'Feb 18, 2025', author: 'RAGFlow AI', changes: 'Initial 28 requirements from meetings 1-5' } ], relatedDocs: ['Project Discovery Brief', 'MVP Scope Freeze', 'Auth API Contract'] },
+      'auth-api-contract': { title: 'Auth API Contract', typeLabel: 'SPEC', typeClass: 'spec', phase: 'Story & Tech', phaseClass: 'p2', phaseKey: 'story-tech', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v2.0', aiGenerated: true, owner: 'Milan Kovac', ownerInitials: 'MK', ownerColor: '#3B82F6', source: 'Confluence', date: 'Mar 5, 2025', dateSort: '2025-03-05', description: 'REST API specification for authentication endpoints — SSO flow, token refresh, session management.', content: 'The Auth API Contract defines all authentication-related endpoints for the NacXwan platform. It follows OpenAPI 3.0 specification format and covers the complete SSO lifecycle.\n\nEndpoints: POST /auth/sso/callback — handles Azure AD redirect with authorization code, POST /auth/token/refresh — silent token renewal, POST /auth/logout — session termination with token revocation, GET /auth/session — current session status and user profile.\n\nSecurity: All tokens are JWTs signed with RS256. Access tokens expire in 1 hour, refresh tokens in 7 days. PKCE flow is mandatory for all public clients. Token storage uses secure HttpOnly cookies with SameSite=Strict.', versionHistory: [ { version: 'v2.0', date: 'Mar 5, 2025', author: 'RAGFlow AI + Milan', changes: 'Added PKCE flow and token revocation endpoint' }, { version: 'v1.0', date: 'Mar 1, 2025', author: 'RAGFlow AI', changes: 'Initial API contract from architecture discussion' } ], relatedDocs: ['MSAL.js v2 over v1 for SSO', 'PR #52 — SSO login with MSAL.js v2', 'Functional Requirements'] },
+      'whiteboard-architecture': { title: 'Whiteboard Architecture', typeLabel: 'SPEC', typeClass: 'spec', phase: 'Story & Tech', phaseClass: 'p2', phaseKey: 'story-tech', status: 'In Review', statusClass: 'in-review', statusKey: 'in-review', version: 'v1.2', aiGenerated: false, owner: 'Milan Kovac', ownerInitials: 'MK', ownerColor: '#3B82F6', source: 'Confluence', date: 'Mar 4, 2025', dateSort: '2025-03-04', description: 'WebSocket-based real-time sync engine design — conflict resolution, cursor tracking, state management.', content: 'The whiteboard architecture uses a WebSocket server (Socket.io) with operational transformation (OT) for conflict resolution. Each whiteboard session maintains a shared state document that clients sync against.\n\nKey components: Connection Manager (handles WebSocket lifecycle, reconnection with exponential backoff), State Engine (OT-based conflict resolution, operation buffering), Cursor Tracker (broadcasts cursor positions at 60fps throttled to 15fps over wire), Persistence Layer (auto-save to PostgreSQL every 5 seconds, full history for undo).\n\nScaling strategy: Single server handles up to 50 concurrent users per whiteboard. Beyond that, Redis Pub/Sub enables horizontal scaling across multiple Socket.io instances.', versionHistory: [ { version: 'v1.2', date: 'Mar 4, 2025', author: 'Milan Kovac', changes: 'Added scaling strategy and Redis Pub/Sub section' }, { version: 'v1.1', date: 'Mar 2, 2025', author: 'Milan Kovac', changes: 'Revised conflict resolution to use OT instead of CRDT' }, { version: 'v1.0', date: 'Feb 28, 2025', author: 'Milan Kovac', changes: 'Initial architecture draft' } ], relatedDocs: ['WebSocket Reconnection Strategy', 'Data Model — Users & Courses', 'E2E Test Plan — Sprint 2'] },
+      'msal-v2-decision': { title: 'MSAL.js v2 over v1 for SSO', typeLabel: 'DEC', typeClass: 'decision', phase: 'Story & Tech', phaseClass: 'p2', phaseKey: 'story-tech', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v1.0', aiGenerated: false, owner: 'Milan Kovac', ownerInitials: 'MK', ownerColor: '#3B82F6', source: 'decision.md', date: 'Mar 3, 2025', dateSort: '2025-03-03', description: 'Architecture decision: chose MSAL.js v2 for better iframe support. Alternatives: v1, custom JWT, ADAL.js.', content: 'Decision: Use MSAL.js v2 (Microsoft Authentication Library) for all client-side Azure AD authentication.\n\nContext: The NacXwan platform runs as an Office 365 add-in within iframes. Authentication libraries must handle nested iframe restrictions and third-party cookie blocking in modern browsers.\n\nAlternatives evaluated: MSAL.js v1 (lacks popup fallback for iframes), ADAL.js (deprecated, no PKCE support), Custom JWT flow (high maintenance burden, no Microsoft support), Auth0 (additional cost, unnecessary abstraction layer).\n\nDecision rationale: MSAL.js v2 provides native popup-based authentication fallback when silent token refresh fails in iframe contexts. It supports PKCE natively, has active Microsoft support, and integrates seamlessly with Azure AD B2C if needed later.', versionHistory: [ { version: 'v1.0', date: 'Mar 3, 2025', author: 'Milan Kovac', changes: 'Architecture decision record created and approved' } ], relatedDocs: ['Auth API Contract', 'MSAL silent refresh fails in iframes', 'PR #52 — SSO login with MSAL.js v2'] },
+      'msal-iframe-learning': { title: 'MSAL silent refresh fails in iframes', typeLabel: 'LRN', typeClass: 'learning', phase: 'Code', phaseClass: 'p3', phaseKey: 'code', status: 'Draft', statusClass: 'draft', statusKey: 'draft', version: 'v1.0', aiGenerated: false, owner: 'Bojan Tesic', ownerInitials: 'BT', ownerColor: '#00E5A0', source: 'learning.md', date: 'Today', dateSort: '2025-03-25', description: 'Discovered nested iframe blocked by browser security. Solution: popup fallback for token renewal in add-ins.', content: 'Problem: MSAL.js v2 acquireTokenSilent() fails when the app runs inside an Office 365 add-in iframe. The silent refresh creates a hidden iframe to Azure AD, but modern browsers (Chrome 115+, Firefox 118+) block third-party cookies in nested iframe contexts.\n\nRoot cause: The "partitioned cookies" / "CHIPS" initiative means cookies set by login.microsoftonline.com inside an iframe are partitioned and invisible to the silent refresh iframe.\n\nSolution: Implement a cascading auth strategy — (1) Try acquireTokenSilent() first, (2) On InteractionRequiredAuthError, fall back to acquireTokenPopup(), (3) Store the popup result in sessionStorage for subsequent silent attempts. The popup opens in a new window that is not subject to iframe cookie restrictions.\n\nCode snippet added to PR #52.', versionHistory: [ { version: 'v1.0', date: 'Today', author: 'Bojan Tesic', changes: 'Initial learning captured during PR #52 implementation' } ], relatedDocs: ['MSAL.js v2 over v1 for SSO', 'PR #52 — SSO login with MSAL.js v2', 'Auth API Contract'] },
+      'pr-52-sso': { title: 'PR #52 — SSO login with MSAL.js v2', typeLabel: 'PR', typeClass: 'pr', phase: 'Code', phaseClass: 'p3', phaseKey: 'code', status: 'In Review', statusClass: 'in-review', statusKey: 'in-review', version: 'v1.0', aiGenerated: false, owner: 'Bojan Tesic', ownerInitials: 'BT', ownerColor: '#00E5A0', source: 'GitHub', date: 'Today', dateSort: '2025-03-25', description: 'Full SSO implementation including silent refresh, popup fallback, token cache, and session management.', content: 'Pull Request #52 implements the complete SSO authentication flow for the NacXwan platform using MSAL.js v2.\n\nFiles changed: 14 files, +847 lines, -23 lines.\n\nKey changes: AuthProvider React context with MSAL configuration, useAuth() hook for components, Protected route wrapper with automatic token refresh, Login page with "Sign in with Microsoft" button, Token interceptor for API requests (Axios), Session persistence across page reloads.\n\nThe implementation includes the iframe popup fallback discovered during development (see learning: "MSAL silent refresh fails in iframes"). Tests cover the happy path, token expiry, and popup fallback scenarios.\n\nReviewer: Milan Kovac. Status: Awaiting review. CI: All checks passing.', versionHistory: [ { version: 'v1.0', date: 'Today', author: 'Bojan Tesic', changes: 'Initial PR submission' } ], relatedDocs: ['MSAL.js v2 over v1 for SSO', 'MSAL silent refresh fails in iframes', 'SSO Integration Test Results'] },
+      'sso-test-results': { title: 'SSO Integration Test Results', typeLabel: 'TEST', typeClass: 'test', phase: 'QA', phaseClass: 'p4', phaseKey: 'qa', status: 'Draft', statusClass: 'draft', statusKey: 'draft', version: 'v1.0', aiGenerated: false, owner: 'QA Team', ownerInitials: 'QA', ownerColor: '#F97316', source: 'Report Portal', date: 'Today', dateSort: '2025-03-25', description: '12 passed, 1 failed. MFA prompt issue discovered in Outlook add-in iframe context. Bug BUG-023 filed.', content: 'Test execution results for the SSO authentication integration (PR #52).\n\nTotal: 13 tests | Passed: 12 | Failed: 1 | Skipped: 0\n\nPassed tests: Login redirect to Azure AD, Token acquisition on callback, Silent token refresh (standalone), Popup fallback in iframe, Token cache persistence, Logout and session cleanup, Protected route redirect, Role claim extraction, Token interceptor attachment, Concurrent request handling, Token expiry detection, Refresh token rotation.\n\nFailed: TC-AUTH-013 "MFA prompt in Outlook iframe" — When MFA is enforced, the popup is blocked by Outlook desktop client. BUG-023 filed with P2 priority. Workaround: redirect-based auth for desktop add-in context.', versionHistory: [ { version: 'v1.0', date: 'Today', author: 'QA Team', changes: 'Initial test run results' } ], relatedDocs: ['PR #52 — SSO login with MSAL.js v2', 'Auth API Contract', 'E2E Test Plan — Sprint 2'] },
+      'meeting-7-sso': { title: 'Meeting 7 — SSO & Auth Discussion', typeLabel: 'MTG', typeClass: 'meeting', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Archived', statusClass: 'archived', statusKey: 'archived', version: 'v1.0', aiGenerated: false, owner: 'Sarah Chen', ownerInitials: 'SC', ownerColor: '#059669', source: 'Transcript', date: 'Mar 14, 2025', dateSort: '2025-03-14', description: 'Transcript and action items from the SSO provider evaluation meeting with Azure AD integration decision.', content: 'Meeting 7 focused on the authentication strategy for NacXwan. Attendees: Sarah Chen (Product), Milan Kovac (Tech Lead), Bojan Tesic (PO), Ana Petrovic (Client).\n\nKey decisions: Azure AD was confirmed as the identity provider (client requirement — all users already have Microsoft 365 accounts). SSO must work within Office add-in iframes. MFA will be required for admin roles only in MVP.\n\nAction items: Milan to evaluate MSAL.js v1 vs v2 (completed — see decision record), Bojan to draft Auth API contract, QA to prepare auth test scenarios.\n\nOpen questions resolved: Session timeout set to 8 hours (matching client corporate policy), refresh token lifetime set to 7 days.', versionHistory: [ { version: 'v1.0', date: 'Mar 14, 2025', author: 'Auto-transcript', changes: 'Meeting transcript with extracted action items' } ], relatedDocs: ['Project Discovery Brief', 'MSAL.js v2 over v1 for SSO', 'Auth API Contract'] },
+      'meeting-8-bugs': { title: 'Meeting 8 — Bug Review & Triage', typeLabel: 'MTG', typeClass: 'meeting', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Archived', statusClass: 'archived', statusKey: 'archived', version: 'v1.0', aiGenerated: false, owner: 'Sarah Chen', ownerInitials: 'SC', ownerColor: '#059669', source: 'Transcript', date: 'Mar 21, 2025', dateSort: '2025-03-21', description: 'Weekly bug review covering BUG-019 through BUG-025. Priority adjustments and sprint assignments finalized.', content: 'Weekly bug triage meeting. Attendees: Sarah Chen, Milan Kovac, Bojan Tesic, QA Team.\n\nBugs reviewed: BUG-019 (video buffering on slow connections — P3, Sprint 3), BUG-020 (whiteboard cursor flicker — P2, Sprint 2), BUG-021 (course search ignores accented characters — P3, backlog), BUG-022 (session timeout shows no warning — P2, Sprint 2), BUG-023 (MFA popup blocked in Outlook desktop — P2, Sprint 2), BUG-024 (progress bar resets on page reload — P1, Sprint 2), BUG-025 (admin dashboard slow with >100 users — P3, Sprint 3).\n\nPriority changes: BUG-024 escalated from P2 to P1 per client request. BUG-021 deferred to backlog.', versionHistory: [ { version: 'v1.0', date: 'Mar 21, 2025', author: 'Auto-transcript', changes: 'Meeting transcript with triage decisions' } ], relatedDocs: ['SSO Integration Test Results', 'Meeting 7 — SSO & Auth Discussion'] },
+      'data-model-users': { title: 'Data Model — Users & Courses', typeLabel: 'SPEC', typeClass: 'spec', phase: 'Story & Tech', phaseClass: 'p2', phaseKey: 'story-tech', status: 'Approved', statusClass: 'approved', statusKey: 'approved', version: 'v2.0', aiGenerated: false, owner: 'Milan Kovac', ownerInitials: 'MK', ownerColor: '#3B82F6', source: 'Confluence', date: 'Feb 28, 2025', dateSort: '2025-02-28', description: 'Entity-relationship model for user profiles, course enrollment, progress tracking, and role-based access.', content: 'The data model covers the core entities for the NacXwan platform. Database: PostgreSQL 15 with pgvector extension for future AI features.\n\nEntities: User (id, azure_oid, email, display_name, role, created_at, last_login), Course (id, title, description, thumbnail_url, duration_minutes, status, created_by), Enrollment (user_id, course_id, enrolled_at, progress_percent, completed_at), Module (id, course_id, title, order, type: video|whiteboard|quiz), Progress (user_id, module_id, status, last_position, updated_at).\n\nRoles: Admin (full access), Instructor (create/edit courses), Learner (enroll and consume). Role is stored as an enum on the User entity and mapped from Azure AD group claims.\n\nIndexes optimized for: user lookup by azure_oid, course search by title (GIN trigram), enrollment queries by user_id + course_id composite.', versionHistory: [ { version: 'v2.0', date: 'Feb 28, 2025', author: 'Milan Kovac', changes: 'Added Progress entity and optimized indexes' }, { version: 'v1.0', date: 'Feb 20, 2025', author: 'Milan Kovac', changes: 'Initial ER model with User, Course, Enrollment' } ], relatedDocs: ['Functional Requirements', 'Auth API Contract', 'Whiteboard Architecture'] },
+      'websocket-reconnect': { title: 'WebSocket Reconnection Strategy', typeLabel: 'LRN', typeClass: 'learning', phase: 'Code', phaseClass: 'p3', phaseKey: 'code', status: 'Draft', statusClass: 'draft', statusKey: 'draft', version: 'v1.0', aiGenerated: false, owner: 'Milan Kovac', ownerInitials: 'MK', ownerColor: '#3B82F6', source: 'learning.md', date: 'Mar 22, 2025', dateSort: '2025-03-22', description: 'Exponential backoff with jitter, heartbeat monitoring, and offline queue for whiteboard reconnection resilience.', content: 'Learning from implementing the whiteboard WebSocket reconnection logic.\n\nProblem: Users on unstable connections (mobile, corporate VPNs) experience frequent WebSocket disconnections. Without proper reconnection, their whiteboard changes are lost.\n\nSolution implemented: (1) Exponential backoff starting at 1s, max 30s, with random jitter to prevent thundering herd. (2) Heartbeat ping every 25s (server timeout at 60s). (3) Offline operation queue — changes made while disconnected are stored in an IndexedDB buffer. (4) On reconnect, buffered operations are replayed through the OT engine to resolve conflicts with changes made by other users during the disconnect.\n\nEdge case: If disconnect lasts >5 minutes, we fetch a full state snapshot instead of replaying operations to avoid accumulated drift.', versionHistory: [ { version: 'v1.0', date: 'Mar 22, 2025', author: 'Milan Kovac', changes: 'Initial learning from whiteboard implementation' } ], relatedDocs: ['Whiteboard Architecture', 'E2E Test Plan — Sprint 2'] },
+      'e2e-test-sprint2': { title: 'E2E Test Plan — Sprint 2', typeLabel: 'TEST', typeClass: 'test', phase: 'QA', phaseClass: 'p4', phaseKey: 'qa', status: 'In Review', statusClass: 'in-review', statusKey: 'in-review', version: 'v1.1', aiGenerated: false, owner: 'QA Team', ownerInitials: 'QA', ownerColor: '#F97316', source: 'Confluence', date: 'Mar 20, 2025', dateSort: '2025-03-20', description: 'End-to-end test scenarios for auth flow, course enrollment, and whiteboard collaboration features.', content: 'E2E Test Plan for Sprint 2 covering the three main feature areas delivered: authentication, course enrollment, and whiteboard collaboration.\n\nTest environment: Playwright + TypeScript, running against staging (staging.nacxwan.dev). Test data seeded via API before each suite.\n\nAuth suite (8 scenarios): Login flow, token refresh, popup fallback, logout, role-based access, session persistence, MFA handling, concurrent sessions.\n\nCourse suite (6 scenarios): Browse catalog, search with filters, enroll in course, track progress, complete module, unenroll.\n\nWhiteboard suite (10 scenarios): Create whiteboard, draw shapes, multi-user cursors, real-time sync (2 browsers), reconnection after disconnect, undo/redo, export as image, permission checks, concurrent editing conflict, large canvas performance.\n\nTotal: 24 E2E scenarios. Estimated run time: 12 minutes.', versionHistory: [ { version: 'v1.1', date: 'Mar 20, 2025', author: 'QA Team', changes: 'Added whiteboard reconnection and large canvas scenarios' }, { version: 'v1.0', date: 'Mar 18, 2025', author: 'QA Team', changes: 'Initial test plan with auth and course suites' } ], relatedDocs: ['SSO Integration Test Results', 'Whiteboard Architecture', 'WebSocket Reconnection Strategy'] },
+      'video-cost-analysis': { title: 'Video Provider Cost Analysis', typeLabel: 'DOC', typeClass: 'brief', phase: 'Discovery', phaseClass: 'p1', phaseKey: 'discovery', status: 'Draft', statusClass: 'draft', statusKey: 'draft', version: 'v0.1', aiGenerated: false, owner: 'Bojan Tesic', ownerInitials: 'BT', ownerColor: '#00E5A0', source: 'Google Docs', date: 'Mar 18, 2025', dateSort: '2025-03-18', description: 'Comparison of Mux, Cloudflare Stream, and AWS MediaConvert for video hosting — pricing, latency, and DRM support.', content: 'Cost and feature comparison for video hosting providers to support NacXwan course video delivery.\n\nProviders evaluated: Mux, Cloudflare Stream, AWS MediaConvert + CloudFront.\n\nMux: $0.025/min encoding + $0.005/min streaming. Best developer experience, built-in analytics, excellent HLS/DASH support. DRM via Widevine/FairPlay add-on ($500/mo). Latency: ~2s start.\n\nCloudflare Stream: $1/1000 min stored + $0.001/min delivered. Simplest pricing, built-in DRM, good global CDN. Limited analytics. Latency: ~1.5s start.\n\nAWS MediaConvert: Pay-per-use encoding ($0.015/min), CloudFront delivery ($0.085/GB). Most flexible, scales infinitely, but highest operational complexity. DRM requires additional AWS Elemental setup. Latency: ~2.5s start.\n\nRecommendation (pending): Cloudflare Stream for MVP due to simplicity and built-in DRM. Revisit for scale at >10,000 monthly active users.', versionHistory: [ { version: 'v0.1', date: 'Mar 18, 2025', author: 'Bojan Tesic', changes: 'Initial draft with pricing research' } ], relatedDocs: ['Project Discovery Brief', 'MVP Scope Freeze', 'Functional Requirements'] }
+    };
+
+    /* ── Helpers ── */
+    const statusIcons = {
+      approved: '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+      'in-review': '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+      draft: '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+      archived: '<svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>'
+    };
+
+    function relativeDate(dateStr) {
+      if (dateStr === 'Today') return 'Today';
+      const now = new Date(2025, 2, 25);
+      const d = new Date(dateStr);
+      const diff = Math.floor((now - d) / 86400000);
+      if (diff <= 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      if (diff < 7) return diff + ' days ago';
+      if (diff < 14) return 'Last week';
+      if (diff < 30) return Math.floor(diff / 7) + ' weeks ago';
+      return dateStr;
+    }
+
+    const trashIcon = '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+
+    /* ── Render Table ── */
+    let sortField = 'date', sortDir = 'desc';
+    let currentPage = 1, pageSize = 10;
+    let selectedKeys = new Set();
+
+    function getDocKeys() {
+      return Object.keys(docData);
+    }
+
+    function buildRow(key) {
+      const d = docData[key];
+      const ai = d.aiGenerated ? '<span class="doc-ai-badge">&#10022; AI</span>' : '';
+      return '<tr data-key="' + key + '" data-phase="' + d.phaseKey + '" data-type="' + d.typeClass + '" data-status="' + d.statusKey + '">' +
+        '<td><input type="checkbox" class="row-check" data-key="' + key + '" onclick="toggleRowCheck(this);event.stopPropagation()"' + (selectedKeys.has(key) ? ' checked' : '') + '></td>' +
+        '<td><div class="doc-type-icon inline ' + d.typeClass + '">' + d.typeLabel + '</div></td>' +
+        '<td onclick="openDocDetail(\'' + key + '\')"><span class="doc-table-title">' + d.title + '</span>' + ai + '<span class="doc-table-desc">' + d.description + '</span></td>' +
+        '<td onclick="openDocDetail(\'' + key + '\')"><span class="doc-phase-tag ' + d.phaseClass + '">' + d.phase + '</span></td>' +
+        '<td style="position:relative"><span class="doc-status ' + d.statusClass + '" onclick="toggleStatusDropdown(\'' + key + '\',this);event.stopPropagation()">' + statusIcons[d.statusKey] + ' ' + d.status + '</span>' +
+          '<div class="status-dropdown" id="sd-' + key + '">' +
+            '<div class="status-option" onclick="changeStatus(\'' + key + '\',\'approved\',\'Approved\');event.stopPropagation()"><div class="opt-dot" style="background:#059669"></div>Approved</div>' +
+            '<div class="status-option" onclick="changeStatus(\'' + key + '\',\'in-review\',\'In Review\');event.stopPropagation()"><div class="opt-dot" style="background:#3B82F6"></div>In Review</div>' +
+            '<div class="status-option" onclick="changeStatus(\'' + key + '\',\'draft\',\'Draft\');event.stopPropagation()"><div class="opt-dot" style="background:#9CA3AF"></div>Draft</div>' +
+            '<div class="status-option" onclick="changeStatus(\'' + key + '\',\'archived\',\'Archived\');event.stopPropagation()"><div class="opt-dot" style="background:#D1D5DB"></div>Archived</div>' +
+          '</div></td>' +
+        '<td><span class="doc-version">' + d.version + '</span></td>' +
+        '<td onclick="openDocDetail(\'' + key + '\')"><div class="owner-cell"><div class="owner-avatar" style="background:' + d.ownerColor + '">' + d.ownerInitials + '</div><span class="owner-name">' + d.owner + '</span></div></td>' +
+        '<td onclick="openDocDetail(\'' + key + '\')"><span class="date-cell" title="' + d.date + '">' + relativeDate(d.date) + '</span></td>' +
+        '<td><div class="actions-cell">' +
+          '<button class="btn-approve' + (d.statusKey === 'approved' ? ' is-approved' : '') + '" onclick="approveDoc(\'' + key + '\');event.stopPropagation()" title="' + (d.statusKey === 'approved' ? 'Already approved' : 'Approve') + '"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></button>' +
+          '<button class="btn-delete" onclick="deleteDoc(\'' + key + '\');event.stopPropagation()" title="Delete">' + trashIcon + '</button>' +
+        '</div></td>' +
+      '</tr>';
+    }
+
+    function renderTable() {
+      const keys = getFilteredSortedKeys();
+      const total = keys.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const start = (currentPage - 1) * pageSize;
+      const pageKeys = keys.slice(start, start + pageSize);
+
+      const tbody = document.getElementById('docTableBody');
+      tbody.innerHTML = pageKeys.map(buildRow).join('');
+
+      document.getElementById('noResults').classList.toggle('visible', total === 0);
+      document.getElementById('docCount').textContent = total + ' document' + (total !== 1 ? 's' : '') + (total < getDocKeys().length ? ' filtered' : '');
+
+      // pagination
+      const end = Math.min(start + pageSize, total);
+      document.getElementById('paginationInfo').textContent = total === 0 ? 'No results' : 'Showing ' + (start+1) + '-' + end + ' of ' + total;
+      document.getElementById('prevPage').disabled = currentPage <= 1;
+      document.getElementById('nextPage').disabled = currentPage >= totalPages;
+      const controls = document.getElementById('paginationControls');
+      controls.querySelectorAll('.page-num').forEach(b => b.remove());
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn page-num' + (i === currentPage ? ' active' : '');
+        btn.textContent = i;
+        btn.onclick = () => { currentPage = i; renderTable(); };
+        controls.insertBefore(btn, document.getElementById('nextPage'));
+      }
+      updateStats();
+      updateBulkBar();
+    }
+
+    /* ── Filter + Sort ── */
+    function getFilteredSortedKeys() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const phase = document.getElementById('filterPhase').value;
+      const type = document.getElementById('filterType').value;
+      const status = document.getElementById('filterStatus').value;
+
+      let keys = getDocKeys().filter(k => {
+        const d = docData[k];
+        if (phase && d.phaseKey !== phase) return false;
+        if (type && d.typeClass !== type) return false;
+        if (status && d.statusKey !== status) return false;
+        if (query && !d.title.toLowerCase().includes(query) && !d.description.toLowerCase().includes(query)) return false;
+        return true;
+      });
+
+      keys.sort((a, b) => {
+        const da = docData[a], db = docData[b];
+        let va, vb;
+        switch (sortField) {
+          case 'title': va = da.title.toLowerCase(); vb = db.title.toLowerCase(); break;
+          case 'phase': va = da.phase; vb = db.phase; break;
+          case 'status': va = da.status; vb = db.status; break;
+          case 'owner': va = da.owner; vb = db.owner; break;
+          case 'date': va = da.dateSort; vb = db.dateSort; break;
+          default: va = da.dateSort; vb = db.dateSort;
+        }
+        if (va < vb) return sortDir === 'asc' ? -1 : 1;
+        if (va > vb) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+      return keys;
+    }
+
+    function sortBy(field) {
+      if (sortField === field) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; }
+      else { sortField = field; sortDir = field === 'date' ? 'desc' : 'asc'; }
+      document.querySelectorAll('.doc-table th').forEach(th => {
+        th.classList.remove('sorted');
+        const icon = th.querySelector('.sort-icon');
+        if (icon) icon.innerHTML = '&#9650;';
+      });
+      const th = document.querySelector('[data-sort="' + field + '"]');
+      if (th) {
+        th.classList.add('sorted');
+        th.querySelector('.sort-icon').innerHTML = sortDir === 'asc' ? '&#9650;' : '&#9660;';
+      }
+      currentPage = 1;
+      renderTable();
+    }
+
+    function onFilterChange() {
+      // Update select styling
+      ['filterPhase','filterType','filterStatus'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el.value) el.removeAttribute('data-default');
+        else el.setAttribute('data-default', '');
+      });
+      const hasFilters = document.getElementById('filterPhase').value || document.getElementById('filterType').value || document.getElementById('filterStatus').value;
+      document.getElementById('filterClear').classList.toggle('visible', hasFilters);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function clearAllFilters() {
+      ['filterPhase','filterType','filterStatus'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = '';
+        el.setAttribute('data-default', '');
+      });
+      document.getElementById('searchInput').value = '';
+      document.getElementById('filterClear').classList.remove('visible');
+      document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+      document.querySelector('.stat-card.s-total').classList.add('active');
+      currentPage = 1;
+      renderTable();
+    }
+
+    document.getElementById('searchInput').addEventListener('input', () => { currentPage = 1; renderTable(); });
+
+    function filterByStat(stat) {
+      document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+      document.querySelector('[data-stat="' + stat + '"]').classList.add('active');
+      const statusSelect = document.getElementById('filterStatus');
+      if (stat === 'all') { statusSelect.value = ''; statusSelect.setAttribute('data-default', ''); }
+      else { statusSelect.value = stat; statusSelect.removeAttribute('data-default'); }
+      document.getElementById('filterClear').classList.toggle('visible', stat !== 'all');
+      currentPage = 1;
+      renderTable();
+    }
+
+    function changePage(delta) { currentPage += delta; renderTable(); }
+    function changePageSize(val) { pageSize = parseInt(val); currentPage = 1; renderTable(); }
+
+    /* ── Stats ── */
+    function updateStats() {
+      const keys = getDocKeys();
+      const counts = { approved: 0, 'in-review': 0, draft: 0 };
+      keys.forEach(k => { if (counts[docData[k].statusKey] !== undefined) counts[docData[k].statusKey]++; });
+      document.getElementById('statTotal').textContent = keys.length;
+      document.getElementById('statApproved').textContent = counts.approved;
+      document.getElementById('statReview').textContent = counts['in-review'];
+      document.getElementById('statDraft').textContent = counts.draft;
+    }
+
+    /* ── Inline Status Change ── */
+    let openDropdown = null;
+    function toggleStatusDropdown(key, el) {
+      closeAllDropdowns();
+      const dd = document.getElementById('sd-' + key);
+      dd.classList.add('open');
+      openDropdown = dd;
+    }
+    function closeAllDropdowns() {
+      if (openDropdown) { openDropdown.classList.remove('open'); openDropdown = null; }
+    }
+    document.addEventListener('click', closeAllDropdowns);
+
+    function changeStatus(key, statusKey, statusLabel) {
+      docData[key].statusKey = statusKey;
+      docData[key].statusClass = statusKey;
+      docData[key].status = statusLabel;
+      closeAllDropdowns();
+      renderTable();
+    }
+
+    function approveDoc(key) {
+      if (docData[key].statusKey === 'approved') return;
+      docData[key].statusKey = 'approved';
+      docData[key].statusClass = 'approved';
+      docData[key].status = 'Approved';
+      renderTable();
+    }
+
+    /* ── Bulk Select ── */
+    function toggleRowCheck(cb) {
+      if (cb.checked) selectedKeys.add(cb.dataset.key);
+      else selectedKeys.delete(cb.dataset.key);
+      updateBulkBar();
+      updateHeaderCheck();
+    }
+    function toggleSelectAll(cb) {
+      const visible = getFilteredSortedKeys().slice((currentPage-1)*pageSize, currentPage*pageSize);
+      if (cb.checked) visible.forEach(k => selectedKeys.add(k));
+      else visible.forEach(k => selectedKeys.delete(k));
+      renderTable();
+    }
+    function updateHeaderCheck() {
+      const visible = getFilteredSortedKeys().slice((currentPage-1)*pageSize, currentPage*pageSize);
+      const checked = visible.filter(k => selectedKeys.has(k)).length;
+      const hc = document.getElementById('headerCheck');
+      hc.checked = checked === visible.length && visible.length > 0;
+      hc.indeterminate = checked > 0 && checked < visible.length;
+    }
+    function updateBulkBar() {
+      const bar = document.getElementById('bulkBar');
+      const count = selectedKeys.size;
+      bar.classList.toggle('visible', count > 0);
+      document.getElementById('bulkCount').textContent = count + ' selected';
+      updateHeaderCheck();
+    }
+    function bulkExport() { alert('Export ' + selectedKeys.size + ' documents (demo)'); }
+    function bulkStatusChange(status) {
+      selectedKeys.forEach(k => { if (docData[k]) { docData[k].statusKey = status; docData[k].statusClass = status; docData[k].status = 'Approved'; } });
+      selectedKeys.clear();
+      renderTable();
+    }
+    function bulkDelete() {
+      deleteTargetKey = null;
+      deleteTargetBulk = true;
+      document.getElementById('deleteTitle').textContent = 'Delete ' + selectedKeys.size + ' Documents';
+      document.getElementById('deleteDesc').innerHTML = 'Are you sure you want to delete <strong>' + selectedKeys.size + ' documents</strong>? This action cannot be undone.';
+      document.getElementById('deleteModal').classList.add('open');
+    }
+
+    /* ── Delete ── */
+    let deleteTargetKey = null, deleteTargetBulk = false;
+    function deleteDoc(key) {
+      deleteTargetKey = key; deleteTargetBulk = false;
+      document.getElementById('deleteTitle').textContent = 'Delete Document';
+      document.getElementById('deleteDesc').innerHTML = 'Are you sure you want to delete <strong>' + (docData[key] ? docData[key].title : key) + '</strong>? This action cannot be undone.';
+      document.getElementById('deleteModal').classList.add('open');
+    }
+    function closeDeleteModal() { document.getElementById('deleteModal').classList.remove('open'); deleteTargetKey = null; deleteTargetBulk = false; }
+    function confirmDelete() {
+      if (deleteTargetBulk) {
+        selectedKeys.forEach(k => delete docData[k]);
+        selectedKeys.clear();
+      } else if (deleteTargetKey) {
+        delete docData[deleteTargetKey];
+        selectedKeys.delete(deleteTargetKey);
+      }
+      closeDeleteModal();
+      renderTable();
+    }
+    document.getElementById('deleteModal').addEventListener('click', function(e) { if (e.target === this) closeDeleteModal(); });
+
+    /* ── Detail Viewer ── */
+    const overlay = document.getElementById('docDetailOverlay');
+    function openDocDetail(key) {
+      const doc = docData[key]; if (!doc) return;
+      document.getElementById('detailIcon').className = 'doc-type-icon ' + doc.typeClass;
+      document.getElementById('detailIcon').style.cssText = 'width:36px;height:36px;font-size:10px';
+      document.getElementById('detailIcon').textContent = doc.typeLabel;
+      document.getElementById('detailTitle').textContent = doc.title;
+      let badgesHTML = '<span class="doc-phase-tag ' + doc.phaseClass + '">' + doc.phase + '</span>';
+      badgesHTML += '<span class="doc-status ' + doc.statusClass + '">' + statusIcons[doc.statusKey] + ' ' + doc.status + '</span>';
+      if (doc.aiGenerated) badgesHTML += '<span class="doc-ai-badge">&#10022; AI Generated</span>';
+      document.getElementById('detailBadges').innerHTML = badgesHTML;
+      let metaHTML = '<div class="doc-meta-item"><label>Phase</label><span>' + doc.phase + '</span></div>';
+      metaHTML += '<div class="doc-meta-item"><label>Owner</label><span>' + doc.owner + '</span></div>';
+      metaHTML += '<div class="doc-meta-item"><label>Version</label><span>' + doc.version + '</span></div>';
+      metaHTML += '<div class="doc-meta-item"><label>Last Updated</label><span>' + doc.date + '</span></div>';
+      document.getElementById('detailMeta').innerHTML = metaHTML;
+      document.getElementById('detailContent').textContent = doc.content;
+      let vHTML = '';
+      doc.versionHistory.forEach(v => { vHTML += '<li><span class="vt-version">' + v.version + '</span><span class="vt-date">' + v.date + '</span><br><span class="vt-author">' + v.author + '</span><span class="vt-changes">' + v.changes + '</span></li>'; });
+      document.getElementById('detailVersions').innerHTML = vHTML;
+      let rHTML = '';
+      doc.relatedDocs.forEach(title => {
+        const relKey = Object.keys(docData).find(k => docData[k].title === title);
+        rHTML += relKey ? '<li onclick="openDocDetail(\'' + relKey + '\')">' + title + '</li>' : '<li>' + title + '</li>';
+      });
+      document.getElementById('detailRelated').innerHTML = rHTML;
+      overlay.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeDocDetail() { overlay.classList.remove('open'); document.body.style.overflow = ''; }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        if (document.getElementById('deleteModal').classList.contains('open')) closeDeleteModal();
+        else closeDocDetail();
+      }
+    });
+
+    // Init
+    renderTable();
+  </script>
 </body>
 </html>
