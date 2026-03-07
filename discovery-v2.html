@@ -491,20 +491,145 @@
     .mtg-key-decision:last-child { border-bottom: none; }
     .mtg-decision-icon { width: 16px; height: 16px; border-radius: 50%; background: var(--purple-light); color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 8px; font-weight: 800; }
 
-    /* Knowledge graph placeholder */
-    .kg-placeholder { height: 300px; background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--gray-400); margin-bottom: 16px; }
-    .kg-placeholder svg { width: 40px; height: 40px; stroke: var(--gray-300); fill: none; stroke-width: 1.5; }
-    .kg-stats { display: flex; gap: 10px; }
-    .kg-stat { flex: 1; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
-    .kg-stat-val { font-size: 20px; font-weight: 800; color: var(--dark); }
-    .kg-stat-label { font-size: 10px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    /* KG expandable */
+    .kg-row { cursor: pointer; }
+    .kg-row:hover td { background: var(--gray-50); }
+    .kg-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .kg-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--purple); }
+    .kg-detail-row { display: none; }
+    .kg-detail-row.open { display: table-row; }
+    .kg-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+
+    /* Knowledge graph */
+    .kg-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+    .kg-stat { flex: 1; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 10px; text-align: center; }
+    .kg-stat-val { font-size: 18px; font-weight: 800; color: var(--dark); }
+    .kg-stat-label { font-size: 9px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
     .kg-layers { margin-top: 14px; }
     .kg-layer { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-100); }
     .kg-layer:last-child { border-bottom: none; }
     .kg-layer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .kg-layer-name { font-size: 12px; font-weight: 500; color: var(--gray-600); flex: 1; }
-    .kg-layer-meta { font-size: 11px; color: var(--gray-400); }
     .kg-layer-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .kg-mini-graph { height: 200px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); position: relative; overflow: hidden; margin-bottom: 14px; }
+    .kg-node { position: absolute; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 8px; font-weight: 700; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; z-index: 2; }
+    .kg-node:hover { transform: scale(1.2); box-shadow: 0 0 12px rgba(0,0,0,0.15); z-index: 3; }
+    .kg-node.person { width: 32px; height: 32px; background: var(--purple-light); color: var(--purple); border: 2px solid var(--purple); }
+    .kg-node.tech { width: 28px; height: 28px; background: var(--green-light); color: #059669; border: 2px solid var(--green); }
+    .kg-node.feature { width: 26px; height: 26px; background: var(--info-light); color: var(--info); border: 2px solid var(--info); }
+    .kg-node.decision { width: 24px; height: 24px; background: var(--warning-light); color: var(--warning); border: 2px solid var(--warning); }
+    .kg-edge { position: absolute; height: 1px; background: var(--gray-300); transform-origin: 0 0; z-index: 1; }
+    .kg-legend { display: flex; gap: 14px; margin-bottom: 14px; }
+    .kg-legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--gray-500); }
+    .kg-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* Meeting Prep */
+    .mp-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius); margin-bottom: 16px; }
+    .mp-badge { font-size: 9px; font-weight: 700; padding: 3px 10px; border-radius: 10px; background: var(--green-light); color: #059669; }
+    .mp-title { font-size: 14px; font-weight: 700; flex: 1; }
+    .mp-date { font-size: 11px; color: var(--gray-400); }
+    .mp-section { margin-bottom: 18px; }
+    .mp-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .mp-section-icon { width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .mp-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); }
+    .mp-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); margin-bottom: 6px; transition: border-color 0.15s; }
+    .mp-item:hover { border-color: var(--green); }
+    .mp-item-priority { font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 3px; white-space: nowrap; margin-top: 2px; }
+    .mp-item-priority.high { background: var(--danger-light); color: var(--danger); }
+    .mp-item-priority.medium { background: var(--warning-light); color: var(--warning); }
+    .mp-item-body { flex: 1; }
+    .mp-item-question { font-size: 12px; font-weight: 600; margin-bottom: 3px; }
+    .mp-item-context { font-size: 11px; color: var(--gray-500); line-height: 1.5; }
+    .mp-item-who { font-size: 10px; color: var(--gray-400); margin-top: 4px; }
+    .mp-item-who strong { color: var(--gray-600); }
+    .mp-time-est { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--gray-400); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--gray-100); }
+    .mp-total { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); border-radius: var(--radius-sm); margin-top: 16px; }
+    .mp-total-label { font-size: 11px; font-weight: 600; color: #059669; flex: 1; }
+    .mp-total-val { font-size: 14px; font-weight: 800; color: #059669; }
+
+    /* Dark mode */
+    body.dark-mode { background: #0B0D14; color: #E8EAF0; }
+    body.dark-mode .main { background: #0B0D14; }
+    body.dark-mode .topbar { background: #141722; border-color: #252A3A; }
+    body.dark-mode .topbar .project-name { color: #E8EAF0; }
+    body.dark-mode .topbar .project-selector { border-color: #252A3A; background: #141722; }
+    body.dark-mode .topbar .search-bar input { background: #1C2030; border-color: #252A3A; color: #E8EAF0; }
+    body.dark-mode .topbar .icon-btn { background: #141722; border-color: #252A3A; }
+    body.dark-mode .topbar .icon-btn svg { color: #6B7194; }
+    body.dark-mode .chat-panel { background: #0B0D14; }
+    body.dark-mode .chat-session-header { background: #141722; border-color: #252A3A; }
+    body.dark-mode .chat-session-title { color: #E8EAF0; }
+    body.dark-mode .chat-action-btn { background: #141722; border-color: #252A3A; }
+    body.dark-mode .msg-bubble { background: #141722 !important; border-color: #252A3A !important; color: #E8EAF0 !important; }
+    body.dark-mode .chat-msg.user .msg-bubble { background: #1C2030 !important; }
+    body.dark-mode .chat-input-box { background: #141722; border-color: #252A3A; }
+    body.dark-mode .chat-input-box textarea { color: #E8EAF0; }
+    body.dark-mode .wf-plus-btn { background: #141722; border-color: #252A3A; color: #6B7194; }
+    body.dark-mode .wf-popup { background: #141722; border-color: #252A3A; }
+    body.dark-mode .wf-popup-header { border-color: #252A3A; }
+    body.dark-mode .wf-popup-item:hover { background: #1C2030; }
+    body.dark-mode .wfp-icon { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .wfp-label { color: #E8EAF0; }
+    body.dark-mode .msg-suggestion { background: #141722; border-color: #252A3A; color: #6B7194; }
+    body.dark-mode .msg-suggestion:hover { background: #1C2030; border-color: var(--green); color: #E8EAF0; }
+    body.dark-mode .msg-card { background: #141722; border-color: #252A3A; }
+    body.dark-mode .data-panel { background: #141722; }
+    body.dark-mode .dp-header { border-color: #252A3A; }
+    body.dark-mode .dp-tabs { border-color: #252A3A; }
+    body.dark-mode .dp-tab { color: #6B7194; }
+    body.dark-mode .dp-tab:hover { color: #9CA3AF; }
+    body.dark-mode .dp-tab.active { color: var(--green); }
+    body.dark-mode .dp-tab .tab-count { background: #1C2030; color: #6B7194; }
+    body.dark-mode .dp-tab.active .tab-count { background: var(--green-light); color: var(--green); }
+    body.dark-mode .dp-expand-btn { background: #141722; border-color: #252A3A; }
+    body.dark-mode .dp-expand-btn svg { stroke: #6B7194; }
+    body.dark-mode .panel-filter-btn { background: #141722; border-color: #252A3A; color: #6B7194; }
+    body.dark-mode .panel-filter-btn.active { background: var(--green-light); border-color: var(--green); color: var(--green); }
+    body.dark-mode .panel-search { background: #1C2030; border-color: #252A3A; color: #E8EAF0; }
+    body.dark-mode .panel-table th { color: #6B7194; border-color: #252A3A; }
+    body.dark-mode .panel-table td { border-color: #1C2030; color: #E8EAF0; }
+    body.dark-mode .panel-table tbody tr:hover { background: #1C2030; }
+    body.dark-mode .fact-detail { background: #0B0D14; border-color: #252A3A; }
+    body.dark-mode .fact-detail-desc { color: #9CA3AF; }
+    body.dark-mode .fact-detail-tag { background: #1C2030; border-color: #252A3A; color: #9CA3AF; }
+    body.dark-mode .gap-ai-suggestion { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .gap-resolve-input { background: #0B0D14; border-color: #252A3A; color: #E8EAF0; }
+    body.dark-mode .contra-side { background: #0B0D14; border-color: #252A3A; }
+    body.dark-mode .gap-resolution-box { background: #0B0D14; border-color: #252A3A; }
+    body.dark-mode .kg-stat { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .kg-stat-val { color: #E8EAF0; }
+    body.dark-mode .kg-mini-graph { background: #0B0D14; border-color: #252A3A; }
+    body.dark-mode .mp-header { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .mp-item { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .rdp-score-row { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .rdp-item { border-color: #252A3A; }
+    body.dark-mode .split-divider { background: #252A3A; }
+    body.dark-mode .chat-collapsed-strip { background: #141722; border-color: #252A3A; }
+    body.dark-mode .data-collapsed-strip { background: #141722; border-color: #252A3A; }
+    body.dark-mode .collapsed-expand-btn { background: #141722; border-color: #252A3A; }
+    body.dark-mode .collapsed-label { color: #6B7194; }
+    body.dark-mode .context-viewer { background: #141722; }
+    body.dark-mode .cv-header { border-color: #252A3A; }
+    body.dark-mode .cv-title { color: #E8EAF0; }
+    body.dark-mode .cv-section-title { color: #6B7194; border-color: #252A3A; }
+    body.dark-mode .cv-text { color: #9CA3AF; }
+    .dark-toggle { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .dark-toggle:hover { border-color: var(--gray-300); background: var(--gray-50); }
+    .dark-toggle svg { width: 18px; height: 18px; stroke: var(--gray-600); fill: none; stroke-width: 1.8; }
+    body.dark-mode .dark-toggle { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .dark-toggle svg { stroke: var(--warning); }
+
+    /* Contradiction timeline */
+    .contra-timeline { display: flex; align-items: center; gap: 0; margin: 12px 0; position: relative; }
+    .contra-tl-node { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; z-index: 2; }
+    .contra-tl-dot { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; }
+    .contra-tl-label { font-size: 9px; color: var(--gray-400); white-space: nowrap; }
+    .contra-tl-line { flex: 1; height: 2px; background: var(--gray-200); min-width: 20px; }
+    .contra-tl-line.conflict { background: var(--danger); height: 2px; background: repeating-linear-gradient(90deg, var(--danger) 0, var(--danger) 4px, transparent 4px, transparent 8px); }
+
+    /* Document template badge */
+    .doc-tpl-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--purple-light); color: var(--purple); margin-left: 6px; }
+    .doc-tpl-badge svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; }
 
     /* Readiness widget in header */
     .dp-readiness { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s; }
@@ -680,6 +805,7 @@
         <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
         <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search requirements, facts, documents..."></div>
         <div class="topbar-actions">
+          <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode" id="darkToggle"><svg viewBox="0 0 24 24" id="darkIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
           <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
           <button class="btn-primary"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Upload Document</button>
         </div>
@@ -936,6 +1062,7 @@
             <div class="dp-tab" data-dtab="docs" onclick="switchDataTab(this)">Documents <span class="tab-count">5</span></div>
             <div class="dp-tab" data-dtab="meetings" onclick="switchDataTab(this)">Meeting Notes <span class="tab-count">8</span></div>
             <div class="dp-tab" data-dtab="knowledge" onclick="switchDataTab(this)">Knowledge Graph</div>
+            <div class="dp-tab" data-dtab="meeting-prep" onclick="switchDataTab(this)">Meeting Prep <span class="tab-count" style="background:var(--warning-light);color:var(--warning);">9</span></div>
           </div>
 
           <div class="dp-body">
@@ -1026,22 +1153,47 @@
 
             <!-- KNOWLEDGE GRAPH TAB -->
             <div class="dp-tab-content" data-dtab="knowledge">
-              <div class="kg-placeholder">
-                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="7.5" x2="8.5" y2="16.5"/></svg>
-                <span style="font-size:13px;font-weight:600;">Interactive Knowledge Graph</span>
-                <span style="font-size:11px;">78 entities &middot; 234 relationships</span>
-              </div>
               <div class="kg-stats">
                 <div class="kg-stat"><div class="kg-stat-val">34</div><div class="kg-stat-label">Documents</div></div>
                 <div class="kg-stat"><div class="kg-stat-val">156</div><div class="kg-stat-label">Facts</div></div>
-                <div class="kg-stat"><div class="kg-stat-val">78</div><div class="kg-stat-label">Entities</div></div>
-                <div class="kg-stat"><div class="kg-stat-val">234</div><div class="kg-stat-label">Relations</div></div>
+                <div class="kg-stat"><div class="kg-stat-val" id="kgEntityCount">0</div><div class="kg-stat-label">Entities</div></div>
+                <div class="kg-stat"><div class="kg-stat-val" id="kgRelCount">0</div><div class="kg-stat-label">Relations</div></div>
               </div>
-              <div class="kg-layers">
+              <div class="kg-legend">
+                <div class="kg-legend-item"><div class="kg-legend-dot" style="background:var(--purple);"></div>People</div>
+                <div class="kg-legend-item"><div class="kg-legend-dot" style="background:var(--green);"></div>Technology</div>
+                <div class="kg-legend-item"><div class="kg-legend-dot" style="background:var(--info);"></div>Features</div>
+                <div class="kg-legend-item"><div class="kg-legend-dot" style="background:var(--warning);"></div>Decisions</div>
+              </div>
+              <div class="kg-mini-graph" id="kgMiniGraph"></div>
+              <div class="panel-filter" style="margin-bottom:10px;">
+                <button class="panel-filter-btn active" onclick="filterKG(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterKG(this,'person')">People</button>
+                <button class="panel-filter-btn" onclick="filterKG(this,'tech')">Technology</button>
+                <button class="panel-filter-btn" onclick="filterKG(this,'feature')">Features</button>
+                <button class="panel-filter-btn" onclick="filterKG(this,'decision')">Decisions</button>
+                <input type="text" class="panel-search" placeholder="Search entities..." oninput="searchKG(this.value)">
+              </div>
+              <table class="panel-table" id="kgTable">
+                <thead><tr><th style="width:20px"></th><th>Type</th><th>Entity</th><th>Connections</th><th>Source</th></tr></thead>
+                <tbody id="kgBody"></tbody>
+              </table>
+              <div class="kg-layers" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--gray-200);">
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);margin-bottom:8px;">Data Sources</div>
                 <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--info);"></div><div class="kg-layer-name">RAGFlow — 34 docs indexed</div><div class="kg-layer-status" style="background:var(--info-light);color:var(--info);">OK</div></div>
                 <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--green);"></div><div class="kg-layer-name">Mem0 Facts — 156 stored</div><div class="kg-layer-status" style="background:var(--green-light);color:#059669;">OK</div></div>
                 <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--purple);"></div><div class="kg-layer-name">Neo4j Graph — 78 entities, 234 rels</div><div class="kg-layer-status" style="background:var(--purple-light);color:var(--purple);">OK</div></div>
               </div>
+            </div>
+
+            <!-- MEETING PREP TAB -->
+            <div class="dp-tab-content" data-dtab="meeting-prep">
+              <div class="mp-header">
+                <div class="mp-badge">AI-Generated</div>
+                <div class="mp-title">Meeting 9 — Agenda</div>
+                <div class="mp-date">Suggested: Next Tuesday</div>
+              </div>
+              <div id="meetingPrepContent"></div>
             </div>
 
             <!-- READINESS DETAIL PANEL -->
@@ -1921,7 +2073,19 @@
           return '<span class="fact-detail-tag req">' + rid + (r ? ' ' + r.title.substring(0, 25) + '...' : '') + '</span>';
         }).join('');
 
+        // Contradiction timeline
+        var tlHtml = '<div class="contra-timeline">' +
+          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--green-light);color:#059669;border:2px solid var(--green);">' + c.sideA.meeting.replace('Meeting ','M') + '</div><div class="contra-tl-label">' + c.sideA.date + '</div></div>' +
+          '<div class="contra-tl-line"></div>' +
+          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--danger-light);color:var(--danger);border:2px solid var(--danger);">!</div><div class="contra-tl-label">Conflict</div></div>' +
+          '<div class="contra-tl-line conflict"></div>' +
+          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--warning-light);color:var(--warning);border:2px solid var(--warning);">' + c.sideB.meeting.replace('Meeting ','M') + '</div><div class="contra-tl-label">' + c.sideB.date + '</div></div>' +
+          '<div class="contra-tl-line"></div>' +
+          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:' + (c.status === 'resolved' ? 'var(--green-light);color:#059669;border:2px solid var(--green);' : 'var(--gray-100);color:var(--gray-400);border:2px solid var(--gray-300);') + '">R</div><div class="contra-tl-label">' + (c.status === 'resolved' ? 'Resolved' : 'Pending') + '</div></div>' +
+          '</div>';
+
         var bodyHtml = '<div class="fact-detail">' +
+          tlHtml +
           '<div class="fact-detail-desc">' + c.details + '</div>' +
           '<div class="contra-compare">' +
             '<div class="contra-side side-a">' +
@@ -2038,31 +2202,31 @@
 
     // === DOCUMENTS DATA & RENDERING ===
     var docsData = [
-      { id: 'd1', type: 'DOC', typeClass: 'brief', title: 'Project Discovery Brief', status: 'approved', version: 'v2.1', owner: 'Sarah Chen', date: 'Mar 1', details: 'Comprehensive overview of project goals, stakeholders, constraints, and success criteria. Generated from meetings 1–6 with AI-assisted synthesis.', relatedFacts: ['f1','f2','f3'], relatedReqs: ['FR-001','FR-002'], versions: [
+      { id: 'd1', type: 'DOC', typeClass: 'brief', title: 'Project Discovery Brief', status: 'approved', version: 'v2.1', owner: 'Sarah Chen', date: 'Mar 1', template: 'discovery-brief', details: 'Comprehensive overview of project goals, stakeholders, constraints, and success criteria. Generated from meetings 1–6 with AI-assisted synthesis.', relatedFacts: ['f1','f2','f3'], relatedReqs: ['FR-001','FR-002'], versions: [
         { tag: 'v2.1', date: 'Mar 1', change: 'Updated stakeholder matrix after Meeting 6' },
         { tag: 'v2.0', date: 'Feb 22', change: 'Major revision — added competitive analysis section' },
         { tag: 'v1.0', date: 'Feb 10', change: 'Initial draft from kickoff notes' }
       ]},
-      { id: 'd2', type: 'DOC', typeClass: 'brief', title: 'MVP Scope Freeze', status: 'approved', version: 'v1.3', owner: 'Sarah Chen', date: 'Feb 28', details: 'Locked MVP feature set after scope finalization meeting. Includes in/out feature list and phasing strategy.', relatedFacts: ['f5','f7'], relatedReqs: ['FR-003','FR-005','FR-008'], versions: [
+      { id: 'd2', type: 'DOC', typeClass: 'brief', title: 'MVP Scope Freeze', status: 'approved', version: 'v1.3', owner: 'Sarah Chen', date: 'Feb 28', template: 'mvp-scope', details: 'Locked MVP feature set after scope finalization meeting. Includes in/out feature list and phasing strategy.', relatedFacts: ['f5','f7'], relatedReqs: ['FR-003','FR-005','FR-008'], versions: [
         { tag: 'v1.3', date: 'Feb 28', change: 'Added deferred features appendix' },
         { tag: 'v1.0', date: 'Feb 22', change: 'Initial scope document from Meeting 4' }
       ]},
-      { id: 'd3', type: 'SPEC', typeClass: 'spec', title: 'Functional Requirements', status: 'approved', version: 'v3.0', owner: 'AI + Sarah Chen', date: 'Feb 28', details: 'Complete functional requirements specification. Auto-generated from extracted requirements across all meetings, then reviewed and approved by PO.', relatedFacts: ['f1','f6','f8'], relatedReqs: ['FR-001','FR-002','FR-003','FR-004','FR-005'], versions: [
+      { id: 'd3', type: 'SPEC', typeClass: 'spec', title: 'Functional Requirements', status: 'approved', version: 'v3.0', owner: 'AI + Sarah Chen', date: 'Feb 28', template: 'func-reqs', details: 'Complete functional requirements specification. Auto-generated from extracted requirements across all meetings, then reviewed and approved by PO.', relatedFacts: ['f1','f6','f8'], relatedReqs: ['FR-001','FR-002','FR-003','FR-004','FR-005'], versions: [
         { tag: 'v3.0', date: 'Feb 28', change: 'Full rewrite — consolidated from 47 requirements' },
         { tag: 'v2.0', date: 'Feb 15', change: 'Added auth & security requirements' },
         { tag: 'v1.0', date: 'Feb 10', change: 'Initial extraction from Meetings 1–2' }
       ]},
-      { id: 'd4', type: 'DOC', typeClass: 'brief', title: 'Video Provider Cost Analysis', status: 'draft', version: 'v0.1', owner: 'AI', date: 'Mar 18', details: 'Comparative analysis of video streaming providers (Mux, Cloudflare Stream, AWS IVS). Cost projections based on estimated concurrent users.', relatedFacts: ['f9','f10'], relatedReqs: ['FR-006'], versions: [
+      { id: 'd4', type: 'DOC', typeClass: 'brief', title: 'Video Provider Cost Analysis', status: 'draft', version: 'v0.1', owner: 'AI', date: 'Mar 18', template: null, details: 'Comparative analysis of video streaming providers (Mux, Cloudflare Stream, AWS IVS). Cost projections based on estimated concurrent users.', relatedFacts: ['f9','f10'], relatedReqs: ['FR-006'], versions: [
         { tag: 'v0.1', date: 'Mar 18', change: 'AI-generated draft — awaiting PO review' }
       ]},
-      { id: 'd5', type: 'SPEC', typeClass: 'spec', title: 'Gap Analysis Report — NFRs', status: 'in-review', version: 'v1.0', owner: 'AI', date: 'Today', details: 'Automated gap analysis of non-functional requirements. Identifies missing performance, scalability, and security specifications.', relatedFacts: ['f11','f12'], relatedReqs: ['FR-007','FR-009'], versions: [
+      { id: 'd5', type: 'SPEC', typeClass: 'spec', title: 'Gap Analysis Report — NFRs', status: 'in-review', version: 'v1.0', owner: 'AI', date: 'Today', template: 'gap-analysis', details: 'Automated gap analysis of non-functional requirements. Identifies missing performance, scalability, and security specifications.', relatedFacts: ['f11','f12'], relatedReqs: ['FR-007','FR-009'], versions: [
         { tag: 'v1.0', date: 'Today', change: 'Generated from gap detection across all meetings' }
       ]},
-      { id: 'd6', type: 'SPEC', typeClass: 'spec', title: 'Auth & API Contract', status: 'approved', version: 'v1.2', owner: 'David Miller', date: 'Mar 14', details: 'OpenAPI specification for authentication endpoints. Covers SSO flow, token management, and session handling.', relatedFacts: ['f1','f4'], relatedReqs: ['FR-001'], versions: [
+      { id: 'd6', type: 'SPEC', typeClass: 'spec', title: 'Auth & API Contract', status: 'approved', version: 'v1.2', owner: 'David Miller', date: 'Mar 14', template: 'adr', details: 'OpenAPI specification for authentication endpoints. Covers SSO flow, token management, and session handling.', relatedFacts: ['f1','f4'], relatedReqs: ['FR-001'], versions: [
         { tag: 'v1.2', date: 'Mar 14', change: 'Updated SSO flow diagram after Meeting 7' },
         { tag: 'v1.0', date: 'Feb 15', change: 'Initial API contract from Meeting 3' }
       ]},
-      { id: 'd7', type: 'DOC', typeClass: 'brief', title: 'Stakeholder Interview Summary', status: 'approved', version: 'v1.0', owner: 'Sarah Chen', date: 'Feb 12', details: 'Summary of interviews with 5 key stakeholders. Captures priorities, concerns, and success metrics from each perspective.', relatedFacts: ['f2','f3','f5'], relatedReqs: ['FR-002','FR-004'], versions: [
+      { id: 'd7', type: 'DOC', typeClass: 'brief', title: 'Stakeholder Interview Summary', status: 'approved', version: 'v1.0', owner: 'Sarah Chen', date: 'Feb 12', template: 'stakeholder-summary', details: 'Summary of interviews with 5 key stakeholders. Captures priorities, concerns, and success metrics from each perspective.', relatedFacts: ['f2','f3','f5'], relatedReqs: ['FR-002','FR-004'], versions: [
         { tag: 'v1.0', date: 'Feb 12', change: 'Compiled from Meetings 1–2 interviews' }
       ]}
     ];
@@ -2096,9 +2260,11 @@
         if (d.status === 'draft') actionHtml = '<button class="fact-action-btn confirm" onclick="approveDoc(\'' + d.id + '\',event)">Review</button>';
         else if (d.status === 'in-review') actionHtml = '<button class="fact-action-btn confirm" onclick="approveDoc(\'' + d.id + '\',event)">Approve</button>';
 
+        var tplBadge = d.template ? '<span class="doc-tpl-badge"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' + d.template + '</span>' : '';
+
         tr.innerHTML = '<td class="chevron-cell"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></td>' +
           '<td><span class="type-badge ' + d.typeClass + '">' + d.type + '</span></td>' +
-          '<td style="font-weight:600;">' + d.title + '</td>' +
+          '<td style="font-weight:600;">' + d.title + tplBadge + '</td>' +
           '<td><span class="status-pill ' + d.status + '">' + statusLabel + '</span></td>' +
           '<td style="font-size:12px;color:var(--gray-500);">' + d.version + '</td>' +
           '<td style="font-size:12px;color:var(--gray-400);">' + d.date + '</td>';
@@ -2110,9 +2276,10 @@
         detailTr.setAttribute('data-ddetail', d.id);
         var bodyHtml = '<div style="padding-top:10px;">';
         bodyHtml += '<div style="font-size:12px;color:var(--gray-600);line-height:1.6;margin-bottom:12px;">' + d.details + '</div>';
-        bodyHtml += '<div style="display:flex;gap:16px;margin-bottom:12px;font-size:11px;color:var(--gray-500);">' +
+        bodyHtml += '<div style="display:flex;gap:16px;margin-bottom:12px;font-size:11px;color:var(--gray-500);flex-wrap:wrap;">' +
           '<span><strong>Owner:</strong> ' + d.owner + '</span>' +
           '<span><strong>Version:</strong> ' + d.version + '</span>' +
+          (d.template ? '<span><strong>Template:</strong> <a href="settings.html" style="color:var(--purple);text-decoration:none;">' + d.template + '</a></span>' : '<span style="color:var(--gray-400);">No template (manual)</span>') +
           '</div>';
 
         // Version history
@@ -2642,6 +2809,264 @@
     });
     popover.addEventListener('mouseover', function() { clearTimeout(hideTimer); });
     popover.addEventListener('mouseout', function() { hideEntityPopover(); });
+
+    // === KNOWLEDGE GRAPH DATA & RENDERING ===
+    var kgData = [
+      { id: 'e1', name: 'Sarah Chen', type: 'person', connections: 12, source: 'M1–M7', rels: ['Decided MSAL.js', 'Owns MVP scope', 'Leads tech stack'], details: 'Tech Lead. Present in 6 of 8 meetings. Key decision maker for architecture and auth.' },
+      { id: 'e2', name: 'David Miller', type: 'person', connections: 9, source: 'M1–M7', rels: ['Raised social login', 'Drafted API contract', 'Backend architecture'], details: 'Backend Developer. Involved in auth and API decisions. Source of social login contradiction.' },
+      { id: 'e3', name: 'Raj Patel', type: 'person', connections: 5, source: 'M3, M7', rels: ['Session timeout design', 'Security review', 'AES-256 decision'], details: 'Security Lead. Focused on auth security, encryption, and session management.' },
+      { id: 'e4', name: 'Ana Petrovic', type: 'person', connections: 4, source: 'M6, M7', rels: ['Corporate policy input', 'Azure AD requirement', 'Admin dashboard request'], details: 'Client stakeholder. Provided corporate policy constraints and Azure AD requirements.' },
+      { id: 'e5', name: 'Milan Kovac', type: 'person', connections: 7, source: 'M4–M6', rels: ['Tech stack decision', 'Whiteboard architecture', 'OT vs CRDT resolution'], details: 'Frontend Developer. Led whiteboard feature design and tech stack evaluation.' },
+      { id: 'e6', name: 'MSAL.js', type: 'tech', connections: 8, source: 'M7', rels: ['Auth library for SSO', 'Decided by Sarah Chen', 'Supports MFA natively'], details: 'Microsoft Authentication Library v2. Client-side auth with popup fallback and PKCE support.' },
+      { id: 'e7', name: 'Azure AD', type: 'tech', connections: 10, source: 'M3, M7', rels: ['Identity provider', 'Required by client', 'Supports RBAC groups'], details: 'Microsoft identity platform. Non-negotiable client requirement for all corporate users.' },
+      { id: 'e8', name: 'PostgreSQL', type: 'tech', connections: 6, source: 'M4, M5', rels: ['Primary database', 'pgvector for AI', 'Trigram search'], details: 'PostgreSQL 15 with pgvector extension for AI features and full-text search.' },
+      { id: 'e9', name: 'Socket.io', type: 'tech', connections: 4, source: 'M5', rels: ['WebSocket transport', 'Whiteboard sync', 'Redis Pub/Sub scaling'], details: 'Real-time communication library for whiteboard collaboration with OT.' },
+      { id: 'e10', name: 'React', type: 'tech', connections: 5, source: 'M5', rels: ['Frontend framework', 'Team familiarity', 'TypeScript integration'], details: 'React 18 with TypeScript. Chosen for team experience and ecosystem maturity.' },
+      { id: 'e11', name: 'Course Catalog', type: 'feature', connections: 4, source: 'M3', rels: ['Full-text search', 'Filter by category', 'Must-have'], details: 'Searchable course catalog with trigram-based search and filtering.' },
+      { id: 'e12', name: 'Whiteboard', type: 'feature', connections: 7, source: 'M4, M5', rels: ['Real-time collab', 'OT conflict resolution', 'Multi-user cursors'], details: 'Collaborative whiteboard with real-time sync, operational transformation, and cursor sharing.' },
+      { id: 'e13', name: 'Video Player', type: 'feature', connections: 5, source: 'M5', rels: ['HLS/DASH playback', 'Position bookmarking', 'Cloudflare Stream'], details: 'Video playback with bookmarking, resume capability, and timestamped notes.' },
+      { id: 'e14', name: 'SSO Only for MVP', type: 'decision', connections: 6, source: 'M3, M8', rels: ['No social login in MVP', 'Microsoft SSO via MSAL.js', 'David Miller confirmed M8'], details: 'Key decision: Microsoft SSO only for MVP. Social login deferred to Phase 2.' },
+      { id: 'e15', name: 'OT over CRDT', type: 'decision', connections: 3, source: 'M5', rels: ['Simpler implementation', 'Server-connected model', 'Milan revised position'], details: 'Operational Transformation chosen over CRDTs for whiteboard conflict resolution.' },
+      { id: 'e16', name: 'Cloudflare Stream', type: 'decision', connections: 3, source: 'M5', rels: ['Lower cost', 'Built-in DRM', 'Simpler API'], details: 'Cloudflare Stream chosen over AWS MediaConvert for video hosting in MVP.' },
+      { id: 'e17', name: 'Progress Tracking', type: 'feature', connections: 3, source: 'M5', rels: ['Per-module completion', 'Dashboard stats', 'Enterprise value'], details: 'Track learning completion percentage per module and course with estimated time remaining.' },
+      { id: 'e18', name: 'RBAC', type: 'feature', connections: 5, source: 'M3, M6', rels: ['3 roles defined', 'Azure AD group claims', 'MFA for admins only'], details: 'Role-Based Access Control: Admin, Instructor, Learner mapped from Azure AD groups.' }
+    ];
+
+    var currentKGFilter = 'all';
+    var currentKGSearch = '';
+
+    function renderKG() {
+      var tbody = document.getElementById('kgBody');
+      tbody.innerHTML = '';
+      var chevronRight = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+      var typeCounts = { person: 0, tech: 0, feature: 0, decision: 0 };
+      var totalRels = 0;
+
+      kgData.forEach(function(e) {
+        typeCounts[e.type]++;
+        totalRels += e.connections;
+
+        if (currentKGFilter !== 'all' && e.type !== currentKGFilter) return;
+        if (currentKGSearch && e.name.toLowerCase().indexOf(currentKGSearch) === -1 && e.details.toLowerCase().indexOf(currentKGSearch) === -1) return;
+
+        var typeColors = { person: 'var(--purple)', tech: 'var(--green)', feature: 'var(--info)', decision: 'var(--warning)' };
+        var typeBg = { person: 'var(--purple-light)', tech: 'var(--green-light)', feature: 'var(--info-light)', decision: 'var(--warning-light)' };
+        var typeLabel = e.type.charAt(0).toUpperCase() + e.type.slice(1);
+
+        var tr = document.createElement('tr');
+        tr.className = 'kg-row';
+        tr.setAttribute('data-eid', e.id);
+        tr.onclick = function() { toggleKGDetail(e.id); };
+        tr.innerHTML = '<td class="chevron-cell">' + chevronRight + '</td>' +
+          '<td><span style="font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:' + typeBg[e.type] + ';color:' + typeColors[e.type] + ';">' + typeLabel + '</span></td>' +
+          '<td style="font-weight:600;">' + e.name + '</td>' +
+          '<td style="font-size:11px;color:var(--gray-500);">' + e.connections + ' rels</td>' +
+          '<td style="font-size:11px;color:var(--gray-400);">' + e.source + '</td>';
+        tbody.appendChild(tr);
+
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'kg-detail-row';
+        detailTr.setAttribute('data-edetail', e.id);
+        var relsHtml = e.rels.map(function(r) { return '<span class="fact-detail-tag">' + r + '</span>'; }).join('');
+        detailTr.innerHTML = '<td colspan="5"><div class="fact-detail">' +
+          '<div class="fact-detail-desc">' + e.details + '</div>' +
+          '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Relationships</span><div class="fact-detail-tags" style="margin-top:4px;">' + relsHtml + '</div></div>' +
+          '</div></td>';
+        tbody.appendChild(detailTr);
+      });
+
+      document.getElementById('kgEntityCount').textContent = kgData.length;
+      document.getElementById('kgRelCount').textContent = Math.round(totalRels / 2);
+    }
+
+    function toggleKGDetail(id) {
+      var row = document.querySelector('.kg-row[data-eid="' + id + '"]');
+      var detail = document.querySelector('.kg-detail-row[data-edetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.kg-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.kg-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function filterKG(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentKGFilter = type;
+      renderKG();
+    }
+
+    function searchKG(val) {
+      currentKGSearch = val.toLowerCase().trim();
+      renderKG();
+    }
+
+    // Mini graph visualization
+    function renderMiniGraph() {
+      var container = document.getElementById('kgMiniGraph');
+      if (!container) return;
+      var w = container.offsetWidth || 400;
+      var h = 200;
+      var nodes = [
+        { id: 'e1', label: 'SC', type: 'person', x: w*0.15, y: 50 },
+        { id: 'e2', label: 'DM', type: 'person', x: w*0.35, y: 35 },
+        { id: 'e5', label: 'MK', type: 'person', x: w*0.55, y: 55 },
+        { id: 'e3', label: 'RP', type: 'person', x: w*0.08, y: 130 },
+        { id: 'e4', label: 'AP', type: 'person', x: w*0.75, y: 40 },
+        { id: 'e6', label: 'MSAL', type: 'tech', x: w*0.25, y: 110 },
+        { id: 'e7', label: 'AAD', type: 'tech', x: w*0.18, y: 170 },
+        { id: 'e8', label: 'PG', type: 'tech', x: w*0.48, y: 140 },
+        { id: 'e9', label: 'WS', type: 'tech', x: w*0.65, y: 130 },
+        { id: 'e10', label: 'React', type: 'tech', x: w*0.58, y: 170 },
+        { id: 'e12', label: 'WB', type: 'feature', x: w*0.72, y: 100 },
+        { id: 'e13', label: 'Vid', type: 'feature', x: w*0.85, y: 130 },
+        { id: 'e11', label: 'Cat', type: 'feature', x: w*0.42, y: 80 },
+        { id: 'e14', label: 'SSO', type: 'decision', x: w*0.30, y: 60 },
+        { id: 'e15', label: 'OT', type: 'decision', x: w*0.82, y: 70 },
+        { id: 'e16', label: 'CF', type: 'decision', x: w*0.92, y: 100 }
+      ];
+      var edges = [
+        ['e1','e6'],['e1','e14'],['e1','e11'],['e2','e6'],['e2','e14'],['e2','e7'],
+        ['e3','e6'],['e3','e7'],['e5','e9'],['e5','e12'],['e5','e15'],['e5','e8'],
+        ['e4','e7'],['e6','e7'],['e6','e14'],['e8','e11'],['e9','e12'],
+        ['e12','e15'],['e13','e16'],['e10','e12'],['e10','e8']
+      ];
+
+      var html = '';
+      edges.forEach(function(edge) {
+        var from = nodes.find(function(n) { return n.id === edge[0]; });
+        var to = nodes.find(function(n) { return n.id === edge[1]; });
+        if (!from || !to) return;
+        var dx = to.x - from.x, dy = to.y - from.y;
+        var len = Math.sqrt(dx*dx + dy*dy);
+        var angle = Math.atan2(dy, dx) * 180 / Math.PI;
+        html += '<div class="kg-edge" style="left:' + from.x + 'px;top:' + from.y + 'px;width:' + len + 'px;transform:rotate(' + angle + 'deg);"></div>';
+      });
+      nodes.forEach(function(n) {
+        html += '<div class="kg-node ' + n.type + '" style="left:' + (n.x - 14) + 'px;top:' + (n.y - 14) + 'px;" title="' + (kgData.find(function(e) { return e.id === n.id; }) || {name:n.label}).name + '">' + n.label + '</div>';
+      });
+      container.innerHTML = html;
+    }
+
+    renderKG();
+    setTimeout(renderMiniGraph, 100);
+
+    // === MEETING PREP RENDERING ===
+    function renderMeetingPrep() {
+      var content = document.getElementById('meetingPrepContent');
+      if (!content) return;
+
+      // Build agenda from open gaps, stalled areas, unresolved contradictions
+      var openGaps = gapsData.filter(function(g) { return g.status === 'open'; });
+      var openContras = contrasData.filter(function(c) { return c.status === 'open'; });
+      var assumedFacts = factsData.filter(function(f) { return f.status === 'assumed'; });
+
+      var html = '';
+
+      // Section 1: Unresolved Contradictions
+      if (openContras.length) {
+        html += '<div class="mp-section">' +
+          '<div class="mp-section-head"><div class="mp-section-icon" style="background:var(--danger-light);color:var(--danger);">!</div><div class="mp-section-title">Resolve Contradictions (' + openContras.length + ')</div></div>';
+        openContras.forEach(function(c) {
+          html += '<div class="mp-item">' +
+            '<div class="mp-item-priority high">Critical</div>' +
+            '<div class="mp-item-body">' +
+              '<div class="mp-item-question">' + c.title + '</div>' +
+              '<div class="mp-item-context">' + c.sideA.meeting + ': "' + c.sideA.statement.substring(0, 60) + '..." vs ' + c.sideB.meeting + '</div>' +
+              '<div class="mp-item-who">Ask: <strong>' + c.sideB.person + '</strong> &middot; Impact: ' + c.affectedReqs.join(', ') + '</div>' +
+            '</div>' +
+            '<div class="mp-time-est"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>~10 min</div>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
+      // Section 2: Open Gaps (High severity first)
+      if (openGaps.length) {
+        var sortedGaps = openGaps.slice().sort(function(a, b) { return a.severity === 'high' ? -1 : b.severity === 'high' ? 1 : 0; });
+        html += '<div class="mp-section">' +
+          '<div class="mp-section-head"><div class="mp-section-icon" style="background:var(--warning-light);color:var(--warning);">?</div><div class="mp-section-title">Close Gaps (' + sortedGaps.length + ')</div></div>';
+        sortedGaps.forEach(function(g) {
+          var who = g.assignedTo || 'Client team';
+          html += '<div class="mp-item">' +
+            '<div class="mp-item-priority ' + g.severity + '">' + g.severity.charAt(0).toUpperCase() + g.severity.slice(1) + '</div>' +
+            '<div class="mp-item-body">' +
+              '<div class="mp-item-question">' + g.question + '</div>' +
+              '<div class="mp-item-context">' + g.aiSuggestion.substring(0, 80) + '...</div>' +
+              '<div class="mp-item-who">Ask: <strong>' + who + '</strong> &middot; Area: ' + g.area + '</div>' +
+            '</div>' +
+            '<div class="mp-time-est"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>~5 min</div>' +
+            '</div>';
+        });
+        html += '</div>';
+      }
+
+      // Section 3: Assumed facts to confirm
+      if (assumedFacts.length) {
+        html += '<div class="mp-section">' +
+          '<div class="mp-section-head"><div class="mp-section-icon" style="background:var(--info-light);color:var(--info);">?</div><div class="mp-section-title">Confirm Assumptions (' + assumedFacts.length + ')</div></div>';
+        assumedFacts.slice(0, 5).forEach(function(f) {
+          html += '<div class="mp-item">' +
+            '<div class="mp-item-priority medium">Verify</div>' +
+            '<div class="mp-item-body">' +
+              '<div class="mp-item-question">"' + f.statement + '"</div>' +
+              '<div class="mp-item-context">Source: ' + f.source + ' (' + f.meeting + ') — needs explicit confirmation</div>' +
+            '</div>' +
+            '<div class="mp-time-est"><svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>~2 min</div>' +
+            '</div>';
+        });
+        if (assumedFacts.length > 5) {
+          html += '<div style="font-size:11px;color:var(--gray-400);padding:4px 12px;">+ ' + (assumedFacts.length - 5) + ' more assumptions to verify</div>';
+        }
+        html += '</div>';
+      }
+
+      // Total time estimate
+      var totalMin = (openContras.length * 10) + (openGaps.length * 5) + (Math.min(assumedFacts.length, 5) * 2);
+      html += '<div class="mp-total">' +
+        '<div class="mp-total-label">Estimated meeting duration (focused agenda)</div>' +
+        '<div class="mp-total-val">' + totalMin + ' min</div>' +
+        '</div>';
+
+      // Suggested attendees
+      var attendees = {};
+      openGaps.forEach(function(g) { if (g.assignedTo) attendees[g.assignedTo] = true; });
+      openContras.forEach(function(c) { attendees[c.sideA.person] = true; attendees[c.sideB.person] = true; });
+      var attendeeList = Object.keys(attendees);
+      if (attendeeList.length) {
+        html += '<div style="margin-top:12px;padding:10px 12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-sm);">' +
+          '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--gray-400);margin-bottom:6px;">Suggested Attendees</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+        attendeeList.forEach(function(a) {
+          html += '<span class="fact-tag">' + a + '</span>';
+        });
+        html += '</div></div>';
+      }
+
+      content.innerHTML = html;
+
+      // Update tab count
+      var tabCount = document.querySelector('.dp-tab[data-dtab="meeting-prep"] .tab-count');
+      if (tabCount) tabCount.textContent = openContras.length + openGaps.length + Math.min(assumedFacts.length, 5);
+    }
+
+    renderMeetingPrep();
+
+    // === DARK MODE ===
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+      var isDark = document.body.classList.contains('dark-mode');
+      var icon = document.getElementById('darkIcon');
+      if (isDark) {
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+      } else {
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+      }
+      try { localStorage.setItem('darkMode', isDark ? '1' : '0'); } catch(e) {}
+    }
+
+    // Restore dark mode preference
+    try { if (localStorage.getItem('darkMode') === '1') toggleDarkMode(); } catch(e) {}
 
     // Scroll chat to bottom
     var chatEl = document.getElementById('chatMessages');
