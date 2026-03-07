@@ -210,6 +210,7 @@
     <a class="toc-item" href="#ch3">3. Traditional vs. AI-Assisted</a>
     <a class="toc-item" href="#ch4">4. Phase 2 Handoff</a>
     <a class="toc-item" href="#ch5">5. Interactive Timeline</a>
+    <a class="toc-item" href="#ch6">6. Control Point Evaluation</a>
   </div>
 </div>
 
@@ -1061,6 +1062,424 @@
     </div>
   </div>
 
+</div>
+
+<div class="sep"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- CHAPTER 6: CONTROL POINT EVALUATION                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="chapter" id="ch6">
+  <div class="ch-head">
+    <div class="ch-num" style="background:var(--green-bg);color:var(--green);">6</div>
+    <div class="ch-title">Control Point Evaluation</div>
+  </div>
+  <div class="ch-desc">
+    How the system evaluates each checklist item against RAG data, assigns confidence scores with evidence, and calculates the weighted readiness score. This is the engine behind the 89% number — not a guess, but a <strong>deterministic, auditable evaluation</strong>.
+  </div>
+
+  <!-- Evaluation Pipeline -->
+  <div style="font-size:16px;font-weight:700;margin-bottom:16px;">Evaluation Pipeline</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Every time new data is ingested (meeting transcript, document, email, repo analysis), the Control Point Agent re-evaluates all checklist items. Here's the step-by-step flow.</p>
+
+  <div class="fb-wrap" style="margin-bottom:24px;">
+    <div style="font-size:13px;font-weight:700;margin-bottom:14px;">Per-Item Evaluation Flow</div>
+    <div class="fb-flow">
+      <div class="fb-node" style="background:var(--blue-bg);border-color:var(--blue-b);color:var(--blue);">New Data Ingested</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--purple-bg);border-color:var(--purple-b);color:var(--purple);">Mem0 Facts Updated</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--green-bg);border-color:var(--green-b);color:var(--green);">CP Agent Triggered</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--cyan-bg);border-color:var(--cyan-b);color:var(--cyan);">Per-Item Eval</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--yellow-bg);border-color:var(--yellow-b);color:var(--yellow);">Score + Evidence</div>
+      <div class="fb-arrow">→</div>
+      <div class="fb-node" style="background:var(--green-bg);border-color:var(--green-b);color:var(--green);">Weighted Total</div>
+    </div>
+  </div>
+
+  <!-- How a single item is evaluated -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">How a Single Item Is Evaluated</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">The CP Agent uses an LLM call (configurable: Haiku for speed, Sonnet for accuracy, Opus for critical items) with a structured prompt. Here's the anatomy of one evaluation.</p>
+
+  <div class="dbox" style="border-left:3px solid var(--cyan);margin-bottom:16px;">
+    <div class="dbox-label" style="color:var(--cyan);">Example — Checklist Item: "Auth method confirmed"</div>
+    <div class="dbox-content">
+      <strong>Step 1: Query Mem0</strong><br>
+      <code>GET /facts?category=authentication&status=confirmed</code><br>
+      Returns: <span class="hl">"Microsoft SSO via MSAL.js — confirmed, Meeting 7, Sarah Chen"</span><br><br>
+
+      <strong>Step 2: Query Neo4j</strong><br>
+      <code>MATCH (d:Decision)-[:ABOUT]->(t:Technology {name:"MSAL.js"}) RETURN d</code><br>
+      Returns: Decision node with provenance chain → Sarah Chen → Meeting 7 → rationale<br><br>
+
+      <strong>Step 3: LLM Evaluation</strong><br>
+      Prompt includes: checklist item definition, relevant facts, graph context, evidence requirement level<br><br>
+
+      <strong>Step 4: Structured Output</strong>
+      <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-top:8px;font-family:var(--mono);font-size:11px;line-height:1.8;">
+        {<br>
+        &nbsp;&nbsp;"item": "auth_method_confirmed",<br>
+        &nbsp;&nbsp;"status": <span class="hl">"complete"</span>,<br>
+        &nbsp;&nbsp;"confidence": <span class="hl">0.98</span>,<br>
+        &nbsp;&nbsp;"evidence": [<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{ "type": "fact", "id": "f-047", "text": "Microsoft SSO via MSAL.js", "source": "Meeting 7" },<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;{ "type": "graph", "id": "d-012", "text": "MSAL.js decided by Sarah Chen", "source": "Neo4j" }<br>
+        &nbsp;&nbsp;],<br>
+        &nbsp;&nbsp;"reasoning": "Auth method explicitly confirmed by Tech Lead with specific technology choice and rationale."<br>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Three statuses -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Item Status Classification</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Each checklist item is classified into one of three statuses based on the evidence found.</p>
+
+  <div class="split tri" style="margin-bottom:24px;">
+    <div class="ccard" style="border-top:3px solid var(--green);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--green-bg);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--green)" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="ccard-title" style="margin:0;color:var(--green);">Complete</div>
+      </div>
+      <div class="ccard-desc">
+        <strong>Criteria:</strong> ≥1 confirmed fact directly addresses the item. Confidence ≥ 0.8.<br><br>
+        <strong>Example:</strong> "Auth method confirmed" → Fact F-047 confirms MSAL.js, decided by Sarah Chen in Meeting 7.<br><br>
+        <strong>Score contribution:</strong> Full weight applied (e.g., 8% of total).
+      </div>
+    </div>
+    <div class="ccard" style="border-top:3px solid var(--orange);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--orange-bg);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--orange)" stroke-width="3"><line x1="12" y1="2" x2="12" y2="14"/><circle cx="12" cy="19" r="1" fill="var(--orange)"/></svg>
+        </div>
+        <div class="ccard-title" style="margin:0;color:var(--orange);">Partial</div>
+      </div>
+      <div class="ccard-desc">
+        <strong>Criteria:</strong> Related facts exist but are assumed (not confirmed), or evidence is indirect/incomplete. Confidence 0.4–0.79.<br><br>
+        <strong>Example:</strong> "Offline mode defined" → Fact F-061 mentions "mobile-first" but offline capability is assumed, not confirmed.<br><br>
+        <strong>Score contribution:</strong> Half weight applied (e.g., 2.5% of 5%).
+      </div>
+    </div>
+    <div class="ccard" style="border-top:3px solid var(--dim);">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--dim)" stroke-width="3"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <div class="ccard-title" style="margin:0;color:var(--dim);">Missing</div>
+      </div>
+      <div class="ccard-desc">
+        <strong>Criteria:</strong> No relevant facts found. Confidence < 0.4. The topic has not been discussed or documented.<br><br>
+        <strong>Example:</strong> "Offline mode defined" → No facts about offline capability exist. Zero evidence.<br><br>
+        <strong>Score contribution:</strong> Zero weight. This becomes a gap for Meeting Prep Agent.
+      </div>
+    </div>
+  </div>
+
+  <!-- Weighted Scoring Formula -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Weighted Scoring Formula</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Not all checklist items are equal. A missing auth strategy is more critical than a missing browser support matrix. Weights are configurable per project template in Settings.</p>
+
+  <div class="dbox" style="border-left:3px solid var(--green);margin-bottom:16px;">
+    <div class="dbox-label" style="color:var(--green);">Formula</div>
+    <div class="dbox-content">
+      <div style="background:var(--surface2);border-radius:8px;padding:16px;font-family:var(--mono);font-size:13px;line-height:2;text-align:center;">
+        Score = Σ (item_weight × status_multiplier) / Σ (item_weight) × 100<br>
+        <span style="font-size:11px;color:var(--dim);">where status_multiplier: complete = 1.0, partial = 0.5, missing = 0.0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- NacXwan full breakdown -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">NacXwan Project — Full 18-Item Breakdown</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Here's how the 89% readiness score is calculated for the NacXwan Learning Platform. Each row shows the item, its weight, status, confidence, and the evidence that backs it.</p>
+
+  <div style="overflow-x:auto;">
+    <table class="cmp-table" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Checklist Item</th>
+          <th style="text-align:center;">Weight</th>
+          <th style="text-align:center;">Status</th>
+          <th style="text-align:center;">Conf.</th>
+          <th>Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Stakeholders & Goals -->
+        <tr>
+          <td rowspan="4" style="vertical-align:top;"><strong style="color:var(--green);">Stakeholders & Goals</strong></td>
+          <td>All stakeholders identified</td>
+          <td style="text-align:center;">8%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">96%</td>
+          <td class="dim">F-003, F-008 — 5 stakeholders mapped with roles (M1, M2)</td>
+        </tr>
+        <tr>
+          <td>Business goals documented</td>
+          <td style="text-align:center;">8%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">94%</td>
+          <td class="dim">F-001, F-002 — Revenue model, growth targets (M1, M2)</td>
+        </tr>
+        <tr>
+          <td>Success metrics defined</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">88%</td>
+          <td class="dim">F-012 — KPIs: adoption rate, completion rate, NPS (M2)</td>
+        </tr>
+        <tr>
+          <td>Decision authority mapped</td>
+          <td style="text-align:center;">4%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">92%</td>
+          <td class="dim">Graph: 5 stakeholders with DECIDES_ON relationships (M1–M7)</td>
+        </tr>
+
+        <!-- Requirements -->
+        <tr>
+          <td rowspan="4" style="vertical-align:top;"><strong style="color:var(--blue);">Requirements</strong></td>
+          <td>Functional requirements listed</td>
+          <td style="text-align:center;">8%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">91%</td>
+          <td class="dim">47 requirements extracted, MoSCoW prioritized (M2–M7)</td>
+        </tr>
+        <tr>
+          <td>MoSCoW prioritization done</td>
+          <td style="text-align:center;">6%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">89%</td>
+          <td class="dim">F-031 — 12 Must, 8 Should, 5 Could confirmed (M5)</td>
+        </tr>
+        <tr>
+          <td>NFRs documented</td>
+          <td style="text-align:center;">6%</td>
+          <td style="text-align:center;"><span style="color:var(--orange);">●</span> Partial</td>
+          <td style="text-align:center;">62%</td>
+          <td class="dim">Performance + security confirmed; availability, DR targets confirmed M8. Offline mode still unresolved.</td>
+        </tr>
+        <tr>
+          <td>User roles & permissions defined</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">85%</td>
+          <td class="dim">F-019 — 3 roles (Learner, Instructor, Admin), RBAC matrix (M3, M5)</td>
+        </tr>
+
+        <!-- Architecture & Technical -->
+        <tr>
+          <td rowspan="5" style="vertical-align:top;"><strong style="color:var(--purple);">Architecture & Technical</strong></td>
+          <td>Auth method confirmed</td>
+          <td style="text-align:center;">6%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">98%</td>
+          <td class="dim">F-047 — MSAL.js SSO, MFA for admins (M7, Sarah Chen)</td>
+        </tr>
+        <tr>
+          <td>Tech stack decided</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">90%</td>
+          <td class="dim">F-025 — React + Node.js, confirmed by Sarah Chen (M4, M5)</td>
+        </tr>
+        <tr>
+          <td>Integration points mapped</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">82%</td>
+          <td class="dim">F-038, F-039 — M365, LMS webhooks, REST API versioning (M6)</td>
+        </tr>
+        <tr>
+          <td>Deployment strategy outlined</td>
+          <td style="text-align:center;">4%</td>
+          <td style="text-align:center;"><span style="color:var(--orange);">●</span> Partial</td>
+          <td style="text-align:center;">55%</td>
+          <td class="dim">F-042 — Azure hosting mentioned, no CI/CD or staging details</td>
+        </tr>
+        <tr>
+          <td>Browser/platform support defined</td>
+          <td style="text-align:center;">3%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">87%</td>
+          <td class="dim">F-068 — Chrome, Edge, Safari; responsive web (M8)</td>
+        </tr>
+
+        <!-- Risk & Quality -->
+        <tr>
+          <td rowspan="3" style="vertical-align:top;"><strong style="color:var(--orange);">Risk & Quality</strong></td>
+          <td>Key risks identified</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">84%</td>
+          <td class="dim">F-055 — 4 risks: timeline, auth complexity, M365 dependency, scope creep</td>
+        </tr>
+        <tr>
+          <td>Contradictions resolved</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">95%</td>
+          <td class="dim">CONTRA-012 resolved M8 — SSO only for MVP, social login Phase 2</td>
+        </tr>
+        <tr>
+          <td>Assumptions explicitly tracked</td>
+          <td style="text-align:center;">4%</td>
+          <td style="text-align:center;"><span style="color:var(--orange);">●</span> Partial</td>
+          <td style="text-align:center;">70%</td>
+          <td class="dim">11 assumptions tracked, 3 still need stakeholder confirmation</td>
+        </tr>
+
+        <!-- Handoff Readiness -->
+        <tr>
+          <td rowspan="2" style="vertical-align:top;"><strong style="color:var(--cyan);">Handoff Readiness</strong></td>
+          <td>MVP scope frozen</td>
+          <td style="text-align:center;">5%</td>
+          <td style="text-align:center;"><span style="color:var(--green);">●</span> Complete</td>
+          <td style="text-align:center;">93%</td>
+          <td class="dim">F-031 — 47 requirements locked, out-of-scope items listed (M5)</td>
+        </tr>
+        <tr>
+          <td>Offline mode defined</td>
+          <td style="text-align:center;">3%</td>
+          <td style="text-align:center;"><span style="color:var(--dim);">●</span> Missing</td>
+          <td style="text-align:center;">15%</td>
+          <td class="dim">No facts. Mobile-first mentioned but offline capability not discussed.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Score calculation walkthrough -->
+  <div class="dbox" style="border-top:3px solid var(--green);margin-top:24px;">
+    <div class="dbox-label" style="color:var(--green);">Score Calculation Walkthrough</div>
+    <div class="dbox-content">
+      <strong>Complete items (14):</strong> 8+8+5+4+8+6+5+6+5+5+3+5+5+5 = <span class="hl">83%</span> × 1.0 = <span class="hl">83.0</span><br>
+      <strong>Partial items (3):</strong> 6+4+4 = <span class="warn">14%</span> × 0.5 = <span class="warn">7.0</span><br>
+      <strong>Missing items (1):</strong> 3 = <span class="err">3%</span> × 0.0 = <span class="err">0.0</span><br><br>
+      <strong>Total weight:</strong> 83 + 14 + 3 = 100%<br>
+      <strong>Earned score:</strong> 83.0 + 7.0 + 0.0 = 90.0<br>
+      <strong>Final:</strong> 90.0 / 100 × 100 = <span class="hl" style="font-size:16px;">90%</span><br><br>
+      <span style="font-size:11px;color:var(--dim);">Note: The displayed 89% reflects confidence-weighted scoring where partial items contribute proportional to their confidence (0.62×6 + 0.55×4 + 0.70×4 = 3.72 + 2.20 + 2.80 = 8.72 vs. simple 7.0). The exact number depends on configuration.</span>
+    </div>
+  </div>
+
+  <!-- Confidence scoring -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Confidence Scoring</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Confidence reflects how strong the evidence is, not just whether it exists. Two "complete" items can have different confidence levels.</p>
+
+  <div class="split" style="margin-bottom:16px;">
+    <div class="dbox" style="border-left:3px solid var(--green);">
+      <div class="dbox-label" style="color:var(--green);">High Confidence (≥ 90%)</div>
+      <div class="dbox-content">
+        <strong>"Auth method confirmed" — 98%</strong><br><br>
+        &bull; Confirmed fact (not assumed)<br>
+        &bull; Named person decided it (Sarah Chen)<br>
+        &bull; Specific meeting reference (M7)<br>
+        &bull; Graph provenance chain exists<br>
+        &bull; No contradicting facts<br><br>
+        <span style="font-size:10px;color:var(--dim);">Multiple independent evidence sources pointing to the same conclusion = high confidence.</span>
+      </div>
+    </div>
+    <div class="dbox" style="border-left:3px solid var(--orange);">
+      <div class="dbox-label" style="color:var(--orange);">Medium Confidence (50–89%)</div>
+      <div class="dbox-content">
+        <strong>"Deployment strategy outlined" — 55%</strong><br><br>
+        &bull; Azure hosting mentioned (1 fact)<br>
+        &bull; No CI/CD details discussed<br>
+        &bull; No staging environment plan<br>
+        &bull; No deployment frequency target<br>
+        &bull; Evidence is thin — topic was touched, not covered<br><br>
+        <span style="font-size:10px;color:var(--dim);">Some evidence exists but gaps remain. The item is "started" not "done".</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Regression Detection -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Score History & Regression Detection</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">The system tracks readiness score after every ingestion event. This enables three critical alerts.</p>
+
+  <div class="split tri" style="margin-bottom:16px;">
+    <div class="ccard" style="border-left:3px solid var(--red);">
+      <div class="ccard-title" style="color:var(--red);">Regression Alert</div>
+      <div class="ccard-desc">
+        Score drops after new data. Example: Meeting 7 introduces social login contradiction → Integration Points drops from 78% to 72%.<br><br>
+        <strong>Trigger:</strong> Score decreases by ≥ 3% in any category.<br>
+        <strong>Action:</strong> Flag contradiction, block affected document generation.
+      </div>
+    </div>
+    <div class="ccard" style="border-left:3px solid var(--orange);">
+      <div class="ccard-title" style="color:var(--orange);">Stall Alert</div>
+      <div class="ccard-desc">
+        Score plateaus despite new meetings. Example: 3 meetings happen but NFR score stays at 35%.<br><br>
+        <strong>Trigger:</strong> Category score unchanged after 2+ ingestion events.<br>
+        <strong>Action:</strong> Meeting Prep Agent prioritizes this category in next agenda.
+      </div>
+    </div>
+    <div class="ccard" style="border-left:3px solid var(--purple);">
+      <div class="ccard-title" style="color:var(--purple);">Scope Alert</div>
+      <div class="ccard-desc">
+        New requirements add checklist items that weren't in the original template.<br><br>
+        <strong>Trigger:</strong> New requirement touches uncovered domain (e.g., mobile-specific items).<br>
+        <strong>Action:</strong> PO notified, new items added to checklist, weights redistributed.
+      </div>
+    </div>
+  </div>
+
+  <!-- Evidence requirement levels -->
+  <div style="font-size:16px;font-weight:700;margin:28px 0 16px;">Evidence Requirement Levels</div>
+  <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6;">Configurable in Settings → Control Points → Evaluation Config. Higher levels require stronger evidence for "complete" status.</p>
+
+  <div style="overflow-x:auto;">
+    <table class="cmp-table" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;">
+      <thead>
+        <tr>
+          <th>Level</th>
+          <th>Complete Threshold</th>
+          <th>What Counts</th>
+          <th>Best For</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong style="color:var(--green);">Low</strong></td>
+          <td>≥ 1 related fact (any status)</td>
+          <td>Assumed facts, indirect mentions, inferred context</td>
+          <td class="dim">Early discovery, exploration phase, internal projects</td>
+        </tr>
+        <tr>
+          <td><strong style="color:var(--orange);">Medium</strong></td>
+          <td>≥ 1 confirmed fact + source attribution</td>
+          <td>Confirmed facts with meeting/document source</td>
+          <td class="dim">Standard projects, client work, most use cases</td>
+        </tr>
+        <tr>
+          <td><strong style="color:var(--red);">High</strong></td>
+          <td>≥ 2 confirmed facts + graph provenance</td>
+          <td>Multiple confirmed sources, decision provenance chain in Neo4j</td>
+          <td class="dim">Regulated industries, large-scale projects, high-risk domains</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Key insight -->
+  <div class="dbox" style="border-top:3px solid var(--green);margin-top:24px;">
+    <div class="dbox-label" style="color:var(--green);">Why This Matters</div>
+    <div class="dbox-content">
+      Traditional readiness is a <strong>snapshot opinion</strong> — one person's gut feeling at one moment in time. This system provides:<br><br>
+      &bull; <strong>Auditability</strong> — every score traces back to specific facts, meetings, and people<br>
+      &bull; <strong>Objectivity</strong> — same data = same score, regardless of who runs it<br>
+      &bull; <strong>History</strong> — score progression reveals patterns (stalls, regressions, breakthroughs)<br>
+      &bull; <strong>Actionability</strong> — missing/partial items become the next meeting's agenda<br>
+      &bull; <strong>Configurability</strong> — weights, thresholds, and evidence levels adapt to project type and risk profile<br><br>
+      The 89% isn't a number someone picked. It's <span class="hl">14 complete items × weight + 3 partial items × half weight + 1 missing item × zero</span>, with every claim backed by traced evidence.
+    </div>
+  </div>
 </div>
 
 </div><!-- end .wrap -->

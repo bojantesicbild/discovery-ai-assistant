@@ -229,6 +229,22 @@
     .template-desc { font-size: 12px; color: var(--gray-500); }
     .template-count { font-size: 12px; color: var(--gray-400); }
 
+    /* CHECKLIST ITEMS */
+    .cp-item {
+      display: flex; align-items: flex-start; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .cp-item:last-child { border-bottom: none; }
+    .cp-item .toggle { flex-shrink: 0; margin-top: 2px; }
+    .cp-item-text { flex: 1; min-width: 0; }
+    .cp-item-name { font-size: 13px; font-weight: 600; margin-bottom: 1px; }
+    .cp-item-desc { font-size: 11px; color: var(--gray-400); line-height: 1.4; }
+    .cp-weight {
+      font-size: 11px; font-weight: 700; color: var(--gray-400);
+      background: var(--gray-100); padding: 2px 8px; border-radius: 4px;
+      flex-shrink: 0; margin-top: 2px;
+    }
+
     /* DOCUMENT TEMPLATES — card list */
     .dtpl-grid { display: flex; flex-direction: column; gap: 12px; }
     .dtpl-card {
@@ -625,30 +641,51 @@
             <!-- CONTROL POINTS -->
             <div class="settings-section" id="control-points">
               <div class="section-title">Control Points</div>
-              <div class="section-desc">Choose and customize the discovery readiness checklist template</div>
+              <div class="section-desc">Choose and customize the discovery readiness checklist template. Each template defines what must be validated before a phase handoff.</div>
 
-              <div class="template-card selected">
+              <div class="template-card selected" onclick="selectTemplate(this)">
                 <div class="template-info">
                   <div class="template-radio"></div>
                   <div><div class="template-name">Greenfield Web App</div><div class="template-desc">Full checklist for new web applications from scratch</div></div>
                 </div>
                 <div class="template-count">18 items</div>
               </div>
-              <div class="template-card">
+              <div class="template-card" onclick="selectTemplate(this)">
                 <div class="template-info">
                   <div class="template-radio"></div>
                   <div><div class="template-name">Add-on / Plugin</div><div class="template-desc">Focused on host platform constraints and API compatibility</div></div>
                 </div>
                 <div class="template-count">14 items</div>
               </div>
-              <div class="template-card">
+              <div class="template-card" onclick="selectTemplate(this)">
                 <div class="template-info">
                   <div class="template-radio"></div>
                   <div><div class="template-name">API / Integration</div><div class="template-desc">Emphasizes endpoints, auth, rate limits, and contract testing</div></div>
                 </div>
                 <div class="template-count">12 items</div>
               </div>
-              <div class="template-card">
+              <div class="template-card" onclick="selectTemplate(this)">
+                <div class="template-info">
+                  <div class="template-radio"></div>
+                  <div><div class="template-name">Mobile App</div><div class="template-desc">Native iOS/Android or cross-platform — platform guidelines, offline support, app store requirements</div></div>
+                </div>
+                <div class="template-count">16 items</div>
+              </div>
+              <div class="template-card" onclick="selectTemplate(this)">
+                <div class="template-info">
+                  <div class="template-radio"></div>
+                  <div><div class="template-name">Data Pipeline / ML</div><div class="template-desc">Data ingestion, model training, feature stores, monitoring, and drift detection</div></div>
+                </div>
+                <div class="template-count">15 items</div>
+              </div>
+              <div class="template-card" onclick="selectTemplate(this)">
+                <div class="template-info">
+                  <div class="template-radio"></div>
+                  <div><div class="template-name">Migration / Modernization</div><div class="template-desc">Legacy system migration — data mapping, rollback strategy, feature parity, downtime planning</div></div>
+                </div>
+                <div class="template-count">14 items</div>
+              </div>
+              <div class="template-card" onclick="selectTemplate(this)">
                 <div class="template-info">
                   <div class="template-radio"></div>
                   <div><div class="template-name">Custom</div><div class="template-desc">Build your own checklist from scratch</div></div>
@@ -656,6 +693,44 @@
                 <div class="template-count">0 items</div>
               </div>
 
+              <!-- Checklist preview for selected template -->
+              <div class="setting-card" style="margin-top: 16px; padding: 0;" id="cpChecklist">
+                <div style="padding: 16px 20px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between;">
+                  <div><div class="setting-label">Checklist Items — Greenfield Web App</div><div class="setting-desc" style="margin-top:2px;">Toggle items on/off to customize your readiness criteria</div></div>
+                  <span style="font-size: 12px; color: var(--gray-400);" id="cpActiveCount">18 of 18 active</span>
+                </div>
+                <div style="padding: 0 20px 16px;">
+                  <div style="margin-top:12px;margin-bottom:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gray-400);">Stakeholders & Goals</div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Stakeholders identified and mapped</div><div class="cp-item-desc">All key stakeholders documented with roles, influence, and communication preferences</div></div><div class="cp-weight">8%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Project goals and success criteria defined</div><div class="cp-item-desc">Measurable success criteria agreed upon by stakeholders</div></div><div class="cp-weight">6%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Business constraints documented</div><div class="cp-item-desc">Budget, timeline, regulatory, and organizational constraints captured</div></div><div class="cp-weight">5%</div></div>
+
+                  <div style="margin-top:16px;margin-bottom:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gray-400);">Requirements</div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Functional requirements extracted and prioritized</div><div class="cp-item-desc">MoSCoW prioritization complete with acceptance criteria for must-haves</div></div><div class="cp-weight">8%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Non-functional requirements defined</div><div class="cp-item-desc">Performance, scalability, security, accessibility targets specified</div></div><div class="cp-weight">7%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">MVP scope locked</div><div class="cp-item-desc">In/out feature list agreed upon with clear phasing for deferred items</div></div><div class="cp-weight">6%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">User roles and permissions mapped</div><div class="cp-item-desc">RBAC model defined with role hierarchy and permission matrix</div></div><div class="cp-weight">4%</div></div>
+
+                  <div style="margin-top:16px;margin-bottom:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gray-400);">Architecture & Technical</div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Tech stack confirmed</div><div class="cp-item-desc">Frontend, backend, database, infrastructure decisions documented with rationale</div></div><div class="cp-weight">6%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Authentication & authorization strategy</div><div class="cp-item-desc">SSO, MFA, session management, and API auth approach decided</div></div><div class="cp-weight">6%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Data model outlined</div><div class="cp-item-desc">Core entities, relationships, and storage strategy defined</div></div><div class="cp-weight">5%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Third-party integrations identified</div><div class="cp-item-desc">External APIs, services, and dependencies listed with availability and cost assessed</div></div><div class="cp-weight">4%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Infrastructure & deployment strategy</div><div class="cp-item-desc">Cloud provider, CI/CD, environments, and deployment pipeline defined</div></div><div class="cp-weight">4%</div></div>
+
+                  <div style="margin-top:16px;margin-bottom:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gray-400);">Risk & Quality</div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">All gaps resolved or assigned</div><div class="cp-item-desc">No critical open questions blocking development start</div></div><div class="cp-weight">7%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Contradictions resolved</div><div class="cp-item-desc">All conflicting requirements or decisions have PO resolution</div></div><div class="cp-weight">6%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Risk register created</div><div class="cp-item-desc">Top risks identified with likelihood, impact, and mitigation plan</div></div><div class="cp-weight">5%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Testing strategy outlined</div><div class="cp-item-desc">Test levels, tools, and coverage targets defined for QA phase</div></div><div class="cp-weight">4%</div></div>
+
+                  <div style="margin-top:16px;margin-bottom:6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--gray-400);">Handoff Readiness</div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Discovery documents approved by PO</div><div class="cp-item-desc">All generated documents reviewed and approved in Documents tab</div></div><div class="cp-weight">5%</div></div>
+                  <div class="cp-item"><div class="toggle on cp-toggle" onclick="this.classList.toggle('on');updateCpCount()"></div><div class="cp-item-text"><div class="cp-item-name">Sprint plan ready for Story & Tech phase</div><div class="cp-item-desc">First 2 sprints planned with stories ready for refinement</div></div><div class="cp-weight">4%</div></div>
+                </div>
+              </div>
+
+              <!-- Thresholds & scoring -->
               <div class="setting-card" style="margin-top: 16px;">
                 <div class="setting-row">
                   <div><div class="setting-label">Readiness Threshold</div><div class="setting-desc">Score needed for automatic "ready for handoff" status</div></div>
@@ -670,6 +745,50 @@
                     <input type="number" class="form-input" style="width: 80px; text-align: center;" value="65">
                     <span style="font-size: 13px; color: var(--gray-500);">%</span>
                   </div>
+                </div>
+              </div>
+
+              <!-- Scoring & automation -->
+              <div class="setting-card" style="margin-top: 16px;">
+                <div class="setting-row">
+                  <div><div class="setting-label">Auto-Evaluate After Meeting</div><div class="setting-desc">AI automatically re-evaluates readiness after each processed meeting</div></div>
+                  <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                </div>
+                <div class="setting-row">
+                  <div><div class="setting-label">Weighted Scoring</div><div class="setting-desc">Use custom weights per checklist item instead of equal distribution</div></div>
+                  <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                </div>
+                <div class="setting-row">
+                  <div><div class="setting-label">Block Handoff on Critical Gaps</div><div class="setting-desc">Prevent phase handoff while any high-severity gaps remain open</div></div>
+                  <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                </div>
+                <div class="setting-row">
+                  <div><div class="setting-label">Require PO Approval for Handoff</div><div class="setting-desc">Even at 100% readiness, PO must explicitly approve the handoff</div></div>
+                  <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+                </div>
+                <div class="setting-row">
+                  <div><div class="setting-label">Notify Team on Threshold Reached</div><div class="setting-desc">Send Slack/email notification when readiness crosses the threshold</div></div>
+                  <div class="toggle" onclick="this.classList.toggle('on')"></div>
+                </div>
+              </div>
+
+              <!-- Evaluation model -->
+              <div class="setting-card" style="margin-top: 16px;">
+                <div class="setting-row">
+                  <div><div class="setting-label">Evaluation Model</div><div class="setting-desc">AI model used to evaluate each checklist item against RAG data</div></div>
+                  <select class="form-select">
+                    <option>Haiku (fast, lower cost)</option>
+                    <option selected>Sonnet (balanced)</option>
+                    <option>Opus (thorough, highest accuracy)</option>
+                  </select>
+                </div>
+                <div class="setting-row">
+                  <div><div class="setting-label">Evidence Requirement</div><div class="setting-desc">How much supporting data is needed to mark an item as complete</div></div>
+                  <select class="form-select">
+                    <option>Low — single mention sufficient</option>
+                    <option selected>Medium — confirmed fact or decision required</option>
+                    <option>High — multiple sources + PO confirmation</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -1117,12 +1236,17 @@
     });
 
     // Template card selection
-    document.querySelectorAll('.template-card').forEach(card => {
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-      });
-    });
+    function selectTemplate(card) {
+      document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+    }
+
+    // Update active checklist count
+    function updateCpCount() {
+      const total = document.querySelectorAll('.cp-toggle').length;
+      const active = document.querySelectorAll('.cp-toggle.on').length;
+      document.getElementById('cpActiveCount').textContent = active + ' of ' + total + ' active';
+    }
   </script>
 </body>
 </html>

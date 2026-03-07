@@ -541,6 +541,110 @@
     .cv-tag.impact { background: var(--danger-light); color: var(--danger); }
     .cv-tag.status { background: var(--warning-light); color: var(--warning); }
 
+    /* Readiness detail panel */
+    .rdp-panel { display: none; padding: 16px; overflow-y: auto; flex: 1; }
+    .rdp-panel.open { display: block; }
+    .rdp-back { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--gray-500); cursor: pointer; margin-bottom: 14px; border: none; background: none; font-family: var(--font); padding: 0; }
+    .rdp-back:hover { color: var(--green); }
+    .rdp-back svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .rdp-score-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; padding: 16px; background: var(--gray-50); border-radius: var(--radius); border: 1px solid var(--gray-200); }
+    .rdp-ring-lg { width: 56px; height: 56px; position: relative; flex-shrink: 0; }
+    .rdp-ring-lg svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+    .rdp-ring-lg .bg { fill: none; stroke: var(--gray-200); stroke-width: 3; }
+    .rdp-ring-lg .fg { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; }
+    .rdp-ring-lg .val { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 15px; font-weight: 800; color: #059669; }
+    .rdp-score-info { flex: 1; }
+    .rdp-score-title { font-size: 15px; font-weight: 700; }
+    .rdp-score-meta { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+    .rdp-bar { height: 6px; background: var(--gray-200); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .rdp-bar-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width 0.4s ease; }
+    .rdp-threshold { width: 1px; height: 10px; background: var(--danger); position: absolute; top: -2px; }
+    .rdp-stats { display: flex; gap: 8px; margin-bottom: 16px; }
+    .rdp-stat { flex: 1; text-align: center; padding: 10px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); }
+    .rdp-stat-val { font-size: 18px; font-weight: 800; }
+    .rdp-stat-val.green { color: #059669; }
+    .rdp-stat-val.orange { color: var(--warning); }
+    .rdp-stat-val.red { color: var(--danger); }
+    .rdp-stat-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); margin-top: 2px; }
+    .rdp-group-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin: 16px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--gray-100); }
+    .rdp-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray-100); cursor: pointer; }
+    .rdp-item:last-child { border-bottom: none; }
+    .rdp-item:hover { background: var(--gray-50); margin: 0 -8px; padding: 10px 8px; border-radius: var(--radius-sm); }
+    .rdp-item-status { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; }
+    .rdp-item-status.complete { background: var(--green-light); }
+    .rdp-item-status.complete svg { width: 12px; height: 12px; stroke: #059669; fill: none; stroke-width: 3; }
+    .rdp-item-status.partial { background: var(--warning-light); }
+    .rdp-item-status.partial svg { width: 12px; height: 12px; stroke: var(--warning); fill: none; stroke-width: 3; }
+    .rdp-item-status.missing { background: var(--gray-100); }
+    .rdp-item-status.missing svg { width: 12px; height: 12px; stroke: var(--gray-400); fill: none; stroke-width: 2; }
+    .rdp-item-body { flex: 1; min-width: 0; }
+    .rdp-item-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+    .rdp-item-evidence { font-size: 10px; color: var(--gray-400); line-height: 1.5; }
+    .rdp-item-evidence .ev-link { color: var(--info); cursor: pointer; font-weight: 500; }
+    .rdp-item-evidence .ev-link:hover { text-decoration: underline; }
+    .rdp-item-missing { font-size: 10px; color: var(--danger); font-style: italic; margin-top: 2px; }
+    .rdp-item-weight { font-size: 10px; font-weight: 700; color: var(--gray-400); background: var(--gray-100); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .rdp-item-conf { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+    .rdp-item-conf.high { background: var(--green-light); color: #059669; }
+    .rdp-item-conf.medium { background: var(--warning-light); color: var(--warning); }
+    .rdp-item-conf.low { background: var(--gray-100); color: var(--gray-500); }
+
+    /* Entity links */
+    .entity-link {
+      color: var(--info); text-decoration: none; font-weight: 600;
+      border-bottom: 1px dashed var(--info-light); cursor: pointer;
+      transition: all 0.15s; position: relative;
+    }
+    .entity-link:hover { color: #2563EB; border-bottom-color: #2563EB; background: var(--info-light); border-radius: 2px; }
+    .entity-link.person { color: var(--purple); border-bottom-color: var(--purple-light); }
+    .entity-link.person:hover { color: #7C3AED; background: var(--purple-light); }
+    .entity-link.tech { color: #059669; border-bottom-color: var(--green-light); }
+    .entity-link.tech:hover { color: #047857; background: var(--green-light); }
+    .entity-link.meeting { color: var(--orange); border-bottom-color: var(--orange-light); }
+    .entity-link.meeting:hover { color: #EA580C; background: var(--orange-light); }
+    .entity-link.req { color: var(--info); border-bottom-color: var(--info-light); }
+    .entity-link.req:hover { color: #2563EB; background: var(--info-light); }
+
+    /* Entity popover */
+    .entity-popover {
+      position: fixed; z-index: 9999; width: 320px;
+      background: var(--white); border: 1px solid var(--gray-200);
+      border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+      display: none; animation: popIn 0.15s ease;
+    }
+    .entity-popover.visible { display: block; }
+    @keyframes popIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .ep-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--gray-100); }
+    .ep-avatar {
+      width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+    }
+    .ep-avatar.person { background: var(--purple-light); color: var(--purple); }
+    .ep-avatar.tech { background: var(--green-light); color: #059669; }
+    .ep-avatar.meeting { background: var(--orange-light); color: var(--orange); }
+    .ep-avatar.req { background: var(--info-light); color: var(--info); }
+    .ep-name { font-size: 14px; font-weight: 700; }
+    .ep-role { font-size: 11px; color: var(--gray-400); }
+    .ep-section { padding: 10px 16px; border-bottom: 1px solid var(--gray-100); }
+    .ep-section:last-child { border-bottom: none; }
+    .ep-section-title { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin-bottom: 6px; }
+    .ep-list { list-style: none; }
+    .ep-list li { font-size: 11px; color: var(--gray-600); padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+    .ep-list li .ep-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .ep-list li .ep-dot.confirmed { background: #059669; }
+    .ep-list li .ep-dot.assumed { background: var(--warning); }
+    .ep-list li .ep-dot.meeting { background: var(--orange); }
+    .ep-list li .ep-dot.decision { background: var(--purple); }
+    .ep-list li .ep-dot.req { background: var(--info); }
+    .ep-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .ep-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .ep-tag.green { background: var(--green-light); color: #059669; }
+    .ep-tag.blue { background: var(--info-light); color: var(--info); }
+    .ep-tag.orange { background: var(--orange-light); color: var(--orange); }
+    .ep-stat { display: flex; align-items: center; gap: 8px; }
+    .ep-stat-num { font-size: 16px; font-weight: 800; color: var(--dark); }
+    .ep-stat-label { font-size: 10px; color: var(--gray-400); }
+
     /* no-select during drag */
     .no-select { user-select: none !important; -webkit-user-select: none !important; }
     .no-select * { user-select: none !important; -webkit-user-select: none !important; }
@@ -612,7 +716,7 @@
               <div class="msg-body">
                 <div class="msg-sender">Discovery Assistant</div>
                 <div class="msg-bubble">
-                  I've processed the <strong>Meeting 7 — SSO & Auth Discussion</strong> recording (58 min, 5 participants).
+                  I've processed the <span class="entity-link meeting" data-entity="meeting:m7">Meeting 7 — SSO &amp; Auth Discussion</span> recording (58 min, 5 participants).
                   <br><br>
                   <strong>3 new requirements</strong> extracted, <strong>5 facts</strong> added, <strong>2 facts</strong> updated.
                   <br>Readiness: <strong>72% &rarr; 78%</strong>
@@ -620,21 +724,21 @@
                   <div class="msg-card">
                     <div class="fact-card">
                       <div class="fact-card-head">New Facts <span class="fact-badge">+5 added, 2 updated</span></div>
-                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text">MSAL.js chosen for SSO integration</div><div class="fact-src">Sarah Chen</div></div>
-                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text">MFA mandatory for admin roles</div><div class="fact-src">Sarah Chen</div></div>
-                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text">Learner accounts do not require MFA</div><div class="fact-src">Agreed</div></div>
-                      <div class="fact-item"><div class="fact-dot assumed"></div><div class="fact-text">Social login (Google, Apple) for external learners</div><div class="fact-src">David Miller</div></div>
-                      <div class="fact-item"><div class="fact-dot assumed"></div><div class="fact-text">Session timeout configurable per role</div><div class="fact-src">Raj Patel</div></div>
+                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text"><span class="entity-link tech" data-entity="tech:msal-js">MSAL.js</span> chosen for <span class="entity-link tech" data-entity="tech:sso">SSO</span> integration</div><div class="fact-src"><span class="entity-link person" data-entity="person:sarah-chen">Sarah Chen</span></div></div>
+                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text"><span class="entity-link tech" data-entity="tech:mfa">MFA</span> mandatory for admin roles</div><div class="fact-src"><span class="entity-link person" data-entity="person:sarah-chen">Sarah Chen</span></div></div>
+                      <div class="fact-item"><div class="fact-dot confirmed"></div><div class="fact-text">Learner accounts do not require <span class="entity-link tech" data-entity="tech:mfa">MFA</span></div><div class="fact-src">Agreed</div></div>
+                      <div class="fact-item"><div class="fact-dot assumed"></div><div class="fact-text">Social login (<span class="entity-link tech" data-entity="tech:google-oauth">Google</span>, <span class="entity-link tech" data-entity="tech:apple-oauth">Apple</span>) for external learners</div><div class="fact-src"><span class="entity-link person" data-entity="person:david-miller">David Miller</span></div></div>
+                      <div class="fact-item"><div class="fact-dot assumed"></div><div class="fact-text">Session timeout configurable per role</div><div class="fact-src"><span class="entity-link person" data-entity="person:raj-patel">Raj Patel</span></div></div>
                     </div>
                   </div>
 
                   <div class="msg-card contra-card">
                     <div class="contra-inner">
                       <div class="contra-head"><div class="contra-icon">&#9888;&#65039;</div><div class="contra-title">Contradiction Detected</div></div>
-                      <div class="contra-body">Meeting 3 decided <strong>"Microsoft SSO only for MVP"</strong> but Meeting 7 introduces <strong>"social login for external learners"</strong>.</div>
+                      <div class="contra-body"><span class="entity-link meeting" data-entity="meeting:m3">Meeting 3</span> decided <strong>"Microsoft <span class="entity-link tech" data-entity="tech:sso">SSO</span> only for MVP"</strong> but <span class="entity-link meeting" data-entity="meeting:m7">Meeting 7</span> introduces <strong>"social login for external learners"</strong>.</div>
                       <div class="contra-sources">
-                        <div class="contra-src old"><div class="contra-src-label" style="color:#059669;">Meeting 3 (Feb 10)</div>Microsoft SSO only — no other auth methods in MVP</div>
-                        <div class="contra-src new"><div class="contra-src-label" style="color:var(--danger);">Meeting 7 (Today)</div>Add Google and Apple login for external learners</div>
+                        <div class="contra-src old"><div class="contra-src-label" style="color:#059669;"><span class="entity-link meeting" data-entity="meeting:m3">Meeting 3</span> (Feb 10)</div>Microsoft SSO only — no other auth methods in MVP</div>
+                        <div class="contra-src new"><div class="contra-src-label" style="color:var(--danger);"><span class="entity-link meeting" data-entity="meeting:m7">Meeting 7</span> (Today)</div>Add <span class="entity-link tech" data-entity="tech:google-oauth">Google</span> and <span class="entity-link tech" data-entity="tech:apple-oauth">Apple</span> login for external learners</div>
                       </div>
                     </div>
                   </div>
@@ -940,6 +1044,213 @@
               </div>
             </div>
 
+            <!-- READINESS DETAIL PANEL -->
+            <div class="rdp-panel" id="readinessPanel">
+              <button class="rdp-back" onclick="closeReadinessPanel()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg> Back to tabs</button>
+
+              <div class="rdp-score-row">
+                <div class="rdp-ring-lg">
+                  <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="bg"/><circle cx="18" cy="18" r="15" class="fg" style="stroke-dasharray: 94.25; stroke-dashoffset: 10.37;"/></svg>
+                  <div class="val">89%</div>
+                </div>
+                <div class="rdp-score-info">
+                  <div class="rdp-score-title">Discovery Readiness</div>
+                  <div class="rdp-score-meta">Threshold: 85% &middot; +6% since Meeting 7 &middot; Last evaluated: Today 9:15 AM</div>
+                  <div style="position:relative;margin-top:8px;">
+                    <div class="rdp-bar"><div class="rdp-bar-fill" style="width:89%"></div></div>
+                    <div style="position:absolute;left:85%;top:-2px;width:2px;height:10px;background:var(--danger);border-radius:1px;" title="Threshold: 85%"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="rdp-stats">
+                <div class="rdp-stat"><div class="rdp-stat-val green">14</div><div class="rdp-stat-label">Complete</div></div>
+                <div class="rdp-stat"><div class="rdp-stat-val orange">3</div><div class="rdp-stat-label">Partial</div></div>
+                <div class="rdp-stat"><div class="rdp-stat-val red">1</div><div class="rdp-stat-label">Missing</div></div>
+              </div>
+
+              <!-- Stakeholders & Goals -->
+              <div class="rdp-group-title">Stakeholders & Goals</div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Stakeholders identified and mapped</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=meetings]'))">Meeting 2 — Stakeholder Requirements</span>, <span class="ev-link">5 stakeholder facts</span></div>
+                </div>
+                <span class="rdp-item-conf high">95%</span>
+                <span class="rdp-item-weight">8%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Project goals and success criteria defined</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Fact f2 — Video-first approach</span>, <span class="ev-link">Meeting 1 — Kickoff goals</span></div>
+                </div>
+                <span class="rdp-item-conf high">90%</span>
+                <span class="rdp-item-weight">6%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Business constraints documented</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Fact f7 — 8h session timeout (corporate policy)</span>, <span class="ev-link">Fact f6 — Azure AD non-negotiable</span></div>
+                </div>
+                <span class="rdp-item-conf high">92%</span>
+                <span class="rdp-item-weight">5%</span>
+              </div>
+
+              <!-- Requirements -->
+              <div class="rdp-group-title">Requirements</div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Functional requirements extracted and prioritized</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=reqs]'))">47 requirements</span> across 8 meetings &middot; MoSCoW applied: 23 must, 18 should, 6 could</div>
+                </div>
+                <span class="rdp-item-conf high">96%</span>
+                <span class="rdp-item-weight">8%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status partial"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Non-functional requirements defined</div>
+                  <div class="rdp-item-evidence">Partial: Security and auth NFRs covered. <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=gaps]'))">Gap g1</span> — performance targets missing</div>
+                  <div class="rdp-item-missing">Missing: Expected concurrent users, response time targets, scalability requirements</div>
+                </div>
+                <span class="rdp-item-conf medium">40%</span>
+                <span class="rdp-item-weight">7%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">MVP scope locked</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Meeting 6 — MVP Scope Finalization</span> &middot; 18 features confirmed, video recording deferred</div>
+                </div>
+                <span class="rdp-item-conf high">98%</span>
+                <span class="rdp-item-weight">6%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">User roles and permissions mapped</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Facts f2, f3</span> — Admin/Learner/Instructor roles with MFA rules &middot; <span class="ev-link">FR-046, FR-047</span></div>
+                </div>
+                <span class="rdp-item-conf high">88%</span>
+                <span class="rdp-item-weight">4%</span>
+              </div>
+
+              <!-- Architecture & Technical -->
+              <div class="rdp-group-title">Architecture & Technical</div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Tech stack confirmed</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Fact f8 — React + Node.js</span>, <span class="ev-link">Fact f9 — PostgreSQL + pgvector</span>, <span class="ev-link">Meeting 5</span></div>
+                </div>
+                <span class="rdp-item-conf high">97%</span>
+                <span class="rdp-item-weight">6%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Authentication & authorization strategy</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Fact f1 — MSAL.js</span>, <span class="ev-link">Fact f6 — Azure AD</span>, <span class="ev-link">Meeting 7</span> &middot; <span style="color:var(--warning);font-weight:600;">1 open contradiction (SSO scope)</span></div>
+                </div>
+                <span class="rdp-item-conf high">85%</span>
+                <span class="rdp-item-weight">6%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status partial"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Data model outlined</div>
+                  <div class="rdp-item-evidence">Partial: DB choice confirmed (PostgreSQL). Core entities mentioned in requirements but no formal ERD.</div>
+                  <div class="rdp-item-missing">Missing: Entity relationship diagram, data migration strategy</div>
+                </div>
+                <span class="rdp-item-conf medium">55%</span>
+                <span class="rdp-item-weight">5%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Third-party integrations identified</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link">Fact f12 — Socket.io for WebSocket</span>, Azure AD, tldraw &middot; <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=gaps]'))">Gap g4</span> — video provider pending</div>
+                </div>
+                <span class="rdp-item-conf high">82%</span>
+                <span class="rdp-item-weight">4%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status partial"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Infrastructure & deployment strategy</div>
+                  <div class="rdp-item-evidence">Partial: Monolith-first approach decided (<span class="ev-link">Meeting 5</span>). No CI/CD or cloud provider details yet.</div>
+                  <div class="rdp-item-missing">Missing: Cloud provider selection, CI/CD pipeline, environment strategy</div>
+                </div>
+                <span class="rdp-item-conf medium">35%</span>
+                <span class="rdp-item-weight">4%</span>
+              </div>
+
+              <!-- Risk & Quality -->
+              <div class="rdp-group-title">Risk & Quality</div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">All gaps resolved or assigned</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=gaps]'))">6 gaps tracked</span> — 2 resolved, 3 assigned, 1 open (concurrent users)</div>
+                </div>
+                <span class="rdp-item-conf high">80%</span>
+                <span class="rdp-item-weight">7%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Contradictions resolved</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=contradictions]'))">3 contradictions</span> — 2 resolved, 1 open (SSO scope — <span class="entity-link person" data-entity="person:david-miller">David Miller</span> vs <span class="entity-link meeting" data-entity="meeting:m3">Meeting 3</span>)</div>
+                </div>
+                <span class="rdp-item-conf high">82%</span>
+                <span class="rdp-item-weight">6%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status missing"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Risk register created</div>
+                  <div class="rdp-item-evidence">No formal risk register document found.</div>
+                  <div class="rdp-item-missing">Missing: Generate via Risk & Contradiction Report template in Documents tab</div>
+                </div>
+                <span class="rdp-item-conf low">0%</span>
+                <span class="rdp-item-weight">5%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Testing strategy outlined</div>
+                  <div class="rdp-item-evidence">Evidence: QA phase defined in pipeline &middot; Report Portal connected &middot; Test levels mentioned in <span class="ev-link">Meeting 5</span></div>
+                </div>
+                <span class="rdp-item-conf high">75%</span>
+                <span class="rdp-item-weight">4%</span>
+              </div>
+
+              <!-- Handoff Readiness -->
+              <div class="rdp-group-title">Handoff Readiness</div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Discovery documents approved by PO</div>
+                  <div class="rdp-item-evidence">Evidence: <span class="ev-link" onclick="switchDataTab(document.querySelector('.dp-tab[data-dtab=docs]'))">5 of 7 documents</span> approved &middot; 2 pending (Video Cost Analysis, Gap Report)</div>
+                </div>
+                <span class="rdp-item-conf high">71%</span>
+                <span class="rdp-item-weight">5%</span>
+              </div>
+              <div class="rdp-item">
+                <div class="rdp-item-status complete"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+                <div class="rdp-item-body">
+                  <div class="rdp-item-name">Sprint plan ready for Story & Tech phase</div>
+                  <div class="rdp-item-evidence">Evidence: 47 requirements ready &middot; MoSCoW prioritized &middot; Sprint 1 scope derivable from must-haves</div>
+                </div>
+                <span class="rdp-item-conf high">78%</span>
+                <span class="rdp-item-weight">4%</span>
+              </div>
+            </div>
+
           </div>
 
         </div>
@@ -981,6 +1292,9 @@
 
     </main>
   </div>
+
+  <!-- ENTITY POPOVER -->
+  <div class="entity-popover" id="entityPopover"></div>
 
   <script>
     // Auto-resize textarea
@@ -2099,9 +2413,25 @@
       }
     }
 
-    // Toggle readiness widget expand/collapse
+    // Toggle readiness detail panel
     function toggleReadiness() {
-      document.getElementById('readinessWidget').classList.toggle('collapsed');
+      var panel = document.getElementById('readinessPanel');
+      if (panel.classList.contains('open')) {
+        closeReadinessPanel();
+      } else {
+        // Hide tabs and tab content
+        document.querySelector('.dp-tabs').style.display = 'none';
+        document.querySelectorAll('.dp-tab-content').forEach(function(c) { c.style.display = 'none'; });
+        panel.classList.add('open');
+      }
+    }
+
+    function closeReadinessPanel() {
+      var panel = document.getElementById('readinessPanel');
+      panel.classList.remove('open');
+      // Restore tabs and active tab content
+      document.querySelector('.dp-tabs').style.display = '';
+      document.querySelectorAll('.dp-tab-content').forEach(function(c) { c.style.display = ''; });
     }
 
     // Double-click divider to reset
@@ -2111,6 +2441,207 @@
       chatPanel.style.flex = '0 0 45%';
       dataPanel.style.flex = '0 0 55%';
     });
+
+    // === ENTITY LINKING ===
+    var entityData = {
+      'person:sarah-chen': {
+        type: 'person', avatar: 'SC', name: 'Sarah Chen', role: 'Tech Lead',
+        meetings: ['M7 SSO & Auth', 'M6 MVP Scope', 'M5 Tech Stack', 'M4 Whiteboard', 'M2 Stakeholder', 'M1 Kickoff'],
+        facts: [
+          { text: 'MSAL.js chosen for SSO integration', status: 'confirmed' },
+          { text: 'MFA mandatory for admin roles', status: 'confirmed' },
+          { text: 'Mobile native apps excluded from MVP', status: 'assumed' },
+          { text: '12-week MVP timeline confirmed', status: 'confirmed' }
+        ],
+        decisions: ['MSAL.js v2 for client-side auth', 'MVP scope locked — 18 features', 'Bi-weekly demos to stakeholders'],
+        reqs: ['FR-001', 'FR-003', 'FR-005', 'FR-008', 'FR-012', 'FR-018', 'FR-045', 'FR-046']
+      },
+      'person:david-miller': {
+        type: 'person', avatar: 'DM', name: 'David Miller', role: 'Backend Developer',
+        meetings: ['M7 SSO & Auth', 'M5 Tech Stack', 'M4 Whiteboard', 'M3 Auth & Security', 'M1 Kickoff'],
+        facts: [
+          { text: 'Social login for external learners', status: 'assumed' },
+          { text: 'Auth API contract drafted', status: 'confirmed' }
+        ],
+        decisions: ['Social login deferred to post-MVP', 'tldraw selected as whiteboard engine'],
+        reqs: ['FR-001', 'FR-045', 'FR-047']
+      },
+      'person:raj-patel': {
+        type: 'person', avatar: 'RP', name: 'Raj Patel', role: 'Security Lead',
+        meetings: ['M7 SSO & Auth', 'M3 Auth & Security'],
+        facts: [
+          { text: 'Session timeout configurable per role', status: 'assumed' },
+          { text: 'AES-256 encryption at rest', status: 'confirmed' }
+        ],
+        decisions: ['SSO-only for MVP'],
+        reqs: ['FR-047']
+      },
+      'tech:msal-js': {
+        type: 'tech', avatar: 'MS', name: 'MSAL.js', role: 'Auth Library (Microsoft)',
+        meetings: ['M7 SSO & Auth', 'M3 Auth & Security'],
+        facts: [
+          { text: 'MSAL.js v2 selected over ADAL.js', status: 'confirmed' },
+          { text: 'Handles iframe popup fallback natively', status: 'confirmed' },
+          { text: 'PKCE support out of the box', status: 'confirmed' }
+        ],
+        decisions: ['MSAL.js v2 for all client-side auth'],
+        reqs: ['FR-001']
+      },
+      'tech:sso': {
+        type: 'tech', avatar: 'SS', name: 'SSO (Single Sign-On)', role: 'Auth Pattern',
+        meetings: ['M7 SSO & Auth', 'M3 Auth & Security'],
+        facts: [
+          { text: 'Azure AD is the identity provider', status: 'confirmed' },
+          { text: 'SSO-only for MVP (no username/password)', status: 'confirmed' },
+          { text: 'Social login proposed for external learners', status: 'assumed' }
+        ],
+        decisions: ['Microsoft SSO only for MVP', 'Social login deferred post-MVP'],
+        reqs: ['FR-001', 'FR-045']
+      },
+      'tech:mfa': {
+        type: 'tech', avatar: 'MF', name: 'MFA (Multi-Factor Auth)', role: 'Security Feature',
+        meetings: ['M7 SSO & Auth'],
+        facts: [
+          { text: 'MFA mandatory for admin roles', status: 'confirmed' },
+          { text: 'Learner accounts exempt from MFA in MVP', status: 'confirmed' },
+          { text: 'Microsoft Authenticator or TOTP', status: 'confirmed' }
+        ],
+        decisions: ['Admin-only MFA in MVP'],
+        reqs: ['FR-046']
+      },
+      'tech:google-oauth': {
+        type: 'tech', avatar: 'G', name: 'Google OAuth', role: 'Social Login Provider',
+        meetings: ['M7 SSO & Auth'],
+        facts: [
+          { text: 'Proposed for external learners', status: 'assumed' },
+          { text: 'Contradicts SSO-only decision from M3', status: 'assumed' }
+        ],
+        decisions: ['Deferred to post-MVP'],
+        reqs: ['FR-045']
+      },
+      'tech:apple-oauth': {
+        type: 'tech', avatar: 'A', name: 'Apple Sign-In', role: 'Social Login Provider',
+        meetings: ['M7 SSO & Auth'],
+        facts: [
+          { text: 'Proposed alongside Google OAuth', status: 'assumed' },
+          { text: 'Required if app goes to App Store', status: 'assumed' }
+        ],
+        decisions: ['Deferred to post-MVP'],
+        reqs: ['FR-045']
+      },
+      'meeting:m7': {
+        type: 'meeting', avatar: '7', name: 'Meeting 7', role: 'SSO & Auth Discussion — Mar 14',
+        facts: [
+          { text: 'MSAL.js v2 selected', status: 'confirmed' },
+          { text: 'MFA mandatory for admins', status: 'confirmed' },
+          { text: 'Social login proposed', status: 'assumed' },
+          { text: 'Session timeout configurable', status: 'assumed' },
+          { text: 'Azure AD as identity provider', status: 'confirmed' }
+        ],
+        decisions: ['MSAL.js v2 for client-side auth', 'Social login deferred to post-MVP'],
+        reqs: ['FR-001', 'FR-045', 'FR-046', 'FR-047'],
+        attendees: ['Sarah Chen', 'David Miller', 'Raj Patel', 'Ana Petrovic', 'Security Lead']
+      },
+      'meeting:m3': {
+        type: 'meeting', avatar: '3', name: 'Meeting 3', role: 'Authentication & Security — Feb 15',
+        facts: [
+          { text: 'SSO-only for MVP', status: 'confirmed' },
+          { text: 'AES-256 encryption at rest', status: 'confirmed' },
+          { text: 'No username/password auth', status: 'confirmed' }
+        ],
+        decisions: ['SSO-only for MVP (no username/password)', 'AES-256 encryption at rest'],
+        reqs: ['FR-001', 'FR-046'],
+        attendees: ['David Miller', 'Security Lead', 'Sarah Chen']
+      }
+    };
+
+    var popover = document.getElementById('entityPopover');
+    var popoverTimer = null;
+    var hideTimer = null;
+
+    function showEntityPopover(el) {
+      clearTimeout(hideTimer);
+      var key = el.getAttribute('data-entity');
+      var e = entityData[key];
+      if (!e) return;
+
+      var avatarClass = e.type;
+      var html = '<div class="ep-header"><div class="ep-avatar ' + avatarClass + '">' + e.avatar + '</div><div><div class="ep-name">' + e.name + '</div><div class="ep-role">' + e.role + '</div></div></div>';
+
+      // Meetings / Attendees
+      if (e.type === 'meeting' && e.attendees) {
+        html += '<div class="ep-section"><div class="ep-section-title">Attendees</div><div class="ep-tags">';
+        e.attendees.forEach(function(a) { html += '<span class="ep-tag green">' + a + '</span>'; });
+        html += '</div></div>';
+      } else if (e.meetings) {
+        html += '<div class="ep-section"><div class="ep-section-title">Meetings (' + e.meetings.length + ')</div><ul class="ep-list">';
+        e.meetings.slice(0, 4).forEach(function(m) { html += '<li><span class="ep-dot meeting"></span>' + m + '</li>'; });
+        if (e.meetings.length > 4) html += '<li style="color:var(--gray-400);">+ ' + (e.meetings.length - 4) + ' more</li>';
+        html += '</ul></div>';
+      }
+
+      // Facts
+      if (e.facts && e.facts.length) {
+        html += '<div class="ep-section"><div class="ep-section-title">Facts (' + e.facts.length + ')</div><ul class="ep-list">';
+        e.facts.slice(0, 4).forEach(function(f) { html += '<li><span class="ep-dot ' + f.status + '"></span>' + f.text + '</li>'; });
+        if (e.facts.length > 4) html += '<li style="color:var(--gray-400);">+ ' + (e.facts.length - 4) + ' more</li>';
+        html += '</ul></div>';
+      }
+
+      // Decisions
+      if (e.decisions && e.decisions.length) {
+        html += '<div class="ep-section"><div class="ep-section-title">Decisions (' + e.decisions.length + ')</div><ul class="ep-list">';
+        e.decisions.slice(0, 3).forEach(function(d) { html += '<li><span class="ep-dot decision"></span>' + d + '</li>'; });
+        html += '</ul></div>';
+      }
+
+      // Requirements
+      if (e.reqs && e.reqs.length) {
+        html += '<div class="ep-section"><div class="ep-section-title">Requirements (' + e.reqs.length + ')</div><div class="ep-tags">';
+        e.reqs.slice(0, 6).forEach(function(r) { html += '<span class="ep-tag blue">' + r + '</span>'; });
+        if (e.reqs.length > 6) html += '<span class="ep-tag blue">+' + (e.reqs.length - 6) + '</span>';
+        html += '</div></div>';
+      }
+
+      popover.innerHTML = html;
+
+      // Position
+      var rect = el.getBoundingClientRect();
+      var pw = 320;
+      var left = rect.left + rect.width / 2 - pw / 2;
+      if (left < 8) left = 8;
+      if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+      var top = rect.bottom + 8;
+      if (top + 300 > window.innerHeight) top = rect.top - 8;
+
+      popover.style.left = left + 'px';
+      popover.style.top = top + 'px';
+      popover.classList.add('visible');
+    }
+
+    function hideEntityPopover() {
+      hideTimer = setTimeout(function() {
+        popover.classList.remove('visible');
+      }, 200);
+    }
+
+    // Attach hover to all entity links
+    document.addEventListener('mouseover', function(e) {
+      var link = e.target.closest('.entity-link');
+      if (link) {
+        clearTimeout(hideTimer);
+        popoverTimer = setTimeout(function() { showEntityPopover(link); }, 300);
+      }
+    });
+    document.addEventListener('mouseout', function(e) {
+      var link = e.target.closest('.entity-link');
+      if (link) {
+        clearTimeout(popoverTimer);
+        hideEntityPopover();
+      }
+    });
+    popover.addEventListener('mouseover', function() { clearTimeout(hideTimer); });
+    popover.addEventListener('mouseout', function() { hideEntityPopover(); });
 
     // Scroll chat to bottom
     var chatEl = document.getElementById('chatMessages');
