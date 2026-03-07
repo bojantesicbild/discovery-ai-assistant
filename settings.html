@@ -229,6 +229,179 @@
     .template-desc { font-size: 12px; color: var(--gray-500); }
     .template-count { font-size: 12px; color: var(--gray-400); }
 
+    /* DOCUMENT TEMPLATES — card list */
+    .dtpl-grid { display: flex; flex-direction: column; gap: 12px; }
+    .dtpl-card {
+      background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200);
+      overflow: hidden; transition: all 0.15s;
+    }
+    .dtpl-card:hover { box-shadow: var(--shadow-md); }
+    .dtpl-card.inactive { opacity: 0.55; }
+    .dtpl-card-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; }
+    .dtpl-icon {
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0;
+    }
+    .dtpl-icon.brief { background: var(--green-light); color: #059669; }
+    .dtpl-icon.spec { background: var(--info-light); color: var(--info); }
+    .dtpl-icon.analysis { background: var(--warning-light); color: var(--warning); }
+    .dtpl-icon.adr { background: var(--purple-light); color: var(--purple); }
+    .dtpl-icon.risk { background: var(--danger-light); color: var(--danger); }
+    .dtpl-icon.summary { background: var(--orange-light); color: var(--orange); }
+    .dtpl-title-area { flex: 1; min-width: 0; }
+    .dtpl-title { font-size: 14px; font-weight: 600; margin-bottom: 1px; }
+    .dtpl-desc { font-size: 12px; color: var(--gray-500); }
+    .dtpl-meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .dtpl-trigger {
+      font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+    }
+    .dtpl-trigger.auto { background: var(--green-light); color: #059669; }
+    .dtpl-trigger.manual { background: var(--gray-100); color: var(--gray-500); }
+    .dtpl-trigger.threshold { background: var(--warning-light); color: var(--warning); }
+    .dtpl-sections-count { font-size: 11px; color: var(--gray-400); }
+    .dtpl-edit-btn {
+      padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200);
+      background: var(--white); font-size: 12px; font-weight: 600; font-family: var(--font);
+      cursor: pointer; transition: all 0.15s; color: var(--dark);
+    }
+    .dtpl-edit-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-light); }
+
+    /* TEMPLATE EDITOR OVERLAY */
+    .tpl-editor-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000;
+      background: rgba(0,0,0,0.4); display: none; align-items: stretch; justify-content: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .tpl-editor-overlay.open { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .tpl-editor {
+      width: 100%; max-width: 820px; background: var(--white); margin: 32px 0;
+      border-radius: var(--radius); box-shadow: 0 24px 80px rgba(0,0,0,0.2);
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .tpl-editor-header {
+      display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+      border-bottom: 1px solid var(--gray-200); flex-shrink: 0;
+    }
+    .tpl-editor-header .dtpl-icon { width: 32px; height: 32px; font-size: 9px; }
+    .tpl-editor-title { font-size: 16px; font-weight: 700; flex: 1; }
+    .tpl-editor-close {
+      width: 32px; height: 32px; border-radius: var(--radius-sm); border: none;
+      background: var(--gray-100); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .tpl-editor-close:hover { background: var(--gray-200); }
+    .tpl-editor-close svg { width: 14px; height: 14px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    /* Toolbar */
+    .tpl-toolbar {
+      display: flex; align-items: center; gap: 4px; padding: 8px 24px;
+      border-bottom: 1px solid var(--gray-100); flex-shrink: 0; flex-wrap: wrap;
+    }
+    .tpl-tb-btn {
+      padding: 5px 10px; border-radius: 4px; border: none; background: none;
+      font-size: 12px; font-weight: 500; font-family: var(--font);
+      color: var(--gray-500); cursor: pointer; transition: all 0.12s;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .tpl-tb-btn:hover { background: var(--gray-100); color: var(--dark); }
+    .tpl-tb-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .tpl-tb-sep { width: 1px; height: 20px; background: var(--gray-200); margin: 0 4px; }
+
+    /* Config bar */
+    .tpl-config-bar {
+      display: flex; align-items: center; gap: 16px; padding: 10px 24px;
+      border-bottom: 1px solid var(--gray-100); flex-shrink: 0; background: var(--gray-50);
+    }
+    .tpl-config-bar label { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
+    .tpl-config-bar select { padding: 4px 8px; border: 1px solid var(--gray-200); border-radius: 4px; font-size: 12px; font-family: var(--font); background: var(--white); }
+
+    /* Live editor body */
+    .tpl-editor-body {
+      flex: 1; overflow-y: auto; padding: 32px 48px; line-height: 1.7;
+    }
+
+    /* Block types */
+    .tpl-block { position: relative; margin-bottom: 2px; border-radius: var(--radius-sm); transition: background 0.1s; }
+    .tpl-block:hover { background: var(--gray-50); }
+    .tpl-block:hover .tpl-block-handle { opacity: 1; }
+    .tpl-block-handle {
+      position: absolute; left: -28px; top: 50%; transform: translateY(-50%);
+      width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+      color: var(--gray-300); cursor: grab; opacity: 0; transition: opacity 0.15s;
+      font-size: 12px;
+    }
+
+    /* Editable elements */
+    .tpl-block [contenteditable] { outline: none; border-radius: 3px; transition: box-shadow 0.15s; }
+    .tpl-block [contenteditable]:focus { box-shadow: 0 0 0 2px var(--green-light); }
+
+    .tpl-h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; padding: 4px 6px; margin-bottom: 4px; color: var(--dark); }
+    .tpl-h2 { font-size: 16px; font-weight: 700; padding: 4px 6px; margin-top: 20px; margin-bottom: 2px; color: var(--dark); border-bottom: 1px solid var(--gray-100); padding-bottom: 6px; }
+    .tpl-para { font-size: 13px; color: var(--gray-600); padding: 4px 6px; min-height: 22px; }
+    .tpl-para:empty::before { content: attr(data-ph); color: var(--gray-300); }
+    .tpl-meta-line { font-size: 12px; color: var(--gray-400); padding: 2px 6px; }
+
+    /* Variable pills */
+    .tpl-var {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: var(--green-light); color: #059669; font-size: 11px; font-weight: 600;
+      padding: 1px 8px; border-radius: 10px; cursor: default; vertical-align: baseline;
+    }
+
+    /* AI instruction blocks */
+    .tpl-ai-block {
+      margin: 8px 0; padding: 14px 16px; border-radius: var(--radius-sm);
+      background: var(--purple-light); border: 1px solid rgba(139,92,246,0.15);
+      position: relative;
+    }
+    .tpl-ai-label {
+      font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px;
+      color: var(--purple); margin-bottom: 6px; display: flex; align-items: center; gap: 4px;
+    }
+    .tpl-ai-label svg { width: 12px; height: 12px; stroke: var(--purple); fill: none; stroke-width: 2; }
+    .tpl-ai-instruction {
+      font-size: 12px; color: var(--gray-600); line-height: 1.6; outline: none;
+      border-radius: 3px; padding: 2px 4px; min-height: 18px;
+    }
+    .tpl-ai-instruction:focus { box-shadow: 0 0 0 2px rgba(139,92,246,0.2); }
+    .tpl-ai-instruction:empty::before { content: 'Describe what AI should generate here...'; color: var(--gray-300); }
+    .tpl-ai-source {
+      margin-top: 8px; font-size: 10px; color: var(--gray-400);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .tpl-ai-source select {
+      padding: 2px 6px; border: 1px solid rgba(139,92,246,0.2); border-radius: 4px;
+      font-size: 10px; font-family: var(--font); background: var(--white); color: var(--purple);
+    }
+
+    /* Table block */
+    .tpl-table-block { margin: 8px 0; overflow-x: auto; }
+    .tpl-table-block table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .tpl-table-block th {
+      text-align: left; padding: 8px 10px; font-weight: 600; font-size: 11px;
+      border-bottom: 2px solid var(--gray-200); color: var(--gray-500);
+    }
+    .tpl-table-block td {
+      padding: 8px 10px; border-bottom: 1px solid var(--gray-100);
+      outline: none; min-width: 80px;
+    }
+    .tpl-table-block td:focus { box-shadow: inset 0 0 0 2px var(--green-light); }
+
+    /* Divider block */
+    .tpl-divider { border: none; border-top: 1px solid var(--gray-200); margin: 16px 6px; }
+
+    /* Footer */
+    .tpl-editor-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 24px; border-top: 1px solid var(--gray-200); flex-shrink: 0;
+      background: var(--gray-50);
+    }
+    .tpl-footer-info { font-size: 11px; color: var(--gray-400); }
+
     @keyframes fadeInUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
     .settings-layout { animation: fadeInUp 0.4s ease both; }
   </style>
@@ -241,7 +414,7 @@
         <div class="nav-label">Main</div>
         <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
         <div class="nav-label">Phases</div>
-        <a href="discovery.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
+        <a href="discovery-v2.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery</a>
         <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
         <a href="code.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
         <a href="qa.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA</a>
@@ -275,6 +448,7 @@
             <li class="settings-nav-item">Integrations</li>
             <li class="settings-nav-item">AI Models</li>
             <li class="settings-nav-item">Control Points</li>
+            <li class="settings-nav-item">Document Templates</li>
             <li class="settings-nav-item">Notifications</li>
             <li class="settings-nav-item">Danger Zone</li>
           </ul>
@@ -502,6 +676,70 @@
 
             <div class="section-divider"></div>
 
+            <!-- DOCUMENT TEMPLATES -->
+            <div class="settings-section" id="doc-templates">
+              <div class="section-title">Document Templates</div>
+              <div class="section-desc">Live editor templates define how AI generates documents from RAG data. Click "Edit Template" to open the block editor.</div>
+
+              <div class="dtpl-grid">
+                <div class="dtpl-card" data-tpl="discovery-brief">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon brief">DOC</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Project Discovery Brief</div><div class="dtpl-desc">Executive summary of project goals, stakeholders, constraints, and success criteria</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger auto">Auto</span><span class="dtpl-sections-count">7 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('discovery-brief')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="func-reqs">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon spec">SPEC</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Functional Requirements Specification</div><div class="dtpl-desc">Structured MoSCoW requirements extracted and organized from all discovery data</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger auto">Auto</span><span class="dtpl-sections-count">7 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('func-reqs')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="mvp-scope">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon brief">DOC</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">MVP Scope Document</div><div class="dtpl-desc">Feature in/out list, phasing strategy, and timeline based on prioritized requirements</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger manual">Manual</span><span class="dtpl-sections-count">5 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('mvp-scope')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="gap-analysis">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon analysis">GAP</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Gap Analysis Report</div><div class="dtpl-desc">AI-detected gaps, missing information, and blockers with severity and recommendations</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger auto">Auto</span><span class="dtpl-sections-count">5 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('gap-analysis')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="stakeholder-summary">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon summary">SUM</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Stakeholder Summary</div><div class="dtpl-desc">Per-stakeholder view of priorities, concerns, and contributions synthesized from meetings</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger auto">Auto</span><span class="dtpl-sections-count">4 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('stakeholder-summary')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="adr">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon adr">ADR</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Architecture Decision Record</div><div class="dtpl-desc">Per-decision document capturing context, options considered, and rationale</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger threshold">On Decision</span><span class="dtpl-sections-count">6 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('adr')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+                <div class="dtpl-card" data-tpl="risk-report">
+                  <div class="dtpl-card-header">
+                    <div class="dtpl-icon risk">RISK</div>
+                    <div class="dtpl-title-area"><div class="dtpl-title">Risk & Contradiction Report</div><div class="dtpl-desc">Detected contradictions, unresolved conflicts, and risk assessment requiring PO attention</div></div>
+                    <div class="dtpl-meta"><span class="dtpl-trigger auto">Auto</span><span class="dtpl-sections-count">5 sections</span><button class="dtpl-edit-btn" onclick="openTplEditor('risk-report')">Edit Template</button><div class="toggle on" onclick="this.classList.toggle('on'); this.closest('.dtpl-card').classList.toggle('inactive')"></div></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="btn-group" style="margin-top: 16px;">
+                <button class="btn-outline">+ Create Custom Template</button>
+              </div>
+            </div>
+
+            <div class="section-divider"></div>
+
             <!-- NOTIFICATIONS -->
             <div class="settings-section" id="notifications">
               <div class="section-title">Notifications</div>
@@ -567,5 +805,324 @@
       </div>
     </main>
   </div>
+
+  <!-- TEMPLATE EDITOR OVERLAY -->
+  <div class="tpl-editor-overlay" id="tplEditorOverlay">
+    <div class="tpl-editor">
+      <div class="tpl-editor-header">
+        <div class="dtpl-icon brief" id="tplEditorIcon">DOC</div>
+        <div class="tpl-editor-title" id="tplEditorTitle">Project Discovery Brief</div>
+        <button class="tpl-editor-close" onclick="closeTplEditor()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="tpl-toolbar">
+        <button class="tpl-tb-btn" onclick="insertBlock('h2')"><svg viewBox="0 0 24 24"><path d="M4 12h8M4 18V6M12 18V6M21 18h-5c0-4 5-4 5-8a3 3 0 00-6 0"/></svg> Heading</button>
+        <button class="tpl-tb-btn" onclick="insertBlock('para')"><svg viewBox="0 0 24 24"><line x1="17" y1="10" x2="3" y2="10"/><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="14" x2="3" y2="14"/><line x1="17" y1="18" x2="3" y2="18"/></svg> Text</button>
+        <button class="tpl-tb-btn" onclick="insertBlock('ai')" style="color:var(--purple);"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Block</button>
+        <div class="tpl-tb-sep"></div>
+        <button class="tpl-tb-btn" onclick="insertBlock('table')"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg> Table</button>
+        <button class="tpl-tb-btn" onclick="insertBlock('divider')"><svg viewBox="0 0 24 24"><line x1="2" y1="12" x2="22" y2="12"/></svg> Divider</button>
+        <button class="tpl-tb-btn" onclick="insertVariable()"><svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Variable</button>
+      </div>
+      <div class="tpl-config-bar">
+        <div><label>Trigger</label> <select id="tplTrigger"><option>After each meeting</option><option>Manual only</option><option>On readiness threshold</option><option>On new facts (batch)</option><option>On new key decision</option></select></div>
+        <div><label>Model</label> <select id="tplModel"><option>Haiku (fast)</option><option selected>Sonnet (balanced)</option><option>Opus (thorough)</option></select></div>
+        <div><label>RAG Sources</label> <select id="tplSources"><option>All meetings + facts</option><option>Requirements + decisions</option><option>Gaps + facts</option><option>Meetings only</option></select></div>
+      </div>
+      <div class="tpl-editor-body" id="tplEditorBody">
+        <!-- Blocks rendered by JS -->
+      </div>
+      <div class="tpl-editor-footer">
+        <span class="tpl-footer-info" id="tplBlockCount">7 blocks</span>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-outline" onclick="closeTplEditor()">Cancel</button>
+          <button class="btn-primary" onclick="saveTplEditor()">Save Template</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const navItems = document.querySelectorAll('.settings-nav-item');
+    const sectionIds = ['general', 'team', 'integrations', 'ai-models', 'control-points', 'doc-templates', 'notifications', 'danger-zone'];
+    const sections = sectionIds.map(id => document.getElementById(id));
+    const dividers = document.querySelectorAll('.section-divider');
+
+    function showTab(index) {
+      navItems.forEach(n => n.classList.remove('active'));
+      navItems[index].classList.add('active');
+      sections.forEach(s => s.style.display = 'none');
+      dividers.forEach(d => d.style.display = 'none');
+      sections[index].style.display = '';
+    }
+
+    navItems.forEach((item, i) => {
+      item.addEventListener('click', () => showTab(i));
+    });
+
+    // Show first tab by default
+    showTab(0);
+
+    // === TEMPLATE EDITOR ===
+    const templates = {
+      'discovery-brief': {
+        title: 'Project Discovery Brief', icon: 'brief', iconText: 'DOC',
+        blocks: [
+          { type: 'h1', text: 'Project Discovery Brief' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | Client: <span class="tpl-var">project.client</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'Executive Summary' },
+          { type: 'ai', instruction: 'Write a 3-paragraph executive summary covering project goals, current discovery status, and key decisions made. Tone: professional, concise.', source: 'All meetings + confirmed facts' },
+          { type: 'h2', text: 'Project Vision & Goals' },
+          { type: 'ai', instruction: 'List the project vision statement and top 5 goals extracted from stakeholder meetings. Include direct quotes where available.', source: 'Meetings + facts' },
+          { type: 'h2', text: 'Stakeholder Matrix' },
+          { type: 'table', headers: ['Stakeholder', 'Role', 'Priority Focus', 'Key Concern'], rows: [['', '', '', '']] },
+          { type: 'ai', instruction: 'Build stakeholder table from meeting attendees and their stated priorities. One row per stakeholder.', source: 'Meetings + attendee data' },
+          { type: 'h2', text: 'Constraints & Assumptions' },
+          { type: 'para', text: '' , placeholder: 'Add any manual notes about constraints...' },
+          { type: 'ai', instruction: 'List confirmed constraints from facts (status=confirmed). Then list assumptions (status=assumed) that need validation. Flag high-risk ones.', source: 'Facts data' },
+          { type: 'h2', text: 'Success Criteria' },
+          { type: 'ai', instruction: 'Extract measurable success criteria from stakeholder statements. Format as numbered list with source attribution.', source: 'Meetings + facts' },
+          { type: 'h2', text: 'Key Decisions Log' },
+          { type: 'ai', instruction: 'List all key decisions made across meetings in chronological order. Include: decision, meeting #, date, who decided.', source: 'Meeting decisions' },
+          { type: 'h2', text: 'Open Questions' },
+          { type: 'ai', instruction: 'List unresolved gaps sorted by severity. Include AI recommendation for each.', source: 'Gaps data' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'func-reqs': {
+        title: 'Functional Requirements Specification', icon: 'spec', iconText: 'SPEC',
+        blocks: [
+          { type: 'h1', text: 'Functional Requirements Specification' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | Version: <span class="tpl-var">doc.version</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'Introduction & Scope' },
+          { type: 'ai', instruction: 'Write introduction paragraph defining the scope of this requirements document. Reference the project vision and MVP boundaries.', source: 'Facts + decisions' },
+          { type: 'h2', text: 'Must-Have Requirements' },
+          { type: 'ai', instruction: 'List all requirements with priority=must. Format: ID, Title, Description, Source (who/meeting), Acceptance Criteria.', source: 'Requirements data (must)' },
+          { type: 'h2', text: 'Should-Have Requirements' },
+          { type: 'ai', instruction: 'List all requirements with priority=should. Same format as Must-Have.', source: 'Requirements data (should)' },
+          { type: 'h2', text: 'Could-Have Requirements' },
+          { type: 'ai', instruction: 'List all requirements with priority=could. Same format.', source: 'Requirements data (could)' },
+          { type: 'h2', text: 'Deferred / Out of Scope' },
+          { type: 'ai', instruction: 'List deferred requirements and explicitly excluded items with rationale for deferral.', source: 'Requirements (deferred) + decisions' },
+          { type: 'h2', text: 'Traceability Matrix' },
+          { type: 'table', headers: ['Req ID', 'Related Facts', 'Meeting Source', 'Status'], rows: [['', '', '', '']] },
+          { type: 'ai', instruction: 'Build traceability matrix linking each requirement to source facts, meetings, and current status.', source: 'Requirements + facts' },
+          { type: 'h2', text: 'Acceptance Criteria Summary' },
+          { type: 'ai', instruction: 'Consolidate acceptance criteria for all must-have requirements into a testable checklist format.', source: 'Requirements (must)' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'mvp-scope': {
+        title: 'MVP Scope Document', icon: 'brief', iconText: 'DOC',
+        blocks: [
+          { type: 'h1', text: 'MVP Scope Document' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'MVP Feature List' },
+          { type: 'ai', instruction: 'List all features included in MVP with brief description, priority, and sprint assignment.', source: 'Requirements (must + should)' },
+          { type: 'h2', text: 'Excluded Features (Phase 2+)' },
+          { type: 'ai', instruction: 'List features explicitly excluded from MVP with rationale and proposed phase.', source: 'Requirements (deferred) + decisions' },
+          { type: 'h2', text: 'Phasing & Release Strategy' },
+          { type: 'ai', instruction: 'Outline release phases with feature groupings and dependencies between phases.', source: 'Requirements + decisions' },
+          { type: 'h2', text: 'Dependencies & Blockers' },
+          { type: 'ai', instruction: 'List technical and business dependencies. Flag any current blockers from gaps data.', source: 'Gaps + facts' },
+          { type: 'h2', text: 'Timeline Estimate' },
+          { type: 'ai', instruction: 'Provide sprint-level timeline based on feature count and team capacity assumptions.', source: 'Requirements + facts' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'gap-analysis': {
+        title: 'Gap Analysis Report', icon: 'analysis', iconText: 'GAP',
+        blocks: [
+          { type: 'h1', text: 'Gap Analysis Report' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'Critical Gaps (Blockers)' },
+          { type: 'ai', instruction: 'List gaps with severity=high that block progress. Include: gap question, area, blocked requirements, recommended resolution.', source: 'Gaps (high) + requirements' },
+          { type: 'h2', text: 'High-Priority Gaps' },
+          { type: 'ai', instruction: 'List remaining open gaps sorted by impact. Same format.', source: 'Gaps (medium+) + requirements' },
+          { type: 'h2', text: 'Missing NFR Coverage' },
+          { type: 'ai', instruction: 'Identify non-functional requirement areas with insufficient coverage: performance, security, scalability, accessibility.', source: 'Requirements + facts' },
+          { type: 'h2', text: 'Recommendations & Next Steps' },
+          { type: 'ai', instruction: 'For each gap, provide specific recommended action: who to ask, what meeting to schedule, what research to do.', source: 'Gaps + meetings' },
+          { type: 'h2', text: 'Meeting Agenda Suggestions' },
+          { type: 'ai', instruction: 'Generate suggested agenda items for next meeting based on unresolved gaps, grouped by topic area.', source: 'Gaps (open)' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'stakeholder-summary': {
+        title: 'Stakeholder Summary', icon: 'summary', iconText: 'SUM',
+        blocks: [
+          { type: 'h1', text: 'Stakeholder Summary' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'Stakeholder Profiles' },
+          { type: 'ai', instruction: 'For each stakeholder: name, role, meetings attended, key interests, and influence level.', source: 'Meetings + attendees' },
+          { type: 'h2', text: 'Priority Alignment Matrix' },
+          { type: 'table', headers: ['Topic', 'Stakeholder A', 'Stakeholder B', 'Alignment'], rows: [['', '', '', '']] },
+          { type: 'ai', instruction: 'Compare stakeholder priorities across key topics. Flag misalignments.', source: 'Facts + meetings' },
+          { type: 'h2', text: 'Key Concerns & Risks per Stakeholder' },
+          { type: 'ai', instruction: 'List each stakeholder\'s top concerns with direct quotes from meetings.', source: 'Meetings + facts' },
+          { type: 'h2', text: 'Meeting Participation Log' },
+          { type: 'ai', instruction: 'Build attendance matrix: which stakeholder attended which meeting, contribution count.', source: 'Meetings' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'adr': {
+        title: 'Architecture Decision Record', icon: 'adr', iconText: 'ADR',
+        blocks: [
+          { type: 'h1', text: 'ADR: <span class="tpl-var">decision.title</span>' },
+          { type: 'meta', text: 'Status: <span class="tpl-var">decision.status</span> | Date: <span class="tpl-var">decision.date</span> | Deciders: <span class="tpl-var">decision.participants</span>' },
+          { type: 'h2', text: 'Context & Problem Statement' },
+          { type: 'ai', instruction: 'Describe the technical/business context that led to this decision. What problem needed solving? What was the trigger?', source: 'Decisions + related facts' },
+          { type: 'h2', text: 'Options Considered' },
+          { type: 'ai', instruction: 'List all options discussed with pros/cons for each. Include any that were mentioned but quickly dismissed.', source: 'Meeting transcripts + facts' },
+          { type: 'h2', text: 'Decision & Rationale' },
+          { type: 'ai', instruction: 'State the decision clearly. Explain why this option was chosen over alternatives. Include direct quotes from decision makers.', source: 'Decisions + facts' },
+          { type: 'h2', text: 'Consequences & Trade-offs' },
+          { type: 'ai', instruction: 'List positive and negative consequences of this decision. What trade-offs were accepted?', source: 'Facts + gaps' },
+          { type: 'h2', text: 'Related Facts & Requirements' },
+          { type: 'ai', instruction: 'Link to related confirmed facts and requirements affected by this decision.', source: 'Facts + requirements' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      },
+      'risk-report': {
+        title: 'Risk & Contradiction Report', icon: 'risk', iconText: 'RISK',
+        blocks: [
+          { type: 'h1', text: 'Risk & Contradiction Report' },
+          { type: 'meta', text: '<span class="tpl-var">project.name</span> | <span class="tpl-var">generated.date</span>' },
+          { type: 'h2', text: 'Active Contradictions' },
+          { type: 'ai', instruction: 'List all unresolved contradictions with: title, side A vs side B, impact level, affected requirements, and AI recommendation.', source: 'Contradictions (open)' },
+          { type: 'h2', text: 'Resolved Contradictions Log' },
+          { type: 'ai', instruction: 'List resolved contradictions with: title, resolution decision, who decided, date.', source: 'Contradictions (resolved)' },
+          { type: 'h2', text: 'Risk Register' },
+          { type: 'table', headers: ['Risk', 'Likelihood', 'Impact', 'Mitigation', 'Owner'], rows: [['', '', '', '', '']] },
+          { type: 'ai', instruction: 'Build risk register from unresolved gaps, contradictions, and assumed facts. Rate likelihood and impact.', source: 'Gaps + contradictions + facts (assumed)' },
+          { type: 'h2', text: 'Impact Assessment' },
+          { type: 'ai', instruction: 'Assess overall project risk level. Which areas have the highest concentration of unresolved issues?', source: 'All risk data' },
+          { type: 'h2', text: 'Mitigation Recommendations' },
+          { type: 'ai', instruction: 'For each high-risk item, provide specific mitigation steps with assigned owners and deadlines.', source: 'Gaps + contradictions' },
+          { type: 'divider' },
+          { type: 'meta', text: 'Generated by Discovery AI Assistant &mdash; <span class="tpl-var">timestamp</span>' }
+        ]
+      }
+    };
+
+    let currentTplKey = null;
+
+    function openTplEditor(key) {
+      currentTplKey = key;
+      const tpl = templates[key];
+      if (!tpl) return;
+      document.getElementById('tplEditorTitle').textContent = tpl.title;
+      const iconEl = document.getElementById('tplEditorIcon');
+      iconEl.className = 'dtpl-icon ' + tpl.icon;
+      iconEl.textContent = tpl.iconText;
+      renderTplBlocks(tpl.blocks);
+      document.getElementById('tplEditorOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeTplEditor() {
+      document.getElementById('tplEditorOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+      currentTplKey = null;
+    }
+
+    function saveTplEditor() {
+      // In real app: serialize blocks back to template data
+      closeTplEditor();
+    }
+
+    function renderTplBlocks(blocks) {
+      const body = document.getElementById('tplEditorBody');
+      body.innerHTML = '';
+      blocks.forEach((b, i) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'tpl-block';
+        wrap.setAttribute('data-idx', i);
+        const handle = '<div class="tpl-block-handle">⋮⋮</div>';
+
+        if (b.type === 'h1') {
+          wrap.innerHTML = handle + '<div class="tpl-h1" contenteditable="true">' + b.text + '</div>';
+        } else if (b.type === 'h2') {
+          wrap.innerHTML = handle + '<div class="tpl-h2" contenteditable="true">' + b.text + '</div>';
+        } else if (b.type === 'para') {
+          wrap.innerHTML = handle + '<div class="tpl-para" contenteditable="true" data-ph="' + (b.placeholder || 'Type text...') + '">' + (b.text || '') + '</div>';
+        } else if (b.type === 'meta') {
+          wrap.innerHTML = handle + '<div class="tpl-meta-line">' + b.text + '</div>';
+        } else if (b.type === 'ai') {
+          wrap.innerHTML = handle +
+            '<div class="tpl-ai-block">' +
+              '<div class="tpl-ai-label"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Generated Section</div>' +
+              '<div class="tpl-ai-instruction" contenteditable="true">' + b.instruction + '</div>' +
+              '<div class="tpl-ai-source">Source: <select><option>' + b.source + '</option><option>All data</option><option>Meetings only</option><option>Facts only</option></select></div>' +
+            '</div>';
+        } else if (b.type === 'table') {
+          let tableHtml = '<div class="tpl-table-block"><table><thead><tr>';
+          b.headers.forEach(h => { tableHtml += '<th>' + h + '</th>'; });
+          tableHtml += '</tr></thead><tbody>';
+          b.rows.forEach(row => {
+            tableHtml += '<tr>';
+            row.forEach(cell => { tableHtml += '<td contenteditable="true">' + cell + '</td>'; });
+            tableHtml += '</tr>';
+          });
+          tableHtml += '</tbody></table></div>';
+          wrap.innerHTML = handle + tableHtml;
+        } else if (b.type === 'divider') {
+          wrap.innerHTML = '<hr class="tpl-divider">';
+        }
+        body.appendChild(wrap);
+      });
+      document.getElementById('tplBlockCount').textContent = blocks.length + ' blocks';
+    }
+
+    function insertBlock(type) {
+      if (!currentTplKey) return;
+      const tpl = templates[currentTplKey];
+      if (type === 'h2') tpl.blocks.push({ type: 'h2', text: 'New Section' });
+      else if (type === 'para') tpl.blocks.push({ type: 'para', text: '', placeholder: 'Type text...' });
+      else if (type === 'ai') tpl.blocks.push({ type: 'ai', instruction: '', source: 'All data' });
+      else if (type === 'table') tpl.blocks.push({ type: 'table', headers: ['Column 1', 'Column 2', 'Column 3'], rows: [['', '', '']] });
+      else if (type === 'divider') tpl.blocks.push({ type: 'divider' });
+      renderTplBlocks(tpl.blocks);
+      // Scroll to bottom
+      const body = document.getElementById('tplEditorBody');
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function insertVariable() {
+      const vars = ['project.name', 'project.client', 'generated.date', 'doc.version', 'timestamp', 'decision.title', 'decision.status'];
+      const sel = window.getSelection();
+      if (!sel.rangeCount) return;
+      const pill = document.createElement('span');
+      pill.className = 'tpl-var';
+      pill.contentEditable = 'false';
+      const varName = vars[0]; // In real UI would show a dropdown
+      pill.textContent = varName;
+      sel.getRangeAt(0).insertNode(pill);
+      sel.collapseToEnd();
+    }
+
+    // Close editor on ESC
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && currentTplKey) closeTplEditor();
+    });
+
+    // Close on backdrop click
+    document.getElementById('tplEditorOverlay').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeTplEditor();
+    });
+
+    // Template card selection
+    document.querySelectorAll('.template-card').forEach(card => {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+  </script>
 </body>
 </html>

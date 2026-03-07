@@ -3,55 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Crnogorchi — Discovery v2</title>
+  <title>Crnogorchi — Discovery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --green: #00E5A0;
-      --green-light: #00E5A020;
-      --green-mid: #00E5A040;
-      --green-hover: #00CCA0;
-      --dark: #1A1A1A;
-      --dark-deep: #111111;
-      --dark-card: #222222;
-      --dark-border: #2A2A2A;
-      --dark-hover: #2D2D2D;
+      --green: #00E5A0; --green-light: #00E5A020; --green-mid: #00E5A040; --green-hover: #00CCA0;
+      --dark: #1A1A1A; --dark-deep: #111111; --dark-card: #222222; --dark-border: #2A2A2A; --dark-hover: #2D2D2D;
       --white: #FFFFFF;
-      --gray-50: #F9FAFB;
-      --gray-100: #F3F4F6;
-      --gray-200: #E5E7EB;
-      --gray-300: #D1D5DB;
-      --gray-400: #9CA3AF;
-      --gray-500: #6B7280;
-      --gray-600: #4B5563;
-      --gray-700: #374151;
-      --warning: #F59E0B;
-      --warning-light: #F59E0B20;
-      --danger: #EF4444;
-      --danger-light: #EF444420;
-      --info: #3B82F6;
-      --info-light: #3B82F620;
-      --purple: #8B5CF6;
-      --purple-light: #8B5CF620;
-      --orange: #F97316;
-      --orange-light: #F9731620;
+      --gray-50: #F9FAFB; --gray-100: #F3F4F6; --gray-200: #E5E7EB; --gray-300: #D1D5DB;
+      --gray-400: #9CA3AF; --gray-500: #6B7280; --gray-600: #4B5563; --gray-700: #374151;
+      --warning: #F59E0B; --warning-light: #F59E0B20;
+      --danger: #EF4444; --danger-light: #EF444420;
+      --info: #3B82F6; --info-light: #3B82F620;
+      --purple: #8B5CF6; --purple-light: #8B5CF620;
+      --orange: #F97316; --orange-light: #F9731620;
       --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      --sidebar-width: 260px;
-      --topbar-height: 64px;
-      --tracker-width: 320px;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --radius-xs: 6px;
-      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-      --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
-      --shadow-lg: 0 4px 16px rgba(0,0,0,0.08);
+      --sidebar-width: 260px; --topbar-height: 64px;
+      --radius: 12px; --radius-sm: 8px; --radius-xs: 6px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04); --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
     }
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: var(--font); background: var(--gray-50); color: var(--dark); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow: hidden; height: 100vh; }
     .app { display: flex; height: 100vh; }
 
-    /* ===== SIDEBAR (same as v1) ===== */
+    /* SIDEBAR */
     .sidebar { width: var(--sidebar-width); background: var(--dark); position: fixed; top: 0; left: 0; bottom: 0; display: flex; flex-direction: column; z-index: 100; overflow-y: auto; }
     .sidebar-logo { padding: 24px 24px 32px; border-bottom: 1px solid var(--dark-border); }
     .sidebar-logo h1 { font-size: 20px; font-weight: 800; color: var(--white); letter-spacing: -0.3px; }
@@ -71,10 +47,10 @@
     .user-name { font-size: 13px; font-weight: 600; color: var(--white); }
     .user-role { font-size: 11px; color: var(--gray-500); }
 
-    /* ===== MAIN ===== */
+    /* MAIN */
     .main { flex: 1; margin-left: var(--sidebar-width); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-    /* ===== TOPBAR ===== */
+    /* TOPBAR */
     .topbar { height: var(--topbar-height); background: var(--white); border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; padding: 0 32px; gap: 16px; flex-shrink: 0; }
     .project-selector { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); cursor: pointer; background: var(--white); }
     .project-selector:hover { border-color: var(--gray-400); }
@@ -93,19 +69,27 @@
     .btn-primary { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--green); color: var(--dark); border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; font-family: var(--font); cursor: pointer; transition: all 0.15s; }
     .btn-primary:hover { background: var(--green-hover); box-shadow: 0 2px 8px rgba(0,229,160,0.3); }
     .btn-primary svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
-    .tracker-toggle { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
-    .tracker-toggle:hover { border-color: var(--gray-300); background: var(--gray-50); }
-    .tracker-toggle.active { border-color: var(--green); background: var(--green-light); }
-    .tracker-toggle svg { width: 18px; height: 18px; color: var(--gray-600); stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .tracker-toggle.active svg { color: var(--green-hover); }
 
-    /* ===== CONTENT AREA ===== */
-    .content-area { flex: 1; display: flex; overflow: hidden; }
+    /* CONTENT AREA — split layout */
+    .content-area { flex: 1; display: flex; overflow: hidden; position: relative; }
 
-    /* ===== CHAT ===== */
-    .chat-area { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--gray-50); position: relative; }
+    /* CHAT PANEL */
+    .chat-panel { display: flex; flex-direction: column; min-width: 0; background: var(--gray-50); position: relative; overflow: hidden; transition: flex 0.3s ease; }
+    .chat-panel.collapsed { flex: 0 0 48px !important; min-width: 48px; }
+    .chat-panel.collapsed .chat-session-header,
+    .chat-panel.collapsed .chat-messages,
+    .chat-panel.collapsed .chat-input-area { display: none; }
+    .chat-panel.expanded { flex: 1 1 100% !important; }
 
-    .chat-session-header { display: flex; align-items: center; gap: 10px; padding: 10px 28px; border-bottom: 1px solid var(--gray-200); background: var(--white); flex-shrink: 0; }
+    /* Collapsed chat strip */
+    .chat-collapsed-strip { display: none; flex-direction: column; align-items: center; padding: 12px 0; gap: 8px; background: var(--white); border-right: 1px solid var(--gray-200); height: 100%; }
+    .chat-panel.collapsed .chat-collapsed-strip { display: flex; }
+    .collapsed-expand-btn { width: 32px; height: 32px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .collapsed-expand-btn:hover { background: var(--green-light); border-color: var(--green); }
+    .collapsed-expand-btn svg { width: 14px; height: 14px; stroke: var(--gray-500); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .collapsed-label { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 600; color: var(--gray-400); letter-spacing: 0.5px; }
+
+    .chat-session-header { display: flex; align-items: center; gap: 10px; padding: 10px 20px; border-bottom: 1px solid var(--gray-200); background: var(--white); flex-shrink: 0; }
     .chat-session-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--dark); color: var(--green); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
     .chat-session-title { font-size: 14px; font-weight: 700; }
     .chat-session-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: var(--green-light); color: #059669; font-weight: 600; }
@@ -114,11 +98,10 @@
     .chat-action-btn:hover { background: var(--gray-50); border-color: var(--gray-300); }
     .chat-action-btn svg { width: 13px; height: 13px; stroke: var(--gray-500); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
-    .chat-messages { flex: 1; overflow-y: auto; padding: 20px 28px; display: flex; flex-direction: column; gap: 18px; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 20px 20px; display: flex; flex-direction: column; gap: 18px; }
     .chat-date-divider { display: flex; align-items: center; gap: 12px; margin: 4px 0; }
     .chat-date-divider::before, .chat-date-divider::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
     .chat-date-divider span { font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; }
-
     .chat-msg { max-width: 740px; display: flex; gap: 12px; }
     .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
     .msg-avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
@@ -132,22 +115,16 @@
     .chat-msg.user .msg-bubble { background: var(--dark); color: var(--white); border-bottom-right-radius: 4px; }
     .msg-time { font-size: 10px; color: var(--gray-400); margin-top: 3px; }
     .chat-msg.user .msg-time { text-align: right; }
-
-    /* Context refs */
     .msg-context-refs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--gray-100); font-size: 11px; color: var(--gray-400); }
     .ctx-ref { display: inline-flex; padding: 2px 8px; background: var(--green-light); color: #059669; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; text-decoration: none; }
     .ctx-ref:hover { background: var(--green-mid); }
-
-    /* Suggestions */
     .msg-suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .msg-suggestion { padding: 5px 12px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 20px; font-size: 12px; font-weight: 500; color: var(--gray-600); cursor: pointer; transition: all 0.15s; font-family: var(--font); }
     .msg-suggestion:hover { border-color: var(--green); color: var(--dark); background: var(--green-light); }
-
-    /* Rich inline cards */
     .msg-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); margin-top: 10px; overflow: hidden; cursor: pointer; transition: all 0.15s; }
     .msg-card:hover { border-color: var(--green); box-shadow: 0 2px 12px rgba(0,229,160,0.1); }
 
-    /* Fact card */
+    /* Inline cards */
     .fact-card { padding: 14px 16px; }
     .fact-card-head { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
     .fact-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: var(--green-light); color: #059669; }
@@ -158,8 +135,6 @@
     .fact-dot.assumed { background: var(--warning); }
     .fact-text { font-size: 12px; color: var(--gray-700); flex: 1; }
     .fact-src { font-size: 10px; color: var(--gray-500); background: var(--gray-100); padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
-
-    /* Contradiction */
     .contra-card { border-left: 3px solid var(--danger); }
     .contra-inner { padding: 14px 16px; }
     .contra-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
@@ -171,8 +146,6 @@
     .contra-src.old { background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); }
     .contra-src.new { background: var(--danger-light); border: 1px solid rgba(239,68,68,0.2); }
     .contra-src-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
-
-    /* Requirement card */
     .req-card { border-left: 3px solid var(--green); }
     .req-card-inner { padding: 14px 16px; }
     .req-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -187,16 +160,12 @@
     .req-btn.approve:hover { border-color: #059669; background: var(--green-light); color: #059669; }
     .req-btn.reject:hover { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
     .req-btn.view:hover { border-color: var(--info); background: var(--info-light); color: var(--info); }
-
-    /* Document card */
     .doc-card { padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
     .doc-icon { width: 36px; height: 36px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
     .doc-icon.meeting { background: var(--info-light); color: var(--info); }
     .doc-info h5 { font-size: 13px; font-weight: 600; }
     .doc-info p { font-size: 11px; color: var(--gray-400); }
     .doc-action { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--green); white-space: nowrap; }
-
-    /* Gap card */
     .gap-card { padding: 14px 16px; }
     .gap-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .gap-card-icon { width: 24px; height: 24px; border-radius: 50%; background: var(--warning-light); color: var(--warning); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
@@ -211,31 +180,33 @@
     .gap-sev { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
     .gap-sev.high { background: var(--danger-light); color: var(--danger); }
     .gap-sev.medium { background: var(--warning-light); color: var(--warning); }
-
-    /* Readiness card */
     .readiness-card { padding: 16px; }
     .rc-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
     .rc-ring { width: 52px; height: 52px; position: relative; flex-shrink: 0; }
     .rc-ring svg { width: 52px; height: 52px; transform: rotate(-90deg); }
     .rc-ring .bg { fill: none; stroke: var(--gray-100); stroke-width: 5; }
     .rc-ring .fg { fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 138; }
-    .rc-ring .fg.warn { stroke: var(--warning); }
     .rc-val { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 15px; font-weight: 800; color: #059669; }
     .rc-info h4 { font-size: 14px; font-weight: 700; }
     .rc-info p { font-size: 11px; color: var(--gray-500); }
     .rc-trend { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; color: #059669; margin-top: 2px; }
     .rc-areas { display: flex; flex-direction: column; gap: 8px; }
     .rc-area { display: flex; align-items: center; gap: 10px; }
-    .rc-area-name { font-size: 12px; font-weight: 500; color: var(--gray-600); width: 140px; flex-shrink: 0; }
+    .rc-area-name { font-size: 12px; font-weight: 500; color: var(--gray-600); width: 130px; flex-shrink: 0; }
     .rc-area-bar { flex: 1; height: 6px; background: var(--gray-100); border-radius: 3px; overflow: hidden; }
     .rc-area-fill { height: 100%; border-radius: 3px; }
     .rc-area-fill.good { background: #059669; }
     .rc-area-fill.warn { background: var(--warning); }
     .rc-area-fill.bad { background: var(--danger); }
     .rc-area-val { font-size: 11px; font-weight: 700; width: 36px; text-align: right; }
+    .doc-card-review { border-left: 3px solid var(--info); }
+    .doc-review-inner { padding: 14px 16px; }
+    .doc-review-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .doc-review-badge { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: var(--warning-light); color: var(--warning); }
+    .doc-review-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
 
-    /* ===== CHAT INPUT ===== */
-    .chat-input-area { padding: 0 28px 16px; flex-shrink: 0; position: relative; }
+    /* CHAT INPUT */
+    .chat-input-area { padding: 0 20px 12px; flex-shrink: 0; position: relative; }
     .chat-input-box { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 4px; display: flex; align-items: flex-end; gap: 0; transition: all 0.2s; box-shadow: var(--shadow-sm); }
     .chat-input-box:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light), var(--shadow-md); }
     .wf-plus-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; color: var(--gray-500); flex-shrink: 0; margin: 3px 4px; }
@@ -252,177 +223,308 @@
     .send-btn:hover { background: var(--green-hover); }
     .send-btn svg { width: 15px; height: 15px; stroke: var(--dark); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .chat-hint { font-size: 10px; color: var(--gray-400); margin-top: 5px; text-align: center; }
-    .chat-hint kbd { display: inline-block; padding: 1px 4px; background: var(--gray-100); border: 1px solid var(--gray-200); border-radius: 3px; font-size: 9px; font-family: var(--font); }
-
-    /* Workflow popup */
-    .wf-popup { position: absolute; bottom: calc(100% + 4px); left: 28px; width: 280px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06); z-index: 50; opacity: 0; visibility: hidden; transform: translateY(8px) scale(0.98); transition: all 0.2s ease; }
+    .wf-popup { position: absolute; bottom: calc(100% + 4px); left: 20px; width: 280px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: 0 8px 32px rgba(0,0,0,0.12); z-index: 50; opacity: 0; visibility: hidden; transform: translateY(8px) scale(0.98); transition: all 0.2s ease; }
     .wf-popup.open { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
     .wf-popup-header { padding: 12px 16px 8px; border-bottom: 1px solid var(--gray-100); }
     .wf-popup-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); }
     .wf-popup-items { padding: 6px; }
     .wf-popup-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
     .wf-popup-item:hover { background: var(--gray-50); }
-    .wf-popup-item:hover .wfp-icon { background: var(--green-light); color: var(--green-hover); border-color: var(--green-mid); }
     .wfp-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid var(--gray-200); background: var(--gray-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--gray-500); transition: all 0.15s; }
     .wfp-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-    .wfp-info { flex: 1; min-width: 0; }
     .wfp-label { font-size: 13px; font-weight: 600; color: var(--dark); }
     .wfp-desc { font-size: 11px; color: var(--gray-400); margin-top: 1px; }
     .wf-popup-divider { height: 1px; background: var(--gray-100); margin: 4px 12px; }
 
-    /* ===== TRACKER PANEL ===== */
-    .tracker-panel { width: 0; background: var(--white); border-left: 1px solid var(--gray-200); flex-shrink: 0; overflow: hidden; transition: width 0.3s ease; display: flex; flex-direction: column; }
-    .tracker-panel.open { width: var(--tracker-width); }
-    .tracker-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: none; flex-shrink: 0; }
-    .tracker-title { font-size: 13px; font-weight: 700; flex: 1; }
-    .tracker-close { width: 26px; height: 26px; border-radius: var(--radius-xs); border: none; background: var(--gray-100); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
-    .tracker-close:hover { background: var(--gray-200); }
-    .tracker-close svg { width: 14px; height: 14px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
-    .tracker-tabs { display: flex; padding: 0 12px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; gap: 0; }
-    .tracker-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 9px 4px; font-size: 11px; font-weight: 600; color: var(--gray-400); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; user-select: none; white-space: nowrap; }
-    .tracker-tab:hover { color: var(--gray-600); }
-    .tracker-tab.active { color: var(--green-hover); border-bottom-color: var(--green); }
-    .tracker-tab svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
-    .tracker-tab .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; background: var(--warning); color: var(--white); font-size: 9px; font-weight: 800; border-radius: 8px; padding: 0 4px; }
-    .tracker-tab.active .tab-badge { background: var(--green); color: var(--dark); }
-    .tracker-body { flex: 1; overflow-y: auto; padding: 0; }
-    .tk-tab-content { display: none; }
-    .tk-tab-content.active { display: block; }
+    /* DIVIDER */
+    .split-divider { width: 5px; background: var(--gray-200); cursor: col-resize; flex-shrink: 0; position: relative; z-index: 10; transition: background 0.15s; }
+    .split-divider:hover, .split-divider.dragging { background: var(--green); }
+    .split-divider::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 3px; height: 32px; border-radius: 2px; background: var(--gray-400); opacity: 0; transition: opacity 0.15s; }
+    .split-divider:hover::after, .split-divider.dragging::after { opacity: 1; background: var(--white); }
 
-    /* Tracker sections */
-    .tk-section { border-bottom: 1px solid var(--gray-100); }
-    .tk-section-header { display: flex; align-items: center; gap: 8px; padding: 12px 16px; cursor: pointer; user-select: none; transition: background 0.15s; }
-    .tk-section-header:hover { background: var(--gray-50); }
-    .tk-section-chevron { width: 14px; height: 14px; color: var(--gray-400); transition: transform 0.2s; flex-shrink: 0; }
-    .tk-section-chevron svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .tk-section.collapsed .tk-section-chevron { transform: rotate(-90deg); }
-    .tk-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-500); }
-    .tk-section-meta { margin-left: auto; font-size: 10px; color: var(--gray-400); font-weight: 600; }
-    .tk-section-content { padding: 0 16px 14px; overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.3s ease; max-height: 800px; opacity: 1; }
-    .tk-section.collapsed .tk-section-content { max-height: 0; opacity: 0; padding: 0 16px; }
+    /* DATA PANEL */
+    .data-panel { display: flex; flex-direction: column; min-width: 0; background: var(--white); overflow: hidden; transition: flex 0.3s ease; }
+    .data-panel.collapsed { flex: 0 0 48px !important; min-width: 48px; }
+    .data-panel.collapsed .dp-header,
+    .data-panel.collapsed .dp-tabs,
+    .data-panel.collapsed .dp-body,
+    .data-panel.collapsed .dp-readiness { display: none; }
+    .data-panel.expanded { flex: 1 1 100% !important; }
 
-    /* Readiness ring (tracker) */
-    .tk-readiness { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-    .tk-ring { width: 56px; height: 56px; position: relative; flex-shrink: 0; }
-    .tk-ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
-    .tk-ring .ring-bg { fill: none; stroke: var(--gray-100); stroke-width: 5; }
-    .tk-ring .ring-fg { fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 150.8; }
-    .tk-ring-val { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 16px; font-weight: 800; color: #059669; }
-    .tk-ring-info h4 { font-size: 13px; font-weight: 700; }
-    .tk-ring-info p { font-size: 10px; color: var(--gray-400); }
-    .tk-ring-trend { display: flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; color: #059669; margin-top: 2px; }
+    /* Collapsed data strip */
+    .data-collapsed-strip { display: none; flex-direction: column; align-items: center; padding: 12px 0; gap: 8px; background: var(--white); border-left: 1px solid var(--gray-200); height: 100%; }
+    .data-panel.collapsed .data-collapsed-strip { display: flex; }
 
-    /* CP mini items */
-    .tk-cp-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
-    .tk-cp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .tk-cp-dot.good { background: #059669; }
-    .tk-cp-dot.warn { background: var(--warning); }
-    .tk-cp-dot.bad { background: var(--danger); }
-    .tk-cp-label { font-size: 12px; font-weight: 500; color: var(--gray-600); flex: 1; }
-    .tk-cp-bar { width: 60px; height: 4px; background: var(--gray-100); border-radius: 2px; overflow: hidden; }
-    .tk-cp-fill { height: 100%; border-radius: 2px; }
-    .tk-cp-fill.good { background: #059669; }
-    .tk-cp-fill.warn { background: var(--warning); }
-    .tk-cp-fill.bad { background: var(--danger); }
-    .tk-cp-val { font-size: 11px; font-weight: 700; width: 32px; text-align: right; }
-    .tk-cp-val.good { color: #059669; }
-    .tk-cp-val.warn { color: var(--warning); }
-    .tk-cp-val.bad { color: var(--danger); }
+    .dp-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; }
+    .dp-header-title { font-size: 14px; font-weight: 700; flex: 1; }
+    .dp-header-actions { display: flex; gap: 4px; }
+    .dp-expand-btn { width: 28px; height: 28px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+    .dp-expand-btn:hover { background: var(--green-light); border-color: var(--green); }
+    .dp-expand-btn svg { width: 14px; height: 14px; stroke: var(--gray-500); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-    /* Knowledge mini */
-    .tk-knowledge-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    .tk-kn-card { flex: 1; background: var(--gray-50); border-radius: var(--radius-sm); padding: 10px; text-align: center; }
-    .tk-kn-val { font-size: 18px; font-weight: 800; color: var(--dark); }
-    .tk-kn-label { font-size: 9px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-    .tk-fact-breakdown { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--gray-400); margin-top: 4px; }
-    .tk-fb-item { display: flex; align-items: center; gap: 3px; }
-    .tk-fb-dot { width: 5px; height: 5px; border-radius: 50%; }
-    .tk-fb-dot.confirmed { background: #059669; }
-    .tk-fb-dot.assumed { background: var(--warning); }
-    .tk-fb-dot.pending { background: var(--gray-300); }
+    /* Data panel tabs */
+    .dp-tabs { display: flex; padding: 0; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; overflow-x: auto; }
+    .dp-tabs::-webkit-scrollbar { display: none; }
+    .dp-tab { padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--gray-400); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
+    .dp-tab:hover { color: var(--gray-600); }
+    .dp-tab.active { color: var(--green-hover); border-bottom-color: var(--green); }
+    .dp-tab .tab-count { font-size: 10px; font-weight: 700; background: var(--gray-100); color: var(--gray-500); padding: 1px 6px; border-radius: 8px; }
+    .dp-tab.active .tab-count { background: var(--green-light); color: #059669; }
 
-    /* Gap list mini */
-    .tk-gap-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-50); }
-    .tk-gap-item:last-child { border-bottom: none; }
-    .tk-gap-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-    .tk-gap-dot.high { background: var(--danger); }
-    .tk-gap-dot.medium { background: var(--warning); }
-    .tk-gap-text { font-size: 11px; color: var(--gray-600); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tk-gap-sev { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
-    .tk-gap-sev.high { background: var(--danger-light); color: var(--danger); }
-    .tk-gap-sev.medium { background: var(--warning-light); color: var(--warning); }
+    /* Data panel body */
+    .dp-body { flex: 1; overflow-y: auto; }
+    .dp-tab-content { display: none; padding: 16px; }
+    .dp-tab-content.active { display: block; }
 
-    /* Session list mini */
-    .tk-session-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--gray-50); cursor: pointer; transition: all 0.15s; }
-    .tk-session-item:last-child { border-bottom: none; }
-    .tk-session-item:hover .tk-session-title { color: var(--dark); }
-    .tk-session-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .tk-session-dot.live { background: var(--green); }
-    .tk-session-dot.done { background: var(--gray-300); }
-    .tk-session-info { flex: 1; min-width: 0; }
-    .tk-session-title { font-size: 12px; font-weight: 600; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tk-session-meta { font-size: 10px; color: var(--gray-400); }
+    /* Panel filter bar */
+    .panel-filter { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+    .panel-filter-btn { padding: 4px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all 0.15s; font-family: var(--font); color: var(--gray-500); }
+    .panel-filter-btn:hover { border-color: var(--gray-300); color: var(--gray-700); }
+    .panel-filter-btn.active { border-color: var(--green); background: var(--green-light); color: #059669; }
+    .panel-search { flex: 1; min-width: 120px; padding: 5px 10px; border: 1px solid var(--gray-200); border-radius: 16px; font-size: 11px; font-family: var(--font); outline: none; background: var(--gray-50); }
+    .panel-search:focus { border-color: var(--green); background: var(--white); }
 
-    /* Activity mini */
-    .tk-activity-item { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--gray-50); }
-    .tk-activity-item:last-child { border-bottom: none; }
-    .tk-activity-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
-    .tk-activity-dot.doc { background: #059669; }
-    .tk-activity-dot.meeting { background: var(--info); }
-    .tk-activity-dot.gap { background: var(--warning); }
-    .tk-activity-dot.req { background: var(--green); }
-    .tk-activity-info { flex: 1; min-width: 0; }
-    .tk-activity-text { font-size: 11px; color: var(--gray-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tk-activity-meta { font-size: 10px; color: var(--gray-400); }
+    /* Panel table */
+    .panel-table { width: 100%; border-collapse: collapse; }
+    .panel-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); padding: 8px 10px; border-bottom: 1px solid var(--gray-200); }
+    .panel-table td { padding: 10px; font-size: 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+    .panel-table tbody tr { cursor: pointer; transition: background 0.1s; }
+    .panel-table tbody tr:hover { background: var(--gray-50); }
+    .panel-table .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .panel-table .status-dot.confirmed { background: #059669; }
+    .panel-table .status-dot.assumed { background: var(--warning); }
+    .panel-table .status-dot.pending { background: var(--gray-300); }
+    .panel-table .sev-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .panel-table .sev-badge.high { background: var(--danger-light); color: var(--danger); }
+    .panel-table .sev-badge.medium { background: var(--warning-light); color: var(--warning); }
+    .panel-table .sev-badge.low { background: var(--green-light); color: #059669; }
+    .panel-table .pri-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+    .panel-table .pri-badge.must { background: var(--danger-light); color: var(--danger); }
+    .panel-table .pri-badge.should { background: var(--warning-light); color: var(--warning); }
+    .panel-table .pri-badge.could { background: var(--info-light); color: var(--info); }
+    .panel-table .status-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .panel-table .status-pill.approved { background: var(--green-light); color: #059669; }
+    .panel-table .status-pill.draft { background: var(--warning-light); color: var(--warning); }
+    .panel-table .status-pill.in-review { background: var(--info-light); color: var(--info); }
+    .panel-table .status-pill.archived { background: var(--gray-100); color: var(--gray-400); }
+    .panel-table .type-badge { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .panel-table .type-badge.spec { background: var(--info-light); color: var(--info); }
+    .panel-table .type-badge.brief { background: var(--green-light); color: #059669; }
+    .panel-table .type-badge.decision { background: var(--purple-light); color: var(--purple); }
+    .panel-table .type-badge.meeting { background: var(--orange-light); color: var(--orange); }
+    .panel-table .type-badge.learning { background: var(--warning-light); color: var(--warning); }
+    .inline-action { width: 26px; height: 26px; border-radius: var(--radius-xs); border: 1px solid var(--gray-200); background: var(--white); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; opacity: 0; }
+    .panel-table tbody tr:hover .inline-action { opacity: 1; }
+    .inline-action:hover { background: var(--green-light); border-color: var(--green); }
+    .inline-action svg { width: 12px; height: 12px; stroke: var(--gray-500); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .inline-action:hover svg { stroke: #059669; }
+    .inline-action.demote:hover { background: var(--warning-light); border-color: var(--warning); }
+    .inline-action.demote:hover svg { stroke: var(--warning); }
+    .inline-action.dismiss:hover { background: var(--danger-light); border-color: var(--danger); }
+    .inline-action.dismiss:hover svg { stroke: var(--danger); }
 
-    /* Team mini */
-    .tk-team-row { display: flex; gap: 6px; flex-wrap: wrap; }
-    .tk-team-member { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); transition: all 0.15s; cursor: pointer; }
-    .tk-team-member:hover { border-color: var(--gray-200); background: var(--gray-50); }
-    .tk-team-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
-    .tk-team-name { font-size: 11px; font-weight: 600; color: var(--gray-600); }
-    .tk-team-phase { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+    /* Fact status pill */
+    .fact-status { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-flex; align-items: center; gap: 4px; }
+    .fact-status.confirmed { background: var(--green-light); color: #059669; }
+    .fact-status.assumed { background: var(--warning-light); color: var(--warning); }
+    .fact-status.pending { background: var(--gray-100); color: var(--gray-500); }
+    .fact-status .fs-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 
-    /* Pending review items (tracker) */
-    .tk-review-item { padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--gray-100); margin-bottom: 8px; transition: all 0.15s; }
-    .tk-review-item:hover { border-color: var(--gray-200); background: var(--gray-50); }
-    .tk-review-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-    .tk-review-icon { width: 28px; height: 28px; border-radius: var(--radius-xs); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
-    .tk-review-icon.brief { background: var(--green-light); color: #059669; }
-    .tk-review-icon.meeting { background: var(--info-light); color: var(--info); }
-    .tk-review-icon.gap { background: var(--warning-light); color: var(--warning); }
-    .tk-review-icon.req { background: var(--purple-light); color: var(--purple); }
-    .tk-review-info { flex: 1; min-width: 0; }
-    .tk-review-name { font-size: 12px; font-weight: 600; color: var(--dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tk-review-meta { font-size: 10px; color: var(--gray-400); margin-top: 1px; }
-    .tk-review-actions { display: flex; gap: 4px; margin-top: 8px; }
-    .tk-review-btn { flex: 1; padding: 5px 0; border-radius: var(--radius-xs); font-size: 10px; font-weight: 700; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all 0.15s; font-family: var(--font); text-align: center; display: flex; align-items: center; justify-content: center; gap: 4px; }
-    .tk-review-btn svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .tk-review-btn.approve:hover { border-color: #059669; background: var(--green-light); color: #059669; }
-    .tk-review-btn.reject:hover { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
-    .tk-review-btn.view:hover { border-color: var(--info); background: var(--info-light); color: var(--info); }
-    .tk-review-item.approved { opacity: 0.5; border-color: #05966930; background: #05966908; }
-    .tk-review-item.approved .tk-review-actions { display: none; }
-    .tk-review-item.approved .tk-review-name::after { content: ' — Approved'; color: #059669; font-weight: 700; }
-    .tk-review-item.rejected { opacity: 0.4; border-color: var(--danger-light); background: #EF444408; }
-    .tk-review-item.rejected .tk-review-actions { display: none; }
-    .tk-review-item.rejected .tk-review-name { text-decoration: line-through; }
-    .tk-review-item.rejected .tk-review-name::after { content: ' — Rejected'; color: var(--danger); font-weight: 700; text-decoration: none; }
-    .tk-pending-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; background: var(--warning); color: var(--white); font-size: 10px; font-weight: 800; border-radius: 9px; padding: 0 5px; margin-left: auto; }
+    /* Expandable fact row */
+    .fact-row { cursor: pointer; }
+    .fact-row td { transition: background 0.1s; }
+    .fact-row:hover td { background: var(--gray-50); }
+    .fact-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .fact-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--green); }
+    .fact-detail-row { display: none; }
+    .fact-detail-row.open { display: table-row; }
+    .fact-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .fact-detail { display: flex; flex-direction: column; gap: 10px; }
+    .fact-detail-desc { font-size: 12px; color: var(--gray-600); line-height: 1.6; padding: 10px 14px; background: var(--white); border-radius: var(--radius-sm); border: 1px solid var(--gray-200); }
+    .fact-detail-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 11px; color: var(--gray-500); }
+    .fact-detail-meta-item { display: flex; align-items: center; gap: 4px; }
+    .fact-detail-meta-item svg { width: 12px; height: 12px; stroke: var(--gray-400); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .fact-detail-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .fact-detail-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: var(--purple-light); color: var(--purple); }
+    .fact-detail-tag.req { background: var(--green-light); color: #059669; }
+    .fact-detail-actions { display: flex; gap: 6px; padding-top: 4px; }
+    .fact-action-btn { padding: 5px 12px; border-radius: var(--radius-xs); font-size: 11px; font-weight: 600; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all 0.15s; font-family: var(--font); display: inline-flex; align-items: center; gap: 4px; }
+    .fact-action-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .fact-action-btn.confirm:hover { border-color: #059669; background: var(--green-light); color: #059669; }
+    .fact-action-btn.assume:hover { border-color: var(--warning); background: var(--warning-light); color: var(--warning); }
+    .fact-action-btn.dismiss:hover { border-color: var(--danger); background: var(--danger-light); color: var(--danger); }
+    .fact-action-btn.defer:hover { border-color: var(--info); background: var(--info-light); color: var(--info); }
 
-    /* Document card with review actions (chat inline) */
-    .doc-card-review { border-left: 3px solid var(--info); }
-    .doc-review-inner { padding: 14px 16px; }
-    .doc-review-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .doc-review-badge { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px; background: var(--warning-light); color: var(--warning); }
-    .doc-review-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--gray-100); }
+    /* Requirement expandable rows (reuse fact-row pattern) */
+    .req-row { cursor: pointer; }
+    .req-row td { transition: background 0.1s; }
+    .req-row:hover td { background: var(--gray-50); }
+    .req-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .req-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--green); }
+    .req-detail-row { display: none; }
+    .req-detail-row.open { display: table-row; }
+    .req-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .req-id-cell { font-weight: 700; color: var(--green); white-space: nowrap; }
+    .req-deferred { opacity: 0.45; }
+    .req-deferred td { text-decoration: line-through; color: var(--gray-400); }
+    .req-deferred .fact-status, .req-deferred .pri-badge { opacity: 0.5; }
 
-    /* ===== CONTEXT PANEL (detail overlay) ===== */
+    /* Gap expandable rows */
+    .gap-row { cursor: pointer; }
+    .gap-row td { transition: background 0.1s; }
+    .gap-row:hover td { background: var(--gray-50); }
+    .gap-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .gap-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--warning); }
+    .gap-row.resolved-row { opacity: 0.5; }
+    .gap-row.resolved-row td { color: var(--gray-400); }
+    .gap-detail-row { display: none; }
+    .gap-detail-row.open { display: table-row; }
+    .gap-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .gap-status-pill { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .gap-status-pill.open { background: var(--warning-light); color: var(--warning); }
+    .gap-status-pill.in-progress { background: var(--info-light); color: var(--info); }
+    .gap-status-pill.resolved { background: var(--green-light); color: #059669; }
+    .gap-ai-suggestion { padding: 10px 14px; background: var(--purple-light); border: 1px solid rgba(139,92,246,0.15); border-radius: var(--radius-sm); font-size: 12px; color: var(--gray-700); line-height: 1.6; }
+    .gap-ai-suggestion .ai-label { font-size: 10px; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
+    .gap-ai-suggestion .ai-label svg { width: 12px; height: 12px; stroke: var(--purple); fill: none; stroke-width: 2; }
+    .gap-resolve-input { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font); outline: none; resize: none; min-height: 60px; transition: border-color 0.15s; }
+    .gap-resolve-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light); }
+    .gap-resolve-input::placeholder { color: var(--gray-400); }
+    .gap-resolution-box { padding: 10px 14px; background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); border-radius: var(--radius-sm); font-size: 12px; color: var(--gray-700); line-height: 1.6; }
+    .gap-resolution-box .res-label { font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .gap-assigned { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; background: var(--info-light); color: var(--info); }
+    .gap-assigned svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .gap-meeting-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; background: var(--orange-light); color: var(--orange); }
+    .gap-meeting-tag svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* Contradiction expandable rows */
+    .contra-row { cursor: pointer; }
+    .contra-row td { transition: background 0.1s; }
+    .contra-row:hover td { background: var(--gray-50); }
+    .contra-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .contra-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--danger); }
+    .contra-row.resolved-row { opacity: 0.5; }
+    .contra-detail-row { display: none; }
+    .contra-detail-row.open { display: table-row; }
+    .contra-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .contra-compare { display: flex; gap: 10px; }
+    .contra-side { flex: 1; padding: 12px; border-radius: var(--radius-sm); font-size: 12px; line-height: 1.6; }
+    .contra-side.side-a { background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); }
+    .contra-side.side-b { background: var(--danger-light); border: 1px solid rgba(239,68,68,0.2); }
+    .contra-side-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
+    .contra-side.side-a .contra-side-label { color: #059669; }
+    .contra-side.side-b .contra-side-label { color: var(--danger); }
+    .contra-side-person { font-size: 10px; font-weight: 600; color: var(--gray-500); margin-top: 6px; }
+    .contra-impact-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+    .contra-impact-badge.high { background: var(--danger-light); color: var(--danger); }
+    .contra-impact-badge.medium { background: var(--warning-light); color: var(--warning); }
+    .contra-impact-badge.low { background: var(--green-light); color: #059669; }
+
+    /* Contradiction panel items (legacy) */
+    .contra-panel-item { padding: 14px; border: 1px solid var(--gray-200); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); margin-bottom: 10px; cursor: pointer; transition: all 0.15s; }
+    .contra-panel-item:hover { border-color: var(--danger); background: #FEF2F2; }
+    .contra-panel-title { font-size: 13px; font-weight: 700; color: var(--danger); margin-bottom: 4px; }
+    .contra-panel-desc { font-size: 12px; color: var(--gray-600); line-height: 1.5; margin-bottom: 8px; }
+    .contra-panel-meta { display: flex; gap: 8px; font-size: 10px; color: var(--gray-400); }
+    .contra-panel-status { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .contra-panel-status.open { background: var(--danger-light); color: var(--danger); }
+    .contra-panel-status.resolved { background: var(--green-light); color: #059669; }
+
+    /* Meeting notes panel */
+    .meeting-card { padding: 14px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); margin-bottom: 10px; cursor: pointer; transition: all 0.15s; }
+    .meeting-card:hover { border-color: var(--green); background: var(--gray-50); }
+    .meeting-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .meeting-card-num { width: 32px; height: 32px; border-radius: 50%; background: var(--info-light); color: var(--info); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+    .meeting-card-title { font-size: 13px; font-weight: 700; }
+    .meeting-card-date { font-size: 11px; color: var(--gray-400); }
+    .meeting-card-stats { display: flex; gap: 12px; font-size: 11px; color: var(--gray-500); }
+    .meeting-stat { display: flex; align-items: center; gap: 4px; }
+    .meeting-stat .dot { width: 5px; height: 5px; border-radius: 50%; }
+    .meeting-stat .dot.facts { background: #059669; }
+    .meeting-stat .dot.reqs { background: var(--green); }
+    .meeting-stat .dot.gaps { background: var(--warning); }
+    .meeting-stat .dot.decisions { background: var(--purple); }
+    .meeting-stat .dot.actions { background: var(--danger); }
+
+    /* Document expandable rows */
+    .doc-row { cursor: pointer; }
+    .doc-row td { transition: background 0.1s; }
+    .doc-row:hover td { background: var(--gray-50); }
+    .doc-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .doc-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--info); }
+    .doc-detail-row { display: none; }
+    .doc-detail-row.open { display: table-row; }
+    .doc-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .doc-version-list { margin: 0; padding: 0; list-style: none; }
+    .doc-version-item { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 11px; }
+    .doc-version-item:last-child { border-bottom: none; }
+    .doc-version-tag { font-weight: 700; color: var(--info); min-width: 32px; }
+    .doc-version-date { color: var(--gray-400); min-width: 60px; }
+    .doc-version-change { color: var(--gray-600); flex: 1; }
+
+    /* Meeting expandable */
+    .mtg-row { cursor: pointer; }
+    .mtg-row td { transition: background 0.1s; }
+    .mtg-row:hover td { background: var(--gray-50); }
+    .mtg-row .chevron-cell svg { width: 14px; height: 14px; stroke: var(--gray-400); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s; }
+    .mtg-row.open .chevron-cell svg { transform: rotate(90deg); stroke: var(--orange); }
+    .mtg-detail-row { display: none; }
+    .mtg-detail-row.open { display: table-row; }
+    .mtg-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
+    .mtg-num { width: 28px; height: 28px; border-radius: 50%; background: var(--info-light); color: var(--info); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+    .mtg-extracted { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+    .mtg-extracted-item { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; }
+    .mtg-extracted-item.facts { background: var(--green-light); color: #059669; }
+    .mtg-extracted-item.reqs { background: var(--green-light); color: var(--green-hover); }
+    .mtg-extracted-item.gaps { background: var(--warning-light); color: var(--warning); }
+    .mtg-extracted-item.decisions { background: var(--purple-light); color: var(--purple); }
+    .mtg-extracted-item.actions { background: var(--danger-light); color: var(--danger); }
+    .mtg-action-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 11px; }
+    .mtg-action-item:last-child { border-bottom: none; }
+    .mtg-action-check { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--gray-300); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; }
+    .mtg-action-check.done { background: var(--green); border-color: var(--green); }
+    .mtg-action-check.done svg { width: 10px; height: 10px; stroke: var(--white); fill: none; stroke-width: 3; }
+    .mtg-action-text { color: var(--gray-600); flex: 1; }
+    .mtg-action-text.done { color: var(--gray-400); text-decoration: line-through; }
+    .mtg-action-owner { font-size: 10px; color: var(--gray-400); white-space: nowrap; }
+    .mtg-key-decision { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--gray-100); font-size: 11px; color: var(--gray-600); }
+    .mtg-key-decision:last-child { border-bottom: none; }
+    .mtg-decision-icon { width: 16px; height: 16px; border-radius: 50%; background: var(--purple-light); color: var(--purple); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 8px; font-weight: 800; }
+
+    /* Knowledge graph placeholder */
+    .kg-placeholder { height: 300px; background: var(--gray-50); border: 1px dashed var(--gray-300); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; color: var(--gray-400); margin-bottom: 16px; }
+    .kg-placeholder svg { width: 40px; height: 40px; stroke: var(--gray-300); fill: none; stroke-width: 1.5; }
+    .kg-stats { display: flex; gap: 10px; }
+    .kg-stat { flex: 1; background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); padding: 12px; text-align: center; }
+    .kg-stat-val { font-size: 20px; font-weight: 800; color: var(--dark); }
+    .kg-stat-label { font-size: 10px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .kg-layers { margin-top: 14px; }
+    .kg-layer { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-100); }
+    .kg-layer:last-child { border-bottom: none; }
+    .kg-layer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .kg-layer-name { font-size: 12px; font-weight: 500; color: var(--gray-600); flex: 1; }
+    .kg-layer-meta { font-size: 11px; color: var(--gray-400); }
+    .kg-layer-status { font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; }
+
+    /* Readiness widget in header */
+    .dp-readiness { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s; }
+    .dp-header-actions { margin-left: auto; }
+    .dp-readiness:hover { background: var(--gray-100); }
+    .dp-rb-ring { width: 32px; height: 32px; position: relative; flex-shrink: 0; }
+    .dp-rb-ring svg { width: 32px; height: 32px; transform: rotate(-90deg); }
+    .dp-rb-ring .bg { fill: none; stroke: var(--gray-200); stroke-width: 3; }
+    .dp-rb-ring .fg { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; }
+    .dp-rb-val { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 9px; font-weight: 800; color: #059669; }
+    .dp-readiness-info { overflow: hidden; max-width: 200px; transition: max-width 0.3s ease, opacity 0.2s ease; opacity: 1; }
+    .dp-readiness.collapsed .dp-readiness-info { max-width: 0; opacity: 0; padding: 0; }
+    .dp-rb-label { font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .dp-rb-sub { font-size: 10px; color: var(--gray-400); white-space: nowrap; }
+
+    /* Context overlay */
     .context-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; align-items: stretch; justify-content: flex-end; animation: overlayIn 0.2s ease; }
     .context-overlay.open { display: flex; }
     @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-
     .context-viewer { width: 55%; max-width: 520px; background: var(--white); box-shadow: -8px 0 40px rgba(0,0,0,0.15); display: flex; flex-direction: column; animation: slideIn 0.3s ease; overflow: hidden; }
     .cv-header { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--gray-200); flex-shrink: 0; }
     .cv-title { font-size: 14px; font-weight: 700; flex: 1; }
@@ -438,12 +540,16 @@
     .cv-tag.source { background: var(--green-light); color: #059669; }
     .cv-tag.impact { background: var(--danger-light); color: var(--danger); }
     .cv-tag.status { background: var(--warning-light); color: var(--warning); }
+
+    /* no-select during drag */
+    .no-select { user-select: none !important; -webkit-user-select: none !important; }
+    .no-select * { user-select: none !important; -webkit-user-select: none !important; }
   </style>
 </head>
 <body>
   <div class="app">
 
-    <!-- SIDEBAR (identical to v1) -->
+    <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-logo"><h1>Crnogorchi<span></span></h1></div>
       <nav class="sidebar-nav">
@@ -472,30 +578,32 @@
         <div class="topbar-actions">
           <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
           <button class="btn-primary"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Upload Document</button>
-          <button class="tracker-toggle active" id="trackerToggle" title="Toggle project tracker">
-            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-          </button>
         </div>
       </header>
 
-      <!-- CONTENT: Chat + Tracker -->
-      <div class="content-area">
+      <!-- CONTENT: Chat + Divider + Data Panel -->
+      <div class="content-area" id="contentArea">
 
-        <!-- CHAT -->
-        <div class="chat-area">
+        <!-- CHAT PANEL -->
+        <div class="chat-panel" id="chatPanel" style="flex: 0 0 45%;">
+
+          <!-- Collapsed strip -->
+          <div class="chat-collapsed-strip">
+            <button class="collapsed-expand-btn" onclick="expandChat()" title="Expand chat"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+            <div class="collapsed-label">AI Chat</div>
+          </div>
 
           <div class="chat-session-header">
             <div class="chat-session-icon">AI</div>
             <div class="chat-session-title">Auth & SSO Scope</div>
             <div class="chat-session-badge">Active</div>
             <div class="chat-session-actions">
-              <button class="chat-action-btn" title="Pin session"><svg viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 00-1.11-1.79l-1.78-.9A2 2 0 0115 10.76V6h1V2H8v4h1v4.76a2 2 0 01-1.11 1.79l-1.78.9A2 2 0 005 15.24z"/></svg></button>
-              <button class="chat-action-btn" title="Export"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+              <button class="chat-action-btn" title="Collapse chat" onclick="collapseChat()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+              <button class="chat-action-btn" title="Expand chat" onclick="expandChat()"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
             </div>
           </div>
 
           <div class="chat-messages" id="chatMessages">
-
             <div class="chat-date-divider"><span>Today</span></div>
 
             <!-- AI: Recording processed -->
@@ -504,10 +612,10 @@
               <div class="msg-body">
                 <div class="msg-sender">Discovery Assistant</div>
                 <div class="msg-bubble">
-                  I've processed the <strong>Meeting 7 — SSO & Auth Discussion</strong> recording from Google Meet (58 min, 5 participants).
+                  I've processed the <strong>Meeting 7 — SSO & Auth Discussion</strong> recording (58 min, 5 participants).
                   <br><br>
                   <strong>3 new requirements</strong> extracted, <strong>5 facts</strong> added, <strong>2 facts</strong> updated.
-                  <br>Readiness: <strong>72% → 78%</strong>
+                  <br>Readiness: <strong>72% &rarr; 78%</strong>
 
                   <div class="msg-card">
                     <div class="fact-card">
@@ -522,11 +630,8 @@
 
                   <div class="msg-card contra-card">
                     <div class="contra-inner">
-                      <div class="contra-head">
-                        <div class="contra-icon">&#9888;&#65039;</div>
-                        <div class="contra-title">Contradiction Detected</div>
-                      </div>
-                      <div class="contra-body">Meeting 3 decided <strong>"Microsoft SSO only for MVP"</strong> but Meeting 7 introduces <strong>"social login for external learners"</strong>. Both from David Miller.</div>
+                      <div class="contra-head"><div class="contra-icon">&#9888;&#65039;</div><div class="contra-title">Contradiction Detected</div></div>
+                      <div class="contra-body">Meeting 3 decided <strong>"Microsoft SSO only for MVP"</strong> but Meeting 7 introduces <strong>"social login for external learners"</strong>.</div>
                       <div class="contra-sources">
                         <div class="contra-src old"><div class="contra-src-label" style="color:#059669;">Meeting 3 (Feb 10)</div>Microsoft SSO only — no other auth methods in MVP</div>
                         <div class="contra-src new"><div class="contra-src-label" style="color:var(--danger);">Meeting 7 (Today)</div>Add Google and Apple login for external learners</div>
@@ -564,28 +669,11 @@
                   3. Impact: <strong>+2 sprints</strong> if social login in MVP<br>
                   4. Recommendation: SSO for MVP, social login Phase 2
 
-                  <div class="msg-card doc-card-review">
-                    <div class="doc-review-inner">
-                      <div class="doc-review-top">
-                        <div class="doc-icon meeting">MP</div>
-                        <div class="doc-info"><h5>Auth Scope Clarification — Meeting Prep</h5><p>4 talking points · 2 decisions needed · Generated just now</p></div>
-                        <div class="doc-review-badge">Needs Review</div>
-                      </div>
-                      <div class="doc-review-actions">
-                        <button class="req-btn approve" onclick="reviewAction(this,'approve')">&#10003; Approve</button>
-                        <button class="req-btn reject" onclick="reviewAction(this,'reject')">&#10007; Reject</button>
-                        <button class="req-btn view" onclick="openDocReview('Auth Scope — Meeting Prep')">View Document</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  Here are the new requirements extracted:
-
                   <div class="msg-card req-card" style="border-left-color:var(--warning);">
                     <div class="req-card-inner">
                       <div class="req-top"><span class="req-id">REQ-045</span><span class="req-pri should">Should</span></div>
                       <div class="req-title">Social login support (Google, Apple)</div>
-                      <div class="req-desc">External learners authenticate via Google or Apple accounts. Contradicts Meeting 3 SSO-only decision.</div>
+                      <div class="req-desc">External learners authenticate via Google or Apple accounts.</div>
                       <div class="req-actions">
                         <button class="req-btn approve">&#10003; Approve</button>
                         <button class="req-btn reject">&#10007; Reject</button>
@@ -597,19 +685,7 @@
                     <div class="req-card-inner">
                       <div class="req-top"><span class="req-id">REQ-046</span><span class="req-pri must">Must</span></div>
                       <div class="req-title">MFA enforcement for admin accounts</div>
-                      <div class="req-desc">All admin accounts require MFA via Microsoft Authenticator or TOTP. MSAL.js supports natively.</div>
-                      <div class="req-actions">
-                        <button class="req-btn approve">&#10003; Approve</button>
-                        <button class="req-btn reject">&#10007; Reject</button>
-                        <button class="req-btn view">View Details</button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="msg-card req-card" style="border-left-color:var(--warning);">
-                    <div class="req-card-inner">
-                      <div class="req-top"><span class="req-id">REQ-047</span><span class="req-pri should">Should</span></div>
-                      <div class="req-title">Session timeout configurable per role</div>
-                      <div class="req-desc">Admin 8h, Instructor 4h, Learner 1h. Requires RBAC system. Open Q: per-role or per-user?</div>
+                      <div class="req-desc">All admin accounts require MFA via Microsoft Authenticator or TOTP.</div>
                       <div class="req-actions">
                         <button class="req-btn approve">&#10003; Approve</button>
                         <button class="req-btn reject">&#10007; Reject</button>
@@ -662,27 +738,14 @@
                       <div class="rc-areas">
                         <div class="rc-area"><span class="rc-area-name">Business Context</span><div class="rc-area-bar"><div class="rc-area-fill good" style="width:95%"></div></div><span class="rc-area-val" style="color:#059669;">95%</span></div>
                         <div class="rc-area"><span class="rc-area-name">Technical Reqs</span><div class="rc-area-bar"><div class="rc-area-fill good" style="width:88%"></div></div><span class="rc-area-val" style="color:#059669;">88%</span></div>
-                        <div class="rc-area"><span class="rc-area-name">Integration Points</span><div class="rc-area-bar"><div class="rc-area-fill warn" style="width:72%"></div></div><span class="rc-area-val" style="color:var(--warning);">72%</span></div>
-                        <div class="rc-area"><span class="rc-area-name">User Roles</span><div class="rc-area-bar"><div class="rc-area-fill warn" style="width:65%"></div></div><span class="rc-area-val" style="color:var(--warning);">65%</span></div>
                         <div class="rc-area"><span class="rc-area-name">NFRs</span><div class="rc-area-bar"><div class="rc-area-fill bad" style="width:45%"></div></div><span class="rc-area-val" style="color:var(--danger);">45%</span></div>
                       </div>
                     </div>
                   </div>
 
-                  <strong>What we have:</strong><br>
-                  &bull; Performance: &lt;200ms API response<br>
-                  &bull; Availability: 99.9% uptime<br>
-                  &bull; Security: SSO + RBAC<br><br>
-
-                  <strong>Missing:</strong>
-
                   <div class="msg-card">
                     <div class="gap-card">
-                      <div class="gap-card-head">
-                        <div class="gap-card-icon">?</div>
-                        <div class="gap-card-title">Open Gaps — NFRs</div>
-                        <div class="gap-card-count">5 gaps</div>
-                      </div>
+                      <div class="gap-card-head"><div class="gap-card-icon">?</div><div class="gap-card-title">Open Gaps — NFRs</div><div class="gap-card-count">5 gaps</div></div>
                       <div class="gap-item"><div class="gap-dot high"></div><div class="gap-text">Expected concurrent users at launch?</div><div class="gap-sev high">High</div></div>
                       <div class="gap-item"><div class="gap-dot medium"></div><div class="gap-text">Data residency requirements for EU users?</div><div class="gap-sev medium">Medium</div></div>
                       <div class="gap-item"><div class="gap-dot medium"></div><div class="gap-text">DR and backup SLA targets?</div><div class="gap-sev medium">Medium</div></div>
@@ -691,19 +754,15 @@
                     </div>
                   </div>
 
-                  I recommend a focused NFR extraction session. Want me to prepare a meeting agenda targeting these gaps?
-
                   <div class="msg-suggestions">
                     <button class="msg-suggestion">Prepare meeting agenda</button>
                     <button class="msg-suggestion">Start NFR extraction</button>
                     <button class="msg-suggestion">Generate NFR questions</button>
-                    <button class="msg-suggestion">Compare past projects</button>
                   </div>
                 </div>
                 <div class="msg-time">9:26 AM</div>
               </div>
             </div>
-
           </div>
 
           <!-- INPUT -->
@@ -720,329 +779,206 @@
             </div>
             <div class="chat-input-box">
               <button class="wf-plus-btn" id="wfPlusBtn" title="Workflows"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>
-              <textarea rows="1" placeholder="Ask about requirements, gaps, readiness, or run a workflow..."></textarea>
+              <textarea rows="1" placeholder="Ask about requirements, gaps, readiness..."></textarea>
               <div class="chat-input-actions">
                 <button class="input-action-btn" title="Attach file"><svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
                 <button class="input-action-btn" title="Voice"><svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg></button>
                 <button class="send-btn"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
               </div>
             </div>
-            <div class="chat-hint">Type <strong>/</strong> for workflows · Drop files to upload · Google Meet recordings auto-sync</div>
+            <div class="chat-hint">Type <strong>/</strong> for workflows &middot; Drop files to upload</div>
           </div>
         </div>
 
-        <!-- TRACKER PANEL -->
-        <div class="tracker-panel open" id="trackerPanel">
-          <div class="tracker-header">
-            <svg style="width:16px;height:16px;color:var(--green);flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            <div class="tracker-title">Project Tracker</div>
-            <button class="tracker-close" id="trackerClose"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <!-- DIVIDER -->
+        <div class="split-divider" id="splitDivider"></div>
+
+        <!-- DATA PANEL -->
+        <div class="data-panel" id="dataPanel" style="flex: 0 0 55%;">
+
+          <!-- Collapsed strip -->
+          <div class="data-collapsed-strip">
+            <button class="collapsed-expand-btn" onclick="expandData()" title="Expand panel"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+            <div class="dp-rb-ring" style="margin-top:4px;">
+              <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="bg"/><circle cx="18" cy="18" r="15" class="fg" style="stroke-dasharray: 94.25; stroke-dashoffset: 10.37;"/></svg>
+              <div class="dp-rb-val">89%</div>
+            </div>
+            <div class="collapsed-label">Discovery Readiness</div>
+          </div>
+
+          <div class="dp-header">
+            <div class="dp-readiness" id="readinessWidget" onclick="toggleReadiness()">
+              <div class="dp-rb-ring">
+                <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" class="bg"/><circle cx="18" cy="18" r="15" class="fg" style="stroke-dasharray: 94.25; stroke-dashoffset: 10.37;"/></svg>
+                <div class="dp-rb-val">89%</div>
+              </div>
+              <div class="dp-readiness-info">
+                <div class="dp-rb-label">Discovery Readiness</div>
+                <div class="dp-rb-sub">4% to Ready threshold &middot; +6% this week</div>
+              </div>
+            </div>
+            <div class="dp-header-actions">
+              <button class="dp-expand-btn" title="Collapse panel" onclick="collapseData()"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+              <button class="dp-expand-btn" title="Expand panel" onclick="expandData()"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
+            </div>
           </div>
 
           <!-- TABS -->
-          <div class="tracker-tabs">
-            <div class="tracker-tab active" data-tab="status" onclick="switchTrackerTab(this)">
-              <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Status
-            </div>
-            <div class="tracker-tab" data-tab="review" onclick="switchTrackerTab(this)">
-              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Review <span class="tab-badge" id="reviewTabBadge">3</span>
-            </div>
-            <div class="tracker-tab" data-tab="activity" onclick="switchTrackerTab(this)">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Activity
-            </div>
-            <div class="tracker-tab" data-tab="knowledge" onclick="switchTrackerTab(this)">
-              <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Knowledge
-            </div>
+          <div class="dp-tabs">
+            <div class="dp-tab active" data-dtab="facts" onclick="switchDataTab(this)">Facts <span class="tab-count">156</span></div>
+            <div class="dp-tab" data-dtab="reqs" onclick="switchDataTab(this)">Requirements <span class="tab-count">47</span></div>
+            <div class="dp-tab" data-dtab="gaps" onclick="switchDataTab(this)">Gaps <span class="tab-count">4</span></div>
+            <div class="dp-tab" data-dtab="contradictions" onclick="switchDataTab(this)">Contradictions <span class="tab-count">2</span></div>
+            <div class="dp-tab" data-dtab="docs" onclick="switchDataTab(this)">Documents <span class="tab-count">5</span></div>
+            <div class="dp-tab" data-dtab="meetings" onclick="switchDataTab(this)">Meeting Notes <span class="tab-count">8</span></div>
+            <div class="dp-tab" data-dtab="knowledge" onclick="switchDataTab(this)">Knowledge Graph</div>
           </div>
 
-          <div class="tracker-body">
+          <div class="dp-body">
 
-            <!-- ====== TAB: STATUS ====== -->
-            <div class="tk-tab-content active" data-tab="status">
-
-              <!-- Readiness -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Readiness</div>
-                  <div class="tk-section-meta" style="color:#059669;font-weight:700;">89%</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-readiness">
-                    <div class="tk-ring">
-                      <svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="22" class="ring-bg"/><circle cx="26" cy="26" r="22" class="ring-fg" style="stroke-dashoffset:16.6;"/></svg>
-                      <div class="tk-ring-val">89%</div>
-                    </div>
-                    <div class="tk-ring-info">
-                      <h4>Phase Gate</h4>
-                      <p>4% to Ready threshold</p>
-                      <div class="tk-ring-trend">&#8593; +6% this week</div>
-                    </div>
-                  </div>
-                  <div class="tk-cp-item"><div class="tk-cp-dot good"></div><div class="tk-cp-label">Business Context</div><div class="tk-cp-bar"><div class="tk-cp-fill good" style="width:95%"></div></div><div class="tk-cp-val good">95%</div></div>
-                  <div class="tk-cp-item"><div class="tk-cp-dot good"></div><div class="tk-cp-label">Technical Reqs</div><div class="tk-cp-bar"><div class="tk-cp-fill good" style="width:88%"></div></div><div class="tk-cp-val good">88%</div></div>
-                  <div class="tk-cp-item"><div class="tk-cp-dot warn"></div><div class="tk-cp-label">Integration Points</div><div class="tk-cp-bar"><div class="tk-cp-fill warn" style="width:72%"></div></div><div class="tk-cp-val warn">72%</div></div>
-                  <div class="tk-cp-item"><div class="tk-cp-dot warn"></div><div class="tk-cp-label">User Roles</div><div class="tk-cp-bar"><div class="tk-cp-fill warn" style="width:65%"></div></div><div class="tk-cp-val warn">65%</div></div>
-                  <div class="tk-cp-item"><div class="tk-cp-dot bad"></div><div class="tk-cp-label">NFRs</div><div class="tk-cp-bar"><div class="tk-cp-fill bad" style="width:45%"></div></div><div class="tk-cp-val bad">45%</div></div>
-                </div>
+            <!-- FACTS TAB -->
+            <div class="dp-tab-content active" data-dtab="facts">
+              <div class="panel-filter">
+                <button class="panel-filter-btn active" onclick="filterFacts(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterFacts(this,'confirmed')">Confirmed (89)</button>
+                <button class="panel-filter-btn" onclick="filterFacts(this,'assumed')">Assumed (42)</button>
+                <button class="panel-filter-btn" onclick="filterFacts(this,'pending')">Pending (25)</button>
+                <input type="text" class="panel-search" placeholder="Search facts..." oninput="searchFacts(this.value)">
               </div>
-
-              <!-- Open Gaps -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Open Gaps</div>
-                  <div class="tk-section-meta" style="color:var(--warning);">4 open</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-gap-item"><div class="tk-gap-dot high"></div><div class="tk-gap-text">Expected concurrent users at launch?</div><div class="tk-gap-sev high">High</div></div>
-                  <div class="tk-gap-item"><div class="tk-gap-dot medium"></div><div class="tk-gap-text">Data residency requirements for EU users?</div><div class="tk-gap-sev medium">Med</div></div>
-                  <div class="tk-gap-item"><div class="tk-gap-dot medium"></div><div class="tk-gap-text">DR and backup SLA targets?</div><div class="tk-gap-sev medium">Med</div></div>
-                  <div class="tk-gap-item"><div class="tk-gap-dot medium"></div><div class="tk-gap-text">Browser/device support matrix?</div><div class="tk-gap-sev medium">Med</div></div>
-                </div>
-              </div>
-
-              <!-- Team -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Team</div>
-                  <div class="tk-section-meta">4 members</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-team-row">
-                    <div class="tk-team-member"><div class="tk-team-avatar" style="background:var(--green);color:var(--dark);">BT</div><div class="tk-team-name">Bojan T.</div><div class="tk-team-phase" style="background:var(--green-light);color:#059669;">PO</div></div>
-                    <div class="tk-team-member"><div class="tk-team-avatar" style="background:var(--info-light);color:var(--info);">SC</div><div class="tk-team-name">Sarah C.</div><div class="tk-team-phase" style="background:var(--info-light);color:var(--info);">TL</div></div>
-                    <div class="tk-team-member"><div class="tk-team-avatar" style="background:var(--purple-light);color:var(--purple);">AM</div><div class="tk-team-name">Alex M.</div><div class="tk-team-phase" style="background:var(--purple-light);color:var(--purple);">Dev</div></div>
-                    <div class="tk-team-member"><div class="tk-team-avatar" style="background:var(--warning-light);color:var(--warning);">JK</div><div class="tk-team-name">Jana K.</div><div class="tk-team-phase" style="background:var(--warning-light);color:var(--warning);">QA</div></div>
-                  </div>
-                </div>
-              </div>
-
+              <table class="panel-table" id="factsTable">
+                <thead><tr><th style="width:20px"></th><th>Fact</th><th>Status</th><th>Source</th><th>Meeting</th><th style="width:70px">Action</th></tr></thead>
+                <tbody id="factsBody"></tbody>
+              </table>
             </div>
 
-            <!-- ====== TAB: REVIEW ====== -->
-            <div class="tk-tab-content" data-tab="review">
-
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Pending</div>
-                  <div class="tk-pending-badge">3</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-review-item" id="reviewBrief">
-                    <div class="tk-review-top">
-                      <div class="tk-review-icon brief">DB</div>
-                      <div class="tk-review-info">
-                        <div class="tk-review-name">Discovery Brief v3</div>
-                        <div class="tk-review-meta">Auto-generated · 2 hours ago</div>
-                      </div>
-                    </div>
-                    <div class="tk-review-actions">
-                      <button class="tk-review-btn approve" onclick="reviewAction(this,'approve')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
-                      <button class="tk-review-btn reject" onclick="reviewAction(this,'reject')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
-                      <button class="tk-review-btn view" onclick="openDocReview('Discovery Brief v3')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
-                    </div>
-                  </div>
-                  <div class="tk-review-item" id="reviewMeetingPrep">
-                    <div class="tk-review-top">
-                      <div class="tk-review-icon meeting">MP</div>
-                      <div class="tk-review-info">
-                        <div class="tk-review-name">Auth Scope — Meeting Prep</div>
-                        <div class="tk-review-meta">Auto-generated · 3 hours ago</div>
-                      </div>
-                    </div>
-                    <div class="tk-review-actions">
-                      <button class="tk-review-btn approve" onclick="reviewAction(this,'approve')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
-                      <button class="tk-review-btn reject" onclick="reviewAction(this,'reject')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
-                      <button class="tk-review-btn view" onclick="openDocReview('Auth Scope — Meeting Prep')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
-                    </div>
-                  </div>
-                  <div class="tk-review-item" id="reviewGap">
-                    <div class="tk-review-top">
-                      <div class="tk-review-icon gap">GA</div>
-                      <div class="tk-review-info">
-                        <div class="tk-review-name">Gap Analysis Report — NFRs</div>
-                        <div class="tk-review-meta">Auto-generated · Yesterday</div>
-                      </div>
-                    </div>
-                    <div class="tk-review-actions">
-                      <button class="tk-review-btn approve" onclick="reviewAction(this,'approve')"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
-                      <button class="tk-review-btn reject" onclick="reviewAction(this,'reject')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
-                      <button class="tk-review-btn view" onclick="openDocReview('Gap Analysis Report — NFRs')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>View</button>
-                    </div>
-                  </div>
-                </div>
+            <!-- REQUIREMENTS TAB -->
+            <div class="dp-tab-content" data-dtab="reqs">
+              <div class="panel-filter">
+                <button class="panel-filter-btn active" onclick="filterReqs(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterReqs(this,'must')">Must (23)</button>
+                <button class="panel-filter-btn" onclick="filterReqs(this,'should')">Should (18)</button>
+                <button class="panel-filter-btn" onclick="filterReqs(this,'could')">Could (6)</button>
+                <input type="text" class="panel-search" placeholder="Search requirements..." oninput="searchReqs(this.value)">
               </div>
-
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Recently Reviewed</div>
-                  <div class="tk-section-meta">2 docs</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-review-item approved">
-                    <div class="tk-review-top">
-                      <div class="tk-review-icon brief">DB</div>
-                      <div class="tk-review-info">
-                        <div class="tk-review-name">MVP Scope Freeze</div>
-                        <div class="tk-review-meta">Approved · Yesterday</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="tk-review-item approved">
-                    <div class="tk-review-top">
-                      <div class="tk-review-icon meeting">MP</div>
-                      <div class="tk-review-info">
-                        <div class="tk-review-name">Meeting 6 Summary</div>
-                        <div class="tk-review-meta">Approved · 3 days ago</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+              <table class="panel-table" id="reqsTable">
+                <thead><tr><th style="width:20px"></th><th style="width:64px">ID</th><th>Requirement</th><th>Priority</th><th>Status</th><th>Source</th><th style="width:70px">Action</th></tr></thead>
+                <tbody id="reqsBody"></tbody>
+              </table>
             </div>
 
-            <!-- ====== TAB: ACTIVITY ====== -->
-            <div class="tk-tab-content" data-tab="activity">
-
-              <!-- Sessions -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Sessions</div>
-                  <div class="tk-section-meta">6 total</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-session-item"><div class="tk-session-dot live"></div><div class="tk-session-info"><div class="tk-session-title">Auth & SSO Scope</div><div class="tk-session-meta">3 reqs extracted · Active</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot live"></div><div class="tk-session-info"><div class="tk-session-title">NFR Gap Analysis</div><div class="tk-session-meta">5 gaps identified · Today</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">Meeting 7 Review</div><div class="tk-session-meta">Recording processed · Yesterday</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">MVP Scope Freeze</div><div class="tk-session-meta">47 reqs confirmed · Yesterday</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">API Integration Review</div><div class="tk-session-meta">Gateway assessment · Last week</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">Stakeholder Mapping</div><div class="tk-session-meta">8 members profiled · Last week</div></div></div>
-                </div>
+            <!-- GAPS TAB -->
+            <div class="dp-tab-content" data-dtab="gaps">
+              <div class="panel-filter">
+                <button class="panel-filter-btn active" onclick="filterGaps(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterGaps(this,'open')">Open</button>
+                <button class="panel-filter-btn" onclick="filterGaps(this,'in-progress')">In Progress</button>
+                <button class="panel-filter-btn" onclick="filterGaps(this,'resolved')">Resolved</button>
+                <input type="text" class="panel-search" placeholder="Search gaps..." oninput="searchGaps(this.value)">
               </div>
-
-              <!-- Recent Activity -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Recent Activity</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-activity-item"><div class="tk-activity-dot meeting"></div><div class="tk-activity-info"><div class="tk-activity-text">Meeting 7 recording processed</div><div class="tk-activity-meta">2 hours ago</div></div></div>
-                  <div class="tk-activity-item"><div class="tk-activity-dot doc"></div><div class="tk-activity-info"><div class="tk-activity-text">Discovery Brief updated</div><div class="tk-activity-meta">3 hours ago</div></div></div>
-                  <div class="tk-activity-item"><div class="tk-activity-dot req"></div><div class="tk-activity-info"><div class="tk-activity-text">3 new requirements extracted</div><div class="tk-activity-meta">3 hours ago</div></div></div>
-                  <div class="tk-activity-item"><div class="tk-activity-dot gap"></div><div class="tk-activity-info"><div class="tk-activity-text">Auth scope gap added</div><div class="tk-activity-meta">3 hours ago</div></div></div>
-                  <div class="tk-activity-item"><div class="tk-activity-dot doc"></div><div class="tk-activity-info"><div class="tk-activity-text">MVP Scope Freeze approved</div><div class="tk-activity-meta">Yesterday</div></div></div>
-                </div>
-              </div>
-
+              <table class="panel-table" id="gapsTable">
+                <thead><tr><th style="width:20px"></th><th>Severity</th><th>Gap Question</th><th>Area</th><th>Status</th><th style="width:70px">Action</th></tr></thead>
+                <tbody id="gapsBody"></tbody>
+              </table>
             </div>
 
-            <!-- ====== TAB: KNOWLEDGE ====== -->
-            <div class="tk-tab-content" data-tab="knowledge">
-
-              <!-- Stats -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Overview</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-knowledge-row">
-                    <div class="tk-kn-card"><div class="tk-kn-val">34</div><div class="tk-kn-label">Documents</div></div>
-                    <div class="tk-kn-card"><div class="tk-kn-val">156</div><div class="tk-kn-label">Facts</div></div>
-                    <div class="tk-kn-card"><div class="tk-kn-val">78</div><div class="tk-kn-label">Entities</div></div>
-                  </div>
-                  <div class="tk-fact-breakdown">
-                    <div class="tk-fb-item"><div class="tk-fb-dot confirmed"></div>89 confirmed</div>
-                    <div class="tk-fb-item"><div class="tk-fb-dot assumed"></div>42 assumed</div>
-                    <div class="tk-fb-item"><div class="tk-fb-dot pending"></div>25 pending</div>
-                  </div>
-                </div>
+            <!-- CONTRADICTIONS TAB -->
+            <div class="dp-tab-content" data-dtab="contradictions">
+              <div class="panel-filter">
+                <button class="panel-filter-btn active" onclick="filterContras(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterContras(this,'open')">Open</button>
+                <button class="panel-filter-btn" onclick="filterContras(this,'resolved')">Resolved</button>
               </div>
-
-              <!-- Knowledge layers -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Storage Layers</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-gap-item"><div class="tk-gap-dot" style="background:var(--info);"></div><div class="tk-gap-text">RAGFlow — 34 docs indexed</div><div class="tk-gap-sev" style="background:var(--info-light);color:var(--info);">OK</div></div>
-                  <div class="tk-gap-item"><div class="tk-gap-dot" style="background:var(--green);"></div><div class="tk-gap-text">Mem0 Facts — 156 stored</div><div class="tk-gap-sev" style="background:var(--green-light);color:#059669;">OK</div></div>
-                  <div class="tk-gap-item"><div class="tk-gap-dot" style="background:var(--purple);"></div><div class="tk-gap-text">Neo4j Graph — 78 entities, 234 rels</div><div class="tk-gap-sev" style="background:var(--purple-light);color:var(--purple);">OK</div></div>
-                </div>
-              </div>
-
-              <!-- Recent docs -->
-              <div class="tk-section">
-                <div class="tk-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-                  <div class="tk-section-chevron"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
-                  <div class="tk-section-title">Recent Documents</div>
-                  <div class="tk-section-meta">5 latest</div>
-                </div>
-                <div class="tk-section-content">
-                  <div class="tk-session-item"><div class="tk-session-dot live"></div><div class="tk-session-info"><div class="tk-session-title">Meeting 7 Transcript</div><div class="tk-session-meta">Audio · Processed today</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">NacXwan PRD v2.1</div><div class="tk-session-meta">PDF · Uploaded yesterday</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">API Gateway Spec</div><div class="tk-session-meta">DOCX · Last week</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">Client Repo Analysis</div><div class="tk-session-meta">Repo scan · Last week</div></div></div>
-                  <div class="tk-session-item"><div class="tk-session-dot done"></div><div class="tk-session-info"><div class="tk-session-title">Competitor Analysis</div><div class="tk-session-meta">PDF · 2 weeks ago</div></div></div>
-                </div>
-              </div>
-
+              <table class="panel-table" id="contrasTable">
+                <thead><tr><th style="width:20px"></th><th>Impact</th><th>Contradiction</th><th>Area</th><th>Status</th><th style="width:70px">Action</th></tr></thead>
+                <tbody id="contrasBody"></tbody>
+              </table>
             </div>
+
+            <!-- DOCUMENTS TAB -->
+            <div class="dp-tab-content" data-dtab="docs">
+              <div class="panel-filter">
+                <button class="panel-filter-btn active" onclick="filterDocs(this,'all')">All</button>
+                <button class="panel-filter-btn" onclick="filterDocs(this,'approved')">Approved</button>
+                <button class="panel-filter-btn" onclick="filterDocs(this,'draft')">Draft</button>
+                <button class="panel-filter-btn" onclick="filterDocs(this,'in-review')">In Review</button>
+                <input type="text" class="panel-search" placeholder="Search documents..." oninput="searchDocs(this.value)">
+              </div>
+              <table class="panel-table" id="docsTable">
+                <thead><tr><th style="width:20px"></th><th>Type</th><th>Title</th><th>Status</th><th>Version</th><th>Date</th></tr></thead>
+                <tbody id="docsBody"></tbody>
+              </table>
+            </div>
+
+            <!-- MEETING NOTES TAB -->
+            <div class="dp-tab-content" data-dtab="meetings">
+              <div class="panel-filter">
+                <input type="text" class="panel-search" placeholder="Search meetings..." style="min-width:200px;" oninput="searchMeetings(this.value)">
+              </div>
+              <table class="panel-table" id="meetingsTable">
+                <thead><tr><th style="width:20px"></th><th style="width:36px">#</th><th>Meeting</th><th>Date</th><th>Extracted</th></tr></thead>
+                <tbody id="meetingsBody"></tbody>
+              </table>
+            </div>
+
+            <!-- KNOWLEDGE GRAPH TAB -->
+            <div class="dp-tab-content" data-dtab="knowledge">
+              <div class="kg-placeholder">
+                <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="8.5" y1="7.5" x2="15.5" y2="16.5"/><line x1="15.5" y1="7.5" x2="8.5" y2="16.5"/></svg>
+                <span style="font-size:13px;font-weight:600;">Interactive Knowledge Graph</span>
+                <span style="font-size:11px;">78 entities &middot; 234 relationships</span>
+              </div>
+              <div class="kg-stats">
+                <div class="kg-stat"><div class="kg-stat-val">34</div><div class="kg-stat-label">Documents</div></div>
+                <div class="kg-stat"><div class="kg-stat-val">156</div><div class="kg-stat-label">Facts</div></div>
+                <div class="kg-stat"><div class="kg-stat-val">78</div><div class="kg-stat-label">Entities</div></div>
+                <div class="kg-stat"><div class="kg-stat-val">234</div><div class="kg-stat-label">Relations</div></div>
+              </div>
+              <div class="kg-layers">
+                <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--info);"></div><div class="kg-layer-name">RAGFlow — 34 docs indexed</div><div class="kg-layer-status" style="background:var(--info-light);color:var(--info);">OK</div></div>
+                <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--green);"></div><div class="kg-layer-name">Mem0 Facts — 156 stored</div><div class="kg-layer-status" style="background:var(--green-light);color:#059669;">OK</div></div>
+                <div class="kg-layer"><div class="kg-layer-dot" style="background:var(--purple);"></div><div class="kg-layer-name">Neo4j Graph — 78 entities, 234 rels</div><div class="kg-layer-status" style="background:var(--purple-light);color:var(--purple);">OK</div></div>
+              </div>
             </div>
 
           </div>
-        </div>
 
-        <!-- CONTEXT OVERLAY (detail view) -->
-        <div class="context-overlay" id="ctxOverlay">
-          <div style="flex:1" onclick="document.getElementById('ctxOverlay').classList.remove('open')"></div>
-          <div class="context-viewer">
-            <div class="cv-header">
-              <div class="cv-title" id="cvTitle">REQ-045 — Social Login Support</div>
-              <button class="cv-close" onclick="document.getElementById('ctxOverlay').classList.remove('open')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-            </div>
-            <div class="cv-body">
-              <div class="cv-section">
-                <div class="cv-section-title">Overview</div>
-                <div class="cv-text">
-                  <p><span class="cv-tag status">Should Have</span> <span class="cv-tag" style="background:var(--warning-light);color:var(--warning);">Assumed</span></p>
-                  <p>Users should be able to sign in using their Google or Apple accounts, in addition to the Microsoft SSO already confirmed.</p>
-                  <p>Raised by David Miller (CTO) during Meeting 7 to support external learners who may not have Microsoft accounts.</p>
-                </div>
-              </div>
-              <div class="cv-section">
-                <div class="cv-section-title">Source</div>
-                <div class="cv-text">
-                  <p><span class="cv-tag source">Meeting 7</span> David Miller: "We need to think about external learners who don't have Microsoft accounts. Can we add Google and Apple login?"</p>
-                </div>
-              </div>
-              <div class="cv-section">
-                <div class="cv-section-title">Impact Analysis</div>
-                <div class="cv-text">
-                  <p><span class="cv-tag impact">+2 sprints</span> OAuth integration, account linking, security testing</p>
-                  <p><strong>Dependencies:</strong> Google & Apple OAuth 2.0 providers</p>
-                  <p><strong>Contradiction:</strong> Meeting 3 decided Microsoft SSO only for MVP</p>
-                </div>
-              </div>
-              <div class="cv-section">
-                <div class="cv-section-title">AI Recommendation</div>
-                <div class="cv-text">
-                  <p><strong>Defer to Phase 2.</strong> Microsoft SSO covers the primary enterprise use case. Social login can be added post-launch for external learners without impacting the Q3 2026 timeline.</p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
       </div>
+
+      <!-- CONTEXT OVERLAY -->
+      <div class="context-overlay" id="ctxOverlay">
+        <div style="flex:1" onclick="document.getElementById('ctxOverlay').classList.remove('open')"></div>
+        <div class="context-viewer">
+          <div class="cv-header">
+            <div class="cv-title" id="cvTitle">Document</div>
+            <button class="cv-close" onclick="document.getElementById('ctxOverlay').classList.remove('open')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="cv-body">
+            <div class="cv-section">
+              <div class="cv-section-title">Overview</div>
+              <div class="cv-text">
+                <p><span class="cv-tag status">Should Have</span> <span class="cv-tag" style="background:var(--warning-light);color:var(--warning);">Assumed</span></p>
+                <p>Users should be able to sign in using their Google or Apple accounts, in addition to the Microsoft SSO already confirmed.</p>
+              </div>
+            </div>
+            <div class="cv-section">
+              <div class="cv-section-title">Source</div>
+              <div class="cv-text">
+                <p><span class="cv-tag source">Meeting 7</span> David Miller: "We need to think about external learners who don't have Microsoft accounts."</p>
+              </div>
+            </div>
+            <div class="cv-section">
+              <div class="cv-section-title">Impact Analysis</div>
+              <div class="cv-text">
+                <p><span class="cv-tag impact">+2 sprints</span> OAuth integration, account linking, security testing</p>
+                <p><strong>Contradiction:</strong> Meeting 3 decided Microsoft SSO only for MVP</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -1054,108 +990,1127 @@
       this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
 
-    // Toggle tracker panel
-    var trackerPanel = document.getElementById('trackerPanel');
-    var trackerToggle = document.getElementById('trackerToggle');
-    var trackerClose = document.getElementById('trackerClose');
-
-    trackerToggle.addEventListener('click', function() {
-      trackerPanel.classList.toggle('open');
-      this.classList.toggle('active');
-    });
-    trackerClose.addEventListener('click', function() {
-      trackerPanel.classList.remove('open');
-      trackerToggle.classList.remove('active');
-    });
-
-    // Workflow popup toggle
+    // Workflow popup
     var wfBtn = document.getElementById('wfPlusBtn');
     var wfPopup = document.getElementById('wfPopup');
-    wfBtn.addEventListener('click', function() {
-      this.classList.toggle('active');
-      wfPopup.classList.toggle('open');
-    });
+    wfBtn.addEventListener('click', function() { this.classList.toggle('active'); wfPopup.classList.toggle('open'); });
     document.addEventListener('click', function(e) {
-      if (!wfBtn.contains(e.target) && !wfPopup.contains(e.target)) {
-        wfBtn.classList.remove('active');
-        wfPopup.classList.remove('open');
-      }
+      if (!wfBtn.contains(e.target) && !wfPopup.contains(e.target)) { wfBtn.classList.remove('active'); wfPopup.classList.remove('open'); }
     });
 
-    // Open context overlay on "View Details" clicks
+    // View details
     document.querySelectorAll('.req-btn.view').forEach(function(btn) {
-      btn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.getElementById('ctxOverlay').classList.add('open');
-      });
+      btn.addEventListener('click', function(e) { e.stopPropagation(); document.getElementById('ctxOverlay').classList.add('open'); });
     });
-
-    // Close overlays with ESC
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') {
-        document.getElementById('ctxOverlay').classList.remove('open');
-      }
-    });
-
-    // Switch tracker tabs
-    function switchTrackerTab(tabEl) {
-      var tabName = tabEl.getAttribute('data-tab');
-      document.querySelectorAll('.tracker-tab').forEach(function(t) { t.classList.remove('active'); });
-      document.querySelectorAll('.tk-tab-content').forEach(function(c) { c.classList.remove('active'); });
-      tabEl.classList.add('active');
-      document.querySelector('.tk-tab-content[data-tab="' + tabName + '"]').classList.add('active');
-    }
-
-    // Review action (approve/reject) for documents
-    function reviewAction(btn, action) {
-      var item = btn.closest('.tk-review-item') || btn.closest('.msg-card');
-      if (!item) return;
-      // For tracker items
-      if (item.classList.contains('tk-review-item')) {
-        item.classList.add(action === 'approve' ? 'approved' : 'rejected');
-        updatePendingBadge();
-      }
-      // For chat doc cards
-      if (item.classList.contains('doc-card-review')) {
-        var badge = item.querySelector('.doc-review-badge');
-        var actions = item.querySelector('.doc-review-actions');
-        if (action === 'approve') {
-          badge.textContent = 'Approved';
-          badge.style.background = 'var(--green-light)';
-          badge.style.color = '#059669';
-          item.style.borderLeftColor = '#059669';
-        } else {
-          badge.textContent = 'Rejected';
-          badge.style.background = 'var(--danger-light)';
-          badge.style.color = 'var(--danger)';
-          item.style.borderLeftColor = 'var(--danger)';
-        }
-        actions.innerHTML = '<span style="font-size:11px;color:var(--gray-400);font-style:italic;">' + (action === 'approve' ? 'Document approved and finalized' : 'Document rejected — AI will regenerate') + '</span>';
-      }
-    }
-
-    function updatePendingBadge() {
-      var items = document.querySelectorAll('.tk-tab-content[data-tab="review"] .tk-review-item');
-      var pending = 0;
-      items.forEach(function(item) {
-        if (!item.classList.contains('approved') && !item.classList.contains('rejected')) pending++;
-      });
-      var badge = document.querySelector('.tk-pending-badge');
-      var tabBadge = document.getElementById('reviewTabBadge');
-      if (badge) {
-        badge.textContent = pending;
-        if (pending === 0) { badge.style.background = 'var(--gray-300)'; }
-      }
-      if (tabBadge) {
-        tabBadge.textContent = pending;
-        if (pending === 0) { tabBadge.style.background = 'var(--gray-300)'; tabBadge.style.color = 'var(--white)'; }
-      }
-    }
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') document.getElementById('ctxOverlay').classList.remove('open'); });
 
     function openDocReview(title) {
       document.getElementById('cvTitle').textContent = title;
       document.getElementById('ctxOverlay').classList.add('open');
     }
+
+    // Data panel tab switching
+    function switchDataTab(tabEl) {
+      var name = tabEl.getAttribute('data-dtab');
+      document.querySelectorAll('.dp-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.dp-tab-content').forEach(function(c) { c.classList.remove('active'); });
+      tabEl.classList.add('active');
+      document.querySelector('.dp-tab-content[data-dtab="' + name + '"]').classList.add('active');
+    }
+
+    // === FACTS DATA & RENDERING ===
+    var factsData = [
+      { id: 'f1', statement: 'MSAL.js chosen for SSO integration', details: 'Microsoft Authentication Library v2 selected over ADAL.js and custom JWT. Provides native popup fallback for iframe contexts and PKCE support out of the box.', status: 'confirmed', source: 'Sarah Chen', meeting: 'M7', date: 'Mar 14', quote: '"We\'ll go with MSAL.js v2 for all client-side auth. It handles the iframe issue natively."', reqs: ['FR-001'], entities: ['MSAL.js', 'Azure AD', 'SSO'] },
+      { id: 'f2', statement: 'MFA mandatory for admin roles', details: 'All admin accounts require multi-factor authentication via Microsoft Authenticator or TOTP. Learner and Instructor roles exempt in MVP.', status: 'confirmed', source: 'Sarah Chen', meeting: 'M7', date: 'Mar 14', quote: '"Admin accounts must have MFA — no exceptions. We can skip it for learners in MVP."', reqs: ['FR-046'], entities: ['MFA', 'RBAC'] },
+      { id: 'f3', statement: 'Learner accounts do not require MFA', details: 'Agreed by team that MFA would add unnecessary friction for learners. Can be revisited post-MVP if security audit requires it.', status: 'confirmed', source: 'Team', meeting: 'M7', date: 'Mar 14', quote: 'Team consensus during auth discussion.', reqs: ['FR-046'], entities: ['MFA', 'Learner'] },
+      { id: 'f4', statement: 'Social login (Google, Apple) for external learners', details: 'David Miller suggested adding social login for external learners who may not have Microsoft accounts. Contradicts Meeting 3 SSO-only decision. Needs PO decision.', status: 'assumed', source: 'David Miller', meeting: 'M7', date: 'Mar 14', quote: '"We need to think about external learners who don\'t have Microsoft accounts. Can we add Google and Apple login?"', reqs: ['FR-045'], entities: ['OAuth', 'Google', 'Apple'] },
+      { id: 'f5', statement: 'Session timeout configurable per role', details: 'Raj proposed different timeout values per role: Admin 8h, Instructor 4h, Learner 1h. Open question: per-role or per-user configuration?', status: 'assumed', source: 'Raj Patel', meeting: 'M7', date: 'Mar 14', quote: '"Different roles should have different session lifetimes."', reqs: ['FR-047'], entities: ['Session', 'RBAC'] },
+      { id: 'f6', statement: 'Azure AD is the identity provider', details: 'Client requirement — all corporate users have Microsoft 365 accounts. Azure AD B2C available if external users need separate identity pool.', status: 'confirmed', source: 'Ana Petrovic', meeting: 'M7', date: 'Mar 14', quote: '"All our staff are on Microsoft 365. Azure AD is non-negotiable."', reqs: ['FR-001'], entities: ['Azure AD', 'Microsoft 365'] },
+      { id: 'f7', statement: 'Session timeout set to 8 hours (corporate policy)', details: 'Matches the existing corporate policy for Azure AD applications. Refresh token lifetime set to 7 days. Applies to all roles in MVP.', status: 'confirmed', source: 'Ana Petrovic', meeting: 'M7', date: 'Mar 14', quote: '"Our corporate policy is 8-hour sessions for all Azure AD apps."', reqs: ['FR-047'], entities: ['Session', 'Corporate Policy'] },
+      { id: 'f8', statement: 'React + Node.js stack confirmed', details: 'Frontend: React 18 with TypeScript. Backend: Node.js with Express. Chosen for team familiarity and ecosystem maturity.', status: 'confirmed', source: 'Milan Kovac', meeting: 'M5', date: 'Feb 28', quote: '"React and Node.js — the team knows it well and it fits our timeline."', reqs: [], entities: ['React', 'Node.js', 'TypeScript'] },
+      { id: 'f9', statement: 'PostgreSQL 15 with pgvector for AI features', details: 'Primary database. pgvector extension enables vector similarity search for future AI-powered recommendations and semantic search.', status: 'confirmed', source: 'Milan Kovac', meeting: 'M4', date: 'Feb 22', quote: '"PostgreSQL 15 with pgvector gives us a path to AI features without adding another database."', reqs: [], entities: ['PostgreSQL', 'pgvector', 'AI'] },
+      { id: 'f10', statement: 'Mobile native apps excluded from MVP', details: 'Responsive web only for MVP. Native iOS/Android deferred to Phase 2 based on user adoption data. PWA considered as interim solution.', status: 'assumed', source: 'Sarah Chen', meeting: 'M6', date: 'Mar 7', quote: '"Let\'s focus on web for MVP. We can build native apps once we see adoption numbers."', reqs: [], entities: ['Mobile', 'PWA', 'MVP'] },
+      { id: 'f11', statement: 'Video DRM requirements pending client input', details: 'Need to determine if DRM (Widevine/FairPlay) is required for course videos. Depends on content licensing agreements the client is finalizing.', status: 'pending', source: '-', meeting: 'M5', date: 'Feb 28', quote: 'Raised during tech stack discussion, no resolution yet.', reqs: [], entities: ['DRM', 'Video', 'Licensing'] },
+      { id: 'f12', statement: 'WebSocket for real-time whiteboard sync', details: 'Socket.io chosen for WebSocket transport. Operational transformation for conflict resolution. Redis Pub/Sub for horizontal scaling beyond 50 concurrent users per board.', status: 'confirmed', source: 'Milan Kovac', meeting: 'M5', date: 'Feb 28', quote: '"Socket.io with OT gives us reliable real-time sync. Redis handles scaling."', reqs: ['FR-012'], entities: ['WebSocket', 'Socket.io', 'Redis'] }
+    ];
+
+    var currentFactFilter = 'all';
+    var currentFactSearch = '';
+
+    function renderFacts() {
+      var tbody = document.getElementById('factsBody');
+      tbody.innerHTML = '';
+      var checkIcon = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      var arrowIcon = '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>';
+      var chevronRight = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+      var dismissIcon = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+      factsData.forEach(function(f) {
+        if (currentFactFilter !== 'all' && f.status !== currentFactFilter) return;
+        if (currentFactSearch && f.statement.toLowerCase().indexOf(currentFactSearch.toLowerCase()) === -1 && f.details.toLowerCase().indexOf(currentFactSearch.toLowerCase()) === -1) return;
+
+        // Main row
+        var tr = document.createElement('tr');
+        tr.className = 'fact-row';
+        tr.setAttribute('data-id', f.id);
+
+        var statusHtml = '<span class="fact-status ' + f.status + '"><span class="fs-dot"></span>' + f.status.charAt(0).toUpperCase() + f.status.slice(1) + '</span>';
+
+        // Action buttons based on status
+        var actionHtml = '';
+        if (f.status === 'assumed' || f.status === 'pending') {
+          actionHtml = '<button class="inline-action" title="Confirm" onclick="changeFactStatus(\'' + f.id + '\',\'confirmed\',event)">' + checkIcon + '</button>';
+        }
+        if (f.status === 'confirmed') {
+          actionHtml = '<button class="inline-action demote" title="Mark as Assumed" onclick="changeFactStatus(\'' + f.id + '\',\'assumed\',event)">' + arrowIcon + '</button>';
+        }
+        if (f.status === 'pending') {
+          actionHtml += '<button class="inline-action dismiss" title="Dismiss" onclick="dismissFact(\'' + f.id + '\',event)">' + dismissIcon + '</button>';
+        }
+
+        tr.innerHTML = '<td class="chevron-cell">' + chevronRight + '</td>' +
+          '<td style="font-weight:500;">' + f.statement + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td style="color:var(--gray-500);">' + f.source + '</td>' +
+          '<td style="color:var(--gray-400);">' + f.meeting + '</td>' +
+          '<td style="display:flex;gap:3px;">' + actionHtml + '</td>';
+
+        tr.addEventListener('click', function() { toggleFactDetail(f.id); });
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'fact-detail-row';
+        detailTr.setAttribute('data-detail', f.id);
+
+        var tagsHtml = f.entities.map(function(e) { return '<span class="fact-detail-tag">' + e + '</span>'; }).join('');
+        var reqsHtml = f.reqs.map(function(r) { return '<span class="fact-detail-tag req">' + r + '</span>'; }).join('');
+
+        var detailActions = '';
+        if (f.status === 'assumed' || f.status === 'pending') {
+          detailActions += '<button class="fact-action-btn confirm" onclick="changeFactStatus(\'' + f.id + '\',\'confirmed\',event)">' + checkIcon + ' Confirm</button>';
+        }
+        if (f.status === 'confirmed') {
+          detailActions += '<button class="fact-action-btn assume" onclick="changeFactStatus(\'' + f.id + '\',\'assumed\',event)">' + arrowIcon + ' Mark as Assumed</button>';
+        }
+        if (f.status === 'pending') {
+          detailActions += '<button class="fact-action-btn dismiss" onclick="dismissFact(\'' + f.id + '\',event)">' + dismissIcon + ' Dismiss</button>';
+        }
+
+        detailTr.innerHTML = '<td colspan="6"><div class="fact-detail">' +
+          '<div class="fact-detail-desc">' + f.details + '</div>' +
+          '<div style="font-size:11px;color:var(--gray-500);font-style:italic;padding:0 2px;">"' + f.quote + '"</div>' +
+          '<div class="fact-detail-meta">' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' + f.source + '</div>' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + f.date + '</div>' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>' + f.meeting + '</div>' +
+          '</div>' +
+          (tagsHtml || reqsHtml ? '<div class="fact-detail-tags">' + reqsHtml + tagsHtml + '</div>' : '') +
+          '<div class="fact-detail-actions">' + detailActions + '</div>' +
+          '</div></td>';
+
+        tbody.appendChild(detailTr);
+      });
+
+      updateFactCounts();
+    }
+
+    function toggleFactDetail(id) {
+      var row = document.querySelector('.fact-row[data-id="' + id + '"]');
+      var detail = document.querySelector('.fact-detail-row[data-detail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.fact-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.fact-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function changeFactStatus(id, newStatus, e) {
+      if (e) e.stopPropagation();
+      var fact = factsData.find(function(f) { return f.id === id; });
+      if (fact) { fact.status = newStatus; renderFacts(); }
+    }
+
+    function dismissFact(id, e) {
+      if (e) e.stopPropagation();
+      factsData = factsData.filter(function(f) { return f.id !== id; });
+      renderFacts();
+    }
+
+    function filterFacts(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentFactFilter = type;
+      renderFacts();
+    }
+
+    function searchFacts(query) {
+      currentFactSearch = query;
+      renderFacts();
+    }
+
+    function updateFactCounts() {
+      var counts = { confirmed: 0, assumed: 0, pending: 0 };
+      factsData.forEach(function(f) { if (counts[f.status] !== undefined) counts[f.status]++; });
+      var btns = document.querySelectorAll('.dp-tab-content[data-dtab="facts"] .panel-filter-btn');
+      btns.forEach(function(b) {
+        var text = b.textContent;
+        if (text.indexOf('Confirmed') > -1) b.textContent = 'Confirmed (' + counts.confirmed + ')';
+        if (text.indexOf('Assumed') > -1) b.textContent = 'Assumed (' + counts.assumed + ')';
+        if (text.indexOf('Pending') > -1) b.textContent = 'Pending (' + counts.pending + ')';
+      });
+      var tabCount = document.querySelector('.dp-tab[data-dtab="facts"] .tab-count');
+      if (tabCount) tabCount.textContent = factsData.length;
+    }
+
+    renderFacts();
+
+    // === REQUIREMENTS DATA & RENDERING ===
+    var reqsData = [
+      { id: 'FR-001', title: 'Azure AD SSO authentication', details: 'All users authenticate via Azure AD Single Sign-On. MSAL.js v2 handles client-side auth with popup fallback for iframe contexts. PKCE mandatory for all public clients.', priority: 'must', status: 'confirmed', source: 'Sarah Chen', meeting: 'M7', date: 'Mar 14', quote: '"Azure AD SSO is the only auth method for MVP. All our users have Microsoft accounts."', facts: ['f1', 'f6'], entities: ['Azure AD', 'MSAL.js', 'SSO', 'PKCE'], impact: 'Sprint 1 — Auth foundation', deferred: false },
+      { id: 'FR-005', title: 'Course catalog with full-text search', details: 'Searchable course catalog with filtering by category, instructor, duration, and difficulty level. PostgreSQL trigram index for full-text search with accent support.', priority: 'must', status: 'confirmed', source: 'Sarah Chen', meeting: 'M3', date: 'Feb 15', quote: '"Learners need to find courses quickly. Search must handle partial matches and accented characters."', facts: [], entities: ['Catalog', 'Search', 'PostgreSQL'], impact: 'Sprint 1 — Core feature', deferred: false },
+      { id: 'FR-012', title: 'Real-time whiteboard with multi-user cursors', details: 'Collaborative whiteboard using WebSocket (Socket.io) with operational transformation for conflict resolution. Multi-user cursors broadcast at 15fps. Auto-save every 5 seconds to PostgreSQL.', priority: 'must', status: 'confirmed', source: 'Milan Kovac', meeting: 'M4', date: 'Feb 22', quote: '"The whiteboard must feel instantaneous. OT handles conflicts better than CRDT for our use case."', facts: ['f12'], entities: ['WebSocket', 'Whiteboard', 'OT', 'Socket.io'], impact: 'Sprint 2 — Key differentiator', deferred: false },
+      { id: 'FR-018', title: 'Video playback with position bookmarking', details: 'HLS/DASH video player with bookmarking. Users can save position, resume later, and add timestamped notes. Cloudflare Stream for hosting (pending final decision on DRM).', priority: 'must', status: 'confirmed', source: 'Sarah Chen', meeting: 'M5', date: 'Feb 28', quote: '"Learners must be able to bookmark where they left off and pick up on any device."', facts: ['f11'], entities: ['Video', 'HLS', 'Cloudflare Stream', 'Bookmarking'], impact: 'Sprint 2 — Core learning feature', deferred: false },
+      { id: 'FR-031', title: 'Role-based access control (Admin, Instructor, Learner)', details: 'Three roles mapped from Azure AD group claims. Admin has full access, Instructor can create/edit courses, Learner can enroll and consume. Role stored as enum on User entity.', priority: 'must', status: 'confirmed', source: 'Milan Kovac', meeting: 'M6', date: 'Mar 7', quote: '"RBAC maps directly to Azure AD groups. Clean and simple."', facts: ['f2', 'f3'], entities: ['RBAC', 'Azure AD', 'Admin', 'Instructor', 'Learner'], impact: 'Sprint 1 — Auth dependency', deferred: false },
+      { id: 'FR-032', title: 'Progress tracking across modules', details: 'Track completion percentage per module and per course. Progress persists across sessions. Dashboard shows overall learning path completion with estimated time remaining.', priority: 'should', status: 'confirmed', source: 'Sarah Chen', meeting: 'M5', date: 'Feb 28', quote: '"Progress tracking is critical for enterprise clients — managers need to see completion rates."', facts: [], entities: ['Progress', 'Analytics', 'Dashboard'], impact: 'Sprint 2 — Enterprise value', deferred: false },
+      { id: 'FR-040', title: 'Admin dashboard with user analytics', details: 'Dashboard for admins showing: active users, course completion rates, popular content, user engagement over time. Data from Progress entity aggregated daily.', priority: 'could', status: 'pending', source: 'Ana Petrovic', meeting: 'M6', date: 'Mar 7', quote: '"We would love to see adoption metrics from day one, but understand this could come later."', facts: [], entities: ['Analytics', 'Admin', 'Dashboard'], impact: 'Could defer to Phase 2', deferred: false },
+      { id: 'FR-045', title: 'Social login support (Google, Apple)', details: 'Allow external learners without Microsoft accounts to authenticate via Google or Apple OAuth. Contradicts Meeting 3 SSO-only decision. Would add +2 sprints for OAuth integration, account linking, and security testing.', priority: 'should', status: 'assumed', source: 'David Miller', meeting: 'M7', date: 'Mar 14', quote: '"We need to think about external learners who don\'t have Microsoft accounts."', facts: ['f4'], entities: ['OAuth', 'Google', 'Apple', 'External Learners'], impact: '+2 sprints if included in MVP', deferred: false },
+      { id: 'FR-046', title: 'MFA enforcement for admin accounts', details: 'All admin accounts require MFA via Microsoft Authenticator or TOTP. MSAL.js v2 supports MFA natively. Learner and Instructor exempt in MVP. Popup fallback needed for Outlook desktop add-in.', priority: 'must', status: 'confirmed', source: 'Sarah Chen', meeting: 'M7', date: 'Mar 14', quote: '"Admin accounts must have MFA — no exceptions."', facts: ['f2', 'f3'], entities: ['MFA', 'MSAL.js', 'Admin'], impact: 'Sprint 1 — Security requirement', deferred: false },
+      { id: 'FR-047', title: 'Session timeout configurable per role', details: 'Different session lifetimes per role: Admin 8h (corporate policy), Instructor 4h, Learner 1h. Open question: per-role enum or per-user override? Refresh token lifetime 7 days for all.', priority: 'should', status: 'assumed', source: 'Raj Patel', meeting: 'M7', date: 'Mar 14', quote: '"Different roles should have different session lifetimes."', facts: ['f5', 'f7'], entities: ['Session', 'RBAC', 'Token'], impact: 'Sprint 2 — Auth enhancement', deferred: false }
+    ];
+
+    var currentReqFilter = 'all';
+    var currentReqSearch = '';
+
+    function renderReqs() {
+      var tbody = document.getElementById('reqsBody');
+      tbody.innerHTML = '';
+      var checkIcon = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      var arrowIcon = '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>';
+      var chevronRight = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+      var deferIcon = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+
+      reqsData.forEach(function(r) {
+        if (currentReqFilter !== 'all' && r.priority !== currentReqFilter) return;
+        if (currentReqSearch && r.title.toLowerCase().indexOf(currentReqSearch.toLowerCase()) === -1 && r.details.toLowerCase().indexOf(currentReqSearch.toLowerCase()) === -1) return;
+
+        var tr = document.createElement('tr');
+        tr.className = 'req-row' + (r.deferred ? ' req-deferred' : '');
+        tr.setAttribute('data-rid', r.id);
+
+        var statusHtml = '<span class="fact-status ' + r.status + '"><span class="fs-dot"></span>' + r.status.charAt(0).toUpperCase() + r.status.slice(1) + '</span>';
+        var priHtml = '<span class="pri-badge ' + r.priority + '">' + r.priority.charAt(0).toUpperCase() + r.priority.slice(1) + '</span>';
+
+        var actionHtml = '';
+        if (!r.deferred) {
+          if (r.status === 'assumed' || r.status === 'pending') {
+            actionHtml = '<button class="inline-action" title="Confirm" onclick="changeReqStatus(\'' + r.id + '\',\'confirmed\',event)">' + checkIcon + '</button>';
+          }
+          if (r.status === 'confirmed') {
+            actionHtml = '<button class="inline-action demote" title="Mark as Assumed" onclick="changeReqStatus(\'' + r.id + '\',\'assumed\',event)">' + arrowIcon + '</button>';
+          }
+        }
+
+        tr.innerHTML = '<td class="chevron-cell">' + chevronRight + '</td>' +
+          '<td class="req-id-cell">' + r.id + '</td>' +
+          '<td style="font-weight:500;">' + r.title + '</td>' +
+          '<td>' + priHtml + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td style="color:var(--gray-400);">' + r.meeting + '</td>' +
+          '<td style="display:flex;gap:3px;">' + actionHtml + '</td>';
+
+        tr.addEventListener('click', function() { toggleReqDetail(r.id); });
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'req-detail-row';
+        detailTr.setAttribute('data-rdetail', r.id);
+
+        var entitiesHtml = r.entities.map(function(e) { return '<span class="fact-detail-tag">' + e + '</span>'; }).join('');
+        var factsHtml = r.facts.map(function(fid) {
+          var f = factsData.find(function(ff) { return ff.id === fid; });
+          return f ? '<span class="fact-detail-tag req">' + f.statement.substring(0, 40) + (f.statement.length > 40 ? '...' : '') + '</span>' : '';
+        }).join('');
+
+        var detailActions = '';
+        if (!r.deferred) {
+          if (r.status === 'assumed' || r.status === 'pending') {
+            detailActions += '<button class="fact-action-btn confirm" onclick="changeReqStatus(\'' + r.id + '\',\'confirmed\',event)">' + checkIcon + ' Confirm</button>';
+          }
+          if (r.status === 'confirmed') {
+            detailActions += '<button class="fact-action-btn assume" onclick="changeReqStatus(\'' + r.id + '\',\'assumed\',event)">' + arrowIcon + ' Mark as Assumed</button>';
+          }
+          detailActions += '<button class="fact-action-btn defer" onclick="deferReq(\'' + r.id + '\',event)">' + deferIcon + ' Defer to Phase 2</button>';
+        } else {
+          detailActions += '<button class="fact-action-btn confirm" onclick="undeferReq(\'' + r.id + '\',event)">' + checkIcon + ' Restore</button>';
+        }
+
+        detailTr.innerHTML = '<td colspan="7"><div class="fact-detail">' +
+          '<div class="fact-detail-desc">' + r.details + '</div>' +
+          '<div style="font-size:11px;color:var(--gray-500);font-style:italic;padding:0 2px;">"' + r.quote + '"</div>' +
+          '<div class="fact-detail-meta">' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' + r.source + '</div>' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + r.date + '</div>' +
+            '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + r.impact + '</div>' +
+          '</div>' +
+          (entitiesHtml || factsHtml ? '<div class="fact-detail-tags">' + factsHtml + entitiesHtml + '</div>' : '') +
+          '<div class="fact-detail-actions">' + detailActions + '</div>' +
+          '</div></td>';
+
+        tbody.appendChild(detailTr);
+      });
+
+      updateReqCounts();
+    }
+
+    function toggleReqDetail(id) {
+      var row = document.querySelector('.req-row[data-rid="' + id + '"]');
+      var detail = document.querySelector('.req-detail-row[data-rdetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.req-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.req-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function changeReqStatus(id, newStatus, e) {
+      if (e) e.stopPropagation();
+      var req = reqsData.find(function(r) { return r.id === id; });
+      if (req) { req.status = newStatus; renderReqs(); }
+    }
+
+    function deferReq(id, e) {
+      if (e) e.stopPropagation();
+      var req = reqsData.find(function(r) { return r.id === id; });
+      if (req) { req.deferred = true; renderReqs(); }
+    }
+
+    function undeferReq(id, e) {
+      if (e) e.stopPropagation();
+      var req = reqsData.find(function(r) { return r.id === id; });
+      if (req) { req.deferred = false; renderReqs(); }
+    }
+
+    function filterReqs(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentReqFilter = type;
+      renderReqs();
+    }
+
+    function searchReqs(query) {
+      currentReqSearch = query;
+      renderReqs();
+    }
+
+    function updateReqCounts() {
+      var counts = { must: 0, should: 0, could: 0 };
+      reqsData.forEach(function(r) { if (!r.deferred && counts[r.priority] !== undefined) counts[r.priority]++; });
+      var btns = document.querySelectorAll('.dp-tab-content[data-dtab="reqs"] .panel-filter-btn');
+      btns.forEach(function(b) {
+        var text = b.textContent;
+        if (text.indexOf('Must') > -1) b.textContent = 'Must (' + counts.must + ')';
+        if (text.indexOf('Should') > -1) b.textContent = 'Should (' + counts.should + ')';
+        if (text.indexOf('Could') > -1) b.textContent = 'Could (' + counts.could + ')';
+      });
+      var active = reqsData.filter(function(r) { return !r.deferred; }).length;
+      var tabCount = document.querySelector('.dp-tab[data-dtab="reqs"] .tab-count');
+      if (tabCount) tabCount.textContent = active;
+    }
+
+    renderReqs();
+
+    // === GAPS DATA & RENDERING ===
+    var gapsData = [
+      { id: 'g1', question: 'Expected concurrent users at launch?', severity: 'high', area: 'NFRs', status: 'open', details: 'No capacity target has been defined. This blocks infrastructure sizing, WebSocket scaling decisions, and load testing scope. Without this, we cannot finalize the whiteboard architecture scaling strategy (Redis Pub/Sub threshold).', source: 'AI analysis', detected: 'Today', aiSuggestion: 'Based on similar EdTech platforms for corporate L&D (500-2000 employees): expect 200-400 concurrent users at launch, scaling to 1000+ within 6 months. Recommend designing for 500 concurrent as MVP target with horizontal scaling path.', blockedReqs: ['FR-012', 'FR-018'], assignedTo: null, targetMeeting: null, resolution: '' },
+      { id: 'g2', question: 'Data residency requirements for EU users?', severity: 'medium', area: 'NFRs', status: 'open', details: 'Client has EU-based employees. GDPR may require data to stay within EU region. Affects database hosting region, CDN configuration, and backup storage locations. Azure region selection depends on this.', source: 'AI analysis', detected: 'Today', aiSuggestion: 'If EU employees use the platform, GDPR Article 44 likely applies. Recommend Azure West Europe (Netherlands) as primary region with geo-redundant backup in Azure North Europe (Ireland). Ask client legal team for specific data residency policy.', blockedReqs: [], assignedTo: null, targetMeeting: null, resolution: '' },
+      { id: 'g3', question: 'DR and backup SLA targets?', severity: 'medium', area: 'NFRs', status: 'in-progress', details: 'No disaster recovery or backup SLA has been agreed. Need RPO (Recovery Point Objective) and RTO (Recovery Time Objective) targets to design backup strategy and failover architecture.', source: 'AI analysis', detected: 'Yesterday', aiSuggestion: 'Standard corporate L&D SLA: RPO 1 hour (hourly backups), RTO 4 hours (warm standby). For MVP, recommend daily backups with 24h RTO — sufficient for non-mission-critical learning platform. Upgrade post-launch based on adoption.', blockedReqs: [], assignedTo: 'Milan Kovac', targetMeeting: null, resolution: '' },
+      { id: 'g4', question: 'Browser/device support matrix?', severity: 'medium', area: 'NFRs', status: 'open', details: 'No agreed list of supported browsers and devices. Impacts CSS/JS compatibility requirements, testing scope, and responsive design breakpoints. Client workforce may have restricted browser versions.', source: 'AI analysis', detected: 'Yesterday', aiSuggestion: 'Typical corporate environment: Chrome 90+, Edge 90+, Firefox 90+, Safari 15+. Mobile: responsive web (not native). Recommend asking client IT about browser restrictions — many corporate environments lock to Chrome or Edge.', blockedReqs: [], assignedTo: null, targetMeeting: 'Meeting 9', resolution: '' },
+      { id: 'g5', question: 'Accessibility standards (WCAG)?', severity: 'medium', area: 'NFRs', status: 'open', details: 'No accessibility target defined. WCAG 2.1 Level AA is standard for enterprise apps but adds development effort for whiteboard and video components. Some EU regulations may require it.', source: 'AI analysis', detected: 'Last week', aiSuggestion: 'Recommend WCAG 2.1 Level AA as target. Focus on: keyboard navigation, screen reader support for catalog/dashboard, video captions, sufficient color contrast. Whiteboard accessibility is complex — consider providing alternative text-based input mode.', blockedReqs: ['FR-012'], assignedTo: null, targetMeeting: null, resolution: '' },
+      { id: 'g6', question: 'Auth scope: social login in MVP or Phase 2?', severity: 'high', area: 'Business Context', status: 'open', details: 'Contradiction between Meeting 3 (Microsoft SSO only) and Meeting 7 (social login for external learners). David Miller raised it but no formal decision made. Blocks auth architecture finalization.', source: 'Contradiction detected', detected: 'Today', aiSuggestion: 'Recommend: Microsoft SSO only for MVP (aligns with enterprise focus). Add Google/Apple social login in Phase 2 when external learner onboarding begins. This avoids +2 sprint impact and keeps MVP timeline intact.', blockedReqs: ['FR-045', 'FR-001'], assignedTo: null, targetMeeting: 'Meeting 9', resolution: '' }
+    ];
+
+    var currentGapFilter = 'all';
+    var currentGapSearch = '';
+
+    function renderGaps() {
+      var tbody = document.getElementById('gapsBody');
+      tbody.innerHTML = '';
+      var chevronRight = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+      var checkIcon = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      var userIcon = '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+      var calendarIcon = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+      var arrowUpIcon = '<svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>';
+      var dismissIcon = '<svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+      var openCount = 0, ipCount = 0, resolvedCount = 0;
+      gapsData.forEach(function(g) {
+        if (g.status === 'open') openCount++;
+        else if (g.status === 'in-progress') ipCount++;
+        else if (g.status === 'resolved') resolvedCount++;
+      });
+
+      gapsData.forEach(function(g) {
+        if (currentGapFilter !== 'all' && g.status !== currentGapFilter) return;
+        if (currentGapSearch && g.question.toLowerCase().indexOf(currentGapSearch.toLowerCase()) === -1 && g.details.toLowerCase().indexOf(currentGapSearch.toLowerCase()) === -1) return;
+
+        var tr = document.createElement('tr');
+        tr.className = 'gap-row' + (g.status === 'resolved' ? ' resolved-row' : '');
+        tr.setAttribute('data-gid', g.id);
+
+        var sevHtml = '<span class="sev-badge ' + g.severity + '">' + g.severity.charAt(0).toUpperCase() + g.severity.slice(1) + '</span>';
+        var statusHtml = '<span class="gap-status-pill ' + g.status + '">' + (g.status === 'in-progress' ? 'In Progress' : g.status.charAt(0).toUpperCase() + g.status.slice(1)) + '</span>';
+
+        var actionHtml = '';
+        if (g.status !== 'resolved') {
+          actionHtml = '<button class="inline-action" title="Resolve" onclick="focusGapResolve(\'' + g.id + '\',event)">' + checkIcon + '</button>';
+        }
+
+        tr.innerHTML = '<td class="chevron-cell">' + chevronRight + '</td>' +
+          '<td>' + sevHtml + '</td>' +
+          '<td style="font-weight:500;">' + g.question + '</td>' +
+          '<td style="color:var(--gray-500);font-size:11px;">' + g.area + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td style="display:flex;gap:3px;">' + actionHtml + '</td>';
+
+        tr.addEventListener('click', function() { toggleGapDetail(g.id); });
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'gap-detail-row';
+        detailTr.setAttribute('data-gdetail', g.id);
+
+        var blockedHtml = g.blockedReqs.map(function(rid) {
+          var r = reqsData.find(function(rr) { return rr.id === rid; });
+          return r ? '<span class="fact-detail-tag req">' + r.id + ' ' + r.title.substring(0, 30) + (r.title.length > 30 ? '...' : '') + '</span>' : '<span class="fact-detail-tag req">' + rid + '</span>';
+        }).join('');
+
+        var assignedHtml = g.assignedTo ? '<span class="gap-assigned">' + userIcon + ' ' + g.assignedTo + '</span>' : '';
+        var meetingHtml = g.targetMeeting ? '<span class="gap-meeting-tag">' + calendarIcon + ' ' + g.targetMeeting + '</span>' : '';
+
+        var bodyHtml = '<div class="fact-detail">' +
+          '<div class="fact-detail-desc">' + g.details + '</div>' +
+          '<div class="gap-ai-suggestion"><div class="ai-label"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Suggestion</div>' + g.aiSuggestion + '</div>';
+
+        if (g.status === 'resolved') {
+          bodyHtml += '<div class="gap-resolution-box"><div class="res-label">Resolution</div>' + g.resolution + '</div>';
+        }
+
+        bodyHtml += '<div class="fact-detail-meta">' +
+          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Detected ' + g.detected + '</div>' +
+          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + g.source + '</div>' +
+          (assignedHtml ? '<div class="fact-detail-meta-item">' + assignedHtml + '</div>' : '') +
+          (meetingHtml ? '<div class="fact-detail-meta-item">' + meetingHtml + '</div>' : '') +
+          '</div>';
+
+        if (blockedHtml) {
+          bodyHtml += '<div><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Blocked requirements</span><div class="fact-detail-tags" style="margin-top:4px;">' + blockedHtml + '</div></div>';
+        }
+
+        if (g.status !== 'resolved') {
+          bodyHtml += '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Resolve this gap</span>' +
+            '<textarea class="gap-resolve-input" id="gapInput_' + g.id + '" placeholder="Type the answer to close this gap..." onclick="event.stopPropagation()"></textarea></div>' +
+            '<div class="fact-detail-actions">' +
+              '<button class="fact-action-btn confirm" onclick="resolveGap(\'' + g.id + '\',event)">' + checkIcon + ' Resolve</button>' +
+              (g.assignedTo ? '' : '<button class="fact-action-btn defer" onclick="assignGap(\'' + g.id + '\',event)">' + userIcon + ' Assign</button>') +
+              (g.targetMeeting ? '' : '<button class="fact-action-btn defer" onclick="addGapToMeeting(\'' + g.id + '\',event)">' + calendarIcon + ' Add to Meeting</button>') +
+              (g.severity !== 'high' ? '<button class="fact-action-btn assume" onclick="escalateGap(\'' + g.id + '\',event)">' + arrowUpIcon + ' Escalate</button>' : '') +
+              '<button class="fact-action-btn dismiss" onclick="dismissGap(\'' + g.id + '\',event)">' + dismissIcon + ' Dismiss</button>' +
+            '</div>';
+        }
+
+        bodyHtml += '</div>';
+        detailTr.innerHTML = '<td colspan="6">' + bodyHtml + '</td>';
+        tbody.appendChild(detailTr);
+      });
+
+      updateGapCounts(openCount, ipCount, resolvedCount);
+    }
+
+    function toggleGapDetail(id) {
+      var row = document.querySelector('.gap-row[data-gid="' + id + '"]');
+      var detail = document.querySelector('.gap-detail-row[data-gdetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.gap-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.gap-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function focusGapResolve(id, e) {
+      if (e) e.stopPropagation();
+      // Open the detail and focus the input
+      var row = document.querySelector('.gap-row[data-gid="' + id + '"]');
+      var detail = document.querySelector('.gap-detail-row[data-gdetail="' + id + '"]');
+      if (row && detail) {
+        document.querySelectorAll('.gap-row.open').forEach(function(r) { r.classList.remove('open'); });
+        document.querySelectorAll('.gap-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+        row.classList.add('open');
+        detail.classList.add('open');
+        setTimeout(function() {
+          var input = document.getElementById('gapInput_' + id);
+          if (input) input.focus();
+        }, 100);
+      }
+    }
+
+    function resolveGap(id, e) {
+      if (e) e.stopPropagation();
+      var input = document.getElementById('gapInput_' + id);
+      var text = input ? input.value.trim() : '';
+      if (!text) { if (input) { input.style.borderColor = 'var(--danger)'; input.placeholder = 'Please provide a resolution...'; } return; }
+      var gap = gapsData.find(function(g) { return g.id === id; });
+      if (gap) {
+        gap.status = 'resolved';
+        gap.resolution = text;
+        // Create a new confirmed fact from the resolution
+        factsData.push({
+          id: 'f_' + id,
+          statement: gap.question.replace('?', '') + ': ' + text.substring(0, 80) + (text.length > 80 ? '...' : ''),
+          details: 'Resolved from gap: "' + gap.question + '". Full resolution: ' + text,
+          status: 'confirmed',
+          source: 'Bojan Tesic',
+          meeting: '-',
+          date: 'Today',
+          quote: 'PO resolved directly.',
+          reqs: gap.blockedReqs,
+          entities: [gap.area]
+        });
+        renderGaps();
+        renderFacts();
+      }
+    }
+
+    function assignGap(id, e) {
+      if (e) e.stopPropagation();
+      var gap = gapsData.find(function(g) { return g.id === id; });
+      if (gap) {
+        gap.assignedTo = 'Milan Kovac';
+        gap.status = 'in-progress';
+        renderGaps();
+      }
+    }
+
+    function addGapToMeeting(id, e) {
+      if (e) e.stopPropagation();
+      var gap = gapsData.find(function(g) { return g.id === id; });
+      if (gap) { gap.targetMeeting = 'Meeting 9'; renderGaps(); }
+    }
+
+    function escalateGap(id, e) {
+      if (e) e.stopPropagation();
+      var gap = gapsData.find(function(g) { return g.id === id; });
+      if (gap) { gap.severity = 'high'; renderGaps(); }
+    }
+
+    function dismissGap(id, e) {
+      if (e) e.stopPropagation();
+      gapsData = gapsData.filter(function(g) { return g.id !== id; });
+      renderGaps();
+    }
+
+    function filterGaps(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentGapFilter = type;
+      renderGaps();
+    }
+
+    function searchGaps(query) {
+      currentGapSearch = query;
+      renderGaps();
+    }
+
+    function updateGapCounts(openCount, ipCount, resolvedCount) {
+      var btns = document.querySelectorAll('.dp-tab-content[data-dtab="gaps"] .panel-filter-btn');
+      btns.forEach(function(b) {
+        var text = b.textContent.trim();
+        if (text.indexOf('Open') > -1) b.textContent = 'Open (' + openCount + ')';
+        if (text.indexOf('In Progress') > -1) b.textContent = 'In Progress (' + ipCount + ')';
+        if (text.indexOf('Resolved') > -1) b.textContent = 'Resolved (' + resolvedCount + ')';
+      });
+      var tabCount = document.querySelector('.dp-tab[data-dtab="gaps"] .tab-count');
+      if (tabCount) tabCount.textContent = openCount + ipCount;
+    }
+
+    renderGaps();
+
+    // === CONTRADICTIONS DATA & RENDERING ===
+    var contrasData = [
+      { id: 'c1', title: 'SSO scope: Microsoft-only vs social login', impact: 'high', area: 'Auth & SSO', status: 'open', detected: 'Today',
+        details: 'Direct conflict on authentication scope for MVP. Resolution affects sprint timeline (+2 sprints if social login included) and architecture decisions.',
+        sideA: { meeting: 'Meeting 3', date: 'Feb 15', person: 'David Miller', statement: 'Microsoft SSO only — no other authentication methods in MVP. Keep it simple and ship fast.' },
+        sideB: { meeting: 'Meeting 7', date: 'Mar 14', person: 'David Miller', statement: 'We need Google and Apple login for external learners who don\'t have Microsoft accounts.' },
+        aiSuggestion: 'Recommend Microsoft SSO only for MVP. External learners are Phase 2 scope — social login can be added then without impacting the Q3 timeline. David Miller may have shifted position after realizing external learner need; confirm in next meeting.',
+        affectedReqs: ['FR-001', 'FR-045'], affectedFacts: ['f1', 'f4'], resolution: '' },
+      { id: 'c2', title: 'Video hosting: AWS MediaConvert vs Cloudflare Stream', impact: 'medium', area: 'Infrastructure', status: 'resolved', detected: 'Last week',
+        details: 'Two different video hosting providers discussed in different meetings. Resolved after cost analysis comparison.',
+        sideA: { meeting: 'Meeting 2', date: 'Feb 10', person: 'Milan Kovac', statement: 'AWS MediaConvert with CloudFront gives us maximum flexibility and integrates with our existing AWS infrastructure.' },
+        sideB: { meeting: 'Meeting 5', date: 'Feb 28', person: 'Bojan Tesic', statement: 'Cloudflare Stream is simpler, cheaper for our scale, and has built-in DRM. Let\'s go with that for MVP.' },
+        aiSuggestion: 'Cloudflare Stream is the better fit for MVP: simpler API, built-in DRM, lower cost at <10K MAU. Revisit AWS for scale if MAU exceeds 50K.',
+        affectedReqs: ['FR-018'], affectedFacts: [], resolution: 'Cloudflare Stream confirmed for MVP. Cost analysis showed 40% lower TCO at expected scale. AWS MediaConvert remains as fallback for high-scale scenarios in Phase 2.' },
+      { id: 'c3', title: 'Whiteboard conflict resolution: OT vs CRDT', impact: 'low', area: 'Architecture', status: 'resolved', detected: '2 weeks ago',
+        details: 'Two approaches discussed for real-time whiteboard conflict resolution. Technical decision needed from engineering.',
+        sideA: { meeting: 'Meeting 4', date: 'Feb 22', person: 'Milan Kovac', statement: 'CRDTs are the modern approach — no central server needed for conflict resolution. Works great for offline-first.' },
+        sideB: { meeting: 'Meeting 5', date: 'Feb 28', person: 'Milan Kovac', statement: 'After prototyping, OT is simpler for our use case. We always have a server connection. CRDT overhead isn\'t justified.' },
+        aiSuggestion: 'OT (Operational Transformation) is the pragmatic choice for a server-connected whiteboard. CRDTs add complexity for offline support which is not in MVP scope.',
+        affectedReqs: ['FR-012'], affectedFacts: ['f12'], resolution: 'OT confirmed. Milan revised his position after prototyping both approaches. OT with Socket.io provides simpler implementation and sufficient performance for MVP concurrent user targets.' }
+    ];
+
+    var currentContraFilter = 'all';
+
+    function renderContras() {
+      var tbody = document.getElementById('contrasBody');
+      tbody.innerHTML = '';
+      var chevronRight = '<svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>';
+      var checkIcon = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      var calendarIcon = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+
+      var openCount = 0, resolvedCount = 0;
+      contrasData.forEach(function(c) { if (c.status === 'open') openCount++; else resolvedCount++; });
+
+      contrasData.forEach(function(c) {
+        if (currentContraFilter !== 'all' && c.status !== currentContraFilter) return;
+
+        var tr = document.createElement('tr');
+        tr.className = 'contra-row' + (c.status === 'resolved' ? ' resolved-row' : '');
+        tr.setAttribute('data-cid', c.id);
+
+        var impactHtml = '<span class="contra-impact-badge ' + c.impact + '">' + c.impact.charAt(0).toUpperCase() + c.impact.slice(1) + '</span>';
+        var statusHtml = '<span class="gap-status-pill ' + c.status + '">' + c.status.charAt(0).toUpperCase() + c.status.slice(1) + '</span>';
+
+        var actionHtml = '';
+        if (c.status === 'open') {
+          actionHtml = '<button class="inline-action" title="Resolve" onclick="focusContraResolve(\'' + c.id + '\',event)">' + checkIcon + '</button>';
+        }
+
+        tr.innerHTML = '<td class="chevron-cell">' + chevronRight + '</td>' +
+          '<td>' + impactHtml + '</td>' +
+          '<td style="font-weight:500;">' + c.title + '</td>' +
+          '<td style="color:var(--gray-500);font-size:11px;">' + c.area + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td style="display:flex;gap:3px;">' + actionHtml + '</td>';
+
+        tr.addEventListener('click', function() { toggleContraDetail(c.id); });
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'contra-detail-row';
+        detailTr.setAttribute('data-cdetail', c.id);
+
+        var affectedHtml = c.affectedReqs.map(function(rid) {
+          var r = reqsData.find(function(rr) { return rr.id === rid; });
+          return '<span class="fact-detail-tag req">' + rid + (r ? ' ' + r.title.substring(0, 25) + '...' : '') + '</span>';
+        }).join('');
+
+        var bodyHtml = '<div class="fact-detail">' +
+          '<div class="fact-detail-desc">' + c.details + '</div>' +
+          '<div class="contra-compare">' +
+            '<div class="contra-side side-a">' +
+              '<div class="contra-side-label"><svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> ' + c.sideA.meeting + ' (' + c.sideA.date + ')</div>' +
+              '"' + c.sideA.statement + '"' +
+              '<div class="contra-side-person">— ' + c.sideA.person + '</div>' +
+            '</div>' +
+            '<div class="contra-side side-b">' +
+              '<div class="contra-side-label"><svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + c.sideB.meeting + ' (' + c.sideB.date + ')</div>' +
+              '"' + c.sideB.statement + '"' +
+              '<div class="contra-side-person">— ' + c.sideB.person + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="gap-ai-suggestion"><div class="ai-label"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Recommendation</div>' + c.aiSuggestion + '</div>';
+
+        if (c.status === 'resolved') {
+          bodyHtml += '<div class="gap-resolution-box"><div class="res-label">Decision</div>' + c.resolution + '</div>';
+        }
+
+        bodyHtml += '<div class="fact-detail-meta">' +
+          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Detected ' + c.detected + '</div>' +
+          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + c.sideA.meeting + ' vs ' + c.sideB.meeting + '</div>' +
+          '</div>';
+
+        if (affectedHtml) {
+          bodyHtml += '<div><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Affected requirements</span><div class="fact-detail-tags" style="margin-top:4px;">' + affectedHtml + '</div></div>';
+        }
+
+        if (c.status === 'open') {
+          bodyHtml += '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Your decision</span>' +
+            '<textarea class="gap-resolve-input" id="contraInput_' + c.id + '" placeholder="Type your decision to resolve this contradiction..." onclick="event.stopPropagation()"></textarea></div>' +
+            '<div class="fact-detail-actions">' +
+              '<button class="fact-action-btn confirm" onclick="resolveContra(\'' + c.id + '\',\'sideA\',event)">' + checkIcon + ' Go with ' + c.sideA.meeting + '</button>' +
+              '<button class="fact-action-btn dismiss" onclick="resolveContra(\'' + c.id + '\',\'sideB\',event)" style="border-color:var(--danger-light);">' + checkIcon + ' Go with ' + c.sideB.meeting + '</button>' +
+              '<button class="fact-action-btn confirm" onclick="resolveContraCustom(\'' + c.id + '\',event)">Decide differently</button>' +
+              '<button class="fact-action-btn defer" onclick="addContraToMeeting(\'' + c.id + '\',event)">' + calendarIcon + ' Discuss in Meeting</button>' +
+            '</div>';
+        }
+
+        bodyHtml += '</div>';
+        detailTr.innerHTML = '<td colspan="6">' + bodyHtml + '</td>';
+        tbody.appendChild(detailTr);
+      });
+
+      // Update counts
+      var btns = document.querySelectorAll('.dp-tab-content[data-dtab="contradictions"] .panel-filter-btn');
+      btns.forEach(function(b) {
+        var text = b.textContent.trim();
+        if (text.indexOf('Open') > -1) b.textContent = 'Open (' + openCount + ')';
+        if (text.indexOf('Resolved') > -1) b.textContent = 'Resolved (' + resolvedCount + ')';
+      });
+      var tabCount = document.querySelector('.dp-tab[data-dtab="contradictions"] .tab-count');
+      if (tabCount) tabCount.textContent = openCount;
+    }
+
+    function toggleContraDetail(id) {
+      var row = document.querySelector('.contra-row[data-cid="' + id + '"]');
+      var detail = document.querySelector('.contra-detail-row[data-cdetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.contra-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.contra-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function focusContraResolve(id, e) {
+      if (e) e.stopPropagation();
+      var row = document.querySelector('.contra-row[data-cid="' + id + '"]');
+      var detail = document.querySelector('.contra-detail-row[data-cdetail="' + id + '"]');
+      if (row && detail) {
+        document.querySelectorAll('.contra-row.open').forEach(function(r) { r.classList.remove('open'); });
+        document.querySelectorAll('.contra-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+        row.classList.add('open'); detail.classList.add('open');
+        setTimeout(function() { var input = document.getElementById('contraInput_' + id); if (input) input.focus(); }, 100);
+      }
+    }
+
+    function resolveContra(id, side, e) {
+      if (e) e.stopPropagation();
+      var c = contrasData.find(function(x) { return x.id === id; });
+      if (!c) return;
+      var chosen = side === 'sideA' ? c.sideA : c.sideB;
+      c.status = 'resolved';
+      c.resolution = 'Decision: Go with ' + chosen.meeting + ' position. "' + chosen.statement + '" — ' + chosen.person;
+      renderContras();
+    }
+
+    function resolveContraCustom(id, e) {
+      if (e) e.stopPropagation();
+      var input = document.getElementById('contraInput_' + id);
+      var text = input ? input.value.trim() : '';
+      if (!text) { if (input) { input.style.borderColor = 'var(--danger)'; input.placeholder = 'Please type your decision...'; } return; }
+      var c = contrasData.find(function(x) { return x.id === id; });
+      if (c) { c.status = 'resolved'; c.resolution = text; renderContras(); }
+    }
+
+    function addContraToMeeting(id, e) {
+      if (e) e.stopPropagation();
+      var c = contrasData.find(function(x) { return x.id === id; });
+      if (c) {
+        c.details += ' [Added to Meeting 9 agenda]';
+        renderContras();
+      }
+    }
+
+    function filterContras(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentContraFilter = type;
+      renderContras();
+    }
+
+    renderContras();
+
+    // === DOCUMENTS DATA & RENDERING ===
+    var docsData = [
+      { id: 'd1', type: 'DOC', typeClass: 'brief', title: 'Project Discovery Brief', status: 'approved', version: 'v2.1', owner: 'Sarah Chen', date: 'Mar 1', details: 'Comprehensive overview of project goals, stakeholders, constraints, and success criteria. Generated from meetings 1–6 with AI-assisted synthesis.', relatedFacts: ['f1','f2','f3'], relatedReqs: ['FR-001','FR-002'], versions: [
+        { tag: 'v2.1', date: 'Mar 1', change: 'Updated stakeholder matrix after Meeting 6' },
+        { tag: 'v2.0', date: 'Feb 22', change: 'Major revision — added competitive analysis section' },
+        { tag: 'v1.0', date: 'Feb 10', change: 'Initial draft from kickoff notes' }
+      ]},
+      { id: 'd2', type: 'DOC', typeClass: 'brief', title: 'MVP Scope Freeze', status: 'approved', version: 'v1.3', owner: 'Sarah Chen', date: 'Feb 28', details: 'Locked MVP feature set after scope finalization meeting. Includes in/out feature list and phasing strategy.', relatedFacts: ['f5','f7'], relatedReqs: ['FR-003','FR-005','FR-008'], versions: [
+        { tag: 'v1.3', date: 'Feb 28', change: 'Added deferred features appendix' },
+        { tag: 'v1.0', date: 'Feb 22', change: 'Initial scope document from Meeting 4' }
+      ]},
+      { id: 'd3', type: 'SPEC', typeClass: 'spec', title: 'Functional Requirements', status: 'approved', version: 'v3.0', owner: 'AI + Sarah Chen', date: 'Feb 28', details: 'Complete functional requirements specification. Auto-generated from extracted requirements across all meetings, then reviewed and approved by PO.', relatedFacts: ['f1','f6','f8'], relatedReqs: ['FR-001','FR-002','FR-003','FR-004','FR-005'], versions: [
+        { tag: 'v3.0', date: 'Feb 28', change: 'Full rewrite — consolidated from 47 requirements' },
+        { tag: 'v2.0', date: 'Feb 15', change: 'Added auth & security requirements' },
+        { tag: 'v1.0', date: 'Feb 10', change: 'Initial extraction from Meetings 1–2' }
+      ]},
+      { id: 'd4', type: 'DOC', typeClass: 'brief', title: 'Video Provider Cost Analysis', status: 'draft', version: 'v0.1', owner: 'AI', date: 'Mar 18', details: 'Comparative analysis of video streaming providers (Mux, Cloudflare Stream, AWS IVS). Cost projections based on estimated concurrent users.', relatedFacts: ['f9','f10'], relatedReqs: ['FR-006'], versions: [
+        { tag: 'v0.1', date: 'Mar 18', change: 'AI-generated draft — awaiting PO review' }
+      ]},
+      { id: 'd5', type: 'SPEC', typeClass: 'spec', title: 'Gap Analysis Report — NFRs', status: 'in-review', version: 'v1.0', owner: 'AI', date: 'Today', details: 'Automated gap analysis of non-functional requirements. Identifies missing performance, scalability, and security specifications.', relatedFacts: ['f11','f12'], relatedReqs: ['FR-007','FR-009'], versions: [
+        { tag: 'v1.0', date: 'Today', change: 'Generated from gap detection across all meetings' }
+      ]},
+      { id: 'd6', type: 'SPEC', typeClass: 'spec', title: 'Auth & API Contract', status: 'approved', version: 'v1.2', owner: 'David Miller', date: 'Mar 14', details: 'OpenAPI specification for authentication endpoints. Covers SSO flow, token management, and session handling.', relatedFacts: ['f1','f4'], relatedReqs: ['FR-001'], versions: [
+        { tag: 'v1.2', date: 'Mar 14', change: 'Updated SSO flow diagram after Meeting 7' },
+        { tag: 'v1.0', date: 'Feb 15', change: 'Initial API contract from Meeting 3' }
+      ]},
+      { id: 'd7', type: 'DOC', typeClass: 'brief', title: 'Stakeholder Interview Summary', status: 'approved', version: 'v1.0', owner: 'Sarah Chen', date: 'Feb 12', details: 'Summary of interviews with 5 key stakeholders. Captures priorities, concerns, and success metrics from each perspective.', relatedFacts: ['f2','f3','f5'], relatedReqs: ['FR-002','FR-004'], versions: [
+        { tag: 'v1.0', date: 'Feb 12', change: 'Compiled from Meetings 1–2 interviews' }
+      ]}
+    ];
+
+    var currentDocFilter = 'all';
+    var currentDocSearch = '';
+
+    function renderDocs() {
+      var tbody = document.getElementById('docsBody');
+      tbody.innerHTML = '';
+      var checkIcon = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+      var approvedCount = 0, draftCount = 0, reviewCount = 0;
+
+      docsData.forEach(function(d) {
+        if (d.status === 'approved') approvedCount++;
+        else if (d.status === 'draft') draftCount++;
+        else if (d.status === 'in-review') reviewCount++;
+
+        var show = true;
+        if (currentDocFilter !== 'all' && d.status !== currentDocFilter) show = false;
+        if (currentDocSearch && d.title.toLowerCase().indexOf(currentDocSearch) === -1 && d.details.toLowerCase().indexOf(currentDocSearch) === -1) show = false;
+        if (!show) return;
+
+        var statusLabel = d.status === 'in-review' ? 'In Review' : d.status.charAt(0).toUpperCase() + d.status.slice(1);
+        var tr = document.createElement('tr');
+        tr.className = 'doc-row';
+        tr.setAttribute('data-did', d.id);
+        tr.onclick = function() { toggleDocDetail(d.id); };
+
+        var actionHtml = '';
+        if (d.status === 'draft') actionHtml = '<button class="fact-action-btn confirm" onclick="approveDoc(\'' + d.id + '\',event)">Review</button>';
+        else if (d.status === 'in-review') actionHtml = '<button class="fact-action-btn confirm" onclick="approveDoc(\'' + d.id + '\',event)">Approve</button>';
+
+        tr.innerHTML = '<td class="chevron-cell"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></td>' +
+          '<td><span class="type-badge ' + d.typeClass + '">' + d.type + '</span></td>' +
+          '<td style="font-weight:600;">' + d.title + '</td>' +
+          '<td><span class="status-pill ' + d.status + '">' + statusLabel + '</span></td>' +
+          '<td style="font-size:12px;color:var(--gray-500);">' + d.version + '</td>' +
+          '<td style="font-size:12px;color:var(--gray-400);">' + d.date + '</td>';
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'doc-detail-row';
+        detailTr.setAttribute('data-ddetail', d.id);
+        var bodyHtml = '<div style="padding-top:10px;">';
+        bodyHtml += '<div style="font-size:12px;color:var(--gray-600);line-height:1.6;margin-bottom:12px;">' + d.details + '</div>';
+        bodyHtml += '<div style="display:flex;gap:16px;margin-bottom:12px;font-size:11px;color:var(--gray-500);">' +
+          '<span><strong>Owner:</strong> ' + d.owner + '</span>' +
+          '<span><strong>Version:</strong> ' + d.version + '</span>' +
+          '</div>';
+
+        // Version history
+        bodyHtml += '<div><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Version History</span>' +
+          '<ul class="doc-version-list" style="margin-top:6px;">';
+        d.versions.forEach(function(v) {
+          bodyHtml += '<li class="doc-version-item"><span class="doc-version-tag">' + v.tag + '</span><span class="doc-version-date">' + v.date + '</span><span class="doc-version-change">' + v.change + '</span></li>';
+        });
+        bodyHtml += '</ul></div>';
+
+        // Related items
+        if (d.relatedReqs.length) {
+          bodyHtml += '<div style="margin-top:10px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Related Requirements</span><div class="fact-detail-tags" style="margin-top:4px;">';
+          d.relatedReqs.forEach(function(r) { bodyHtml += '<span class="fact-tag">' + r + '</span>'; });
+          bodyHtml += '</div></div>';
+        }
+
+        // Actions
+        if (d.status !== 'approved') {
+          bodyHtml += '<div class="fact-detail-actions" style="margin-top:10px;">' +
+            '<button class="fact-action-btn confirm" onclick="approveDoc(\'' + d.id + '\',event)">' + checkIcon + ' Approve</button>' +
+            '<button class="fact-action-btn defer" onclick="openDocReview(\'' + d.title + '\');event.stopPropagation();">Open Full Review</button>' +
+            '</div>';
+        }
+
+        bodyHtml += '</div>';
+        detailTr.innerHTML = '<td colspan="6">' + bodyHtml + '</td>';
+        tbody.appendChild(detailTr);
+      });
+
+      // Update filter counts
+      var btns = document.querySelectorAll('.dp-tab-content[data-dtab="docs"] .panel-filter-btn');
+      btns.forEach(function(b) {
+        var t = b.textContent.trim();
+        if (t.indexOf('Approved') > -1) b.textContent = 'Approved (' + approvedCount + ')';
+        if (t.indexOf('Draft') > -1) b.textContent = 'Draft (' + draftCount + ')';
+        if (t.indexOf('In Review') > -1) b.textContent = 'In Review (' + reviewCount + ')';
+      });
+      var tabCount = document.querySelector('.dp-tab[data-dtab="docs"] .tab-count');
+      if (tabCount) tabCount.textContent = docsData.length;
+    }
+
+    function toggleDocDetail(id) {
+      var row = document.querySelector('.doc-row[data-did="' + id + '"]');
+      var detail = document.querySelector('.doc-detail-row[data-ddetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.doc-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.doc-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function approveDoc(id, e) {
+      if (e) e.stopPropagation();
+      var d = docsData.find(function(x) { return x.id === id; });
+      if (d) { d.status = 'approved'; renderDocs(); }
+    }
+
+    function filterDocs(btn, type) {
+      btn.parentElement.querySelectorAll('.panel-filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      currentDocFilter = type;
+      renderDocs();
+    }
+
+    function searchDocs(val) {
+      currentDocSearch = val.toLowerCase().trim();
+      renderDocs();
+    }
+
+    renderDocs();
+
+    // === MEETINGS DATA & RENDERING ===
+    var meetingsData = [
+      { id: 'm8', num: 8, title: 'Bug Review & Triage', date: 'Mar 21, 2025', attendees: ['Sarah Chen', 'David Miller', 'QA Team'],
+        summary: 'Triaged 7 critical bugs found during sprint 2. Prioritized auth-related issues. Reclassified 2 bugs as feature requests.',
+        facts: 2, reqs: 0, gaps: 0, decisions: 3, actions: [
+          { text: 'Fix SSO token refresh bug', owner: 'David Miller', done: true },
+          { text: 'Add error boundary to whiteboard component', owner: 'Frontend Team', done: false },
+          { text: 'Update QA test plan for auth flows', owner: 'QA Team', done: false }
+        ], keyDecisions: ['Auth bugs take priority over new features', 'Move 2 items to feature backlog'] },
+      { id: 'm7', num: 7, title: 'SSO & Auth Discussion', date: 'Mar 14, 2025', attendees: ['Sarah Chen', 'David Miller', 'Security Lead'],
+        summary: 'Decided on MSAL.js v2 for client-side auth. Mapped out SSO flow with Azure AD. Discussed social login deferral.',
+        facts: 5, reqs: 3, gaps: 1, decisions: 2, actions: [
+          { text: 'Draft API contract for auth endpoints', owner: 'David Miller', done: true },
+          { text: 'Set up Azure AD dev tenant', owner: 'DevOps', done: true },
+          { text: 'Document SSO error handling flows', owner: 'David Miller', done: false }
+        ], keyDecisions: ['MSAL.js v2 selected for client-side auth', 'Social login deferred to post-MVP'] },
+      { id: 'm6', num: 6, title: 'MVP Scope Finalization', date: 'Mar 7, 2025', attendees: ['Sarah Chen', 'David Miller', 'Product Team'],
+        summary: 'Locked MVP feature set. Moved video recording and advanced analytics to phase 2. Confirmed 12-week timeline.',
+        facts: 8, reqs: 5, gaps: 0, decisions: 4, actions: [
+          { text: 'Create sprint plan for MVP scope', owner: 'Sarah Chen', done: true },
+          { text: 'Update roadmap with phase 2 items', owner: 'Sarah Chen', done: true },
+          { text: 'Send scope freeze notification to stakeholders', owner: 'Sarah Chen', done: true }
+        ], keyDecisions: ['MVP scope locked — 18 features', 'Video recording moved to phase 2', '12-week timeline confirmed', 'Bi-weekly demos to stakeholders'] },
+      { id: 'm5', num: 5, title: 'Tech Stack & Architecture', date: 'Feb 28, 2025', attendees: ['David Miller', 'Sarah Chen', 'CTO'],
+        summary: 'Finalized tech stack: React + Next.js frontend, Node.js backend, PostgreSQL + Redis. Discussed microservices vs monolith.',
+        facts: 12, reqs: 8, gaps: 2, decisions: 3, actions: [
+          { text: 'Set up monorepo structure', owner: 'David Miller', done: true },
+          { text: 'Create architecture decision records', owner: 'David Miller', done: true },
+          { text: 'Benchmark database options', owner: 'Backend Team', done: false }
+        ], keyDecisions: ['Monolith-first, extract services later', 'PostgreSQL as primary database', 'Redis for caching & sessions'] },
+      { id: 'm4', num: 4, title: 'Whiteboard Feature Deep-Dive', date: 'Feb 22, 2025', attendees: ['Sarah Chen', 'UX Lead', 'David Miller'],
+        summary: 'Detailed requirements for real-time whiteboard collaboration. Explored tldraw and Excalidraw as base libraries.',
+        facts: 6, reqs: 4, gaps: 1, decisions: 1, actions: [
+          { text: 'Prototype whiteboard with tldraw', owner: 'Frontend Team', done: true },
+          { text: 'Test WebSocket performance for real-time sync', owner: 'David Miller', done: false }
+        ], keyDecisions: ['tldraw selected as whiteboard engine'] },
+      { id: 'm3', num: 3, title: 'Authentication & Security', date: 'Feb 15, 2025', attendees: ['David Miller', 'Security Lead', 'Sarah Chen'],
+        summary: 'Deep dive into authentication requirements. Discussed SSO, MFA, and data encryption strategies. Initial security audit checklist created.',
+        facts: 10, reqs: 6, gaps: 0, decisions: 2, actions: [
+          { text: 'Create security requirements document', owner: 'Security Lead', done: true },
+          { text: 'Evaluate SSO providers', owner: 'David Miller', done: true }
+        ], keyDecisions: ['SSO-only for MVP (no username/password)', 'AES-256 encryption at rest'] },
+      { id: 'm2', num: 2, title: 'Stakeholder Requirements', date: 'Feb 10, 2025', attendees: ['Sarah Chen', 'Stakeholders (5)', 'David Miller'],
+        summary: 'Requirements gathering sessions with 5 key stakeholders. Captured priorities, pain points, and success metrics from business, education, and technical perspectives.',
+        facts: 15, reqs: 12, gaps: 3, decisions: 1, actions: [
+          { text: 'Compile stakeholder interview summary', owner: 'Sarah Chen', done: true },
+          { text: 'Create priority matrix', owner: 'Sarah Chen', done: true },
+          { text: 'Follow up on unclear requirements', owner: 'Sarah Chen', done: true }
+        ], keyDecisions: ['Video-first approach confirmed by all stakeholders'] },
+      { id: 'm1', num: 1, title: 'Project Kickoff', date: 'Feb 5, 2025', attendees: ['Sarah Chen', 'David Miller', 'Full Team'],
+        summary: 'Official project kickoff. Introduced team, reviewed project charter, established communication channels and meeting cadence.',
+        facts: 8, reqs: 6, gaps: 0, decisions: 2, actions: [
+          { text: 'Set up project Slack channel', owner: 'Sarah Chen', done: true },
+          { text: 'Create Jira project board', owner: 'David Miller', done: true },
+          { text: 'Schedule recurring meetings', owner: 'Sarah Chen', done: true }
+        ], keyDecisions: ['Bi-weekly sprint cadence', 'Agile/Scrum methodology'] }
+    ];
+
+    var currentMtgSearch = '';
+
+    function renderMeetings() {
+      var tbody = document.getElementById('meetingsBody');
+      tbody.innerHTML = '';
+      var checkSvg = '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>';
+
+      meetingsData.forEach(function(m) {
+        if (currentMtgSearch && m.title.toLowerCase().indexOf(currentMtgSearch) === -1 && m.summary.toLowerCase().indexOf(currentMtgSearch) === -1) return;
+
+        var tr = document.createElement('tr');
+        tr.className = 'mtg-row';
+        tr.setAttribute('data-mid', m.id);
+        tr.onclick = function() { toggleMtgDetail(m.id); };
+
+        var extractedHtml = '';
+        if (m.facts) extractedHtml += '<span class="mtg-extracted-item facts">' + m.facts + ' facts</span>';
+        if (m.reqs) extractedHtml += '<span class="mtg-extracted-item reqs">' + m.reqs + ' reqs</span>';
+        if (m.gaps) extractedHtml += '<span class="mtg-extracted-item gaps">' + m.gaps + ' gaps</span>';
+        if (m.decisions) extractedHtml += '<span class="mtg-extracted-item decisions">' + m.decisions + ' decisions</span>';
+
+        tr.innerHTML = '<td class="chevron-cell"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></td>' +
+          '<td><span class="mtg-num">' + m.num + '</span></td>' +
+          '<td style="font-weight:600;">' + m.title + '</td>' +
+          '<td style="font-size:12px;color:var(--gray-400);">' + m.date + '</td>' +
+          '<td><div class="mtg-extracted">' + extractedHtml + '</div></td>';
+        tbody.appendChild(tr);
+
+        // Detail row
+        var detailTr = document.createElement('tr');
+        detailTr.className = 'mtg-detail-row';
+        detailTr.setAttribute('data-mdetail', m.id);
+        var bodyHtml = '<div style="padding-top:10px;">';
+
+        // Summary
+        bodyHtml += '<div style="font-size:12px;color:var(--gray-600);line-height:1.6;margin-bottom:12px;">' + m.summary + '</div>';
+
+        // Attendees
+        bodyHtml += '<div style="margin-bottom:12px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Attendees</span>' +
+          '<div class="fact-detail-tags" style="margin-top:4px;">';
+        m.attendees.forEach(function(a) { bodyHtml += '<span class="fact-tag">' + a + '</span>'; });
+        bodyHtml += '</div></div>';
+
+        // Key Decisions
+        if (m.keyDecisions && m.keyDecisions.length) {
+          bodyHtml += '<div style="margin-bottom:12px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Key Decisions</span><div style="margin-top:6px;">';
+          m.keyDecisions.forEach(function(d) {
+            bodyHtml += '<div class="mtg-key-decision"><span class="mtg-decision-icon">D</span>' + d + '</div>';
+          });
+          bodyHtml += '</div></div>';
+        }
+
+        // Action Items
+        if (m.actions && m.actions.length) {
+          var doneCount = m.actions.filter(function(a) { return a.done; }).length;
+          bodyHtml += '<div style="margin-bottom:8px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Action Items (' + doneCount + '/' + m.actions.length + ')</span><div style="margin-top:6px;">';
+          m.actions.forEach(function(a) {
+            bodyHtml += '<div class="mtg-action-item">' +
+              '<div class="mtg-action-check ' + (a.done ? 'done' : '') + '">' + (a.done ? checkSvg : '') + '</div>' +
+              '<span class="mtg-action-text ' + (a.done ? 'done' : '') + '">' + a.text + '</span>' +
+              '<span class="mtg-action-owner">' + a.owner + '</span>' +
+              '</div>';
+          });
+          bodyHtml += '</div></div>';
+        }
+
+        bodyHtml += '</div>';
+        detailTr.innerHTML = '<td colspan="5">' + bodyHtml + '</td>';
+        tbody.appendChild(detailTr);
+      });
+
+      var tabCount = document.querySelector('.dp-tab[data-dtab="meetings"] .tab-count');
+      if (tabCount) tabCount.textContent = meetingsData.length;
+    }
+
+    function toggleMtgDetail(id) {
+      var row = document.querySelector('.mtg-row[data-mid="' + id + '"]');
+      var detail = document.querySelector('.mtg-detail-row[data-mdetail="' + id + '"]');
+      if (!row || !detail) return;
+      var isOpen = row.classList.contains('open');
+      document.querySelectorAll('.mtg-row.open').forEach(function(r) { r.classList.remove('open'); });
+      document.querySelectorAll('.mtg-detail-row.open').forEach(function(d) { d.classList.remove('open'); });
+      if (!isOpen) { row.classList.add('open'); detail.classList.add('open'); }
+    }
+
+    function searchMeetings(val) {
+      currentMtgSearch = val.toLowerCase().trim();
+      renderMeetings();
+    }
+
+    renderMeetings();
+
+    // === SPLIT DIVIDER DRAG ===
+    var divider = document.getElementById('splitDivider');
+    var chatPanel = document.getElementById('chatPanel');
+    var dataPanel = document.getElementById('dataPanel');
+    var contentArea = document.getElementById('contentArea');
+    var isDragging = false;
+
+    divider.addEventListener('mousedown', function(e) {
+      isDragging = true;
+      divider.classList.add('dragging');
+      document.body.classList.add('no-select');
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+      if (!isDragging) return;
+      var rect = contentArea.getBoundingClientRect();
+      var offset = e.clientX - rect.left;
+      var total = rect.width;
+      var pct = (offset / total) * 100;
+      pct = Math.max(20, Math.min(80, pct));
+      chatPanel.style.flex = '0 0 ' + pct + '%';
+      dataPanel.style.flex = '0 0 ' + (100 - pct) + '%';
+      // Un-expand if dragging
+      chatPanel.classList.remove('expanded', 'collapsed');
+      dataPanel.classList.remove('expanded', 'collapsed');
+    });
+
+    document.addEventListener('mouseup', function() {
+      if (isDragging) {
+        isDragging = false;
+        divider.classList.remove('dragging');
+        document.body.classList.remove('no-select');
+      }
+    });
+
+    // === EXPAND / COLLAPSE ===
+    function collapseChat() {
+      chatPanel.classList.add('collapsed');
+      chatPanel.classList.remove('expanded');
+      dataPanel.classList.remove('collapsed');
+      dataPanel.classList.add('expanded');
+    }
+    function expandChat() {
+      if (chatPanel.classList.contains('expanded')) {
+        // restore
+        chatPanel.classList.remove('expanded', 'collapsed');
+        dataPanel.classList.remove('expanded', 'collapsed');
+        chatPanel.style.flex = '0 0 45%';
+        dataPanel.style.flex = '0 0 55%';
+      } else {
+        chatPanel.classList.add('expanded');
+        chatPanel.classList.remove('collapsed');
+        dataPanel.classList.add('collapsed');
+        dataPanel.classList.remove('expanded');
+      }
+    }
+    function collapseData() {
+      dataPanel.classList.add('collapsed');
+      dataPanel.classList.remove('expanded');
+      chatPanel.classList.remove('collapsed');
+      chatPanel.classList.add('expanded');
+    }
+    function expandData() {
+      if (dataPanel.classList.contains('expanded')) {
+        // restore
+        chatPanel.classList.remove('expanded', 'collapsed');
+        dataPanel.classList.remove('expanded', 'collapsed');
+        chatPanel.style.flex = '0 0 45%';
+        dataPanel.style.flex = '0 0 55%';
+      } else {
+        dataPanel.classList.add('expanded');
+        dataPanel.classList.remove('collapsed');
+        chatPanel.classList.add('collapsed');
+        chatPanel.classList.remove('expanded');
+      }
+    }
+
+    // Toggle readiness widget expand/collapse
+    function toggleReadiness() {
+      document.getElementById('readinessWidget').classList.toggle('collapsed');
+    }
+
+    // Double-click divider to reset
+    divider.addEventListener('dblclick', function() {
+      chatPanel.classList.remove('expanded', 'collapsed');
+      dataPanel.classList.remove('expanded', 'collapsed');
+      chatPanel.style.flex = '0 0 45%';
+      dataPanel.style.flex = '0 0 55%';
+    });
 
     // Scroll chat to bottom
     var chatEl = document.getElementById('chatMessages');
