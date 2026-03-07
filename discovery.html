@@ -6,6 +6,7 @@
   <title>Crnogorchi — Discovery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.4/cytoscape.min.js"></script>
   <style>
     :root {
       --green: #00E5A0;
@@ -318,7 +319,7 @@
     .lp-sync-status.warn { background: var(--warning); }
 
     /* Graph mini */
-    .lp-graph-container { background: var(--dark); border-radius: var(--radius-sm); height: 200px; position: relative; overflow: hidden; margin: 8px 10px; }
+    .lp-graph-container { background: var(--dark); border-radius: var(--radius-sm); height: 200px; position: relative; overflow: visible; margin: 8px 10px; }
     .lp-graph-container .graph-node { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; transition: transform 0.2s; }
     .lp-graph-container .graph-node:hover { transform: scale(1.15); }
     .lp-graph-container .gn-c { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; border: 2px solid; }
@@ -340,6 +341,46 @@
     .gs-pill { flex: 1; text-align: center; padding: 6px; background: var(--gray-50); border-radius: var(--radius-xs); }
     .gs-pill strong { font-size: 14px; font-weight: 800; display: block; }
     .gs-pill span { font-size: 9px; color: var(--gray-400); }
+    .open-graph-btn { display: inline-flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--gray-200); border-radius: var(--radius-xs); padding: 4px 10px; font-size: 11px; font-weight: 600; color: #059669; cursor: pointer; font-family: var(--font); transition: all 0.15s; }
+    .open-graph-btn:hover { background: var(--green-light); border-color: var(--green); }
+
+    /* ===== GRAPH OVERLAY ===== */
+    .graph-overlay {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      display: none;
+      flex-direction: column;
+      animation: overlayIn 0.2s ease;
+    }
+    .graph-overlay.open { display: flex; }
+    .graph-overlay-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 20px;
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-200);
+      flex-shrink: 0;
+    }
+    .graph-overlay-header h3 { font-size: 15px; font-weight: 700; flex: 1; }
+    .go-search { flex: 1; max-width: 280px; padding: 7px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font); outline: none; }
+    .go-search:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light); }
+    .go-close { width: 32px; height: 32px; border-radius: var(--radius-xs); border: none; background: var(--gray-100); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .go-close:hover { background: var(--gray-200); }
+    .go-close svg { width: 16px; height: 16px; stroke: var(--gray-600); fill: none; stroke-width: 2; stroke-linecap: round; }
+    .graph-overlay-body { flex: 1; display: flex; position: relative; overflow: hidden; }
+    #fullGraph { width: 100%; height: 100%; }
+    .go-legend { position: absolute; bottom: 14px; left: 14px; display: flex; gap: 10px; background: rgba(255,255,255,0.95); border-radius: var(--radius-sm); padding: 8px 14px; box-shadow: var(--shadow-md); }
+    .go-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--gray-600); cursor: pointer; }
+    .go-legend-item .go-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .go-legend-item.dimmed { opacity: 0.3; }
+    .go-info-panel { position: absolute; top: 0; right: 0; width: 280px; height: 100%; background: var(--white); border-left: 1px solid var(--gray-200); padding: 20px; overflow-y: auto; display: none; animation: slideIn 0.2s ease; }
+    .go-info-panel.open { display: block; }
+    .go-info-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .go-info-group { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 12px; }
+    .go-info-section { margin-bottom: 14px; }
+    .go-info-section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); margin-bottom: 6px; }
+    .go-info-conn { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; color: var(--gray-700); }
+    .go-info-conn-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
     .left-panel-footer { padding: 10px; border-top: 1px solid var(--gray-100); }
     .new-session-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 7px; border: 1px dashed var(--gray-300); border-radius: var(--radius-sm); background: transparent; font-size: 12px; font-weight: 600; font-family: var(--font); color: var(--gray-500); cursor: pointer; transition: all 0.15s; }
@@ -731,7 +772,7 @@
         <div class="nav-label">Main</div>
         <a href="dashboard.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>Overview</a>
         <div class="nav-label">Phases</div>
-        <a href="discovery.html" class="nav-item active"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery<span class="nav-badge">4</span></a>
+        <a href="discovery-v2.html" class="nav-item active"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Discovery<span class="nav-badge">4</span></a>
         <a href="story-tech.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>Story & Tech</a>
         <a href="code.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div>Code</a>
         <a href="qa.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>QA</a>
@@ -1222,21 +1263,19 @@
                 <div class="gs-pill"><strong>156</strong><span>Facts</span></div>
               </div>
               <div class="lp-graph-container">
-                <svg class="lp-graph-lines" viewBox="0 0 240 200"><line x1="120" y1="30" x2="55" y2="80"/><line x1="120" y1="30" x2="185" y2="70"/><line x1="120" y1="30" x2="120" y2="100"/><line x1="55" y1="80" x2="35" y2="150"/><line x1="55" y1="80" x2="100" y2="150"/><line x1="185" y1="70" x2="200" y2="140"/><line x1="185" y1="70" x2="150" y2="140"/><line x1="120" y1="100" x2="100" y2="150"/><line x1="120" y1="100" x2="150" y2="140"/></svg>
-                <div class="graph-node" style="left:108px;top:16px;"><div class="gn-c entity">NX</div><div class="gn-l">NacXwan</div></div>
-                <div class="graph-node" style="left:43px;top:66px;"><div class="gn-c fact">SS</div><div class="gn-l">SSO Auth</div></div>
-                <div class="graph-node" style="left:173px;top:56px;"><div class="gn-c fact">WB</div><div class="gn-l">Whiteboard</div></div>
-                <div class="graph-node" style="left:108px;top:86px;"><div class="gn-c doc">PR</div><div class="gn-l">PRD v2.1</div></div>
-                <div class="graph-node" style="left:23px;top:136px;"><div class="gn-c person">BT</div><div class="gn-l">Bojan</div></div>
-                <div class="graph-node" style="left:88px;top:136px;"><div class="gn-c fact">AP</div><div class="gn-l">REST API</div></div>
-                <div class="graph-node" style="left:188px;top:126px;"><div class="gn-c entity">MS</div><div class="gn-l">Microsoft</div></div>
-                <div class="graph-node" style="left:138px;top:126px;"><div class="gn-c doc">M7</div><div class="gn-l">Meeting 7</div></div>
+                <div id="miniGraph" style="width:100%;height:200px;"></div>
               </div>
               <div class="graph-legend">
                 <div class="graph-legend-item"><span class="gl-dot entity"></span>Entities</div>
                 <div class="graph-legend-item"><span class="gl-dot fact"></span>Facts</div>
                 <div class="graph-legend-item"><span class="gl-dot doc"></span>Docs</div>
                 <div class="graph-legend-item"><span class="gl-dot person"></span>People</div>
+              </div>
+              <div style="padding:4px 12px 6px;">
+                <button class="open-graph-btn" onclick="openGraphOverlay()">
+                  <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                  Open Full Graph
+                </button>
               </div>
               <div class="doc-group-label">Connected Services</div>
               <div class="lp-sync-item"><div class="lp-sync-icon" style="background:var(--info-light);color:var(--info);">J</div><div class="lp-sync-info"><div class="lp-sync-name">Jira</div><div class="lp-sync-meta">Synced 5 min ago</div></div><span class="lp-sync-status ok"></span></div>
@@ -1408,6 +1447,20 @@
                 <button class="cpv-btn primary" id="cpvAskBtn">Ask about this area</button>
                 <button class="cpv-btn secondary" onclick="closeCpViewer()">Close</button>
               </div>
+            </div>
+          </div>
+
+          <!-- GRAPH OVERLAY -->
+          <div class="graph-overlay" id="graphOverlay">
+            <div class="graph-overlay-header">
+              <h3>Knowledge Graph</h3>
+              <input type="text" class="go-search" id="goSearch" placeholder="Search nodes...">
+              <button class="go-close" onclick="closeGraphOverlay()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+            </div>
+            <div class="graph-overlay-body">
+              <div id="fullGraph"></div>
+              <div class="go-legend" id="goLegend"></div>
+              <div class="go-info-panel" id="goInfoPanel"></div>
             </div>
           </div>
 
@@ -2106,12 +2159,277 @@
       document.getElementById('cpOverlay').classList.remove('open');
     }
 
+    // Mini Knowledge Graph
+    var miniGraphNodes = [
+      { data: { id: 'bojan', label: 'Bojan Tesic', group: 'People' } },
+      { data: { id: 'sarah', label: 'Sarah Chen', group: 'People' } },
+      { data: { id: 'alex', label: 'Alex Mercer', group: 'People' } },
+      { data: { id: 'jana', label: 'Jana Kovac', group: 'People' } },
+      { data: { id: 'sso', label: 'SSO Authentication', group: 'Features' } },
+      { data: { id: 'courses', label: 'Course Management', group: 'Features' } },
+      { data: { id: 'wb', label: 'Whiteboard', group: 'Features' } },
+      { data: { id: 'react', label: 'React 18', group: 'Technology' } },
+      { data: { id: 'node', label: 'Node.js', group: 'Technology' } },
+      { data: { id: 'pg', label: 'PostgreSQL', group: 'Technology' } },
+      { data: { id: 'rest', label: 'REST API', group: 'Features' } },
+      { data: { id: 'msal', label: 'MSAL.js v2', group: 'Decisions' } }
+    ];
+
+    var miniGraphEdges = [
+      { data: { source: 'sarah', target: 'sso' } },
+      { data: { source: 'sarah', target: 'msal' } },
+      { data: { source: 'sarah', target: 'react' } },
+      { data: { source: 'bojan', target: 'courses' } },
+      { data: { source: 'alex', target: 'wb' } },
+      { data: { source: 'alex', target: 'rest' } },
+      { data: { source: 'jana', target: 'sso' } },
+      { data: { source: 'sso', target: 'msal' } },
+      { data: { source: 'wb', target: 'react' } },
+      { data: { source: 'rest', target: 'node' } },
+      { data: { source: 'courses', target: 'pg' } },
+      { data: { source: 'pg', target: 'node' } },
+      { data: { source: 'wb', target: 'rest' } },
+      { data: { source: 'sso', target: 'rest' } },
+      { data: { source: 'courses', target: 'react' } }
+    ];
+
+    var miniGroupColors = {
+      'People': '#F97316',
+      'Features': '#00E5A0',
+      'Technology': '#3B82F6',
+      'Decisions': '#8B5CF6'
+    };
+
+    miniGraphNodes.forEach(function(n) {
+      n.data.color = miniGroupColors[n.data.group];
+    });
+
+    var miniCy = cytoscape({
+      container: document.getElementById('miniGraph'),
+      elements: { nodes: miniGraphNodes, edges: miniGraphEdges },
+      style: [
+        { selector: 'node', style: {
+          'background-color': 'data(color)', 'width': 18, 'height': 18,
+          'border-width': 2, 'border-color': 'data(color)', 'border-opacity': 0.3,
+          'background-opacity': 0.85
+        }},
+        { selector: 'edge', style: {
+          'width': 1, 'line-color': '#E5E7EB', 'curve-style': 'bezier', 'opacity': 0.5
+        }}
+      ],
+      layout: { name: 'cose', animate: false, padding: 10, nodeRepulsion: function() { return 3000; }, idealEdgeLength: function() { return 40; }, nodeOverlap: 8 },
+      userZoomingEnabled: false, userPanningEnabled: false, boxSelectionEnabled: false,
+      autoungrabify: true
+    });
+
+    // Mini graph tooltip
+    var miniTip = document.createElement('div');
+    miniTip.style.cssText = 'position:fixed;background:#1A1A1A;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;font-weight:600;pointer-events:none;z-index:9999;display:none;font-family:Inter,sans-serif;';
+    document.body.appendChild(miniTip);
+
+    miniCy.on('mouseover', 'node', function(e) {
+      var n = e.target;
+      miniTip.textContent = n.data('label');
+      miniTip.style.display = 'block';
+      var pos = e.renderedPosition;
+      var container = document.getElementById('miniGraph').getBoundingClientRect();
+      miniTip.style.left = (container.left + pos.x + 10) + 'px';
+      miniTip.style.top = (container.top + pos.y - 20) + 'px';
+    });
+    miniCy.on('mouseout', 'node', function() { miniTip.style.display = 'none'; });
+    miniCy.on('tap', 'node', function(e) {
+      window.location.href = 'knowledge.html?node=' + e.target.id();
+    });
+
+    // Full Graph Overlay
+    var fullCy = null;
+    var fullGraphGroups = {
+      'People': { color: '#F97316', border: '#FB923C' },
+      'Features': { color: '#00E5A0', border: '#34D399' },
+      'Technology': { color: '#3B82F6', border: '#60A5FA' },
+      'Decisions': { color: '#8B5CF6', border: '#A78BFA' },
+      'Requirements': { color: '#14B8A6', border: '#2DD4BF' },
+      'Stories': { color: '#F59E0B', border: '#FBBF24' },
+      'Bugs': { color: '#EF4444', border: '#F87171' }
+    };
+
+    var fullGraphNodes = [
+      { data: { id: 'bojan', label: 'Bojan Tesic', group: 'People' } },
+      { data: { id: 'sarah', label: 'Sarah Chen', group: 'People' } },
+      { data: { id: 'alex', label: 'Alex Mercer', group: 'People' } },
+      { data: { id: 'jana', label: 'Jana Kovac', group: 'People' } },
+      { data: { id: 'courses', label: 'Course Management', group: 'Features' } },
+      { data: { id: 'dash', label: 'User Dashboard', group: 'Features' } },
+      { data: { id: 'video', label: 'Video Conferencing', group: 'Features' } },
+      { data: { id: 'sso', label: 'SSO Authentication', group: 'Features' } },
+      { data: { id: 'msal', label: 'MSAL.js v2', group: 'Decisions' } },
+      { data: { id: 'pg', label: 'PostgreSQL', group: 'Decisions' } },
+      { data: { id: 'rest', label: 'REST API', group: 'Features' } },
+      { data: { id: 'rbac', label: 'Role-Based Access', group: 'Requirements' } },
+      { data: { id: 'react', label: 'React 18', group: 'Technology' } },
+      { data: { id: 'wb', label: 'Whiteboard', group: 'Features' } },
+      { data: { id: 'ws', label: 'WebSocket Protocol', group: 'Decisions' } },
+      { data: { id: 'rt', label: 'Real-time Sync', group: 'Requirements' } },
+      { data: { id: 'n005', label: 'NACX-005', group: 'Stories' } },
+      { data: { id: 'n006', label: 'NACX-006', group: 'Stories' } },
+      { data: { id: 'node', label: 'Node.js', group: 'Technology' } },
+      { data: { id: 'es', label: 'Elasticsearch', group: 'Technology' } },
+      { data: { id: 'n012', label: 'NACX-012', group: 'Stories' } },
+      { data: { id: 'social', label: 'Social Login', group: 'Requirements' } },
+      { data: { id: 'offline', label: 'Offline Support', group: 'Requirements' } },
+      { data: { id: 'n015', label: 'NACX-015', group: 'Stories' } },
+      { data: { id: 'b023', label: 'BUG-023', group: 'Bugs' } },
+      { data: { id: 'b041', label: 'BUG-041', group: 'Bugs' } }
+    ];
+
+    var fullGraphEdges = [
+      { data: { source: 'sarah', target: 'sso', label: 'owns' } },
+      { data: { source: 'sarah', target: 'msal', label: 'decided' } },
+      { data: { source: 'sarah', target: 'react', label: 'decided' } },
+      { data: { source: 'bojan', target: 'courses', label: 'owns' } },
+      { data: { source: 'bojan', target: 'dash', label: 'owns' } },
+      { data: { source: 'alex', target: 'wb', label: 'implements' } },
+      { data: { source: 'alex', target: 'rest', label: 'implements' } },
+      { data: { source: 'alex', target: 'ws', label: 'implements' } },
+      { data: { source: 'jana', target: 'b023', label: 'reported' } },
+      { data: { source: 'jana', target: 'b041', label: 'reported' } },
+      { data: { source: 'sso', target: 'msal', label: 'uses' } },
+      { data: { source: 'sso', target: 'n005', label: 'tracked in' } },
+      { data: { source: 'sso', target: 'social', label: 'relates to' } },
+      { data: { source: 'sso', target: 'rbac', label: 'requires' } },
+      { data: { source: 'wb', target: 'ws', label: 'uses' } },
+      { data: { source: 'wb', target: 'n006', label: 'tracked in' } },
+      { data: { source: 'wb', target: 'rt', label: 'requires' } },
+      { data: { source: 'courses', target: 'pg', label: 'uses' } },
+      { data: { source: 'courses', target: 'n012', label: 'tracked in' } },
+      { data: { source: 'video', target: 'n015', label: 'tracked in' } },
+      { data: { source: 'video', target: 'social', label: 'requires' } },
+      { data: { source: 'rest', target: 'node', label: 'runs on' } },
+      { data: { source: 'dash', target: 'react', label: 'built with' } },
+      { data: { source: 'pg', target: 'node', label: 'connects to' } },
+      { data: { source: 'rt', target: 'ws', label: 'uses' } },
+      { data: { source: 'offline', target: 'courses', label: 'applies to' } },
+      { data: { source: 'rbac', target: 'dash', label: 'applies to' } },
+      { data: { source: 'b023', target: 'msal', label: 'affects' } },
+      { data: { source: 'b023', target: 'sso', label: 'affects' } },
+      { data: { source: 'b041', target: 'ws', label: 'affects' } },
+      { data: { source: 'b041', target: 'wb', label: 'affects' } },
+      { data: { source: 'es', target: 'courses', label: 'indexes' } },
+      { data: { source: 'es', target: 'node', label: 'runs on' } }
+    ];
+
+    fullGraphNodes.forEach(function(n) {
+      var g = fullGraphGroups[n.data.group];
+      n.data.color = g.color;
+      n.data.borderColor = g.border;
+    });
+
+    function openGraphOverlay() {
+      var overlay = document.getElementById('graphOverlay');
+      overlay.classList.add('open');
+      if (fullCy) { fullCy.destroy(); }
+
+      // Build legend
+      var legendHtml = '';
+      Object.keys(fullGraphGroups).forEach(function(g) {
+        legendHtml += '<div class="go-legend-item" data-group="' + g + '" onclick="toggleGraphGroup(\'' + g + '\')">' +
+          '<div class="go-dot" style="background:' + fullGraphGroups[g].color + '"></div>' + g + '</div>';
+      });
+      document.getElementById('goLegend').innerHTML = legendHtml;
+      document.getElementById('goInfoPanel').classList.remove('open');
+      document.getElementById('goSearch').value = '';
+
+      setTimeout(function() {
+        fullCy = cytoscape({
+          container: document.getElementById('fullGraph'),
+          elements: { nodes: fullGraphNodes, edges: fullGraphEdges },
+          style: [
+            { selector: 'node', style: {
+              'background-color': 'data(color)', 'width': 36, 'height': 36,
+              'border-width': 3, 'border-color': 'data(borderColor)', 'border-opacity': 0.3,
+              'background-opacity': 0.85, 'label': 'data(label)',
+              'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 8,
+              'color': '#6B7280', 'font-size': 11, 'font-family': 'Inter, sans-serif',
+              'text-max-width': 80, 'text-wrap': 'ellipsis'
+            }},
+            { selector: 'edge', style: {
+              'width': 1.5, 'line-color': '#D1D5DB', 'curve-style': 'bezier',
+              'target-arrow-shape': 'triangle', 'target-arrow-color': '#D1D5DB',
+              'arrow-scale': 0.7, 'opacity': 0.6
+            }},
+            { selector: 'node:selected', style: {
+              'border-width': 4, 'border-opacity': 1, 'border-color': 'data(color)'
+            }}
+          ],
+          layout: { name: 'cose', animate: true, animationDuration: 500, padding: 40,
+            nodeRepulsion: function() { return 6000; }, idealEdgeLength: function() { return 80; }, nodeOverlap: 15 },
+          boxSelectionEnabled: false
+        });
+
+        fullCy.on('tap', 'node', function(e) {
+          var n = e.target;
+          var panel = document.getElementById('goInfoPanel');
+          var g = fullGraphGroups[n.data('group')];
+          var neighbors = n.neighborhood().nodes();
+          var connHtml = '';
+          neighbors.forEach(function(nb) {
+            var nbColor = fullGraphGroups[nb.data('group')].color;
+            connHtml += '<div class="go-info-conn"><div class="go-info-conn-dot" style="background:' + nbColor + '"></div>' + nb.data('label') + '</div>';
+          });
+          panel.innerHTML =
+            '<div class="go-info-name">' + n.data('label') + '</div>' +
+            '<div class="go-info-group" style="background:' + g.color + '20;color:' + g.color + '">' + n.data('group') + '</div>' +
+            '<div class="go-info-section"><div class="go-info-section-title">Connections (' + neighbors.length + ')</div>' + connHtml + '</div>' +
+            '<button class="pv-btn primary" style="width:100%;margin-top:12px;" onclick="window.location.href=\'knowledge.html?node=' + n.id() + '\'">View in Knowledge Base</button>';
+          panel.classList.add('open');
+        });
+
+        fullCy.on('tap', function(e) {
+          if (e.target === fullCy) {
+            document.getElementById('goInfoPanel').classList.remove('open');
+          }
+        });
+      }, 50);
+    }
+
+    function closeGraphOverlay() {
+      document.getElementById('graphOverlay').classList.remove('open');
+      if (fullCy) { fullCy.destroy(); fullCy = null; }
+    }
+
+    var hiddenGroups = {};
+    function toggleGraphGroup(group) {
+      if (hiddenGroups[group]) {
+        delete hiddenGroups[group];
+        fullCy.nodes().filter(function(n) { return n.data('group') === group; }).style('display', 'element');
+      } else {
+        hiddenGroups[group] = true;
+        fullCy.nodes().filter(function(n) { return n.data('group') === group; }).style('display', 'none');
+      }
+      document.querySelectorAll('.go-legend-item').forEach(function(el) {
+        el.classList.toggle('dimmed', !!hiddenGroups[el.getAttribute('data-group')]);
+      });
+    }
+
+    // Graph search
+    document.getElementById('goSearch').addEventListener('input', function() {
+      if (!fullCy) return;
+      var q = this.value.toLowerCase().trim();
+      if (!q) { fullCy.elements().style('opacity', 1); return; }
+      fullCy.nodes().forEach(function(n) {
+        var match = n.data('label').toLowerCase().indexOf(q) !== -1;
+        n.style('opacity', match ? 1 : 0.15);
+        n.connectedEdges().style('opacity', match ? 0.6 : 0.1);
+      });
+    });
+
     // ESC key closes viewers and popup
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         closeDocViewer();
         closePersonViewer();
         closeCpViewer();
+        closeGraphOverlay();
         wfPopup.classList.remove('open');
         wfPlusBtn.classList.remove('active');
       }
