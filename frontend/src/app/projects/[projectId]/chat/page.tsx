@@ -33,7 +33,7 @@ export default function DiscoveryChatPage() {
         />
 
         <SplitLayout
-          left={<ChatPanel projectId={projectId} />}
+          left={<ChatPanel projectId={projectId} onDataChanged={() => setRefreshKey((k) => k + 1)} />}
           right={<DataPanel projectId={projectId} refreshKey={refreshKey} />}
           defaultLeftPercent={45}
         />

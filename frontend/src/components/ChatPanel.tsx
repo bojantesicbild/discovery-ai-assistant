@@ -12,9 +12,10 @@ interface Message {
 
 interface ChatPanelProps {
   projectId: string;
+  onDataChanged?: () => void;
 }
 
-export default function ChatPanel({ projectId }: ChatPanelProps) {
+export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -68,7 +69,14 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
           return updated;
         });
       },
-      () => { setIsStreaming(false); setCurrentTool(null); },
+      () => {
+        setIsStreaming(false);
+        setCurrentTool(null);
+        // If any write tool was called, refresh the data panel
+        if (toolCalls.some(t => t.includes("update") || t.includes("validate") || t.includes("resolve"))) {
+          onDataChanged?.();
+        }
+      },
       (error) => {
         if (error.includes("Rate limit")) return; // Ignore rate limit warnings
         assistantContent += `\n\n[Error: ${error}]`;
