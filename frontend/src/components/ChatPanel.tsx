@@ -10,6 +10,33 @@ interface Message {
   toolCalls?: string[];
 }
 
+const WORKFLOWS = [
+  {
+    label: "Generate Handoff Docs",
+    desc: "Discovery Brief, Scope Freeze, Requirements",
+    prompt: "Run the discovery-docs-agent to generate all handoff documents.",
+    icon: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></>,
+  },
+  {
+    label: "Gap Analysis",
+    desc: "Find missing requirements and blocking gaps",
+    prompt: "Run the discovery-gap-agent to analyze all control points and identify gaps.",
+    icon: <><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></>,
+  },
+  {
+    label: "Meeting Prep",
+    desc: "Prepare agenda for next client meeting",
+    prompt: "Run the discovery-prep-agent to prepare the next client meeting agenda.",
+    icon: <><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>,
+  },
+  {
+    label: "Readiness Report",
+    desc: "Full readiness score with breakdown",
+    prompt: "Get the current readiness score and give me a detailed breakdown of each area. What's covered, what's partial, and what's missing?",
+    icon: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+  },
+];
+
 interface ChatPanelProps {
   projectId: string;
   onDataChanged?: () => void;
@@ -20,6 +47,7 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [showWorkflows, setShowWorkflows] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -217,14 +245,75 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       </div>
 
       {/* Input */}
-      <div className="chat-input-area">
+      <div className="chat-input-area" style={{ position: "relative" }}>
+        {/* Workflow popup */}
+        {showWorkflows && (
+          <div style={{
+            position: "absolute", bottom: "calc(100% + 4px)", left: 0, width: 300,
+            background: "var(--white)", border: "1px solid var(--gray-200)",
+            borderRadius: "var(--radius)", boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+            zIndex: 50, overflow: "hidden",
+          }}>
+            <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid var(--gray-100)" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--gray-400)" }}>
+                Workflows
+              </div>
+            </div>
+            <div style={{ padding: 6 }}>
+              {WORKFLOWS.map((wf) => (
+                <div
+                  key={wf.label}
+                  onClick={() => { setShowWorkflows(false); sendMessage(wf.prompt); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
+                    borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "all 0.15s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = "var(--gray-50)"}
+                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                >
+                  <div style={{
+                    width: 32, height: 32, borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--gray-200)", background: "var(--gray-50)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "var(--gray-500)", flexShrink: 0,
+                  }}>
+                    <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: "currentColor", fill: "none", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                      {wf.icon}
+                    </svg>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{wf.label}</div>
+                    <div style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 1 }}>{wf.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="chat-input-box">
+          <button
+            onClick={() => setShowWorkflows(!showWorkflows)}
+            disabled={isStreaming}
+            style={{
+              width: 34, height: 34, borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--gray-200)", background: showWorkflows ? "var(--green-light)" : "var(--white)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", transition: "all 0.2s", flexShrink: 0, margin: "3px 4px",
+              color: showWorkflows ? "var(--green)" : "var(--gray-500)",
+              transform: showWorkflows ? "rotate(45deg)" : "none",
+            }}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, stroke: "currentColor", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
           <textarea
             ref={textareaRef}
             rows={1}
             placeholder="Ask about requirements, gaps, readiness..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); if (showWorkflows) setShowWorkflows(false); }}
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
           />
