@@ -57,6 +57,72 @@ def _json_result(data) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(data, indent=2, default=str))]
 
 
+async def _recalculate_readiness(conn, pid: str):
+    """Recalculate readiness score after a write operation."""
+    # Business (20%)
+    has_authority = await conn.fetchval("SELECT COUNT(*) FROM stakeholders WHERE project_id = $1 AND decision_authority = 'final'", pid) or 0
+    has_budget = await conn.fetchval("SELECT COUNT(*) FROM constraints WHERE project_id = $1 AND type = 'budget' AND status = 'confirmed'", pid) or 0
+    has_timeline = await conn.fetchval("SELECT COUNT(*) FROM constraints WHERE project_id = $1 AND type = 'timeline'", pid) or 0
+    has_stakeholders = await conn.fetchval("SELECT COUNT(*) FROM stakeholders WHERE project_id = $1", pid) or 0
+    has_must = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND priority = 'must'", pid) or 0
+    biz_checks = [
+        1.0 if has_authority > 0 else 0.0,
+        1.0 if has_budget > 0 else 0.0,
+        1.0 if has_timeline > 0 else 0.0,
+        1.0 if has_stakeholders >= 2 else 0.5 if has_stakeholders >= 1 else 0.0,
+        1.0 if has_must >= 2 else 0.5 if has_must >= 1 else 0.0,
+    ]
+    business = (sum(biz_checks) / len(biz_checks)) * 100
+
+    # Functional (35%)
+    total_reqs = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1", pid) or 0
+    confirmed_reqs = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND status = 'confirmed'", pid) or 0
+    nfr = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type = 'non_functional'", pid) or 0
+    func_checks = [
+        1.0 if total_reqs >= 5 else 0.5 if total_reqs >= 2 else 0.0,
+        confirmed_reqs / total_reqs if total_reqs > 0 else 0.0,
+        1.0 if has_must >= 3 else 0.5 if has_must >= 1 else 0.0,
+        1.0 if nfr >= 1 else 0.0,
+    ]
+    functional = (sum(func_checks) / len(func_checks)) * 100
+
+    # Technical (20%)
+    tech_decisions = await conn.fetchval("SELECT COUNT(*) FROM decisions WHERE project_id = $1", pid) or 0
+    tech_constraints = await conn.fetchval("SELECT COUNT(*) FROM constraints WHERE project_id = $1 AND type = 'technology'", pid) or 0
+    confirmed_decisions = await conn.fetchval("SELECT COUNT(*) FROM decisions WHERE project_id = $1 AND status = 'confirmed'", pid) or 0
+    tech_checks = [
+        1.0 if tech_decisions >= 2 else 0.5 if tech_decisions >= 1 else 0.0,
+        1.0 if tech_constraints >= 1 else 0.0,
+        1.0 if confirmed_decisions >= 1 else 0.0,
+    ]
+    technical = (sum(tech_checks) / len(tech_checks)) * 100
+
+    # Scope (25%)
+    in_scope = await conn.fetchval("SELECT COUNT(*) FROM scope_items WHERE project_id = $1 AND in_scope = true", pid) or 0
+    out_scope = await conn.fetchval("SELECT COUNT(*) FROM scope_items WHERE project_id = $1 AND in_scope = false", pid) or 0
+    unresolved = await conn.fetchval("SELECT COUNT(*) FROM contradictions WHERE project_id = $1 AND resolved = false", pid) or 0
+    total_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1", pid) or 0
+    validated_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1 AND validated = true", pid) or 0
+    scope_checks = [
+        1.0 if in_scope >= 3 else 0.5 if in_scope >= 1 else 0.0,
+        1.0 if out_scope >= 1 else 0.0,
+        1.0 if unresolved == 0 else 0.0,
+        validated_assumptions / total_assumptions if total_assumptions > 0 else 0.5,
+    ]
+    scope = (sum(scope_checks) / len(scope_checks)) * 100
+
+    # Overall
+    overall = business * 0.20 + functional * 0.35 + technical * 0.20 + scope * 0.25
+    overall = round(overall, 1)
+
+    breakdown = json.dumps({"business": round(business, 1), "functional": round(functional, 1), "technical": round(technical, 1), "scope": round(scope, 1)})
+    await conn.execute(
+        "INSERT INTO readiness_history (id, project_id, score, breakdown, triggered_by) VALUES (gen_random_uuid(), $1, $2, $3, $4)",
+        pid, overall, breakdown, "mcp_write"
+    )
+    return overall
+
+
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -192,7 +258,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"error": f"Requirement {req_id} not found"})
             await conn.execute("UPDATE requirements SET status = $1 WHERE project_id = $2 AND req_id = $3", new_status, pid, req_id)
             await conn.execute("INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'requirement_updated', $2, $3)", pid, f"Updated {req_id}: status {old['status']} → {new_status}", json.dumps({"req_id": req_id, "old_status": old["status"], "new_status": new_status}))
-            return _json_result({"success": True, "req_id": req_id, "old_status": old["status"], "new_status": new_status})
+            new_score = await _recalculate_readiness(conn, pid)
+            return _json_result({"success": True, "req_id": req_id, "old_status": old["status"], "new_status": new_status, "readiness": new_score})
 
         if name == "update_requirement_priority":
             req_id = arguments["req_id"]
@@ -202,7 +269,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"error": f"Requirement {req_id} not found"})
             await conn.execute("UPDATE requirements SET priority = $1 WHERE project_id = $2 AND req_id = $3", new_priority, pid, req_id)
             await conn.execute("INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'requirement_updated', $2, $3)", pid, f"Updated {req_id}: priority {old['priority']} → {new_priority}", json.dumps({"req_id": req_id, "change": "priority"}))
-            return _json_result({"success": True, "req_id": req_id, "old_priority": old["priority"], "new_priority": new_priority})
+            new_score = await _recalculate_readiness(conn, pid)
+            return _json_result({"success": True, "req_id": req_id, "old_priority": old["priority"], "new_priority": new_priority, "readiness": new_score})
 
         if name == "validate_assumption":
             fragment = arguments["statement_fragment"]
@@ -211,7 +279,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             if not row:
                 return _json_result({"error": f"Assumption containing '{fragment}' not found"})
             await conn.execute("UPDATE assumptions SET validated = $1 WHERE id = $2", validated, row["id"])
-            return _json_result({"success": True, "assumption": row["statement"][:60], "validated": validated})
+            new_score = await _recalculate_readiness(conn, pid)
+            return _json_result({"success": True, "assumption": row["statement"][:60], "validated": validated, "readiness": new_score})
 
         if name == "resolve_contradiction":
             fragment = arguments["explanation_fragment"]
@@ -220,7 +289,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             if not row:
                 return _json_result({"error": f"Contradiction containing '{fragment}' not found"})
             await conn.execute("UPDATE contradictions SET resolved = true, resolution_note = $1 WHERE id = $2", note, row["id"])
-            return _json_result({"success": True, "contradiction": row["explanation"][:60], "resolved": True})
+            new_score = await _recalculate_readiness(conn, pid)
+            return _json_result({"success": True, "contradiction": row["explanation"][:60], "resolved": True, "readiness": new_score})
 
     return _json_result({"error": f"Unknown tool: {name}"})
 
