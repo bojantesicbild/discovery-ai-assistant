@@ -64,6 +64,7 @@ class ClaudeCodeRunner:
             "--output-format", "stream-json",
             "--verbose",
             "--permission-mode", "bypassPermissions",
+            "--allowedTools", "mcp__discovery__get_project_context mcp__discovery__get_requirements mcp__discovery__get_constraints mcp__discovery__get_decisions mcp__discovery__get_stakeholders mcp__discovery__get_assumptions mcp__discovery__get_scope mcp__discovery__get_contradictions mcp__discovery__get_readiness mcp__discovery__get_documents mcp__discovery__search mcp__discovery__get_activity WebSearch WebFetch",
         ]
 
         if session_id:
@@ -209,35 +210,57 @@ class ClaudeCodeRunner:
 
 
 def _prepare_working_dir() -> str:
-    """Clone assistants/ to a runtime working directory.
+    """Create a clean runtime directory for the discovery chat.
 
-    assistants/ is the clean source (version-controlled).
-    We copy it to a runtime dir so Claude Code sessions, .memory-bank/ state,
-    and temp files don't pollute the source.
+    This is NOT the assistants/ directory (which has crnogorchi CLAUDE.md and agents).
+    This is a clean environment specifically for the web chat, with:
+    - A discovery-focused CLAUDE.md
+    - No .memory-bank/ or agent files that confuse the context
+    - MCP config is injected per-session by _create_mcp_config()
     """
-    import shutil
+    runtime_dir = Path(__file__).parent.parent.parent.parent / ".runtime" / "chat-env"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
 
-    source_dir = Path(__file__).parent.parent.parent.parent / "assistants"
-    runtime_dir = Path(__file__).parent.parent.parent.parent / ".runtime" / "assistants"
+    # Write a focused CLAUDE.md for the web chat context
+    claude_md = runtime_dir / "CLAUDE.md"
+    claude_md.write_text("""# Discovery AI Assistant — Web Chat
 
-    if not source_dir.exists():
-        log.warning("Assistants source directory not found", path=str(source_dir))
-        return str(source_dir)
+You are the Discovery AI Assistant. You help Product Owners (POs) run structured client discovery for software projects.
 
-    # Copy source to runtime (fresh each startup)
-    if runtime_dir.exists():
-        shutil.rmtree(runtime_dir)
+## Your Data Access
 
-    shutil.copytree(
-        source_dir,
-        runtime_dir,
-        ignore=shutil.ignore_patterns("__pycache__", ".DS_Store"),
-    )
+You have MCP tools to query the project's extracted discovery data:
+- `mcp__discovery__get_project_context` — Project overview, readiness score
+- `mcp__discovery__get_requirements` — Business requirements (BR-001...) with priority and status
+- `mcp__discovery__get_constraints` — Budget, timeline, technology constraints
+- `mcp__discovery__get_decisions` — Decisions made during discovery
+- `mcp__discovery__get_stakeholders` — People involved with roles and authority
+- `mcp__discovery__get_assumptions` — Unvalidated assumptions with risk
+- `mcp__discovery__get_scope` — What's in/out of MVP
+- `mcp__discovery__get_contradictions` — Conflicts between items
+- `mcp__discovery__get_readiness` — Readiness score and breakdown
+- `mcp__discovery__get_documents` — Uploaded documents and processing status
+- `mcp__discovery__search` — Search across all data
+- `mcp__discovery__get_activity` — Recent activity log
 
-    log.info("Prepared runtime working directory",
-             source=str(source_dir), runtime=str(runtime_dir))
+## How to Respond
+
+1. ALWAYS use the MCP tools to get current data before answering questions about the project
+2. Cite specific items by ID (BR-001, etc.) when discussing requirements
+3. When asked about readiness, call get_readiness and explain the breakdown
+4. When asked about gaps, check what's missing by reviewing requirements, constraints, and assumptions
+5. Be concise and actionable — the PO wants answers, not essays
+
+## What NOT to Do
+
+- Do NOT read local files, git history, or .memory-bank/ — all data is in the MCP tools
+- Do NOT guess about project data — always query the MCP tools first
+- Do NOT use Bash, Read, Write, or file tools — you are a chat assistant, not a code editor
+""")
+
+    log.info("Prepared chat runtime directory", path=str(runtime_dir))
     return str(runtime_dir)
 
 
-# Singleton — uses a cloned runtime copy of assistants/
+# Singleton
 claude_runner = ClaudeCodeRunner(working_dir=_prepare_working_dir())
