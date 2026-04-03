@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NewProjectModal from "./NewProjectModal";
 
 const NAV_ITEMS = [
   { label: "Main", items: [
@@ -24,14 +25,38 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
 
   return (
+    <>
     <aside className={`sidebar${collapsed ? " collapsed" : ""}`} style={collapsed ? { width: 64 } : {}}>
       <div className="sidebar-logo">
         <h1>Crnogorchi<span></span></h1>
       </div>
 
       <nav className="sidebar-nav">
+        {/* New Project button */}
+        {!collapsed && (
+          <button
+            onClick={() => setShowNewProject(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              width: "100%", padding: "8px 12px", marginBottom: 8,
+              background: "var(--green)", color: "var(--dark)",
+              border: "none", borderRadius: "var(--radius-sm)",
+              fontSize: 13, fontWeight: 600, fontFamily: "var(--font)",
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--green-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--green)")}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            New Project
+          </button>
+        )}
         {NAV_ITEMS.map((section) => (
           <div key={section.label}>
             <div className="nav-label">{section.label}</div>
@@ -84,5 +109,7 @@ export default function Sidebar() {
         )}
       </div>
     </aside>
+    <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} />
+    </>
   );
 }

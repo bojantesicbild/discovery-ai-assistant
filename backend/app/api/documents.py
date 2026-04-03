@@ -137,6 +137,29 @@ async def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # TODO: Delete from RAGFlow, cascade extracted items
+    # Delete related records first (foreign key constraints)
+    from app.models.operational import PipelineCheckpoint
+    from app.models.extraction import (
+        Requirement, Constraint, Decision, Stakeholder,
+        Assumption, ScopeItem, ChangeHistory,
+    )
+    from sqlalchemy import delete
+
+    await db.execute(delete(PipelineCheckpoint).where(PipelineCheckpoint.document_id == document_id))
+    await db.execute(delete(ChangeHistory).where(ChangeHistory.item_type == "requirement", ChangeHistory.project_id == project_id))
+    await db.execute(delete(Requirement).where(Requirement.source_doc_id == document_id))
+    await db.execute(delete(Constraint).where(Constraint.source_doc_id == document_id))
+    await db.execute(delete(Decision).where(Decision.source_doc_id == document_id))
+    await db.execute(delete(Stakeholder).where(Stakeholder.source_doc_id == document_id))
+    await db.execute(delete(Assumption).where(Assumption.source_doc_id == document_id))
+    await db.execute(delete(ScopeItem).where(ScopeItem.source_doc_id == document_id))
+
+    # Delete uploaded file
+    from app.services.storage import delete_upload
+    from pathlib import Path
+    file_path = (doc.classification or {}).get("file_path")
+    if file_path:
+        await delete_upload(Path(file_path))
+
     await db.delete(doc)
     await db.flush()

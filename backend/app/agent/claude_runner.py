@@ -44,6 +44,7 @@ class ClaudeCodeRunner:
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[list[str]] = None,
         agent: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
         """
         Stream Claude Code response as async generator of events.
@@ -76,6 +77,9 @@ class ClaudeCodeRunner:
 
         if agent:
             cmd.extend(["--agent", agent])
+
+        if model:
+            cmd.extend(["--model", model])
 
         if self.mcp_config:
             cmd.extend(["--mcp-config", self.mcp_config])

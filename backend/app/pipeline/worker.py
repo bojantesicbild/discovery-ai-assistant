@@ -10,11 +10,9 @@ async def startup(ctx):
     """Worker startup — init DB pool and HTTP clients."""
     from app.db.session import async_session
     from app.services.ragflow import RAGFlowClient
-    from app.services.instructor_client import InstructorClient
 
     ctx["db_session"] = async_session
     ctx["ragflow"] = RAGFlowClient()
-    ctx["instructor"] = InstructorClient()
 
 
 async def shutdown(ctx):
@@ -30,4 +28,4 @@ class WorkerSettings:
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 5
     job_timeout = 600  # 10 minutes per document
-    queue_name = "discovery:pipeline"
+    queue_name = "arq:queue"

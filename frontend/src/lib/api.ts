@@ -66,6 +66,15 @@ export async function uploadDocument(projectId: string, file: File) {
   return res.json();
 }
 
+export async function deleteDocument(projectId: string, documentId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const res = await fetch(`${API_URL}/api/projects/${projectId}/documents/${documentId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("Delete failed");
+}
+
 export async function listDocuments(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/documents`);
 }

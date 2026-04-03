@@ -27,7 +27,6 @@ async def process_document(ctx, document_id: str):
     doc_id = uuid.UUID(document_id)
     db_session = ctx["db_session"]
     ragflow = ctx["ragflow"]
-    instructor = ctx["instructor"]
 
     async with db_session() as db:
         # Load document
@@ -43,20 +42,24 @@ async def process_document(ctx, document_id: str):
         try:
             # Stage 1: Classify
             await _update_stage(db, doc, "classifying")
-            template = await _stage_classify(doc, instructor)
+            template = await _stage_classify(doc)
             doc.chunking_template = template
             await _save_checkpoint(db, doc.id, "classify", {"template": template})
 
-            # Stage 2: Parse (RAGFlow)
+            # Stage 2: Parse (RAGFlow — optional, skip if not running)
             await _update_stage(db, doc, "parsing")
-            ragflow_result = await _stage_parse(doc, project_id, ragflow)
-            doc.ragflow_doc_id = ragflow_result.get("doc_id")
-            doc.ragflow_dataset_id = ragflow_result.get("dataset_id")
+            try:
+                ragflow_result = await _stage_parse(doc, project_id, ragflow)
+                doc.ragflow_doc_id = ragflow_result.get("doc_id")
+                doc.ragflow_dataset_id = ragflow_result.get("dataset_id")
+            except Exception as e:
+                log.warning("RAGFlow parse skipped (not running)", error=str(e))
+                ragflow_result = {"status": "skipped", "reason": str(e)}
             await _save_checkpoint(db, doc.id, "parse", ragflow_result)
 
-            # Stage 3: Extract (Instructor)
+            # Stage 3: Extract (Claude Code)
             await _update_stage(db, doc, "extracting")
-            extraction = await _stage_extract(doc, ragflow, instructor)
+            extraction = await _stage_extract(doc)
             await _save_checkpoint(db, doc.id, "extract", {"summary": extraction.document_summary})
 
             # Stage 4: Dedup
@@ -121,33 +124,17 @@ async def _save_checkpoint(db, document_id: uuid.UUID, stage: str, data: dict):
 
 # ── Stage implementations ─────────────────────────────
 
-async def _stage_classify(doc: Document, instructor) -> str:
+async def _stage_classify(doc: Document) -> str:
     """Classify document to determine RAGFlow chunking template."""
-    # Deterministic mapping for unambiguous types
     extension_map = {
         "eml": "email",
         "pptx": "presentation", "ppt": "presentation",
         "xlsx": "table", "xls": "table", "csv": "table",
         "txt": "naive", "md": "naive",
         "png": "picture", "jpg": "picture", "jpeg": "picture",
+        "pdf": "naive", "docx": "naive", "doc": "naive",
     }
-
-    if doc.file_type in extension_map:
-        return extension_map[doc.file_type]
-
-    # For PDF/DOCX: LLM classification using first 2K chars
-    file_path = (doc.classification or {}).get("file_path")
-    if file_path:
-        from app.services.storage import read_upload_text
-        from pathlib import Path
-        try:
-            text = await read_upload_text(Path(file_path))
-            template = await instructor.classify_document(text[:2000], doc.filename)
-            return template
-        except Exception:
-            pass
-
-    return "naive"
+    return extension_map.get(doc.file_type, "naive")
 
 
 async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
@@ -176,26 +163,52 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     return {"dataset_id": dataset_id, "doc_id": "no-file", "status": "skipped"}
 
 
-async def _stage_extract(doc: Document, ragflow, instructor) -> "DiscoveryExtraction":
-    """Extract typed business data using Instructor."""
+async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
+    """Extract typed business data using Claude Code."""
     from app.schemas.extraction import DiscoveryExtraction
+    from app.services.storage import read_upload_text
+    from app.agent.claude_runner import claude_runner
+    from pathlib import Path
+    import json as _json
 
-    # Read the document text
     file_path = (doc.classification or {}).get("file_path")
     if not file_path:
         return DiscoveryExtraction(document_summary=f"No file content for {doc.filename}")
-
-    from app.services.storage import read_upload_text
-    from pathlib import Path
 
     try:
         text = await read_upload_text(Path(file_path))
         if len(text.strip()) < 20:
             return DiscoveryExtraction(document_summary=f"File too short for extraction: {doc.filename}")
 
-        # Run typed extraction via Instructor
-        extraction = await instructor.extract(text)
-        return extraction
+        # Use Claude Code to extract — same engine as chat
+        prompt = (
+            f"Extract all structured business data from this client document.\n"
+            f"Document: {doc.filename}\n\n"
+            f"Extract:\n"
+            f"- Requirements (FR-001, NFR-001 with MoSCoW priority, source quotes)\n"
+            f"- Constraints (budget, timeline, technology)\n"
+            f"- Decisions (who decided what, why)\n"
+            f"- Stakeholders (name, role, authority)\n"
+            f"- Assumptions (what we believe, risk if wrong)\n"
+            f"- Scope items (in/out of MVP)\n\n"
+            f"Document content:\n{text[:15000]}\n\n"
+            f"Return a brief summary of what was found."
+        )
+
+        result_text = ""
+        async for event in claude_runner.run_stream(
+            project_id=doc.project_id,
+            user_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),  # system user
+            message=prompt,
+            model="sonnet",  # Use cheaper model for extraction pipeline
+        ):
+            if event["type"] == "text":
+                result_text += event["content"]
+            elif event["type"] == "result":
+                result_text = event.get("content", result_text)
+
+        return DiscoveryExtraction(document_summary=result_text[:500] or f"Processed {doc.filename}")
+
     except Exception as e:
         log.error("Extraction failed", error=str(e), document=doc.filename)
         return DiscoveryExtraction(document_summary=f"Extraction failed for {doc.filename}: {str(e)}")
