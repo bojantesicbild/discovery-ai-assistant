@@ -62,6 +62,98 @@ async def get_requirement(
     return _req_dict(item)
 
 
+@router.patch("/requirements/{req_id}")
+async def update_requirement(
+    project_id: uuid.UUID,
+    req_id: str,
+    status: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Requirement).where(Requirement.project_id == project_id, Requirement.req_id == req_id)
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        return {"error": "Not found"}
+
+    old_status = item.status
+    old_priority = item.priority
+
+    if status and status in ("proposed", "discussed", "confirmed", "changed", "dropped"):
+        item.status = status
+    if priority and priority in ("must", "should", "could", "wont"):
+        item.priority = priority
+
+    await db.flush()
+
+    # Log activity
+    from app.models.operational import ActivityLog
+    changes = []
+    if status and status != old_status:
+        changes.append(f"status: {old_status} → {status}")
+    if priority and priority != old_priority:
+        changes.append(f"priority: {old_priority} → {priority}")
+
+    if changes:
+        db.add(ActivityLog(
+            project_id=project_id,
+            user_id=user.id,
+            action="requirement_updated",
+            summary=f"Updated {req_id}: {', '.join(changes)}",
+            details={"req_id": req_id, "changes": changes},
+        ))
+
+    # Re-evaluate readiness
+    from app.services.evaluator import evaluator
+    await evaluator.evaluate(project_id, db, triggered_by=f"user:{user.id}")
+
+    return _req_dict(item)
+
+
+@router.patch("/assumptions/{assumption_id}/validate")
+async def validate_assumption(
+    project_id: uuid.UUID,
+    assumption_id: uuid.UUID,
+    validated: bool = Query(True),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Assumption).where(Assumption.id == assumption_id, Assumption.project_id == project_id)
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        return {"error": "Not found"}
+    item.validated = validated
+    await db.flush()
+
+    from app.services.evaluator import evaluator
+    await evaluator.evaluate(project_id, db, triggered_by=f"user:{user.id}")
+    return {"id": str(item.id), "validated": item.validated}
+
+
+@router.patch("/contradictions/{contradiction_id}/resolve")
+async def resolve_contradiction(
+    project_id: uuid.UUID,
+    contradiction_id: uuid.UUID,
+    resolution_note: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Contradiction).where(Contradiction.id == contradiction_id, Contradiction.project_id == project_id)
+    )
+    item = result.scalar_one_or_none()
+    if not item:
+        return {"error": "Not found"}
+    item.resolved = True
+    item.resolution_note = resolution_note
+    await db.flush()
+    return {"id": str(item.id), "resolved": True}
+
+
 def _req_dict(r: Requirement) -> dict:
     return {
         "id": str(r.id), "req_id": r.req_id, "title": r.title,
@@ -190,3 +282,59 @@ async def list_contradictions(
                         "resolved": c.resolved,
                         "resolution_note": c.resolution_note}
                        for c in items], "total": len(items)}
+
+
+# ── Search across all types ──────────────────────────
+
+@router.get("/search")
+async def search_all(
+    project_id: uuid.UUID,
+    q: str = Query(..., min_length=2),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search across all extracted data types."""
+    results = []
+    pattern = f"%{q}%"
+
+    # Requirements
+    reqs = await db.execute(
+        select(Requirement).where(
+            Requirement.project_id == project_id,
+            (Requirement.title.ilike(pattern) | Requirement.description.ilike(pattern)),
+        ).limit(10)
+    )
+    for r in reqs.scalars():
+        results.append({"type": "requirement", "id": r.req_id, "title": r.title, "priority": r.priority, "status": r.status})
+
+    # Constraints
+    cons = await db.execute(
+        select(Constraint).where(
+            Constraint.project_id == project_id,
+            Constraint.description.ilike(pattern),
+        ).limit(5)
+    )
+    for c in cons.scalars():
+        results.append({"type": "constraint", "id": str(c.id)[:8], "title": f"{c.type}: {c.description[:50]}", "status": c.status})
+
+    # Decisions
+    decs = await db.execute(
+        select(Decision).where(
+            Decision.project_id == project_id,
+            (Decision.title.ilike(pattern) | Decision.rationale.ilike(pattern)),
+        ).limit(5)
+    )
+    for d in decs.scalars():
+        results.append({"type": "decision", "id": str(d.id)[:8], "title": d.title, "status": d.status})
+
+    # Stakeholders
+    stks = await db.execute(
+        select(Stakeholder).where(
+            Stakeholder.project_id == project_id,
+            (Stakeholder.name.ilike(pattern) | Stakeholder.role.ilike(pattern)),
+        ).limit(5)
+    )
+    for s in stks.scalars():
+        results.append({"type": "stakeholder", "id": str(s.id)[:8], "title": f"{s.name} ({s.role})", "status": s.decision_authority})
+
+    return {"results": results, "total": len(results), "query": q}

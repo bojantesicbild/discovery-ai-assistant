@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   getDashboard, listRequirements, listContradictions, listDocuments,
   deleteDocument, listConstraints, listDecisions, listStakeholders,
-  listAssumptions, listScope,
+  listAssumptions, listScope, updateRequirement,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
@@ -17,6 +17,8 @@ interface DetailView {
   title: string;
   content: string;
   meta?: Record<string, string>;
+  actions?: { label: string; value: string; color: string }[];
+  onAction?: (value: string) => void;
 }
 
 const TABS = [
@@ -110,6 +112,16 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
         type: req.type,
         confidence: req.confidence,
       },
+      actions: [
+        { label: "Confirm", value: "confirmed", color: "#059669" },
+        { label: "Discussed", value: "discussed", color: "var(--info)" },
+        { label: "Drop", value: "dropped", color: "var(--danger)" },
+      ],
+      onAction: async (action: string) => {
+        await updateRequirement(projectId, req.req_id, { status: action });
+        loadData();
+        setDetail(null);
+      },
     });
   }
 
@@ -152,6 +164,8 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
           content={detail.content}
           meta={detail.meta}
           onClose={() => setDetail(null)}
+          actions={detail.actions}
+          onAction={detail.onAction}
         />
       </div>
     );

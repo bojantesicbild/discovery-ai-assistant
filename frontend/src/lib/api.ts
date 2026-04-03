@@ -85,6 +85,19 @@ export async function listRequirements(projectId: string, params?: Record<string
   return fetchAPI(`/api/projects/${projectId}/requirements${qs}`);
 }
 
+export async function updateRequirement(projectId: string, reqId: string, params: Record<string, string>) {
+  const qs = new URLSearchParams(params).toString();
+  return fetchAPI(`/api/projects/${projectId}/requirements/${reqId}?${qs}`, { method: "PATCH" });
+}
+
+export async function validateAssumption(projectId: string, assumptionId: string, validated: boolean) {
+  return fetchAPI(`/api/projects/${projectId}/assumptions/${assumptionId}/validate?validated=${validated}`, { method: "PATCH" });
+}
+
+export async function resolveContradiction(projectId: string, contradictionId: string, note: string) {
+  return fetchAPI(`/api/projects/${projectId}/contradictions/${contradictionId}/resolve?resolution_note=${encodeURIComponent(note)}`, { method: "PATCH" });
+}
+
 export async function listConstraints(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/constraints`);
 }

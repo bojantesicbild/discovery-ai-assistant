@@ -8,6 +8,8 @@ interface MarkdownPanelProps {
   meta?: Record<string, string>;
   onClose: () => void;
   onSave?: (content: string) => void;
+  actions?: { label: string; value: string; color: string }[];
+  onAction?: (value: string) => void;
   readOnly?: boolean;
 }
 
@@ -18,6 +20,8 @@ export default function MarkdownPanel({
   onClose,
   onSave,
   readOnly = false,
+  actions,
+  onAction,
 }: MarkdownPanelProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -117,6 +121,35 @@ export default function MarkdownPanel({
                 {value}
               </span>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      {actions && actions.length > 0 && (
+        <div style={{
+          display: "flex", gap: 8, padding: "10px 16px",
+          borderBottom: "1px solid var(--gray-100)",
+        }}>
+          <span style={{ fontSize: 11, color: "var(--gray-400)", fontWeight: 600, alignSelf: "center", marginRight: 4 }}>
+            Set status:
+          </span>
+          {actions.map((action) => (
+            <button
+              key={action.value}
+              onClick={() => onAction?.(action.value)}
+              style={{
+                padding: "5px 14px", borderRadius: "var(--radius-xs)",
+                border: `1px solid ${action.color}30`, background: `${action.color}10`,
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                fontFamily: "var(--font)", color: action.color,
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = `${action.color}20`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = `${action.color}10`; }}
+            >
+              {action.label}
+            </button>
           ))}
         </div>
       )}
