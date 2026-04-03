@@ -25,16 +25,38 @@ async def chat(
 ):
     user_id = user.id
 
+    # Load conversation history to give Claude context
+    history_text = ""
+    async with async_session() as db:
+        result = await db.execute(
+            select(Conversation).where(
+                Conversation.project_id == project_id,
+                Conversation.user_id == user_id,
+            )
+        )
+        conversation = result.scalar_one_or_none()
+        if conversation and conversation.messages:
+            # Include last N messages as context
+            recent = conversation.messages[-10:]
+            history_lines = []
+            for msg in recent:
+                role = "User" if msg.get("role") == "user" else "Assistant"
+                content = msg.get("content", "")[:500]  # Truncate long messages
+                history_lines.append(f"{role}: {content}")
+            if history_lines:
+                history_text = "Previous conversation:\n" + "\n\n".join(history_lines) + "\n\n---\n\n"
+
     async def event_stream():
         response_text = ""
 
+        # Prepend history so Claude has conversation context
+        full_message = history_text + "User: " + message.text if history_text else message.text
+
         # Claude Code has MCP access to the database via db_server.py
-        # It can call get_requirements, get_readiness, search, etc.
-        # Using haiku for chat during testing to save costs (change to sonnet/opus for production)
         async for event in claude_runner.run_stream(
             project_id=project_id,
             user_id=user_id,
-            message=message.text,
+            message=full_message,
             model="haiku",  # Change to "sonnet" or remove for production
         ):
             event_type = event.get("type")
