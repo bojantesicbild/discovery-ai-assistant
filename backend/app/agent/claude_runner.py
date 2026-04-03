@@ -81,8 +81,10 @@ class ClaudeCodeRunner:
         if model:
             cmd.extend(["--model", model])
 
-        if self.mcp_config:
-            cmd.extend(["--mcp-config", self.mcp_config])
+        # Generate MCP config with project-specific env vars
+        mcp_config_path = self._create_mcp_config(project_id)
+        if mcp_config_path:
+            cmd.extend(["--mcp-config", str(mcp_config_path)])
 
         log.info("Starting Claude Code", cmd=" ".join(cmd[:6]) + "...", cwd=str(self.working_dir))
 
@@ -171,6 +173,34 @@ class ClaudeCodeRunner:
             yield {"type": "error", "content": "Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code"}
         except Exception as e:
             yield {"type": "error", "content": f"Runner error: {str(e)}"}
+
+    def _create_mcp_config(self, project_id: uuid.UUID) -> Optional[Path]:
+        """Create a temporary MCP config file pointing to our db_server.py."""
+        mcp_server_path = Path(__file__).parent.parent.parent.parent / "mcp-server" / "db_server.py"
+        mcp_venv_python = Path(__file__).parent.parent.parent.parent / "mcp-server" / ".venv" / "bin" / "python"
+
+        if not mcp_server_path.exists():
+            log.warning("MCP server not found", path=str(mcp_server_path))
+            return None
+
+        python_cmd = str(mcp_venv_python) if mcp_venv_python.exists() else "python"
+
+        config = {
+            "mcpServers": {
+                "discovery": {
+                    "command": python_cmd,
+                    "args": [str(mcp_server_path)],
+                    "env": {
+                        "DATABASE_URL": os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db"),
+                        "DISCOVERY_PROJECT_ID": str(project_id),
+                    }
+                }
+            }
+        }
+
+        config_path = self.working_dir / ".mcp-runtime.json"
+        config_path.write_text(json.dumps(config, indent=2))
+        return config_path
 
     async def clear_session(self, project_id: uuid.UUID, user_id: uuid.UUID):
         """Clear a session so the next message starts fresh."""

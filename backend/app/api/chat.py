@@ -28,11 +28,14 @@ async def chat(
     async def event_stream():
         response_text = ""
 
-        # Stream from Claude Code
+        # Claude Code has MCP access to the database via db_server.py
+        # It can call get_requirements, get_readiness, search, etc.
+        # Using haiku for chat during testing to save costs (change to sonnet/opus for production)
         async for event in claude_runner.run_stream(
             project_id=project_id,
             user_id=user_id,
             message=message.text,
+            model="haiku",  # Change to "sonnet" or remove for production
         ):
             event_type = event.get("type")
 
