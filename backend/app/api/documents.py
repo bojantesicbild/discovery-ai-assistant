@@ -55,9 +55,12 @@ async def upload_document(
             detail=f"File '{file.filename}' already uploaded. Delete the existing one first."
         )
 
-    # Save file to disk
-    from app.services.storage import save_upload
-    file_path = await save_upload(project_id, file.filename, content)
+    # Save file to project's Claude Code directory
+    from app.agent.claude_runner import claude_runner
+    upload_dir = claude_runner.get_upload_dir(project_id)
+    safe_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    file_path = upload_dir / safe_name
+    file_path.write_bytes(content)
 
     # Create document record
     doc = Document(

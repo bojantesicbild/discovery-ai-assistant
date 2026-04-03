@@ -1,4 +1,4 @@
-"""Chat endpoint — SSE streaming via Claude Code subprocess."""
+"""Chat endpoint — Claude Code with native sessions and full assistants context."""
 
 import uuid
 import json
@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import async_session, get_db
 from app.deps import get_current_user
 from app.models.auth import User
-from app.models.operational import Conversation, LLMCall
+from app.models.operational import Conversation
 from app.schemas.chat import ChatMessage
 from app.agent.claude_runner import claude_runner
 
@@ -25,43 +25,41 @@ async def chat(
 ):
     user_id = user.id
 
-    # Load conversation history to give Claude context
-    history_text = ""
-    async with async_session() as db:
-        result = await db.execute(
-            select(Conversation).where(
-                Conversation.project_id == project_id,
-                Conversation.user_id == user_id,
+    # Load session ID from DB if we don't have it in memory
+    if not claude_runner.get_session_id(project_id, user_id):
+        async with async_session() as db:
+            result = await db.execute(
+                select(Conversation).where(
+                    Conversation.project_id == project_id,
+                    Conversation.user_id == user_id,
+                )
             )
-        )
-        conversation = result.scalar_one_or_none()
-        if conversation and conversation.messages:
-            # Include last N messages as context
-            recent = conversation.messages[-10:]
-            history_lines = []
-            for msg in recent:
-                role = "User" if msg.get("role") == "user" else "Assistant"
-                content = msg.get("content", "")[:500]  # Truncate long messages
-                history_lines.append(f"{role}: {content}")
-            if history_lines:
-                history_text = "Previous conversation:\n" + "\n\n".join(history_lines) + "\n\n---\n\n"
+            conv = result.scalar_one_or_none()
+            if conv and conv.messages:
+                # Look for session_id in the last messages
+                for msg in reversed(conv.messages):
+                    if msg.get("session_id"):
+                        claude_runner.set_session_id(project_id, user_id, msg["session_id"])
+                        break
 
     async def event_stream():
         response_text = ""
+        session_id = None
 
-        # Prepend history so Claude has conversation context
-        full_message = history_text + "User: " + message.text if history_text else message.text
-
-        # Claude Code has MCP access to the database via db_server.py
+        # Claude Code runs in per-project directory with full assistants context
+        # Session resumes automatically if one exists (native multi-turn)
         async for event in claude_runner.run_stream(
             project_id=project_id,
             user_id=user_id,
-            message=full_message,
+            message=message.text,
             model="haiku",  # Change to "sonnet" or remove for production
         ):
             event_type = event.get("type")
 
-            if event_type == "text":
+            if event_type == "session":
+                session_id = event.get("session_id")
+
+            elif event_type == "text":
                 response_text += event["content"]
                 yield f"data: {json.dumps({'text': event['content']})}\n\n"
 
@@ -72,15 +70,15 @@ async def chat(
                 yield f"data: {json.dumps({'error': event['content']})}\n\n"
 
             elif event_type == "result":
-                # Use the full result if we didn't get streaming text
                 if not response_text:
                     response_text = event.get("content", "")
                     if response_text:
                         yield f"data: {json.dumps({'text': response_text})}\n\n"
+                session_id = event.get("session_id") or session_id
 
         yield f"data: {json.dumps({'done': True})}\n\n"
 
-        # Save conversation to DB
+        # Save conversation + session ID to DB
         async with async_session() as db:
             try:
                 result = await db.execute(
@@ -100,11 +98,15 @@ async def chat(
 
                 history = conversation.messages or []
                 history.append({"role": "user", "content": message.text})
-                history.append({"role": "assistant", "content": response_text})
+                history.append({
+                    "role": "assistant",
+                    "content": response_text,
+                    "session_id": session_id,  # Store for session resume
+                })
                 conversation.messages = history[-40:]
                 await db.commit()
             except Exception:
-                pass  # Don't fail the stream if DB save fails
+                pass
 
     return StreamingResponse(
         event_stream(),

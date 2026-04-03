@@ -1,16 +1,20 @@
 """
-Claude Code Runner — spawns Claude Code as subprocess for chat.
-Uses the user's Pro Max subscription for all LLM calls.
-Claude Code reads assistants/.claude/ for agent definitions, skills, and MCP config.
+Claude Code Runner — per-project Claude Code environment with native sessions.
 
-Stream-json output format (from Claude Code --output-format stream-json --verbose):
-  {"type":"system","subtype":"init","session_id":"...","tools":[...],...}
-  {"type":"assistant","message":{"content":[{"type":"text","text":"..."}],...},...}
-  {"type":"result","subtype":"success","result":"full text","session_id":"...",...}
+Each project gets its own directory with:
+- Full assistants/ install (CLAUDE.md, agents, skills, templates)
+- Fresh .memory-bank/
+- MCP config pointing to our database
+- Uploads folder for project documents
+- Claude Code sessions that persist across messages
+
+Sessions use --resume for multi-turn conversations (Claude Code native history).
+Session IDs are stored in PostgreSQL for web UI ↔ terminal sharing.
 """
 
 import asyncio
 import json
+import shutil
 import uuid
 import os
 import structlog
@@ -19,22 +23,84 @@ from typing import AsyncGenerator, Optional
 
 log = structlog.get_logger()
 
+# Paths
+ROOT_DIR = Path(__file__).parent.parent.parent.parent
+ASSISTANTS_DIR = ROOT_DIR / "assistants"
+RUNTIME_DIR = ROOT_DIR / ".runtime" / "projects"
+MCP_SERVER_PATH = ROOT_DIR / "mcp-server" / "db_server.py"
+MCP_VENV_PYTHON = ROOT_DIR / "mcp-server" / ".venv" / "bin" / "python"
+
 
 class ClaudeCodeRunner:
-    """Runs Claude Code CLI as a subprocess. Streams responses."""
+    """Runs Claude Code per-project with full assistants context and native sessions."""
 
-    def __init__(self, working_dir: str, mcp_config: Optional[str] = None):
-        """
-        Args:
-            working_dir: Directory where Claude Code runs (should contain .claude/ or CLAUDE.md)
-            mcp_config: Path to MCP config JSON file (optional, uses .claude/settings.json if not set)
-        """
-        self.working_dir = Path(working_dir).resolve()
-        self.mcp_config = mcp_config
+    def __init__(self):
         self._sessions: dict[str, str] = {}  # "project:user" -> session_id
 
     def _session_key(self, project_id: uuid.UUID, user_id: uuid.UUID) -> str:
         return f"{project_id}:{user_id}"
+
+    def get_project_dir(self, project_id: uuid.UUID) -> Path:
+        """Get or create the per-project Claude Code environment."""
+        project_dir = RUNTIME_DIR / str(project_id)
+
+        if not project_dir.exists():
+            self._setup_project_dir(project_id, project_dir)
+
+        return project_dir
+
+    def _setup_project_dir(self, project_id: uuid.UUID, project_dir: Path):
+        """Create a fresh project directory with full assistants install."""
+        log.info("Setting up project directory", project_id=str(project_id), path=str(project_dir))
+
+        # Copy assistants/ to project dir (like running install.sh)
+        if ASSISTANTS_DIR.exists():
+            shutil.copytree(
+                ASSISTANTS_DIR,
+                project_dir,
+                ignore=shutil.ignore_patterns("__pycache__", ".DS_Store", "*.pyc"),
+            )
+        else:
+            project_dir.mkdir(parents=True, exist_ok=True)
+
+        # Ensure .memory-bank/ exists with fresh structure
+        mb = project_dir / ".memory-bank"
+        mb.mkdir(exist_ok=True)
+        (mb / "active-tasks").mkdir(exist_ok=True)
+        (mb / "docs").mkdir(exist_ok=True)
+        (mb / "docs" / "discovery").mkdir(exist_ok=True)
+
+        # Ensure uploads dir
+        (project_dir / "uploads").mkdir(exist_ok=True)
+
+        # Write MCP config for this project
+        self._write_mcp_config(project_id, project_dir)
+
+        log.info("Project directory ready", project_id=str(project_id))
+
+    def _write_mcp_config(self, project_id: uuid.UUID, project_dir: Path):
+        """Write .mcp.json with discovery MCP server for this project."""
+        python_cmd = str(MCP_VENV_PYTHON) if MCP_VENV_PYTHON.exists() else "python3"
+
+        config = {
+            "mcpServers": {
+                "discovery": {
+                    "command": python_cmd,
+                    "args": [str(MCP_SERVER_PATH)],
+                    "env": {
+                        "DATABASE_URL": os.environ.get(
+                            "DATABASE_URL",
+                            "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db"
+                        ),
+                        "DISCOVERY_PROJECT_ID": str(project_id),
+                    }
+                }
+            }
+        }
+
+        # Write as .mcp.json (Claude Code auto-discovers this)
+        mcp_path = project_dir / ".mcp.json"
+        mcp_path.write_text(json.dumps(config, indent=2))
 
     async def run_stream(
         self,
@@ -46,15 +112,9 @@ class ClaudeCodeRunner:
         agent: Optional[str] = None,
         model: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
-        """
-        Stream Claude Code response as async generator of events.
+        """Stream Claude Code response. Resumes session if one exists."""
 
-        Yields dicts with:
-          {"type": "text", "content": "..."} — text chunk
-          {"type": "tool_use", "tool": "...", "input": {...}} — tool being called
-          {"type": "result", "content": "...", "session_id": "..."} — final result
-          {"type": "error", "content": "..."} — error
-        """
+        project_dir = self.get_project_dir(project_id)
         session_key = self._session_key(project_id, user_id)
         session_id = self._sessions.get(session_key)
 
@@ -64,9 +124,11 @@ class ClaudeCodeRunner:
             "--output-format", "stream-json",
             "--verbose",
             "--permission-mode", "bypassPermissions",
-            "--allowedTools", "mcp__discovery__* WebSearch WebFetch",
-            "--no-session-persistence",  # Each call is independent; our DB manages history
         ]
+
+        # Resume existing session for multi-turn conversation
+        if session_id:
+            cmd.extend(["--resume", session_id])
 
         if system_prompt:
             cmd.extend(["--system-prompt", system_prompt])
@@ -80,19 +142,17 @@ class ClaudeCodeRunner:
         if model:
             cmd.extend(["--model", model])
 
-        # Generate MCP config with project-specific env vars
-        mcp_config_path = self._create_mcp_config(project_id)
-        if mcp_config_path:
-            cmd.extend(["--mcp-config", str(mcp_config_path)])
-
-        log.info("Starting Claude Code", cmd=" ".join(cmd[:6]) + "...", cwd=str(self.working_dir))
+        log.info("Starting Claude Code",
+                 project=str(project_id)[:8],
+                 session=session_id or "new",
+                 cwd=str(project_dir))
 
         try:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=str(self.working_dir),
+                cwd=str(project_dir),
                 env={**os.environ, "NO_COLOR": "1"},
             )
 
@@ -113,14 +173,14 @@ class ClaudeCodeRunner:
                     new_session_id = event.get("session_id")
                     if new_session_id:
                         self._sessions[session_key] = new_session_id
-                        log.info("Session started", session_id=new_session_id)
+                        log.info("Session", session_id=new_session_id, resumed=bool(session_id))
+                    yield {"type": "session", "session_id": new_session_id}
                     continue
 
                 # Assistant message — stream text content
                 if event_type == "assistant":
                     msg = event.get("message", {})
-                    content_blocks = msg.get("content", [])
-                    for block in content_blocks:
+                    for block in msg.get("content", []):
                         if block.get("type") == "text":
                             yield {"type": "text", "content": block["text"]}
                         elif block.get("type") == "tool_use":
@@ -131,9 +191,8 @@ class ClaudeCodeRunner:
                             }
                     continue
 
-                # Tool result
+                # Tool result — Claude handles execution internally
                 if event_type == "tool_result":
-                    # Claude Code handles tool execution internally
                     continue
 
                 # Final result
@@ -160,7 +219,6 @@ class ClaudeCodeRunner:
                         }
                     continue
 
-            # Wait for process to finish
             await process.wait()
 
             if process.returncode != 0:
@@ -169,96 +227,28 @@ class ClaudeCodeRunner:
                 yield {"type": "error", "content": f"Claude Code exited with code {process.returncode}: {error_msg}"}
 
         except FileNotFoundError:
-            yield {"type": "error", "content": "Claude Code CLI not found. Install with: npm install -g @anthropic-ai/claude-code"}
+            yield {"type": "error", "content": "Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code"}
         except Exception as e:
             yield {"type": "error", "content": f"Runner error: {str(e)}"}
 
-    def _create_mcp_config(self, project_id: uuid.UUID) -> Optional[Path]:
-        """Create a temporary MCP config file pointing to our db_server.py."""
-        mcp_server_path = Path(__file__).parent.parent.parent.parent / "mcp-server" / "db_server.py"
-        mcp_venv_python = Path(__file__).parent.parent.parent.parent / "mcp-server" / ".venv" / "bin" / "python"
+    def get_session_id(self, project_id: uuid.UUID, user_id: uuid.UUID) -> Optional[str]:
+        """Get the current session ID for a project/user."""
+        return self._sessions.get(self._session_key(project_id, user_id))
 
-        if not mcp_server_path.exists():
-            log.warning("MCP server not found", path=str(mcp_server_path))
-            return None
-
-        python_cmd = str(mcp_venv_python) if mcp_venv_python.exists() else "python"
-
-        config = {
-            "mcpServers": {
-                "discovery": {
-                    "command": python_cmd,
-                    "args": [str(mcp_server_path)],
-                    "env": {
-                        "DATABASE_URL": os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db"),
-                        "DISCOVERY_PROJECT_ID": str(project_id),
-                    }
-                }
-            }
-        }
-
-        config_path = self.working_dir / ".mcp-runtime.json"
-        config_path.write_text(json.dumps(config, indent=2))
-        return config_path
+    def set_session_id(self, project_id: uuid.UUID, user_id: uuid.UUID, session_id: str):
+        """Set session ID (loaded from DB on startup)."""
+        self._sessions[self._session_key(project_id, user_id)] = session_id
 
     async def clear_session(self, project_id: uuid.UUID, user_id: uuid.UUID):
-        """Clear a session so the next message starts fresh."""
-        session_key = self._session_key(project_id, user_id)
-        self._sessions.pop(session_key, None)
+        """Clear session — next message starts a new conversation."""
+        self._sessions.pop(self._session_key(project_id, user_id), None)
 
-
-def _prepare_working_dir() -> str:
-    """Create a clean runtime directory for the discovery chat.
-
-    This is NOT the assistants/ directory (which has crnogorchi CLAUDE.md and agents).
-    This is a clean environment specifically for the web chat, with:
-    - A discovery-focused CLAUDE.md
-    - No .memory-bank/ or agent files that confuse the context
-    - MCP config is injected per-session by _create_mcp_config()
-    """
-    runtime_dir = Path(__file__).parent.parent.parent.parent / ".runtime" / "chat-env"
-    runtime_dir.mkdir(parents=True, exist_ok=True)
-
-    # Write a focused CLAUDE.md for the web chat context
-    claude_md = runtime_dir / "CLAUDE.md"
-    claude_md.write_text("""# Discovery AI Assistant — Web Chat
-
-You are the Discovery AI Assistant. You help Product Owners (POs) run structured client discovery for software projects.
-
-## Your Data Access
-
-You have MCP tools to query the project's extracted discovery data:
-- `mcp__discovery__get_project_context` — Project overview, readiness score
-- `mcp__discovery__get_requirements` — Business requirements (BR-001...) with priority and status
-- `mcp__discovery__get_constraints` — Budget, timeline, technology constraints
-- `mcp__discovery__get_decisions` — Decisions made during discovery
-- `mcp__discovery__get_stakeholders` — People involved with roles and authority
-- `mcp__discovery__get_assumptions` — Unvalidated assumptions with risk
-- `mcp__discovery__get_scope` — What's in/out of MVP
-- `mcp__discovery__get_contradictions` — Conflicts between items
-- `mcp__discovery__get_readiness` — Readiness score and breakdown
-- `mcp__discovery__get_documents` — Uploaded documents and processing status
-- `mcp__discovery__search` — Search across all data
-- `mcp__discovery__get_activity` — Recent activity log
-
-## How to Respond
-
-1. ALWAYS use the MCP tools to get current data before answering questions about the project
-2. Cite specific items by ID (BR-001, etc.) when discussing requirements
-3. When asked about readiness, call get_readiness and explain the breakdown
-4. When asked about gaps, check what's missing by reviewing requirements, constraints, and assumptions
-5. Be concise and actionable — the PO wants answers, not essays
-
-## What NOT to Do
-
-- Do NOT read local files, git history, or .memory-bank/ — all data is in the MCP tools
-- Do NOT guess about project data — always query the MCP tools first
-- Do NOT use Bash, Read, Write, or file tools — you are a chat assistant, not a code editor
-""")
-
-    log.info("Prepared chat runtime directory", path=str(runtime_dir))
-    return str(runtime_dir)
+    def get_upload_dir(self, project_id: uuid.UUID) -> Path:
+        """Get the uploads directory for a project."""
+        upload_dir = self.get_project_dir(project_id) / "uploads"
+        upload_dir.mkdir(exist_ok=True)
+        return upload_dir
 
 
 # Singleton
-claude_runner = ClaudeCodeRunner(working_dir=_prepare_working_dir())
+claude_runner = ClaudeCodeRunner()
