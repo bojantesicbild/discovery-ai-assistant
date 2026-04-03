@@ -1,2 +1,28 @@
-jira/
+# OS
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# Environment
+.env
+backend/.env
+
+# Uploads (user files, not in git)
+uploads/
+
+# Runtime (cloned assistants for Claude Code sessions)
+.runtime/
+
+# IDE
+.idea/
+.vscode/
+
+# Docker
+postgres_data/
+
+# Old
+jira/

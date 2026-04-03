@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # ── Our Application ─────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: discovery_db
+      POSTGRES_USER: discovery_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-discovery_pass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U discovery_user -d discovery_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://discovery_user:${DB_PASSWORD:-discovery_pass}@postgres:5432/discovery_db
+      REDIS_URL: redis://redis:6379
+      RAGFLOW_URL: http://ragflow:9380
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      ASSISTANTS_DIR: /app/assistants
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./assistants/.claude:/app/assistants/.claude:ro
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["python", "-m", "arq", "app.pipeline.worker.WorkerSettings"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://discovery_user:${DB_PASSWORD:-discovery_pass}@postgres:5432/discovery_db
+      REDIS_URL: redis://redis:6379
+      RAGFLOW_URL: http://ragflow:9380
+      RAGFLOW_API_KEY: ${RAGFLOW_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ASSISTANTS_DIR: /app/assistants
+    volumes:
+      - ./assistants/.claude:/app/assistants/.claude:ro
+
+  # ── RAGFlow Stack (optional — comment out if not using yet) ──
+
+  # elasticsearch:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+  #   environment:
+  #     - discovery.type=single-node
+  #     - xpack.security.enabled=false
+  #     - ES_JAVA_OPTS=-Xms1g -Xmx1g
+  #   volumes:
+  #     - es_data:/usr/share/elasticsearch/data
+  #   ports:
+  #     - "9200:9200"
+
+  # ragflow-mysql:
+  #   image: mysql:8.0
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: ragflow_root
+  #     MYSQL_DATABASE: ragflow
+  #   volumes:
+  #     - ragflow_mysql_data:/var/lib/mysql
+
+  # minio:
+  #   image: minio/minio:latest
+  #   command: minio server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: minioadmin
+  #     MINIO_ROOT_PASSWORD: minioadmin
+  #   volumes:
+  #     - minio_data:/data
+  #   ports:
+  #     - "9000:9000"
+  #     - "9001:9001"
+
+  # ragflow:
+  #   image: infiniflow/ragflow:latest
+  #   depends_on:
+  #     - elasticsearch
+  #     - ragflow-mysql
+  #     - minio
+  #   environment:
+  #     ELASTICSEARCH_URL: http://elasticsearch:9200
+  #     MYSQL_HOST: ragflow-mysql
+  #     MINIO_ENDPOINT: http://minio:9000
+  #   ports:
+  #     - "9380:9380"
+
+volumes:
+  postgres_data:
+  # es_data:
+  # ragflow_mysql_data:
+  # minio_data:
