@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { chatStream } from "@/lib/api";
+import { chatStream, getConversation } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
@@ -19,6 +19,20 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load conversation history on mount
+  useEffect(() => {
+    getConversation(projectId)
+      .then((data) => {
+        if (data.messages?.length > 0) {
+          setMessages(data.messages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
