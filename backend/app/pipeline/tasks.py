@@ -59,7 +59,10 @@ async def process_document(ctx, document_id: str):
 
             # Stage 3: Extract (Claude Code)
             await _update_stage(db, doc, "extracting")
-            extraction = await _stage_extract(doc)
+            # Get project context for smarter extraction
+            from app.models.project import Project
+            project = await db.get(Project, project_id)
+            extraction = await _stage_extract(doc, project)
             await _save_checkpoint(db, doc.id, "extract", {"summary": extraction.document_summary})
 
             # Stage 4: Dedup
@@ -163,7 +166,7 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     return {"dataset_id": dataset_id, "doc_id": "no-file", "status": "skipped"}
 
 
-async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
+async def _stage_extract(doc: Document, project=None) -> "DiscoveryExtraction":
     """Extract typed business data using Claude Code. Returns structured JSON."""
     from app.schemas.extraction import (
         DiscoveryExtraction, Requirement, Constraint, Decision,
@@ -183,37 +186,54 @@ async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
         if len(text.strip()) < 20:
             return DiscoveryExtraction(document_summary=f"File too short for extraction: {doc.filename}")
 
-        prompt = f"""Extract structured business requirements and related data from this document and return ONLY a JSON object.
+        project_context = ""
+        if project:
+            project_context = f"""Project: {project.name}
+Client: {project.client_name}
+Type: {project.project_type}
 
+Extract business requirements relevant to this project for the client."""
+
+        prompt = f"""You are extracting business requirements from a client discovery document.
+
+{project_context}
 Document: {doc.filename}
 
 ---
 {text[:12000]}
 ---
 
-Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exact format:
+RULES:
+- Extract ONLY distinct, unique items. NO DUPLICATES.
+- Each requirement/constraint/decision should appear ONCE.
+- Be selective: extract the most important items, not every detail.
+- Focus on what the CLIENT needs, not internal implementation details.
+- Keep titles concise (under 60 chars).
+- Quality over quantity.
+
+Return ONLY valid JSON (no markdown, no code fences):
 {{
-  "document_summary": "one sentence summary",
+  "document_summary": "one sentence summary of the document",
   "requirements": [
     {{
       "id": "BR-001",
-      "title": "short title",
+      "title": "concise title",
       "type": "functional",
-      "priority": "must",
+      "priority": "must|should|could|wont",
       "description": "what the system shall do",
       "user_perspective": "As a [role], I want [X] so that [Y]",
-      "business_rules": ["rule1"],
-      "edge_cases": ["edge case"],
+      "business_rules": [],
+      "edge_cases": [],
       "source_doc": "{doc.filename}",
       "source_quote": "exact quote from document (min 10 chars)",
-      "status": "proposed",
-      "confidence": "medium"
+      "status": "proposed|discussed|confirmed",
+      "confidence": "high|medium|low"
     }}
   ],
   "constraints": [
     {{
       "type": "budget|timeline|technology|regulatory|organizational",
-      "description": "what the constraint is",
+      "description": "the constraint",
       "impact": "how it limits the project",
       "source_doc": "{doc.filename}",
       "source_quote": "exact quote",
@@ -223,9 +243,9 @@ Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exa
   "decisions": [
     {{
       "title": "what was decided",
-      "decided_by": "person name",
-      "rationale": "why",
-      "alternatives_considered": ["alt1"],
+      "decided_by": "person name or unknown",
+      "rationale": "why this was chosen",
+      "alternatives_considered": [],
       "source_doc": "{doc.filename}",
       "status": "confirmed|tentative"
     }}
@@ -234,15 +254,15 @@ Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exa
     {{
       "name": "person name",
       "role": "their role",
-      "organization": "company",
+      "organization": "company name",
       "decision_authority": "final|recommender|informed",
-      "interests": ["what they care about"]
+      "interests": []
     }}
   ],
   "assumptions": [
     {{
       "statement": "what we assume",
-      "basis": "why we assume it",
+      "basis": "why",
       "risk_if_wrong": "what breaks"
     }}
   ],
@@ -256,7 +276,7 @@ Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exa
   ]
 }}
 
-Extract everything you can find. If a category has nothing, use an empty array. Return ONLY the JSON."""
+Return ONLY the JSON. No duplicates. Be concise and selective."""
 
         result_text = ""
         async for event in claude_runner.run_stream(
@@ -272,6 +292,10 @@ Extract everything you can find. If a category has nothing, use an empty array. 
 
         # Parse JSON response
         extraction = _parse_extraction_json(result_text, doc.filename)
+
+        # Post-extraction dedup: remove duplicates within this extraction
+        extraction = _dedup_within_extraction(extraction)
+
         log.info("Extraction complete",
                  document=doc.filename,
                  requirements=len(extraction.requirements),
@@ -410,6 +434,28 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
         assumptions=assumptions,
         scope_items=scope_items,
     )
+
+
+def _dedup_within_extraction(extraction: "DiscoveryExtraction") -> "DiscoveryExtraction":
+    """Remove duplicates within a single extraction by comparing titles/descriptions."""
+
+    def _dedup_list(items, key_fn):
+        seen = set()
+        unique = []
+        for item in items:
+            key = key_fn(item).lower().strip()[:50]
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+        return unique
+
+    extraction.requirements = _dedup_list(extraction.requirements, lambda r: r.title)
+    extraction.constraints = _dedup_list(extraction.constraints, lambda c: c.description)
+    extraction.decisions = _dedup_list(extraction.decisions, lambda d: d.title)
+    extraction.stakeholders = _dedup_list(extraction.stakeholders, lambda s: s.name)
+    extraction.assumptions = _dedup_list(extraction.assumptions, lambda a: a.statement)
+    extraction.scope_items = _dedup_list(extraction.scope_items, lambda s: s.description)
+    return extraction
 
 
 async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction) -> dict:
