@@ -34,14 +34,26 @@ async def dedup_requirements(
     actions = []
 
     for req in new_requirements:
-        # Check for existing requirement with similar title
+        # Check for existing requirement by req_id first (exact match)
         result = await db.execute(
             select(Requirement).where(
                 Requirement.project_id == project_id,
-                Requirement.title.ilike(f"%{_core_words(req.title)}%"),
+                Requirement.req_id == req.id,
             )
         )
         existing = result.scalars().all()
+
+        # Also check by title similarity if no req_id match
+        if not existing:
+            core = _core_words(req.title)
+            if core:
+                result = await db.execute(
+                    select(Requirement).where(
+                        Requirement.project_id == project_id,
+                        Requirement.title.ilike(f"%{core}%"),
+                    )
+                )
+                existing = result.scalars().all()
 
         if not existing:
             actions.append({"action": "ADD", "item": req})

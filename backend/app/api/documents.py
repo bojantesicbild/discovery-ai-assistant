@@ -42,6 +42,19 @@ async def upload_document(
     if file_size > settings.upload_max_size_mb * 1024 * 1024:
         raise HTTPException(status_code=400, detail=f"File too large. Max: {settings.upload_max_size_mb}MB")
 
+    # Check for duplicate filename in this project
+    existing = await db.execute(
+        select(Document).where(
+            Document.project_id == project_id,
+            Document.filename == file.filename,
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(
+            status_code=409,
+            detail=f"File '{file.filename}' already uploaded. Delete the existing one first."
+        )
+
     # Save file to disk
     from app.services.storage import save_upload
     file_path = await save_upload(project_id, file.filename, content)
