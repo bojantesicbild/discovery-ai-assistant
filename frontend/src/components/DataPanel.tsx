@@ -2,10 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { getDashboard, listRequirements, listContradictions, listDocuments, deleteDocument } from "@/lib/api";
+import MarkdownPanel from "./MarkdownPanel";
 
 interface DataPanelProps {
   projectId: string;
-  refreshKey?: number; // increment to trigger refresh
+  refreshKey?: number;
+}
+
+interface DetailView {
+  title: string;
+  content: string;
+  meta?: Record<string, string>;
 }
 
 const TABS = [
@@ -23,6 +30,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
   const [requirements, setRequirements] = useState<any[]>([]);
   const [contradictions, setContradictions] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [detail, setDetail] = useState<DetailView | null>(null);
 
   useEffect(() => {
     loadData();
@@ -51,6 +59,81 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
   const score = readiness?.score ?? 0;
   const circumference = 2 * Math.PI * 15; // r=15 for viewBox 36
   const offset = circumference - (score / 100) * circumference;
+
+  function openRequirement(req: any) {
+    const md = [
+      `# ${req.req_id}: ${req.title}`,
+      "",
+      `**Type:** ${req.type} | **Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
+      "",
+      "## Description",
+      req.description || "No description",
+      "",
+      req.user_perspective ? `## User Perspective\n${req.user_perspective}` : "",
+      "",
+      req.business_rules?.length ? `## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
+      "",
+      req.edge_cases?.length ? `## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
+      "",
+      "## Source",
+      `> ${req.source_quote || "No source quote"}`,
+    ].filter(Boolean).join("\n");
+
+    setDetail({
+      title: `${req.req_id}: ${req.title}`,
+      content: md,
+      meta: {
+        priority: req.priority,
+        status: req.status,
+        type: req.type,
+        confidence: req.confidence,
+      },
+    });
+  }
+
+  function openDocument(doc: any) {
+    const md = [
+      `# ${doc.filename}`,
+      "",
+      `**Type:** ${doc.file_type} | **Size:** ${doc.file_size_bytes ? `${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "unknown"} | **Status:** ${doc.pipeline_stage}`,
+      "",
+      `**Uploaded:** ${doc.created_at ? new Date(doc.created_at).toLocaleString() : "unknown"}`,
+      "",
+      doc.items_extracted > 0 ? `**Extracted:** ${doc.items_extracted} items` : "",
+      doc.contradictions_found > 0 ? `**Contradictions:** ${doc.contradictions_found} found` : "",
+      "",
+      doc.pipeline_error ? `## Pipeline Error\n\`\`\`\n${doc.pipeline_error}\n\`\`\`` : "",
+      "",
+      "## Processing Pipeline",
+      `- Classification: ${doc.chunking_template || "auto"}`,
+      `- Stage: ${doc.pipeline_stage}`,
+      doc.pipeline_started_at ? `- Started: ${new Date(doc.pipeline_started_at).toLocaleString()}` : "",
+      doc.pipeline_completed_at ? `- Completed: ${new Date(doc.pipeline_completed_at).toLocaleString()}` : "",
+    ].filter(Boolean).join("\n");
+
+    setDetail({
+      title: doc.filename,
+      content: md,
+      meta: {
+        type: doc.file_type,
+        status: doc.pipeline_stage,
+      },
+    });
+  }
+
+  // If a detail view is open, show the markdown panel
+  if (detail) {
+    return (
+      <div className="data-panel" style={{ flex: "0 0 55%" }}>
+        <MarkdownPanel
+          title={detail.title}
+          content={detail.content}
+          meta={detail.meta}
+          onClose={() => setDetail(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="data-panel" style={{ flex: "0 0 55%" }}>
@@ -131,7 +214,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
                 </thead>
                 <tbody>
                   {requirements.map((req: any) => (
-                    <tr key={req.id || req.req_id}>
+                    <tr key={req.id || req.req_id} onClick={() => openRequirement(req)} style={{ cursor: "pointer" }}>
                       <td className="chevron-cell">
                         <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2 }}>
                           <polyline points="9 18 15 12 9 6" />
@@ -218,7 +301,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
                 </thead>
                 <tbody>
                   {documents.map((doc: any) => (
-                    <tr key={doc.id}>
+                    <tr key={doc.id} onClick={() => openDocument(doc)} style={{ cursor: "pointer" }}>
                       <td style={{ fontWeight: 600 }}>{doc.filename}</td>
                       <td>
                         <span className="pri-badge could" style={{ textTransform: "uppercase" }}>
