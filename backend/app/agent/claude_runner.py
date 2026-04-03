@@ -65,10 +65,8 @@ class ClaudeCodeRunner:
             "--verbose",
             "--permission-mode", "bypassPermissions",
             "--allowedTools", "mcp__discovery__* WebSearch WebFetch",
+            "--no-session-persistence",  # Each call is independent; our DB manages history
         ]
-
-        if session_id:
-            cmd.extend(["--resume", session_id])
 
         if system_prompt:
             cmd.extend(["--system-prompt", system_prompt])
