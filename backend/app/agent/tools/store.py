@@ -24,8 +24,7 @@ async def store_requirement(
     count = await ctx.deps.db.scalar(
         select(func.count()).where(Requirement.project_id == ctx.deps.project_id)
     ) or 0
-    prefix = "FR" if type == "functional" else "NFR"
-    req_id = f"{prefix}-{count + 1:03d}"
+    req_id = f"BR-{count + 1:03d}"
 
     req = Requirement(
         project_id=ctx.deps.project_id,

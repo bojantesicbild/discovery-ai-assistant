@@ -17,7 +17,7 @@ interface DetailView {
 
 const TABS = [
   { id: "facts", label: "Facts" },
-  { id: "reqs", label: "Requirements" },
+  { id: "reqs", label: "Business Requirements" },
   { id: "gaps", label: "Gaps" },
   { id: "contradictions", label: "Contradictions" },
   { id: "docs", label: "Documents" },
@@ -157,7 +157,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
             <div className="dp-rb-label">Discovery Readiness</div>
             <div className="dp-rb-sub">
               {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
-              {dashboard?.requirements_count ?? 0} requirements
+              {dashboard?.requirements_count ?? 0} business requirements
             </div>
           </div>
         </div>
@@ -198,7 +198,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
             </div>
             {requirements.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
-                No requirements extracted yet. Upload documents to get started.
+                No business requirements extracted yet. Upload documents to get started.
               </div>
             ) : (
               <table className="panel-table">
@@ -206,7 +206,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
                   <tr>
                     <th style={{ width: 30 }}></th>
                     <th>ID</th>
-                    <th>Requirement</th>
+                    <th>Business Requirement</th>
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Confidence</th>

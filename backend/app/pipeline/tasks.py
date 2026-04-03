@@ -183,7 +183,7 @@ async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
         if len(text.strip()) < 20:
             return DiscoveryExtraction(document_summary=f"File too short for extraction: {doc.filename}")
 
-        prompt = f"""Extract structured business data from this document and return ONLY a JSON object.
+        prompt = f"""Extract structured business requirements and related data from this document and return ONLY a JSON object.
 
 Document: {doc.filename}
 
@@ -196,7 +196,7 @@ Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exa
   "document_summary": "one sentence summary",
   "requirements": [
     {{
-      "id": "FR-001",
+      "id": "BR-001",
       "title": "short title",
       "type": "functional",
       "priority": "must",
@@ -320,7 +320,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
     for i, r in enumerate(data.get("requirements", [])):
         try:
             req = Requirement(
-                id=r.get("id", f"FR-{i+1:03d}"),
+                id=r.get("id", f"BR-{i+1:03d}"),
                 title=r.get("title", "Untitled"),
                 type=r.get("type", "functional"),
                 priority=r.get("priority", "should"),

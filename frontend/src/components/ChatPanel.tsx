@@ -74,7 +74,7 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
     "What are the gaps?",
     "Prepare meeting agenda",
     "Show readiness score",
-    "Extract requirements",
+    "Extract business requirements",
   ];
 
   return (

@@ -8,7 +8,7 @@ from typing import Optional, Literal
 
 
 class Requirement(BaseModel):
-    id: str = Field(description="Auto-generated: FR-001, NFR-001")
+    id: str = Field(description="Auto-generated: BR-001, BR-002")
     title: str = Field(description="Short title: 'SSO Authentication'")
     type: Literal["functional", "non_functional"]
     priority: Literal["must", "should", "could", "wont"]

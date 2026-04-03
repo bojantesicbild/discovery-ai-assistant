@@ -10,7 +10,7 @@ class Requirement(Base, IdMixin, TimestampMixin):
     __tablename__ = "requirements"
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    req_id: Mapped[str] = mapped_column(String, nullable=False)  # FR-001, NFR-001
+    req_id: Mapped[str] = mapped_column(String, nullable=False)  # BR-001, BR-002
     title: Mapped[str] = mapped_column(String, nullable=False)
     type: Mapped[str] = mapped_column(String, nullable=False)  # functional, non_functional
     priority: Mapped[str] = mapped_column(String, nullable=False)  # must, should, could, wont
