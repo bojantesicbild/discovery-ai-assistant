@@ -47,6 +47,30 @@
     .user-name { font-size: 13px; font-weight: 600; color: var(--white); }
     .user-role { font-size: 11px; color: var(--gray-500); }
 
+    /* Sidebar collapse */
+    .sidebar { transition: width 0.3s ease; }
+    .main { transition: margin-left 0.3s ease; }
+    .sidebar-collapse-btn { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--gray-400); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; border: none; background: none; font-family: var(--font); width: 100%; text-align: left; }
+    .sidebar-collapse-btn:hover { background: var(--dark-hover); color: var(--gray-200); }
+    .sidebar-collapse-btn .nav-icon { width: 20px; height: 20px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .sidebar-collapse-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.3s; }
+    .sidebar.collapsed { width: 64px; }
+    .sidebar.collapsed .sidebar-logo h1 { font-size: 0; }
+    .sidebar.collapsed .sidebar-logo h1 span { margin-left: 0; }
+    .sidebar.collapsed .sidebar-logo { padding: 24px 16px 32px; display: flex; justify-content: center; }
+    .sidebar.collapsed .nav-label { font-size: 0; padding: 8px 0 4px; height: 0; overflow: hidden; }
+    .sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; gap: 0; overflow: hidden; font-size: 0; }
+    .sidebar.collapsed .nav-icon { width: 20px; height: 20px; }
+    .sidebar.collapsed .nav-icon svg { width: 18px; height: 18px; }
+    .sidebar.collapsed .nav-badge { display: none; }
+    .sidebar.collapsed .nav-item::before { left: 0; }
+    .sidebar.collapsed .sidebar-nav { padding: 16px 8px; }
+    .sidebar.collapsed .sidebar-user { justify-content: center; padding: 16px 8px 20px; }
+    .sidebar.collapsed .user-info { display: none; }
+    .sidebar.collapsed .sidebar-collapse-btn { justify-content: center; padding: 10px 0; font-size: 0; overflow: hidden; gap: 0; }
+    .sidebar.collapsed .sidebar-collapse-btn svg { transform: rotate(180deg); }
+    .sidebar.collapsed + .main { margin-left: 64px; }
+
     /* MAIN */
     .main { flex: 1; margin-left: var(--sidebar-width); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -406,25 +430,122 @@
     .contra-row.resolved-row { opacity: 0.5; }
     .contra-detail-row { display: none; }
     .contra-detail-row.open { display: table-row; }
-    .contra-detail-row td { padding: 0 10px 14px 42px; border-bottom: 1px solid var(--gray-200); background: var(--gray-50); }
-    .contra-compare { display: flex; gap: 10px; }
-    .contra-side { flex: 1; padding: 12px; border-radius: var(--radius-sm); font-size: 12px; line-height: 1.6; }
-    .contra-side.side-a { background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); }
-    .contra-side.side-b { background: var(--danger-light); border: 1px solid rgba(239,68,68,0.2); }
-    .contra-side-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }
-    .contra-side.side-a .contra-side-label { color: #059669; }
-    .contra-side.side-b .contra-side-label { color: var(--danger); }
-    .contra-side-person { font-size: 10px; font-weight: 600; color: var(--gray-500); margin-top: 6px; }
+    .contra-detail-row td { padding: 0; border-bottom: 1px solid var(--gray-200); }
+    .contra-detail-inner { padding: 0 10px 14px; }
     .contra-impact-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
     .contra-impact-badge.high { background: var(--danger-light); color: var(--danger); }
     .contra-impact-badge.medium { background: var(--warning-light); color: var(--warning); }
-    .contra-impact-badge.low { background: var(--green-light); color: #059669; }
+    .contra-impact-badge.low { background: var(--green-light); color: #059679; }
 
-    /* Contradiction panel items (legacy) */
-    .contra-panel-item { padding: 14px; border: 1px solid var(--gray-200); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); margin-bottom: 10px; cursor: pointer; transition: all 0.15s; }
-    .contra-panel-item:hover { border-color: var(--danger); background: #FEF2F2; }
-    .contra-panel-title { font-size: 13px; font-weight: 700; color: var(--danger); margin-bottom: 4px; }
-    .contra-panel-desc { font-size: 12px; color: var(--gray-600); line-height: 1.5; margin-bottom: 8px; }
+    /* Contradiction detail redesign */
+    .cd-header { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: linear-gradient(135deg, #FEF2F2 0%, #FFF7ED 100%); border: 1px solid rgba(239,68,68,0.12); border-radius: var(--radius); margin-bottom: 14px; }
+    .cd-header-icon { width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--danger); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .cd-header-icon svg { width: 20px; height: 20px; stroke: white; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .cd-header-body { flex: 1; }
+    .cd-header-title { font-size: 14px; font-weight: 700; color: var(--dark); margin-bottom: 2px; }
+    .cd-header-meta { font-size: 11px; color: var(--gray-500); display: flex; align-items: center; gap: 12px; }
+    .cd-header-meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .cd-header-meta svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; }
+    .cd-impact-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .cd-impact-badge.high { background: var(--danger); color: white; }
+    .cd-impact-badge.medium { background: var(--warning); color: white; }
+    .cd-impact-badge.low { background: #059669; color: white; }
+    body.dark-mode .cd-header { background: linear-gradient(135deg, rgba(239,68,68,0.08) 0%, rgba(249,115,22,0.06) 100%); border-color: rgba(239,68,68,0.15); }
+    body.dark-mode .cd-header-title { color: #E8EAF0; }
+
+    /* Conflict timeline v2 */
+    .cd-timeline { display: flex; align-items: flex-start; padding: 18px 12px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); margin-bottom: 14px; position: relative; }
+    .cd-tl-step { display: flex; flex-direction: column; align-items: center; flex: 0 0 auto; z-index: 2; }
+    .cd-tl-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; position: relative; }
+    .cd-tl-dot.source-a { background: #059669; color: white; box-shadow: 0 0 0 3px rgba(5,150,105,0.2); }
+    .cd-tl-dot.conflict { background: var(--danger); color: white; box-shadow: 0 0 0 3px rgba(239,68,68,0.2); animation: conflictPulse 2s infinite; }
+    .cd-tl-dot.source-b { background: var(--warning); color: white; box-shadow: 0 0 0 3px rgba(245,158,11,0.2); }
+    .cd-tl-dot.resolution { box-shadow: 0 0 0 3px rgba(0,0,0,0.06); }
+    .cd-tl-dot.resolution.pending { background: var(--gray-200); color: var(--gray-500); }
+    .cd-tl-dot.resolution.resolved { background: #059669; color: white; box-shadow: 0 0 0 3px rgba(5,150,105,0.2); }
+    @keyframes conflictPulse { 0%, 100% { box-shadow: 0 0 0 3px rgba(239,68,68,0.2); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.1); } }
+    .cd-tl-dot svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+    .cd-tl-label { font-size: 10px; font-weight: 600; color: var(--gray-500); margin-top: 6px; white-space: nowrap; }
+    .cd-tl-sublabel { font-size: 9px; color: var(--gray-400); margin-top: 1px; }
+    .cd-tl-line { flex: 1; min-width: 24px; height: 3px; margin-top: 16px; border-radius: 2px; }
+    .cd-tl-line.solid { background: var(--gray-200); }
+    .cd-tl-line.conflict { background: repeating-linear-gradient(90deg, var(--danger) 0, var(--danger) 6px, transparent 6px, transparent 10px); }
+    .cd-tl-line.dashed { background: repeating-linear-gradient(90deg, var(--gray-300) 0, var(--gray-300) 5px, transparent 5px, transparent 9px); }
+    body.dark-mode .cd-timeline { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .cd-tl-line.solid { background: #252A3A; }
+    body.dark-mode .cd-tl-line.dashed { background: repeating-linear-gradient(90deg, #3A3F52 0, #3A3F52 5px, transparent 5px, transparent 9px); }
+    body.dark-mode .cd-tl-dot.resolution.pending { background: #252A3A; color: #6B7194; }
+
+    /* Quote cards */
+    .cd-quotes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+    .cd-quote { padding: 14px 16px; border-radius: var(--radius); font-size: 12px; line-height: 1.65; position: relative; }
+    .cd-quote::before { content: '\201C'; position: absolute; top: 8px; left: 10px; font-size: 28px; opacity: 0.15; font-family: Georgia, serif; line-height: 1; }
+    .cd-quote.side-a { background: linear-gradient(135deg, var(--green-light) 0%, rgba(5,150,105,0.06) 100%); border: 1px solid rgba(0,229,160,0.25); }
+    .cd-quote.side-b { background: linear-gradient(135deg, var(--danger-light) 0%, rgba(239,68,68,0.06) 100%); border: 1px solid rgba(239,68,68,0.2); }
+    .cd-quote-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+    .cd-quote.side-a .cd-quote-label { color: #059669; }
+    .cd-quote.side-b .cd-quote-label { color: var(--danger); }
+    .cd-quote-label svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2.5; }
+    .cd-quote-text { font-style: italic; color: var(--gray-700); padding-left: 4px; }
+    .cd-quote-author { display: flex; align-items: center; gap: 6px; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.06); }
+    .cd-quote-avatar { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; flex-shrink: 0; }
+    .cd-quote.side-a .cd-quote-avatar { background: #059669; color: white; }
+    .cd-quote.side-b .cd-quote-avatar { background: var(--danger); color: white; }
+    .cd-quote-name { font-size: 11px; font-weight: 600; color: var(--gray-600); font-style: normal; }
+    body.dark-mode .cd-quote.side-a { background: linear-gradient(135deg, rgba(0,229,160,0.06) 0%, rgba(5,150,105,0.03) 100%); border-color: rgba(0,229,160,0.15); }
+    body.dark-mode .cd-quote.side-b { background: linear-gradient(135deg, rgba(239,68,68,0.06) 0%, rgba(239,68,68,0.03) 100%); border-color: rgba(239,68,68,0.12); }
+    body.dark-mode .cd-quote-text { color: #9CA3AF; }
+    body.dark-mode .cd-quote-author { border-top-color: rgba(255,255,255,0.06); }
+
+    /* AI recommendation card */
+    .cd-ai-rec { padding: 14px 16px; background: linear-gradient(135deg, var(--purple-light) 0%, rgba(139,92,246,0.04) 100%); border: 1px solid rgba(139,92,246,0.18); border-radius: var(--radius); margin-bottom: 14px; }
+    .cd-ai-label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: var(--purple); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+    .cd-ai-label svg { width: 14px; height: 14px; stroke: var(--purple); fill: var(--purple); stroke-width: 0; }
+    .cd-ai-text { font-size: 12px; color: var(--gray-700); line-height: 1.65; }
+    body.dark-mode .cd-ai-rec { background: linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(139,92,246,0.03) 100%); border-color: rgba(139,92,246,0.15); }
+    body.dark-mode .cd-ai-text { color: #9CA3AF; }
+
+    /* Resolution box */
+    .cd-resolution { padding: 14px 16px; background: linear-gradient(135deg, var(--green-light) 0%, rgba(5,150,105,0.04) 100%); border: 1px solid rgba(0,229,160,0.2); border-radius: var(--radius); margin-bottom: 14px; }
+    .cd-resolution-label { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    .cd-resolution-label svg { width: 12px; height: 12px; stroke: #059669; fill: none; stroke-width: 2.5; }
+    .cd-resolution-text { font-size: 12px; color: var(--gray-700); line-height: 1.65; }
+    body.dark-mode .cd-resolution { background: linear-gradient(135deg, rgba(0,229,160,0.06) 0%, rgba(5,150,105,0.03) 100%); border-color: rgba(0,229,160,0.15); }
+    body.dark-mode .cd-resolution-text { color: #9CA3AF; }
+
+    /* Affected reqs chips */
+    .cd-affected { margin-bottom: 14px; }
+    .cd-affected-label { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    .cd-affected-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .cd-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 16px; font-size: 11px; font-weight: 600; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600); cursor: pointer; transition: all 0.15s; }
+    .cd-chip:hover { border-color: var(--green); background: var(--green-light); color: #059669; }
+    .cd-chip svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; }
+    body.dark-mode .cd-chip { background: #1C2030; border-color: #252A3A; color: #9CA3AF; }
+
+    /* Decision input section */
+    .cd-decision { padding: 14px 16px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); }
+    .cd-decision-label { font-size: 10px; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+    .cd-decision textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font); outline: none; resize: none; min-height: 48px; transition: border-color 0.15s; background: var(--gray-50); }
+    .cd-decision textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-light); background: var(--white); }
+    .cd-decision textarea::placeholder { color: var(--gray-400); }
+    .cd-decision-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .cd-action-btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border-radius: var(--radius-sm); font-size: 11px; font-weight: 600; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all 0.2s; font-family: var(--font); }
+    .cd-action-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .cd-action-btn.primary { background: #059669; color: white; border-color: #059669; }
+    .cd-action-btn.primary:hover { background: #047857; box-shadow: 0 2px 8px rgba(5,150,105,0.3); }
+    .cd-action-btn.danger { border-color: rgba(239,68,68,0.3); color: var(--danger); }
+    .cd-action-btn.danger:hover { background: var(--danger-light); border-color: var(--danger); }
+    .cd-action-btn.neutral:hover { border-color: var(--gray-400); background: var(--gray-50); }
+    .cd-action-btn.info { border-color: rgba(59,130,246,0.3); color: var(--info); }
+    .cd-action-btn.info:hover { background: var(--info-light); border-color: var(--info); }
+    body.dark-mode .cd-decision { background: #1C2030; border-color: #252A3A; }
+    body.dark-mode .cd-decision textarea { background: #0B0D14; border-color: #252A3A; color: #E8EAF0; }
+    body.dark-mode .cd-action-btn { background: #141722; border-color: #252A3A; color: #9CA3AF; }
+
+    /* Footer meta row */
+    .cd-footer-meta { display: flex; align-items: center; gap: 16px; padding-top: 10px; margin-top: 4px; border-top: 1px solid var(--gray-100); }
+    .cd-footer-meta-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--gray-400); }
+    .cd-footer-meta-item svg { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2; }
     .contra-panel-meta { display: flex; gap: 8px; font-size: 10px; color: var(--gray-400); }
     .contra-panel-status { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
     .contra-panel-status.open { background: var(--danger-light); color: var(--danger); }
@@ -764,11 +885,83 @@
     .ep-tags { display: flex; flex-wrap: wrap; gap: 4px; }
     .ep-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
     .ep-tag.green { background: var(--green-light); color: #059669; }
-    .ep-tag.blue { background: var(--info-light); color: var(--info); }
+    .ep-tag.blue { background: var(--info-light); color: var(--info); cursor: pointer; transition: all 0.15s; }
+    .ep-tag.blue:hover { background: var(--info); color: var(--white); }
     .ep-tag.orange { background: var(--orange-light); color: var(--orange); }
     .ep-stat { display: flex; align-items: center; gap: 8px; }
     .ep-stat-num { font-size: 16px; font-weight: 800; color: var(--dark); }
     .ep-stat-label { font-size: 10px; color: var(--gray-400); }
+
+    /* Notification dropdown */
+    .notif-dropdown { position: absolute; top: calc(100% + 8px); right: -10px; width: 360px; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,0.12); z-index: 500; display: none; animation: popIn 0.15s ease; }
+    .notif-dropdown.open { display: block; }
+    .notif-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; border-bottom: 1px solid var(--gray-100); }
+    .notif-dropdown-title { font-size: 14px; font-weight: 700; }
+    .notif-mark-read { font-size: 11px; color: var(--green); cursor: pointer; font-weight: 600; border: none; background: none; font-family: var(--font); }
+    .notif-mark-read:hover { text-decoration: underline; }
+    .notif-list { max-height: 340px; overflow-y: auto; }
+    .notif-item { display: flex; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--gray-100); cursor: pointer; transition: background 0.15s; }
+    .notif-item:hover { background: var(--gray-50); }
+    .notif-item.unread { background: var(--green-light); }
+    .notif-item.unread:hover { background: rgba(0,229,160,0.12); }
+    .notif-icon-wrap { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 10px; font-weight: 700; }
+    .notif-icon-wrap.fact { background: var(--green-light); color: #059669; }
+    .notif-icon-wrap.contra { background: var(--danger-light); color: var(--danger); }
+    .notif-icon-wrap.gap { background: var(--warning-light); color: var(--warning); }
+    .notif-icon-wrap.doc { background: var(--info-light); color: var(--info); }
+    .notif-icon-wrap.meeting { background: var(--purple-light); color: var(--purple); }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-text { font-size: 12px; color: var(--dark); line-height: 1.5; }
+    .notif-text strong { font-weight: 600; }
+    .notif-time { font-size: 10px; color: var(--gray-400); margin-top: 2px; }
+    body.dark-mode .notif-dropdown { background: #141722; border-color: #252A3A; }
+    body.dark-mode .notif-dropdown-header { border-color: #252A3A; }
+    body.dark-mode .notif-item { border-color: #1C2030; }
+    body.dark-mode .notif-item:hover { background: #1C2030; }
+    body.dark-mode .notif-item.unread { background: rgba(0,229,160,0.06); }
+    body.dark-mode .notif-text { color: #E8EAF0; }
+
+    /* Global search results */
+    .search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: 0 12px 40px rgba(0,0,0,0.12); z-index: 500; display: none; max-height: 400px; overflow-y: auto; }
+    .search-results.open { display: block; }
+    .search-results-group { padding: 6px 0; }
+    .search-results-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--gray-400); padding: 6px 14px 4px; }
+    .search-result-item { display: flex; align-items: center; gap: 10px; padding: 8px 14px; cursor: pointer; transition: background 0.15s; }
+    .search-result-item:hover { background: var(--gray-50); }
+    .search-result-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+    .search-result-icon.fact { background: var(--green-light); color: #059669; }
+    .search-result-icon.gap { background: var(--warning-light); color: var(--warning); }
+    .search-result-icon.req { background: var(--info-light); color: var(--info); }
+    .search-result-icon.entity { background: var(--purple-light); color: var(--purple); }
+    .search-result-text { font-size: 12px; color: var(--dark); flex: 1; }
+    .search-result-meta { font-size: 10px; color: var(--gray-400); }
+    body.dark-mode .search-results { background: #141722; border-color: #252A3A; }
+    body.dark-mode .search-result-item:hover { background: #1C2030; }
+    body.dark-mode .search-result-text { color: #E8EAF0; }
+
+    /* Chat typing indicator */
+    .chat-typing { display: flex; gap: 12px; max-width: 740px; }
+    .typing-dots { display: flex; gap: 4px; padding: 14px 18px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 14px; border-bottom-left-radius: 4px; }
+    .typing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gray-300); animation: typingBounce 1.4s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-6px); opacity: 1; } }
+    body.dark-mode .typing-dots { background: #141722; border-color: #252A3A; }
+
+    /* Sparkline */
+    .sparkline-container { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
+    .sparkline-canvas { display: block; }
+
+    /* Export button */
+    .export-btn { display: flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: var(--radius-xs); font-size: 11px; font-weight: 600; border: 1px solid var(--gray-200); background: var(--white); cursor: pointer; transition: all 0.15s; font-family: var(--font); color: var(--gray-500); }
+    .export-btn:hover { border-color: var(--green); color: #059669; background: var(--green-light); }
+    .export-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* Workflow running state */
+    .wf-running { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--green-light); border: 1px solid rgba(0,229,160,0.2); border-radius: var(--radius-sm); margin: 8px 20px; font-size: 12px; color: #059669; font-weight: 600; animation: wfPulse 2s infinite; }
+    @keyframes wfPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .wf-running-spinner { width: 14px; height: 14px; border: 2px solid var(--green-light); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* no-select during drag */
     .no-select { user-select: none !important; -webkit-user-select: none !important; }
@@ -793,6 +986,8 @@
         <a href="documents.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div>Documents</a>
         <a href="knowledge.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>Knowledge Base</a>
         <a href="settings.html" class="nav-item"><div class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>Settings</a>
+        <div style="flex:1;"></div>
+        <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar"><div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg></div>Collapse</button>
       </nav>
       <div class="sidebar-user"><div class="user-avatar">BT</div><div class="user-info"><div class="user-name">Bojan Tesic</div><div class="user-role">Product Owner</div></div></div>
     </aside>
@@ -803,10 +998,16 @@
       <!-- TOPBAR -->
       <header class="topbar">
         <div class="project-selector"><div class="project-dot"></div><span class="project-name">NacXwan</span><svg style="width:16px;height:16px;color:var(--gray-400)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></div>
-        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search requirements, facts, documents..."></div>
+        <div class="search-bar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search requirements, facts, documents..." id="globalSearchInput" oninput="globalSearch(this.value)" onfocus="if(this.value.length>1)document.getElementById('searchResults').classList.add('open')" autocomplete="off"><div class="search-results" id="searchResults"></div></div>
         <div class="topbar-actions">
           <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode" id="darkToggle"><svg viewBox="0 0 24 24" id="darkIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg></button>
-          <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot"></div></button>
+          <div style="position:relative;" id="notifWrap">
+            <button class="icon-btn" id="notifBtn" onclick="toggleNotifications(event)"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="notif-dot" id="notifDot"></div></button>
+            <div class="notif-dropdown" id="notifDropdown">
+              <div class="notif-dropdown-header"><span class="notif-dropdown-title">Notifications</span><button class="notif-mark-read" onclick="markAllRead()">Mark all read</button></div>
+              <div class="notif-list" id="notifList"></div>
+            </div>
+          </div>
           <button class="btn-primary"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Upload Document</button>
         </div>
       </header>
@@ -828,8 +1029,7 @@
             <div class="chat-session-title">Auth & SSO Scope</div>
             <div class="chat-session-badge">Active</div>
             <div class="chat-session-actions">
-              <button class="chat-action-btn" title="Collapse chat" onclick="collapseChat()"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-              <button class="chat-action-btn" title="Expand chat" onclick="expandChat()"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
+              <button class="chat-action-btn" id="chatPanelToggle" title="Toggle panel size" onclick="toggleChatSize()"><svg viewBox="0 0 24 24" id="chatToggleIcon"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
             </div>
           </div>
 
@@ -1048,8 +1248,7 @@
               </div>
             </div>
             <div class="dp-header-actions">
-              <button class="dp-expand-btn" title="Collapse panel" onclick="collapseData()"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
-              <button class="dp-expand-btn" title="Expand panel" onclick="expandData()"><svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
+              <button class="dp-expand-btn" id="dataPanelToggle" title="Toggle panel size" onclick="toggleDataSize()"><svg viewBox="0 0 24 24" id="dataToggleIcon"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg></button>
             </div>
           </div>
 
@@ -2063,67 +2262,86 @@
         tr.addEventListener('click', function() { toggleContraDetail(c.id); });
         tbody.appendChild(tr);
 
-        // Detail row
+        // Detail row — redesigned
         var detailTr = document.createElement('tr');
         detailTr.className = 'contra-detail-row';
         detailTr.setAttribute('data-cdetail', c.id);
 
-        var affectedHtml = c.affectedReqs.map(function(rid) {
-          var r = reqsData.find(function(rr) { return rr.id === rid; });
-          return '<span class="fact-detail-tag req">' + rid + (r ? ' ' + r.title.substring(0, 25) + '...' : '') + '</span>';
-        }).join('');
+        // Get initials for avatars
+        var personAInitials = c.sideA.person.split(' ').map(function(w) { return w[0]; }).join('');
+        var personBInitials = c.sideB.person.split(' ').map(function(w) { return w[0]; }).join('');
 
-        // Contradiction timeline
-        var tlHtml = '<div class="contra-timeline">' +
-          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--green-light);color:#059669;border:2px solid var(--green);">' + c.sideA.meeting.replace('Meeting ','M') + '</div><div class="contra-tl-label">' + c.sideA.date + '</div></div>' +
-          '<div class="contra-tl-line"></div>' +
-          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--danger-light);color:var(--danger);border:2px solid var(--danger);">!</div><div class="contra-tl-label">Conflict</div></div>' +
-          '<div class="contra-tl-line conflict"></div>' +
-          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:var(--warning-light);color:var(--warning);border:2px solid var(--warning);">' + c.sideB.meeting.replace('Meeting ','M') + '</div><div class="contra-tl-label">' + c.sideB.date + '</div></div>' +
-          '<div class="contra-tl-line"></div>' +
-          '<div class="contra-tl-node"><div class="contra-tl-dot" style="background:' + (c.status === 'resolved' ? 'var(--green-light);color:#059669;border:2px solid var(--green);' : 'var(--gray-100);color:var(--gray-400);border:2px solid var(--gray-300);') + '">R</div><div class="contra-tl-label">' + (c.status === 'resolved' ? 'Resolved' : 'Pending') + '</div></div>' +
-          '</div>';
+        var bodyHtml = '<div class="contra-detail-inner">';
 
-        var bodyHtml = '<div class="fact-detail">' +
-          tlHtml +
-          '<div class="fact-detail-desc">' + c.details + '</div>' +
-          '<div class="contra-compare">' +
-            '<div class="contra-side side-a">' +
-              '<div class="contra-side-label"><svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg> ' + c.sideA.meeting + ' (' + c.sideA.date + ')</div>' +
-              '"' + c.sideA.statement + '"' +
-              '<div class="contra-side-person">— ' + c.sideA.person + '</div>' +
-            '</div>' +
-            '<div class="contra-side side-b">' +
-              '<div class="contra-side-label"><svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + c.sideB.meeting + ' (' + c.sideB.date + ')</div>' +
-              '"' + c.sideB.statement + '"' +
-              '<div class="contra-side-person">— ' + c.sideB.person + '</div>' +
-            '</div>' +
+        // Header card
+        bodyHtml += '<div class="cd-header">' +
+          '<div class="cd-header-icon"><svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>' +
+          '<div class="cd-header-body"><div class="cd-header-title">' + c.title + '</div>' +
+          '<div class="cd-header-meta"><span><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Detected ' + c.detected + '</span><span><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + c.area + '</span></div></div>' +
+          '<div class="cd-impact-badge ' + c.impact + '">' + c.impact.charAt(0).toUpperCase() + c.impact.slice(1) + ' Impact</div></div>';
+
+        // Timeline
+        bodyHtml += '<div class="cd-timeline">' +
+          '<div class="cd-tl-step"><div class="cd-tl-dot source-a">' + c.sideA.meeting.replace('Meeting ','M') + '</div><div class="cd-tl-label">' + c.sideA.meeting + '</div><div class="cd-tl-sublabel">' + c.sideA.date + '</div></div>' +
+          '<div class="cd-tl-line solid"></div>' +
+          '<div class="cd-tl-step"><div class="cd-tl-dot conflict"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div><div class="cd-tl-label" style="color:var(--danger);font-weight:700;">Conflict</div></div>' +
+          '<div class="cd-tl-line conflict"></div>' +
+          '<div class="cd-tl-step"><div class="cd-tl-dot source-b">' + c.sideB.meeting.replace('Meeting ','M') + '</div><div class="cd-tl-label">' + c.sideB.meeting + '</div><div class="cd-tl-sublabel">' + c.sideB.date + '</div></div>' +
+          '<div class="cd-tl-line dashed"></div>' +
+          '<div class="cd-tl-step"><div class="cd-tl-dot resolution ' + c.status + '">' + (c.status === 'resolved' ? '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>' : '?') + '</div><div class="cd-tl-label">' + (c.status === 'resolved' ? 'Resolved' : 'Pending') + '</div></div></div>';
+
+        // Description
+        bodyHtml += '<div style="font-size:12px;color:var(--gray-600);line-height:1.65;margin-bottom:14px;padding:0 2px;">' + c.details + '</div>';
+
+        // Quote cards
+        bodyHtml += '<div class="cd-quotes">' +
+          '<div class="cd-quote side-a">' +
+            '<div class="cd-quote-label"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> ' + c.sideA.meeting + ' (' + c.sideA.date + ')</div>' +
+            '<div class="cd-quote-text">"' + c.sideA.statement + '"</div>' +
+            '<div class="cd-quote-author"><div class="cd-quote-avatar">' + personAInitials + '</div><div class="cd-quote-name">' + c.sideA.person + '</div></div>' +
           '</div>' +
-          '<div class="gap-ai-suggestion"><div class="ai-label"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Recommendation</div>' + c.aiSuggestion + '</div>';
+          '<div class="cd-quote side-b">' +
+            '<div class="cd-quote-label"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + c.sideB.meeting + ' (' + c.sideB.date + ')</div>' +
+            '<div class="cd-quote-text">"' + c.sideB.statement + '"</div>' +
+            '<div class="cd-quote-author"><div class="cd-quote-avatar">' + personBInitials + '</div><div class="cd-quote-name">' + c.sideB.person + '</div></div>' +
+          '</div></div>';
 
+        // AI Recommendation
+        bodyHtml += '<div class="cd-ai-rec"><div class="cd-ai-label"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> AI Recommendation</div><div class="cd-ai-text">' + c.aiSuggestion + '</div></div>';
+
+        // Resolution (if resolved)
         if (c.status === 'resolved') {
-          bodyHtml += '<div class="gap-resolution-box"><div class="res-label">Decision</div>' + c.resolution + '</div>';
+          bodyHtml += '<div class="cd-resolution"><div class="cd-resolution-label"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Decision</div><div class="cd-resolution-text">' + c.resolution + '</div></div>';
         }
 
-        bodyHtml += '<div class="fact-detail-meta">' +
-          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Detected ' + c.detected + '</div>' +
-          '<div class="fact-detail-meta-item"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + c.sideA.meeting + ' vs ' + c.sideB.meeting + '</div>' +
-          '</div>';
-
-        if (affectedHtml) {
-          bodyHtml += '<div><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;">Affected requirements</span><div class="fact-detail-tags" style="margin-top:4px;">' + affectedHtml + '</div></div>';
+        // Affected requirements
+        if (c.affectedReqs.length) {
+          bodyHtml += '<div class="cd-affected"><div class="cd-affected-label">Affected Requirements</div><div class="cd-affected-chips">';
+          c.affectedReqs.forEach(function(rid) {
+            var r = reqsData.find(function(rr) { return rr.id === rid; });
+            var label = rid + (r ? ' — ' + r.title.substring(0, 30) + (r.title.length > 30 ? '...' : '') : '');
+            bodyHtml += '<div class="cd-chip"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' + label + '</div>';
+          });
+          bodyHtml += '</div></div>';
         }
 
+        // Decision input (if open)
         if (c.status === 'open') {
-          bodyHtml += '<div style="margin-top:4px;"><span style="font-size:10px;font-weight:700;color:var(--gray-400);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:4px;">Your decision</span>' +
-            '<textarea class="gap-resolve-input" id="contraInput_' + c.id + '" placeholder="Type your decision to resolve this contradiction..." onclick="event.stopPropagation()"></textarea></div>' +
-            '<div class="fact-detail-actions">' +
-              '<button class="fact-action-btn confirm" onclick="resolveContra(\'' + c.id + '\',\'sideA\',event)">' + checkIcon + ' Go with ' + c.sideA.meeting + '</button>' +
-              '<button class="fact-action-btn dismiss" onclick="resolveContra(\'' + c.id + '\',\'sideB\',event)" style="border-color:var(--danger-light);">' + checkIcon + ' Go with ' + c.sideB.meeting + '</button>' +
-              '<button class="fact-action-btn confirm" onclick="resolveContraCustom(\'' + c.id + '\',event)">Decide differently</button>' +
-              '<button class="fact-action-btn defer" onclick="addContraToMeeting(\'' + c.id + '\',event)">' + calendarIcon + ' Discuss in Meeting</button>' +
-            '</div>';
+          bodyHtml += '<div class="cd-decision"><div class="cd-decision-label">Your Decision</div>' +
+            '<textarea id="contraInput_' + c.id + '" placeholder="Type your decision to resolve this contradiction..." onclick="event.stopPropagation()"></textarea>' +
+            '<div class="cd-decision-actions">' +
+              '<button class="cd-action-btn primary" onclick="resolveContra(\'' + c.id + '\',\'sideA\',event)"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Go with ' + c.sideA.meeting + '</button>' +
+              '<button class="cd-action-btn danger" onclick="resolveContra(\'' + c.id + '\',\'sideB\',event)"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Go with ' + c.sideB.meeting + '</button>' +
+              '<button class="cd-action-btn neutral" onclick="resolveContraCustom(\'' + c.id + '\',event)"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Custom Decision</button>' +
+              '<button class="cd-action-btn info" onclick="addContraToMeeting(\'' + c.id + '\',event)"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Discuss in Meeting</button>' +
+            '</div></div>';
         }
+
+        // Footer meta
+        bodyHtml += '<div class="cd-footer-meta">' +
+          '<div class="cd-footer-meta-item"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Detected ' + c.detected + '</div>' +
+          '<div class="cd-footer-meta-item"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' + c.sideA.person + (c.sideA.person !== c.sideB.person ? ', ' + c.sideB.person : '') + '</div>' +
+          '<div class="cd-footer-meta-item"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' + c.sideA.meeting + ' vs ' + c.sideB.meeting + '</div></div>';
 
         bodyHtml += '</div>';
         detailTr.innerHTML = '<td colspan="6">' + bodyHtml + '</td>';
@@ -2538,47 +2756,53 @@
       }
     });
 
-    // === EXPAND / COLLAPSE ===
-    function collapseChat() {
-      chatPanel.classList.add('collapsed');
-      chatPanel.classList.remove('expanded');
-      dataPanel.classList.remove('collapsed');
-      dataPanel.classList.add('expanded');
+    // === EXPAND / COLLAPSE — single toggle per panel ===
+    // Icon SVGs
+    var expandIcon = '<path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/>';
+    var shrinkIcon = '<path d="M4 14h6m0 0v6m0-6L3 21M20 10h-6m0 0V4m0 6l7-7"/>';
+
+    function resetPanels() {
+      chatPanel.classList.remove('expanded', 'collapsed');
+      dataPanel.classList.remove('expanded', 'collapsed');
+      chatPanel.style.flex = '0 0 50%';
+      dataPanel.style.flex = '0 0 50%';
+      document.getElementById('chatToggleIcon').innerHTML = expandIcon;
+      document.getElementById('dataToggleIcon').innerHTML = expandIcon;
     }
-    function expandChat() {
+
+    function toggleChatSize() {
       if (chatPanel.classList.contains('expanded')) {
-        // restore
-        chatPanel.classList.remove('expanded', 'collapsed');
-        dataPanel.classList.remove('expanded', 'collapsed');
-        chatPanel.style.flex = '0 0 45%';
-        dataPanel.style.flex = '0 0 55%';
+        // Was fullscreen → go back to 50/50
+        resetPanels();
       } else {
+        // Go fullscreen
         chatPanel.classList.add('expanded');
         chatPanel.classList.remove('collapsed');
         dataPanel.classList.add('collapsed');
         dataPanel.classList.remove('expanded');
+        document.getElementById('chatToggleIcon').innerHTML = shrinkIcon;
+        document.getElementById('dataToggleIcon').innerHTML = expandIcon;
       }
     }
-    function collapseData() {
-      dataPanel.classList.add('collapsed');
-      dataPanel.classList.remove('expanded');
-      chatPanel.classList.remove('collapsed');
-      chatPanel.classList.add('expanded');
-    }
-    function expandData() {
+
+    function toggleDataSize() {
       if (dataPanel.classList.contains('expanded')) {
-        // restore
-        chatPanel.classList.remove('expanded', 'collapsed');
-        dataPanel.classList.remove('expanded', 'collapsed');
-        chatPanel.style.flex = '0 0 45%';
-        dataPanel.style.flex = '0 0 55%';
+        // Was fullscreen → go back to 50/50
+        resetPanels();
       } else {
+        // Go fullscreen
         dataPanel.classList.add('expanded');
         dataPanel.classList.remove('collapsed');
         chatPanel.classList.add('collapsed');
         chatPanel.classList.remove('expanded');
+        document.getElementById('dataToggleIcon').innerHTML = shrinkIcon;
+        document.getElementById('chatToggleIcon').innerHTML = expandIcon;
       }
     }
+
+    // Keep legacy function names for collapsed strip buttons
+    function expandChat() { toggleChatSize(); }
+    function expandData() { toggleDataSize(); }
 
     // Toggle readiness detail panel
     function toggleReadiness() {
@@ -2602,12 +2826,7 @@
     }
 
     // Double-click divider to reset
-    divider.addEventListener('dblclick', function() {
-      chatPanel.classList.remove('expanded', 'collapsed');
-      dataPanel.classList.remove('expanded', 'collapsed');
-      chatPanel.style.flex = '0 0 45%';
-      dataPanel.style.flex = '0 0 55%';
-    });
+    divider.addEventListener('dblclick', function() { resetPanels(); });
 
     // === ENTITY LINKING ===
     var entityData = {
@@ -3068,9 +3287,560 @@
     // Restore dark mode preference
     try { if (localStorage.getItem('darkMode') === '1') toggleDarkMode(); } catch(e) {}
 
+    // === SIDEBAR COLLAPSE ===
+    function toggleSidebar() {
+      var sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('collapsed');
+      var isCollapsed = sidebar.classList.contains('collapsed');
+      try { localStorage.setItem('sidebarCollapsed', isCollapsed ? '1' : '0'); } catch(e) {}
+      // Re-render mini graph since container width changed
+      setTimeout(renderMiniGraph, 350);
+    }
+    // Restore sidebar preference
+    try { if (localStorage.getItem('sidebarCollapsed') === '1') document.querySelector('.sidebar').classList.add('collapsed'); } catch(e) {}
+
     // Scroll chat to bottom
     var chatEl = document.getElementById('chatMessages');
     chatEl.scrollTop = chatEl.scrollHeight;
+
+    // === FEATURE 1: CHAT INTERACTION — suggestion pills trigger AI responses ===
+    var chatResponses = {
+      'Show contradiction details': {
+        text: 'Here are the contradiction details:<br><br><strong>SSO Scope Contradiction</strong><br>Meeting 3 (Feb 15) decided <em>"Microsoft SSO only — no other auth methods in MVP"</em>.<br><br>Meeting 7 (Mar 14) introduced <em>"Add Google and Apple login for external learners"</em> — proposed by David Miller.<br><br><strong>Impact:</strong> Adding social login would add ~2 sprints and require OAuth provider integration, account linking logic, and additional security testing.<br><br><strong>Recommendation:</strong> Keep SSO-only for MVP, defer social login to Phase 2.',
+        refs: ['Meeting 3', 'Meeting 7', 'Contradiction c1']
+      },
+      'What did Meeting 3 say?': {
+        text: 'Meeting 3 — <strong>Authentication & Security</strong> (Feb 15)<br><br>Key decisions:<br>1. Microsoft SSO only for MVP (no username/password)<br>2. AES-256 encryption at rest for all user data<br>3. Session timeout follows corporate policy<br><br>Attendees: David Miller, Security Lead, Sarah Chen<br><br>This meeting established the baseline auth strategy that was later challenged by Meeting 7\'s social login proposal.',
+        refs: ['Meeting 3', 'Mem0 Facts']
+      },
+      'Show all auth reqs': {
+        text: 'All authentication-related requirements:<br><br><strong>FR-001</strong> <span style="color:var(--green);font-weight:700;">Must</span> — SSO via Azure AD using MSAL.js v2<br><strong>FR-045</strong> <span style="color:var(--warning);font-weight:700;">Should</span> — Social login (Google, Apple) for external learners<br><strong>FR-046</strong> <span style="color:var(--green);font-weight:700;">Must</span> — MFA enforcement for admin accounts<br><strong>FR-047</strong> <span style="color:var(--warning);font-weight:700;">Should</span> — Configurable session timeout per role<br><br>Status: FR-001 and FR-046 approved. FR-045 blocked by contradiction. FR-047 needs PO decision on per-role vs corporate-wide timeout.',
+        refs: ['Requirements DB', 'Meeting 7']
+      },
+      'Prepare meeting agenda': {
+        text: 'Meeting agenda generated! I\'ve built it from current open items:<br><br><strong>Agenda — Meeting 8: NFR Review</strong><br><br>1. <span style="color:var(--danger);">Resolve</span>: SSO scope contradiction (10 min)<br>2. <span style="color:var(--warning);">Gap</span>: Expected concurrent users at launch (5 min)<br>3. <span style="color:var(--warning);">Gap</span>: Data residency requirements for EU (5 min)<br>4. <span style="color:var(--warning);">Gap</span>: DR and backup SLA targets (5 min)<br>5. <span style="color:var(--info);">Verify</span>: Social login assumption (2 min)<br>6. <span style="color:var(--info);">Verify</span>: Session timeout per role (2 min)<br><br>Estimated duration: <strong>29 minutes</strong><br>Switch to the <em>Meeting Prep</em> tab for the full interactive view.',
+        refs: ['Gaps', 'Contradictions', 'Facts']
+      },
+      'Start NFR extraction': {
+        text: 'Starting NFR extraction from all meeting transcripts...<br><br>Found <strong>8 candidate NFRs</strong> across meetings 1-7:<br><br>1. <strong>NFR-001</strong> Response time &lt; 200ms for API calls (M5, Milan Kovac)<br>2. <strong>NFR-002</strong> Support 500 concurrent users at launch (needs confirmation)<br>3. <strong>NFR-003</strong> 99.9% uptime SLA (M6, Ana Petrovic)<br>4. <strong>NFR-004</strong> GDPR compliance for EU user data (M3)<br>5. <strong>NFR-005</strong> AES-256 encryption at rest (M3, confirmed)<br>6. <strong>NFR-006</strong> WCAG 2.1 AA accessibility (mentioned M6, needs detail)<br>7. <strong>NFR-007</strong> Backup RPO: 1 hour, RTO: 4 hours (assumed from M5)<br>8. <strong>NFR-008</strong> Support Chrome, Firefox, Safari, Edge latest 2 versions<br><br>3 need confirmation, 2 need detail. Shall I add these to the requirements?',
+        refs: ['Meeting 3', 'Meeting 5', 'Meeting 6', 'AI Extraction']
+      },
+      'Generate NFR questions': {
+        text: 'Here are the key questions to ask stakeholders about NFRs:<br><br>1. <strong>Performance:</strong> What\'s the expected concurrent user count at launch? Peak usage patterns?<br>2. <strong>Data Residency:</strong> Are there EU users requiring GDPR-compliant data storage?<br>3. <strong>Availability:</strong> What uptime SLA is required? Any planned maintenance windows?<br>4. <strong>Disaster Recovery:</strong> What are the RPO and RTO targets?<br>5. <strong>Accessibility:</strong> Which WCAG level? Are there specific assistive technology requirements?<br>6. <strong>Browser Support:</strong> Which browsers and versions must be supported?<br>7. <strong>Scalability:</strong> Expected growth in Year 1? Need for auto-scaling?<br><br>These map directly to the 5 open NFR gaps.',
+        refs: ['Gap Analysis', 'NFR Framework']
+      }
+    };
+
+    function addChatMessage(isUser, content, refs) {
+      var chatMsgs = document.getElementById('chatMessages');
+      var now = new Date();
+      var timeStr = now.getHours() + ':' + String(now.getMinutes()).padStart(2, '0') + (now.getHours() >= 12 ? ' PM' : ' AM');
+
+      var msgDiv = document.createElement('div');
+      msgDiv.className = 'chat-msg ' + (isUser ? 'user' : 'ai');
+
+      var avatarHtml = isUser
+        ? '<div class="msg-avatar user-avatar">BT</div>'
+        : '<div class="msg-avatar ai-avatar">AI</div>';
+      var senderName = isUser ? 'Bojan Tesic' : 'Discovery Assistant';
+
+      var refsHtml = '';
+      if (refs && refs.length) {
+        refsHtml = '<div class="msg-context-refs">Used: ' + refs.map(function(r) { return '<span class="ctx-ref">' + r + '</span>'; }).join(' ') + '</div>';
+      }
+
+      msgDiv.innerHTML = avatarHtml +
+        '<div class="msg-body"><div class="msg-sender">' + senderName + '</div>' +
+        '<div class="msg-bubble">' + content + refsHtml + '</div>' +
+        '<div class="msg-time">' + timeStr + '</div></div>';
+
+      // Remove typing indicator if present
+      var typing = chatMsgs.querySelector('.chat-typing');
+      if (typing) typing.remove();
+
+      chatMsgs.appendChild(msgDiv);
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }
+
+    function showTypingIndicator() {
+      var chatMsgs = document.getElementById('chatMessages');
+      var typing = document.createElement('div');
+      typing.className = 'chat-typing';
+      typing.innerHTML = '<div class="msg-avatar ai-avatar">AI</div><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+      chatMsgs.appendChild(typing);
+      chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    }
+
+    // Wire up suggestion pills
+    document.addEventListener('click', function(e) {
+      var pill = e.target.closest('.msg-suggestion');
+      if (!pill) return;
+      var text = pill.textContent.trim();
+      addChatMessage(true, text);
+      pill.parentElement.querySelectorAll('.msg-suggestion').forEach(function(p) { p.style.opacity = '0.4'; p.style.pointerEvents = 'none'; });
+      showTypingIndicator();
+      var resp = chatResponses[text];
+      setTimeout(function() {
+        if (resp) {
+          addChatMessage(false, resp.text, resp.refs);
+        } else {
+          addChatMessage(false, 'I\'ll look into that. Let me analyze the relevant data from our meetings and knowledge base...', ['AI Analysis']);
+        }
+      }, 1200 + Math.random() * 800);
+    });
+
+    // Send button and Enter key
+    var chatTextarea = document.querySelector('.chat-input-box textarea');
+    var sendBtn = document.querySelector('.send-btn');
+
+    function sendUserMessage() {
+      var text = chatTextarea.value.trim();
+      if (!text) return;
+      addChatMessage(true, text);
+      chatTextarea.value = '';
+      chatTextarea.style.height = 'auto';
+      showTypingIndicator();
+      // Check if text matches a known response
+      var matchedKey = Object.keys(chatResponses).find(function(k) {
+        return text.toLowerCase().indexOf(k.toLowerCase().split(' ')[0].toLowerCase()) !== -1;
+      });
+      setTimeout(function() {
+        if (matchedKey) {
+          var r = chatResponses[matchedKey];
+          addChatMessage(false, r.text, r.refs);
+        } else {
+          addChatMessage(false, 'I understand you\'re asking about <strong>"' + text.substring(0, 60) + '"</strong>. Let me check the knowledge base and meeting transcripts for relevant information...<br><br>Based on the 7 meetings processed so far, I\'d recommend checking the Facts and Gaps tabs for related data points. Would you like me to run a deeper analysis?', ['AI Analysis', 'Mem0']);
+        }
+      }, 1500 + Math.random() * 1000);
+    }
+
+    sendBtn.addEventListener('click', sendUserMessage);
+    chatTextarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendUserMessage(); }
+    });
+
+    // === FEATURE 2: WORKFLOW ACTIONS ===
+    document.querySelectorAll('.wf-popup-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        var label = item.querySelector('.wfp-label').textContent;
+        wfBtn.classList.remove('active');
+        wfPopup.classList.remove('open');
+
+        var wfResponses = {
+          'Generate Brief': { msg: 'Generating Discovery Brief from all 7 meetings, 47 requirements, 12 facts, and 6 gaps...', follow: 'Discovery Brief generated! It includes project overview, stakeholder summary, requirements by priority, and gap analysis. You can find it in the Documents tab.', refs: ['All Meetings', 'Requirements', 'Facts', 'Gaps'] },
+          'Gap Analysis': { msg: 'Running comprehensive gap analysis across all 18 control points...', follow: 'Gap analysis complete. Found <strong>6 open gaps</strong>, 3 high severity. NFRs are the weakest area at 45%. Check the Gaps tab for the full breakdown.', refs: ['Control Points', 'Requirements', 'Facts'] },
+          'Meeting Prep': { msg: 'Building meeting agenda from open items...', follow: 'Meeting 8 agenda ready! Includes 1 contradiction to resolve, 4 gaps to close, and 2 assumptions to verify. Estimated duration: 29 min. Switch to the Meeting Prep tab to see the full interactive agenda.', refs: ['Gaps', 'Contradictions', 'Assumed Facts'] },
+          'Extract Requirements': { msg: 'Scanning meeting transcripts for requirement candidates...', follow: 'Found <strong>8 new requirement candidates</strong> from recent meetings. 5 functional, 3 non-functional. Review them in the chat or switch to the Facts tab.', refs: ['AI Extraction', 'Meeting 7', 'NLP Pipeline'] }
+        };
+
+        var resp = wfResponses[label];
+        if (resp) {
+          addChatMessage(false, resp.msg);
+          showTypingIndicator();
+          setTimeout(function() {
+            addChatMessage(false, resp.follow, resp.refs);
+          }, 2500);
+        }
+      });
+    });
+
+    // === FEATURE 3: NOTIFICATIONS PANEL ===
+    var notifications = [
+      { id: 'n1', type: 'contra', icon: '!', text: '<strong>New contradiction</strong> detected between Meeting 3 and Meeting 7 regarding SSO scope', time: '2 min ago', unread: true },
+      { id: 'n2', type: 'fact', icon: 'F', text: '<strong>5 facts added</strong> from Meeting 7 — SSO & Auth Discussion', time: '15 min ago', unread: true },
+      { id: 'n3', type: 'gap', icon: '?', text: 'Gap <strong>"Concurrent users"</strong> assigned to Ana Petrovic', time: '1 hour ago', unread: true },
+      { id: 'n4', type: 'doc', icon: 'D', text: '<strong>Discovery Brief v2.1</strong> approved by Product Owner', time: '3 hours ago', unread: false },
+      { id: 'n5', type: 'meeting', icon: 'M', text: '<strong>Meeting 7</strong> transcript processed — 58 min, 5 participants', time: '4 hours ago', unread: false },
+      { id: 'n6', type: 'fact', icon: 'F', text: 'Fact <strong>"Mobile native apps excluded"</strong> changed from confirmed to assumed', time: 'Yesterday', unread: false },
+      { id: 'n7', type: 'gap', icon: '?', text: 'Gap <strong>"Video provider selection"</strong> resolved — Cloudflare Stream chosen', time: 'Yesterday', unread: false }
+    ];
+
+    function renderNotifications() {
+      var list = document.getElementById('notifList');
+      list.innerHTML = '';
+      notifications.forEach(function(n) {
+        var div = document.createElement('div');
+        div.className = 'notif-item' + (n.unread ? ' unread' : '');
+        div.innerHTML = '<div class="notif-icon-wrap ' + n.type + '">' + n.icon + '</div>' +
+          '<div class="notif-body"><div class="notif-text">' + n.text + '</div><div class="notif-time">' + n.time + '</div></div>';
+        div.onclick = function() {
+          n.unread = false;
+          renderNotifications();
+          updateNotifDot();
+        };
+        list.appendChild(div);
+      });
+    }
+
+    function updateNotifDot() {
+      var hasUnread = notifications.some(function(n) { return n.unread; });
+      document.getElementById('notifDot').style.display = hasUnread ? '' : 'none';
+    }
+
+    function toggleNotifications(e) {
+      if (e) e.stopPropagation();
+      var dd = document.getElementById('notifDropdown');
+      dd.classList.toggle('open');
+    }
+
+    function markAllRead() {
+      notifications.forEach(function(n) { n.unread = false; });
+      renderNotifications();
+      updateNotifDot();
+    }
+
+    // Close notifications on outside click
+    document.addEventListener('click', function(e) {
+      var wrap = document.getElementById('notifWrap');
+      if (wrap && !wrap.contains(e.target)) {
+        document.getElementById('notifDropdown').classList.remove('open');
+      }
+    });
+
+    renderNotifications();
+    updateNotifDot();
+
+    // === FEATURE 4: GLOBAL SEARCH ===
+    function globalSearch(query) {
+      var container = document.getElementById('searchResults');
+      query = query.toLowerCase().trim();
+      if (query.length < 2) { container.classList.remove('open'); container.innerHTML = ''; return; }
+
+      var results = { facts: [], gaps: [], entities: [] };
+
+      factsData.forEach(function(f) {
+        if (f.statement.toLowerCase().indexOf(query) !== -1 || f.details.toLowerCase().indexOf(query) !== -1) {
+          results.facts.push({ id: f.id, text: f.statement, meta: f.source + ' · ' + f.meeting });
+        }
+      });
+
+      gapsData.forEach(function(g) {
+        if (g.question.toLowerCase().indexOf(query) !== -1 || g.aiSuggestion.toLowerCase().indexOf(query) !== -1) {
+          results.gaps.push({ id: g.id, text: g.question, meta: g.area + ' · ' + g.severity });
+        }
+      });
+
+      kgData.forEach(function(e) {
+        if (e.name.toLowerCase().indexOf(query) !== -1 || e.details.toLowerCase().indexOf(query) !== -1) {
+          results.entities.push({ id: e.id, text: e.name, meta: e.type });
+        }
+      });
+
+      var html = '';
+      if (results.facts.length) {
+        html += '<div class="search-results-group"><div class="search-results-label">Facts</div>';
+        results.facts.slice(0, 3).forEach(function(r) {
+          html += '<div class="search-result-item" onclick="navigateToResult(\'facts\',\'' + r.id + '\')"><div class="search-result-icon fact">F</div><div class="search-result-text">' + r.text + '</div><div class="search-result-meta">' + r.meta + '</div></div>';
+        });
+        html += '</div>';
+      }
+      if (results.gaps.length) {
+        html += '<div class="search-results-group"><div class="search-results-label">Gaps</div>';
+        results.gaps.slice(0, 3).forEach(function(r) {
+          html += '<div class="search-result-item" onclick="navigateToResult(\'gaps\',\'' + r.id + '\')"><div class="search-result-icon gap">?</div><div class="search-result-text">' + r.text + '</div><div class="search-result-meta">' + r.meta + '</div></div>';
+        });
+        html += '</div>';
+      }
+      if (results.entities.length) {
+        html += '<div class="search-results-group"><div class="search-results-label">Knowledge Graph</div>';
+        results.entities.slice(0, 3).forEach(function(r) {
+          html += '<div class="search-result-item" onclick="navigateToResult(\'kg\',\'' + r.id + '\')"><div class="search-result-icon entity">E</div><div class="search-result-text">' + r.text + '</div><div class="search-result-meta">' + r.meta + '</div></div>';
+        });
+        html += '</div>';
+      }
+
+      if (!html) html = '<div style="padding:16px;text-align:center;font-size:12px;color:var(--gray-400);">No results for "' + query + '"</div>';
+      container.innerHTML = html;
+      container.classList.add('open');
+    }
+
+    function navigateToResult(tabName, itemId) {
+      document.getElementById('searchResults').classList.remove('open');
+      document.getElementById('globalSearchInput').value = '';
+      var tabMap = { facts: 'facts', gaps: 'gaps', kg: 'kg' };
+      var tab = document.querySelector('.dp-tab[data-dtab="' + tabMap[tabName] + '"]');
+      if (tab) switchDataTab(tab);
+      // Highlight the item briefly
+      setTimeout(function() {
+        var row = document.querySelector('.fact-row[data-id="' + itemId + '"],.gap-row[data-gid="' + itemId + '"],.kg-row[data-eid="' + itemId + '"]');
+        if (row) {
+          row.style.background = 'var(--green-light)';
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(function() { row.style.background = ''; }, 2000);
+        }
+      }, 200);
+    }
+
+    // Close search results on outside click
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.search-bar')) {
+        document.getElementById('searchResults').classList.remove('open');
+      }
+    });
+
+    // === FEATURE 5: SCORE HISTORY SPARKLINE ===
+    function renderSparkline() {
+      var target = document.querySelector('.rc-trend');
+      if (!target || target.querySelector('.sparkline-container')) return;
+      var data = [0, 12, 28, 42, 55, 65, 72, 78];
+      var canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 20;
+      canvas.className = 'sparkline-canvas';
+      canvas.title = 'Readiness over 8 meetings: ' + data.join('% → ') + '%';
+      var ctx = canvas.getContext('2d');
+      var maxV = 100;
+      var w = canvas.width, h = canvas.height;
+      var stepX = w / (data.length - 1);
+
+      // Fill area
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      data.forEach(function(v, i) { ctx.lineTo(i * stepX, h - (v / maxV) * h); });
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(0, 229, 160, 0.15)';
+      ctx.fill();
+
+      // Line
+      ctx.beginPath();
+      data.forEach(function(v, i) {
+        var x = i * stepX, y = h - (v / maxV) * h;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = '#00E5A0';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Last dot
+      var lastX = (data.length - 1) * stepX;
+      var lastY = h - (data[data.length - 1] / maxV) * h;
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#00E5A0';
+      ctx.fill();
+
+      var container = document.createElement('span');
+      container.className = 'sparkline-container';
+      container.appendChild(canvas);
+      target.appendChild(container);
+    }
+    renderSparkline();
+
+    // === FEATURE 6: FACT <-> REQUIREMENT LINKING ===
+    document.addEventListener('click', function(e) {
+      var reqTag = e.target.closest('.ep-tag.blue');
+      if (reqTag) {
+        var reqId = reqTag.textContent.trim();
+        // Hide popover immediately so it doesn't block the view
+        popover.classList.remove('visible');
+        clearTimeout(popoverTimer);
+        clearTimeout(hideTimer);
+        // Find facts that reference this requirement
+        var linkedFacts = factsData.filter(function(f) { return f.reqs && f.reqs.indexOf(reqId) !== -1; });
+        if (linkedFacts.length) {
+          var tab = document.querySelector('.dp-tab[data-dtab="facts"]');
+          if (tab) switchDataTab(tab);
+          setTimeout(function() {
+            linkedFacts.forEach(function(f) {
+              var row = document.querySelector('.fact-row[data-id="' + f.id + '"]');
+              if (row) {
+                row.style.background = 'var(--info-light)';
+                row.style.outline = '2px solid var(--info)';
+                row.style.borderRadius = '4px';
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(function() { row.style.background = ''; row.style.outline = ''; row.style.borderRadius = ''; }, 3000);
+              }
+            });
+          }, 200);
+        }
+      }
+    });
+
+    // === FEATURE 7: EXPORT TO MARKDOWN ===
+    function exportToMarkdown() {
+      var md = '# Discovery Export — NacXwan Project\n';
+      md += '_Exported: ' + new Date().toLocaleDateString() + '_\n\n';
+
+      // Facts
+      md += '## Facts (' + factsData.length + ')\n\n';
+      md += '| ID | Statement | Status | Source | Meeting |\n';
+      md += '|---|---|---|---|---|\n';
+      factsData.forEach(function(f) {
+        md += '| ' + f.id + ' | ' + f.statement + ' | ' + f.status + ' | ' + f.source + ' | ' + f.meeting + ' |\n';
+      });
+
+      // Gaps
+      md += '\n## Gaps (' + gapsData.length + ')\n\n';
+      md += '| ID | Question | Severity | Status | Area |\n';
+      md += '|---|---|---|---|---|\n';
+      gapsData.forEach(function(g) {
+        md += '| ' + g.id + ' | ' + g.question + ' | ' + g.severity + ' | ' + g.status + ' | ' + g.area + ' |\n';
+      });
+
+      // Contradictions
+      md += '\n## Contradictions (' + contrasData.length + ')\n\n';
+      contrasData.forEach(function(c) {
+        md += '### ' + c.title + ' (' + c.status + ')\n';
+        md += '- **Side A:** ' + c.sideA.meeting + ' — ' + c.sideA.statement + '\n';
+        md += '- **Side B:** ' + c.sideB.meeting + ' — ' + c.sideB.statement + '\n\n';
+      });
+
+      // Knowledge graph
+      md += '## Knowledge Graph (' + kgData.length + ' entities)\n\n';
+      kgData.forEach(function(e) {
+        md += '- **' + e.name + '** (' + e.type + ') — ' + e.connections + ' relationships — ' + e.details + '\n';
+      });
+
+      // Download
+      var blob = new Blob([md], { type: 'text/markdown' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'discovery-export-nacxwan.md';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    // Add export button to documents tab header
+    (function() {
+      var docsContent = document.querySelector('.dp-tab-content[data-dtab="docs"]');
+      if (docsContent) {
+        var filterBar = docsContent.querySelector('.panel-filter');
+        if (filterBar) {
+          var exportBtn = document.createElement('button');
+          exportBtn.className = 'export-btn';
+          exportBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export MD';
+          exportBtn.onclick = exportToMarkdown;
+          filterBar.appendChild(exportBtn);
+        }
+      }
+    })();
+
+    // === FEATURE 8: DRAG-AND-DROP MEETING REORDER ===
+    (function() {
+      var content = document.getElementById('meetingPrepContent');
+      if (!content) return;
+      content.addEventListener('dragstart', function(e) {
+        var item = e.target.closest('.mp-item');
+        if (!item) return;
+        item.style.opacity = '0.4';
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', '');
+        content._dragItem = item;
+      });
+      content.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        var item = e.target.closest('.mp-item');
+        if (item && item !== content._dragItem) {
+          item.style.borderTop = '2px solid var(--green)';
+        }
+      });
+      content.addEventListener('dragleave', function(e) {
+        var item = e.target.closest('.mp-item');
+        if (item) item.style.borderTop = '';
+      });
+      content.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var target = e.target.closest('.mp-item');
+        var drag = content._dragItem;
+        if (target && drag && target !== drag) {
+          target.style.borderTop = '';
+          target.parentNode.insertBefore(drag, target);
+        }
+      });
+      content.addEventListener('dragend', function() {
+        if (content._dragItem) {
+          content._dragItem.style.opacity = '1';
+          content._dragItem = null;
+        }
+        content.querySelectorAll('.mp-item').forEach(function(i) { i.style.borderTop = ''; });
+      });
+    })();
+
+    // Make meeting prep items draggable
+    var mpObserver = new MutationObserver(function() {
+      document.querySelectorAll('.mp-item').forEach(function(item) {
+        if (!item.hasAttribute('draggable')) {
+          item.setAttribute('draggable', 'true');
+          item.style.cursor = 'grab';
+        }
+      });
+    });
+    var mpContent = document.getElementById('meetingPrepContent');
+    if (mpContent) mpObserver.observe(mpContent, { childList: true, subtree: true });
+    // Also set on initial render
+    document.querySelectorAll('.mp-item').forEach(function(item) {
+      item.setAttribute('draggable', 'true');
+      item.style.cursor = 'grab';
+    });
+
+    // === FEATURE 9: CROSS-PAGE NAVIGATION ===
+    // Doc rows expand in-tab (handled by toggleDocDetail).
+    // "Open Full Review" button inside detail rows opens the context overlay.
+
+    // === FEATURE 10: STORY & TECH INTEGRATION ===
+    // Add "Handoff to Story & Tech" indicator in readiness panel
+    (function() {
+      var handoffItems = document.querySelectorAll('.rdp-item-name');
+      handoffItems.forEach(function(item) {
+        if (item.textContent.indexOf('Sprint plan ready') !== -1) {
+          var link = document.createElement('a');
+          link.href = 'story-tech.html';
+          link.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--info);font-weight:600;text-decoration:none;margin-left:6px;';
+          link.innerHTML = 'View in Story & Tech <svg viewBox="0 0 24 24" style="width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+          link.onclick = function(e) { e.stopPropagation(); };
+          item.appendChild(link);
+        }
+      });
+    })();
+
+    // === FEATURE 11: DASHBOARD READINESS WIDGET LINK ===
+    // Dashboard link already exists in sidebar. Add click handler to readiness ring in header
+    (function() {
+      var readinessWidget = document.querySelector('.dp-readiness');
+      if (readinessWidget) {
+        readinessWidget.title = 'Click for readiness details · Right-click to open Dashboard';
+        readinessWidget.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          window.location.href = 'dashboard.html';
+        });
+      }
+    })();
+
+    // === REQ APPROVE/REJECT HANDLERS ===
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.req-btn.approve');
+      if (btn) {
+        e.stopPropagation();
+        var card = btn.closest('.req-card-inner');
+        btn.style.background = 'var(--green-light)';
+        btn.style.borderColor = '#059669';
+        btn.style.color = '#059669';
+        btn.textContent = 'Approved';
+        var rejectBtn = card.querySelector('.req-btn.reject');
+        if (rejectBtn) rejectBtn.style.display = 'none';
+        return;
+      }
+      var rBtn = e.target.closest('.req-btn.reject');
+      if (rBtn) {
+        e.stopPropagation();
+        var card2 = rBtn.closest('.req-card-inner');
+        rBtn.style.background = 'var(--danger-light)';
+        rBtn.style.borderColor = 'var(--danger)';
+        rBtn.style.color = 'var(--danger)';
+        rBtn.textContent = 'Rejected';
+        var approveBtn = card2.querySelector('.req-btn.approve');
+        if (approveBtn) approveBtn.style.display = 'none';
+      }
+    });
+
+    // === ESCAPE KEY HANDLER ===
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.getElementById('notifDropdown').classList.remove('open');
+        document.getElementById('searchResults').classList.remove('open');
+      }
+    });
   </script>
 </body>
 </html>

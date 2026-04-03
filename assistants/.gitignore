@@ -1,0 +1,23 @@
+# Unified assistant — per-developer, not shared
+.memory-bank/learnings.jsonl
+.memory-bank/.logs/
+
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Environment
+.env
+.env.local

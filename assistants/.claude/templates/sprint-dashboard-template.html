@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #252836;
+    --border: #2e3140; --text: #e1e4eb; --text2: #8b90a0;
+    --accent: #6c8aff; --accent2: #4a6aff; --green: #34d399;
+    --orange: #fb923c; --red: #f87171; --purple: #a78bfa;
+    --yellow: #fbbf24; --cyan: #22d3ee;
+  }
+  [data-theme="light"] {
+    --bg: #f5f6fa; --surface: #ffffff; --surface2: #eef0f4;
+    --border: #d4d7e0; --text: #1a1d27; --text2: #6b7080;
+    --accent: #4a6aff; --accent2: #3a5aef;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
+
+  .app { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: auto 1fr auto; height: 100vh; }
+
+  header { grid-column: 1 / -1; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 17px; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  .header-controls { display: flex; align-items: center; gap: 8px; }
+  .header-stats { display: flex; gap: 20px; align-items: center; }
+  .header-stats .stat { display: flex; flex-direction: column; align-items: center; }
+  .header-stats .stat-value { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .header-stats .stat-label { color: var(--text2); font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .header-capacity { display: flex; align-items: center; gap: 10px; background: var(--surface2); padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); }
+  .header-capacity label { font-size: 11px; color: var(--text2); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .header-capacity input[type="range"] { width: 120px; accent-color: var(--accent); }
+  .header-capacity .hc-value { font-size: 16px; font-weight: 700; color: var(--accent); font-family: 'SF Mono', monospace; min-width: 36px; text-align: center; }
+  .header-capacity .hc-members { font-size: 11px; color: var(--text2); white-space: nowrap; }
+  .hc-details { font-size: 10px; color: var(--text2); white-space: nowrap; display: flex; gap: 8px; margin-left: 4px; }
+  .hc-details span { display: flex; align-items: center; gap: 3px; }
+  .hc-detail-val { color: var(--text); font-weight: 600; font-family: 'SF Mono', monospace; }
+
+  .theme-btn, .export-btn { padding: 6px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .theme-btn:hover, .export-btn:hover { border-color: var(--accent); color: var(--text); }
+  .export-menu { position: relative; display: inline-block; }
+  .export-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 160px; z-index: 100; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .export-dropdown.open { display: block; }
+  .export-dropdown button { display: block; width: 100%; text-align: left; padding: 8px 14px; background: none; border: none; color: var(--text); font-size: 12px; cursor: pointer; }
+  .export-dropdown button:hover { background: var(--surface2); }
+  .export-dropdown button:first-child { border-radius: 8px 8px 0 0; }
+  .export-dropdown button:last-child { border-radius: 0 0 8px 8px; }
+
+  .sidebar { background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; padding: 16px; }
+  .sidebar h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); margin-bottom: 10px; }
+
+  .filter-group { margin-bottom: 16px; }
+  .filter-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  .filter-group select, .filter-group input[type="text"] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 13px; outline: none; }
+  .filter-group select:focus, .filter-group input:focus { border-color: var(--accent); }
+
+  .view-toggle { display: flex; gap: 4px; margin-bottom: 16px; }
+  .view-btn { flex: 1; padding: 7px 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 11px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .view-btn:hover { border-color: var(--accent); }
+  .view-btn.active { border-color: var(--accent); background: #1e2250; color: var(--accent); }
+  [data-theme="light"] .view-btn.active { background: #e8edff; }
+
+  .sprint-nav { margin-bottom: 16px; }
+  .sprint-nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; transition: all 0.15s; border: 1px solid transparent; }
+  .sprint-nav-item:hover { background: var(--surface2); }
+  .sprint-nav-item.active { background: var(--surface2); border-color: var(--border); }
+  .sprint-nav-item .sn-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .sprint-nav-item .sn-name { font-size: 12px; font-weight: 600; flex: 1; }
+  .sprint-nav-item .sn-meta { font-size: 11px; color: var(--text2); font-family: 'SF Mono', monospace; }
+
+  .team-section { background: var(--surface2); border-radius: 6px; padding: 10px; margin-bottom: 16px; }
+  .team-member-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .team-member-row:last-of-type { border-bottom: none; }
+  .team-member-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .team-member-name { flex: 1; background: none; border: none; color: var(--text); font-size: 12px; font-weight: 500; outline: none; min-width: 0; padding: 2px 4px; border-radius: 3px; }
+  .team-member-name:hover { background: var(--bg); }
+  .team-member-name:focus { background: var(--bg); border: 1px solid var(--accent); padding: 1px 3px; }
+  .team-member-hours { font-size: 11px; color: var(--accent); font-family: 'SF Mono', monospace; font-weight: 600; min-width: 30px; text-align: right; }
+  .team-member-remove { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 14px; padding: 0 4px; line-height: 1; border-radius: 3px; }
+  .team-member-remove:hover { color: var(--red); background: #3a1a1a; }
+  .team-member-slider { width: 100%; accent-color: var(--accent); margin: 2px 0 6px; }
+  .team-add-btn { display: block; width: 100%; padding: 6px; background: none; border: 1px dashed var(--border); border-radius: 6px; color: var(--text2); font-size: 11px; cursor: pointer; margin-top: 6px; transition: all 0.15s; }
+  .team-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .algo-info { background: var(--surface2); border-radius: 6px; padding: 10px; margin-bottom: 16px; font-size: 11px; color: var(--text2); }
+  .algo-info .ai-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 6px; font-weight: 600; }
+  .algo-info .ai-item { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .algo-info .ai-num { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: white; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+  .algo-info .ai-text { font-size: 10px; }
+
+  .main { overflow-y: auto; padding: 24px; }
+
+  .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 20px; }
+  .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+  .summary-card .sc-value { font-size: 22px; font-weight: 700; }
+  .summary-card .sc-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .sc-blue { color: var(--accent); } .sc-purple { color: var(--purple); } .sc-green { color: var(--green); } .sc-orange { color: var(--orange); } .sc-cyan { color: var(--cyan); } .sc-red { color: var(--red); }
+
+  .sprint-timeline { margin-bottom: 24px; background: var(--surface); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
+  .sprint-timeline h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 12px; }
+  .st-bar { display: flex; height: 32px; border-radius: 6px; overflow: hidden; background: var(--surface2); margin-bottom: 8px; }
+  .st-segment { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: white; position: relative; cursor: pointer; transition: filter 0.15s; }
+  .st-segment:hover { filter: brightness(1.2); }
+  .st-segment .st-tip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: var(--bg); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; font-size: 11px; white-space: nowrap; z-index: 10; pointer-events: none; }
+  .st-segment:hover .st-tip { display: block; }
+
+  .sprint-section { margin-bottom: 28px; }
+  .sprint-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid var(--border); flex-wrap: wrap; }
+  .sprint-header .sh-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .sprint-header h2 { font-size: 15px; font-weight: 600; }
+  .sprint-header .sh-subtitle { font-size: 12px; color: var(--text2); }
+  .sprint-header .sh-badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .sprint-header .sh-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .sprint-header .sh-effort { font-size: 13px; font-weight: 600; font-family: 'SF Mono', monospace; }
+  .sprint-header .sh-capacity-bar { width: 80px; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .sprint-header .sh-capacity-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .sprint-header .sh-members { font-size: 10px; color: var(--text2); margin-top: 2px; width: 100%; padding-left: 24px; }
+
+  .story-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+
+  .story-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden; }
+  .story-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+  .story-card:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+  .story-card.expanded { border-color: var(--accent); }
+  .story-card[draggable="true"] { cursor: grab; }
+  .story-card.dragging { opacity: 0.5; transform: scale(0.95); }
+  .drop-zone-active { outline: 2px dashed var(--accent); outline-offset: -2px; background: rgba(108,138,255,0.05); }
+
+  .story-id { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: var(--accent); font-weight: 600; }
+  .story-title { font-size: 13px; font-weight: 600; margin: 4px 0; line-height: 1.4; }
+  .story-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tag { padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 500; }
+  .tag-priority-critical { background: #3a1a1a; color: var(--red); }
+  .tag-priority-high { background: #3a2a1a; color: var(--orange); }
+  .tag-priority-medium { background: #2a2a1a; color: var(--yellow); }
+  .tag-effort { background: #1a2a2a; color: var(--cyan); font-family: 'SF Mono', monospace; }
+  .tag-type { background: #2a1a3a; color: var(--purple); }
+  .tag-sprint { font-family: 'SF Mono', monospace; font-weight: 600; }
+  .tag-member { font-size: 10px; font-weight: 600; }
+
+  .story-details { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: none; }
+  .story-card.expanded .story-details { display: block; }
+  .story-details p { font-size: 12px; color: var(--text2); margin-bottom: 6px; line-height: 1.6; }
+  .story-details .ac-list { list-style: none; padding: 0; }
+  .story-details .ac-list li { font-size: 11px; color: var(--text2); padding: 3px 0 3px 16px; position: relative; }
+  .story-details .ac-list li::before { content: '\2713'; position: absolute; left: 0; color: var(--green); font-size: 10px; }
+  .story-full-title { font-size: 11px; color: var(--text2); margin-bottom: 2px; font-family: 'SF Mono', monospace; }
+  .story-category { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; background: #1a2a3a; color: var(--cyan); text-transform: uppercase; letter-spacing: 0.3px; }
+  .story-deps-inline { margin-top: 6px; font-size: 10px; color: var(--text2); }
+  .story-deps-inline span { color: var(--accent); font-family: monospace; cursor: pointer; }
+  .story-deps-inline span:hover { text-decoration: underline; }
+  .story-deps { margin-top: 6px; font-size: 11px; color: var(--text2); }
+  .story-deps span { color: var(--accent); font-family: monospace; cursor: pointer; }
+  .story-deps span:hover { text-decoration: underline; }
+
+  .prompt-bar { grid-column: 1 / -1; background: var(--surface); border-top: 1px solid var(--border); padding: 10px 24px; display: flex; align-items: center; gap: 12px; }
+  .prompt-text { flex: 1; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px; color: var(--text2); background: var(--surface2); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); white-space: nowrap; overflow-x: auto; }
+  .copy-btn { padding: 7px 18px; background: var(--accent2); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .copy-btn:hover { background: var(--accent); }
+  .copy-btn.copied { background: var(--green); }
+
+  .gantt-container { overflow-x: auto; margin-bottom: 24px; }
+  .gantt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .gantt-table th { background: var(--surface); padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+  .gantt-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .gantt-table tr { cursor: pointer; }
+  .gantt-table tr[draggable="true"] { cursor: grab; }
+  .gantt-table tr.dragging { opacity: 0.4; }
+  .gantt-table tr:hover td { background: var(--surface2); }
+  .gantt-sprint-drop { height: 0; transition: height 0.15s; }
+  .gantt-sprint-drop.drop-active { height: 32px; }
+  .gantt-sprint-drop td { padding: 0; border: none; text-align: center; font-size: 11px; font-weight: 600; }
+  .gantt-sprint-drop.drop-active td { padding: 6px; border-bottom: 2px dashed var(--accent); }
+  .gantt-detail { padding: 8px 0 4px; border-top: 1px solid var(--border); margin-top: 6px; }
+  .gantt-detail p { font-size: 12px; color: var(--text2); margin-bottom: 6px; line-height: 1.6; }
+  .gantt-detail .ac-list { list-style: none; padding: 0; }
+  .gantt-detail .ac-list li { font-size: 11px; color: var(--text2); padding: 2px 0 2px 16px; position: relative; }
+  .gantt-detail .ac-list li::before { content: '\2713'; position: absolute; left: 0; color: var(--green); font-size: 10px; }
+  .gantt-detail .gd-deps { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .gantt-detail .gd-deps span { color: var(--accent); font-family: monospace; cursor: pointer; }
+  .gantt-detail .gd-deps span:hover { text-decoration: underline; }
+  .gantt-id { font-family: 'SF Mono', monospace; color: var(--accent); font-weight: 600; font-size: 11px; }
+  .gantt-title { font-weight: 500; max-width: 320px; line-height: 1.4; }
+  .gantt-title-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gantt-title-meta { display: block; font-size: 10px; color: var(--text2); font-family: 'SF Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .gantt-bar-cell { position: relative; min-width: 200px; }
+  .gantt-bar { height: 18px; border-radius: 4px; position: relative; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: white; }
+  .gantt-week-lines { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; pointer-events: none; }
+  .gantt-week-line { border-right: 1px dashed var(--border); flex: 1; }
+
+  .reassigned-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; background: #2a1a1a; color: var(--orange); margin-left: 4px; animation: fadeIn 0.3s; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Team View */
+  .team-view-container { display: grid; gap: 16px; }
+  .member-column { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .member-header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .member-header-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .member-header-name { font-size: 14px; font-weight: 600; flex: 1; }
+  .member-header-stats { font-size: 12px; color: var(--text2); font-family: 'SF Mono', monospace; }
+  .member-stories { padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+
+  /* Sprint Metrics */
+  .metrics-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .metric-card h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 10px; }
+  .metric-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface2); margin-bottom: 4px; }
+  .metric-bar-seg { height: 100%; transition: width 0.3s; }
+  .metric-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .metric-legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text2); }
+  .metric-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .metric-donut { display: flex; align-items: center; gap: 12px; }
+
+  /* Manual override badge */
+  .manual-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 600; background: #1a2a3a; color: var(--cyan); margin-left: 4px; }
+  .reset-auto-btn { padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 11px; cursor: pointer; margin-bottom: 16px; }
+  .reset-auto-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Dependency Graph */
+  .graph-controls { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  .graph-controls button { padding: 5px 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text2); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+  .graph-controls button:hover { border-color: var(--accent); color: var(--text); }
+  .graph-controls button.active { border-color: var(--accent); background: #1e2250; color: var(--accent); }
+  [data-theme="light"] .graph-controls button.active { background: #e8edff; }
+  .graph-controls .graph-legend { display: flex; gap: 12px; margin-left: auto; font-size: 10px; color: var(--text2); align-items: center; }
+  .graph-legend-item { display: flex; align-items: center; gap: 4px; }
+  .graph-legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  .graph-container { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; position: relative; }
+  .graph-container svg { display: block; width: 100%; cursor: grab; }
+  .graph-container svg:active { cursor: grabbing; }
+  .graph-node { cursor: pointer; transition: opacity 0.2s; }
+  .graph-node:hover rect { stroke-width: 2; }
+  .graph-node text { pointer-events: none; }
+  .graph-edge { fill: none; stroke-width: 1.5; transition: opacity 0.2s, stroke 0.2s; }
+  .graph-edge-arrow { transition: opacity 0.2s, fill 0.2s; }
+  .graph-dimmed { opacity: 0.15; }
+  .graph-critical rect { stroke: var(--red) !important; stroke-width: 2.5; }
+  .graph-critical-edge { stroke: var(--red) !important; stroke-width: 2.5; }
+  .graph-critical-arrow { fill: var(--red) !important; }
+  .graph-tooltip { position: absolute; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; pointer-events: none; z-index: 20; max-width: 300px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); display: none; }
+  .graph-tooltip.visible { display: block; }
+  .graph-tooltip .gt-id { font-family: 'SF Mono', monospace; color: var(--accent); font-weight: 600; font-size: 11px; }
+  .graph-tooltip .gt-title { font-weight: 600; margin: 4px 0; }
+  .graph-tooltip .gt-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Keyboard shortcut overlay */
+  .shortcuts-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
+  .shortcuts-overlay.open { display: flex; }
+  .shortcuts-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; }
+  .shortcuts-panel h3 { font-size: 14px; margin-bottom: 16px; }
+  .shortcut-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .shortcut-row:last-child { border-bottom: none; }
+  .shortcut-key { padding: 2px 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; font-family: 'SF Mono', monospace; font-size: 11px; font-weight: 600; }
+  .shortcut-desc { font-size: 12px; color: var(--text2); }
+
+  @media print {
+    body { background: white; color: #1a1d27; font-size: 11px; }
+    .app { display: block; height: auto; }
+    .sidebar, .prompt-bar, header .header-controls, .theme-btn, .export-btn { display: none !important; }
+    header { position: static; border-bottom: 2px solid #333; padding: 10px 0; }
+    .main { overflow: visible; padding: 10px 0; }
+    .story-card { break-inside: avoid; border: 1px solid #ccc; box-shadow: none !important; transform: none !important; }
+    .story-card:hover { transform: none; box-shadow: none; }
+    .sprint-section { break-inside: avoid; }
+    .summary-card { border: 1px solid #ccc; }
+    .sprint-timeline { border: 1px solid #ccc; }
+    .st-segment { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><span id="project-name">Project</span> — Sprint Dashboard</h1>
+    <div class="header-capacity">
+      <label>Team Capacity</label>
+      <input type="range" id="capacity-slider" min="4" max="600" value="24" step="2" />
+      <span class="hc-value" id="capacity-display">24h</span>
+      <span class="hc-members" id="capacity-members">(1 member)</span>
+      <div class="hc-details" id="capacity-details"></div>
+    </div>
+    <div class="header-controls">
+      <div class="export-menu">
+        <button class="export-btn" id="export-btn">Export</button>
+        <div class="export-dropdown" id="export-dropdown">
+          <button data-export="csv">Download CSV</button>
+          <button data-export="markdown">Copy Markdown</button>
+          <button data-export="print">Print / PDF</button>
+        </div>
+      </div>
+      <button class="theme-btn" id="theme-toggle" title="Toggle theme (T)">Light</button>
+    </div>
+    <div class="header-stats" id="header-stats"></div>
+  </header>
+
+  <div class="sidebar">
+    <h3>View</h3>
+    <div class="view-toggle">
+      <div class="view-btn active" data-view="sprint">Sprints</div>
+      <div class="view-btn" data-view="gantt">Timeline</div>
+      <div class="view-btn" data-view="team">Team</div>
+      <div class="view-btn" data-view="graph">Graph</div>
+    </div>
+
+    <div class="filter-group">
+      <label>Search</label>
+      <input type="text" id="search" placeholder="Search stories... ( / )" />
+    </div>
+
+    <div class="filter-group">
+      <label>Priority</label>
+      <select id="filter-priority">
+        <option value="all">All Priorities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Feature</label>
+      <select id="filter-feature">
+        <option value="all">All Features</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Layer</label>
+      <select id="filter-layer">
+        <option value="all">All Layers</option>
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Member</label>
+      <select id="filter-member">
+        <option value="all">All Members</option>
+      </select>
+    </div>
+
+    <h3 style="margin-top:16px">Sprints</h3>
+    <div id="sprint-nav"></div>
+
+    <h3 style="margin-top:16px">Team</h3>
+    <div id="team-section" class="team-section"></div>
+
+    <div class="algo-info">
+      <div class="ai-title">Auto-Assignment Algorithm</div>
+      <div class="ai-item"><div class="ai-num">1</div><div class="ai-text">Sort by dependency depth</div></div>
+      <div class="ai-item"><div class="ai-num">2</div><div class="ai-text">Then by priority (critical > high > medium)</div></div>
+      <div class="ai-item"><div class="ai-num">3</div><div class="ai-text">Place in earliest sprint with member capacity</div></div>
+      <div class="ai-item"><div class="ai-num">4</div><div class="ai-text">Respect dependency constraints</div></div>
+      <div class="ai-item"><div class="ai-num">5</div><div class="ai-text">Distribute across team members</div></div>
+    </div>
+  </div>
+
+  <div class="main" id="main"></div>
+
+  <div class="prompt-bar">
+    <div class="prompt-text" id="prompt-output"></div>
+    <button class="copy-btn" id="copy-btn">Copy</button>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts overlay -->
+<div class="shortcuts-overlay" id="shortcuts-overlay">
+  <div class="shortcuts-panel">
+    <h3>Keyboard Shortcuts</h3>
+    <div class="shortcut-row"><span class="shortcut-desc">Focus search</span><span class="shortcut-key">/</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Sprint view</span><span class="shortcut-key">1</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Timeline view</span><span class="shortcut-key">2</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Team view</span><span class="shortcut-key">3</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Dependency graph</span><span class="shortcut-key">4</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Next sprint</span><span class="shortcut-key">N</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Previous sprint</span><span class="shortcut-key">P</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Toggle theme</span><span class="shortcut-key">T</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Close / dismiss</span><span class="shortcut-key">Esc</span></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Show this help</span><span class="shortcut-key">?</span></div>
+  </div>
+</div>
+
+<script>
+// ── Sprint colors (up to 10 sprints) ──
+const SPRINT_COLORS = [
+  '#6c8aff', '#a78bfa', '#34d399', '#fb923c', '#f87171',
+  '#22d3ee', '#fbbf24', '#f472b6', '#818cf8', '#4ade80'
+];
+
+// ── Member colors ──
+const MEMBER_COLORS = [
+  '#6c8aff', '#a78bfa', '#34d399', '#fb923c', '#f87171',
+  '#22d3ee', '#fbbf24', '#f472b6', '#818cf8', '#4ade80'
+];
+
+// ── Data loaded from external JSON ──
+let STORIES = [];
+const storyMap = {};
+
+// ── Load stories-data.json at runtime ──
+async function loadStories() {
+  const resp = await fetch('./stories-data.json');
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+  return resp.json();
+}
+
+function initStoryData(data) {
+  // Populate STORIES array
+  STORIES.length = 0;
+  data.stories.forEach(s => STORIES.push(s));
+  // Build lookup map
+  Object.keys(storyMap).forEach(k => delete storyMap[k]);
+  STORIES.forEach(s => storyMap[s.id] = s);
+  // Set project name
+  const projectName = (data.meta && data.meta.project) || 'Project';
+  document.getElementById('project-name').textContent = projectName;
+  document.title = `${projectName} — Sprint Dashboard`;
+  // Populate feature filter
+  const features = [...new Set(STORIES.map(s => s.feature).filter(Boolean))].sort();
+  if (features.length > 1) {
+    const fSelect = document.getElementById('filter-feature');
+    features.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      fSelect.appendChild(opt);
+    });
+  } else {
+    // Hide feature filter if only one or no features
+    const fGroup = document.getElementById('filter-feature').parentElement;
+    fGroup.style.display = 'none';
+  }
+  // Populate layer filter
+  const layers = [...new Set(STORIES.map(s => s.layer))].sort();
+  const select = document.getElementById('filter-layer');
+  layers.forEach(layer => {
+    const opt = document.createElement('option');
+    opt.value = layer;
+    opt.textContent = layer;
+    select.appendChild(opt);
+  });
+  // Load team config from JSON (if present)
+  const teamConfig = data.teamConfig || { members: [{ id: 'm1', name: 'Member 1', capacity: 24 }] };
+  return teamConfig;
+}
+
+// ── App State ──
+const state = {
+  view: 'sprint',
+  search: '',
+  priority: 'all',
+  layer: 'all',
+  feature: 'all',
+  memberFilter: 'all',
+  activeSprint: null,
+  expanded: new Set(),
+  capacity: 24,
+  sprints: [],
+  members: [{ id: 'm1', name: 'Member 1', capacity: 24, color: MEMBER_COLORS[0] }],
+  nextMemberId: 2,
+  manualOverrides: {}, // storyId -> { sprint, memberId }
+  theme: 'dark'
+};
+
+// ── localStorage Persistence ──
+const STORAGE_KEY = 'sprint-dashboard-state';
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      view: state.view,
+      theme: state.theme,
+      manualOverrides: state.manualOverrides
+    }));
+  } catch (e) { /* quota exceeded — ignore */ }
+}
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!saved) return;
+    if (saved.view) state.view = saved.view;
+    if (saved.theme) state.theme = saved.theme;
+    if (saved.manualOverrides) state.manualOverrides = saved.manualOverrides;
+  } catch (e) { /* corrupt data — ignore */ }
+}
+
+// ── Team Management ──
+function getTotalCapacity() {
+  return state.members.reduce((sum, m) => sum + m.capacity, 0);
+}
+
+function addMember() {
+  if (state.members.length >= 10) return;
+  const id = 'm' + state.nextMemberId++;
+  state.members.push({
+    id,
+    name: 'Member ' + (state.members.length + 1),
+    capacity: 24,
+    color: MEMBER_COLORS[(state.members.length) % MEMBER_COLORS.length]
+  });
+  onTeamChange();
+}
+
+function removeMember(id) {
+  if (state.members.length <= 1) return;
+  state.members = state.members.filter(m => m.id !== id);
+  // Remove manual overrides pointing to this member
+  for (const [sid, ov] of Object.entries(state.manualOverrides)) {
+    if (ov.memberId === id) delete state.manualOverrides[sid];
+  }
+  onTeamChange();
+}
+
+function updateMemberCapacity(id, val) {
+  const m = state.members.find(m => m.id === id);
+  if (m) m.capacity = val;
+  onTeamChange();
+}
+
+function updateMemberName(id, name) {
+  const m = state.members.find(m => m.id === id);
+  if (m) m.name = name || m.name;
+  saveState();
+  renderMemberFilter();
+  render();
+}
+
+function onTeamChange() {
+  state.capacity = getTotalCapacity();
+  document.getElementById('capacity-slider').value = state.capacity;
+  document.getElementById('capacity-slider').max = Math.max(600, state.capacity + 100);
+  updateCapacityDisplay();
+  recalcSprints();
+  saveState();
+  render();
+}
+
+function updateCapacityDisplay() {
+  document.getElementById('capacity-display').textContent = state.capacity + 'h';
+  document.getElementById('capacity-members').textContent =
+    `(${state.members.length} member${state.members.length > 1 ? 's' : ''})`;
+
+  // Compute derived stats
+  const totalEffort = STORIES.reduce((s, st) => s + st.effort, 0);
+  const sprintCount = state.sprints.length || Math.ceil(totalEffort / (state.capacity || 1));
+  const totalWeeks = sprintCount * 2;
+  const utilization = state.capacity > 0 ? Math.round(totalEffort / (sprintCount * state.capacity) * 100) : 0;
+  const perMember = state.members.length > 1 ? Math.round(state.capacity / state.members.length) : 0;
+
+  let details = `<span><span class="hc-detail-val">${sprintCount}</span> sprints</span>`;
+  details += `<span><span class="hc-detail-val">~${totalWeeks}w</span></span>`;
+  details += `<span><span class="hc-detail-val">${utilization}%</span> util</span>`;
+  if (state.members.length > 1) {
+    details += `<span><span class="hc-detail-val">${perMember}h</span>/member</span>`;
+  }
+  document.getElementById('capacity-details').innerHTML = details;
+}
+
+function renderTeamSection() {
+  const el = document.getElementById('team-section');
+  // Compute per-member assigned hours across all sprints
+  const memberLoad = {};
+  state.members.forEach(m => { memberLoad[m.id] = 0; });
+  STORIES.forEach(s => {
+    if (s.assignedTo && memberLoad[s.assignedTo] !== undefined) memberLoad[s.assignedTo] += s.effort;
+  });
+
+  let html = '';
+  state.members.forEach(m => {
+    const assigned = memberLoad[m.id] || 0;
+    const totalMemberCap = m.capacity * (state.sprints.length || 1);
+    const util = totalMemberCap > 0 ? Math.round(assigned / totalMemberCap * 100) : 0;
+    const utilColor = util > 100 ? 'var(--red)' : util > 85 ? 'var(--orange)' : 'var(--green)';
+    html += `<div class="team-member-row">
+      <div class="team-member-color" style="background:${m.color}"></div>
+      <input class="team-member-name" value="${m.name}" data-id="${m.id}" maxlength="20" />
+      <span class="team-member-hours">${m.capacity}h</span>
+      ${state.members.length > 1 ? `<button class="team-member-remove" data-id="${m.id}" title="Remove member">&times;</button>` : ''}
+    </div>
+    <input type="range" class="team-member-slider" data-id="${m.id}" min="4" max="60" value="${m.capacity}" step="2" />
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text2);padding:0 2px 4px">
+      <span>${assigned}h assigned</span>
+      <span style="color:${utilColor};font-weight:600">${util}%</span>
+    </div>`;
+  });
+  if (state.members.length < 10) {
+    html += `<button class="team-add-btn" id="add-member-btn">+ Add Member</button>`;
+  }
+  el.innerHTML = html;
+
+  // Bind events
+  el.querySelectorAll('.team-member-slider').forEach(slider => {
+    slider.addEventListener('input', e => {
+      updateMemberCapacity(e.target.dataset.id, parseInt(e.target.value));
+    });
+  });
+  el.querySelectorAll('.team-member-name').forEach(input => {
+    input.addEventListener('change', e => {
+      updateMemberName(e.target.dataset.id, e.target.value.trim());
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') e.target.blur();
+    });
+  });
+  el.querySelectorAll('.team-member-remove').forEach(btn => {
+    btn.addEventListener('click', () => removeMember(btn.dataset.id));
+  });
+  const addBtn = document.getElementById('add-member-btn');
+  if (addBtn) addBtn.addEventListener('click', addMember);
+}
+
+function renderMemberFilter() {
+  const select = document.getElementById('filter-member');
+  const current = state.memberFilter;
+  select.innerHTML = '<option value="all">All Members</option>';
+  state.members.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name;
+    if (current === m.id) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+// ── Dynamic Sprint Assignment Algorithm (member-aware 2D packing) ──
+function assignSprints(totalCapacity) {
+  // Step 1: Compute dependency depth for each story
+  const depthCache = {};
+  function getDepth(id) {
+    if (depthCache[id] !== undefined) return depthCache[id];
+    const s = storyMap[id];
+    if (!s || s.deps.length === 0) { depthCache[id] = 0; return 0; }
+    depthCache[id] = 1 + Math.max(...s.deps.map(d => getDepth(d)));
+    return depthCache[id];
+  }
+  STORIES.forEach(s => getDepth(s.id));
+
+  // Step 2: Priority weight
+  const priorityWeight = { critical: 0, high: 1, medium: 2, low: 3 };
+
+  // Step 3: Sort stories — by depth first, then priority, then effort (descending)
+  const sorted = [...STORIES].sort((a, b) => {
+    const dA = depthCache[a.id], dB = depthCache[b.id];
+    if (dA !== dB) return dA - dB;
+    const pA = priorityWeight[a.priority] || 9, pB = priorityWeight[b.priority] || 9;
+    if (pA !== pB) return pA - pB;
+    return b.effort - a.effort;
+  });
+
+  // Step 4: 2D packing — memberSprintHours[sprintIdx][memberId] = hours used
+  const memberSprintHours = []; // array of { memberId: hoursUsed }
+  const sprintAssignment = {}; // storyId -> sprintIndex
+  const memberAssignment = {}; // storyId -> memberId
+
+  function getOrCreateSprint(idx) {
+    if (!memberSprintHours[idx]) {
+      memberSprintHours[idx] = {};
+      state.members.forEach(m => memberSprintHours[idx][m.id] = 0);
+    }
+    return memberSprintHours[idx];
+  }
+
+  sorted.forEach(story => {
+    // Check for manual override
+    const override = state.manualOverrides[story.id];
+    if (override) {
+      const sprint = getOrCreateSprint(override.sprint);
+      const mid = override.memberId;
+      // Verify member still exists
+      if (state.members.find(m => m.id === mid)) {
+        sprintAssignment[story.id] = override.sprint;
+        memberAssignment[story.id] = mid;
+        sprint[mid] = (sprint[mid] || 0) + story.effort;
+        story.sprint = override.sprint + 1;
+        story.assignedTo = mid;
+        return;
+      }
+      // Member removed — fall through to auto-assign
+      delete state.manualOverrides[story.id];
+    }
+
+    // Find earliest sprint from deps
+    let minSprint = 0;
+    story.deps.forEach(depId => {
+      const depSprint = sprintAssignment[depId];
+      if (depSprint !== undefined) {
+        minSprint = Math.max(minSprint, depSprint);
+      }
+    });
+
+    // Find first sprint >= minSprint where a member has capacity
+    let targetSprint = minSprint;
+    let targetMember = null;
+    while (true) {
+      const sprint = getOrCreateSprint(targetSprint);
+      // Find member with most remaining capacity in this sprint
+      let bestMember = null;
+      let bestRemaining = -1;
+      for (const m of state.members) {
+        const used = sprint[m.id] || 0;
+        const remaining = m.capacity - used;
+        if (remaining >= story.effort && remaining > bestRemaining) {
+          bestMember = m.id;
+          bestRemaining = remaining;
+        }
+      }
+      if (bestMember) {
+        targetMember = bestMember;
+        break;
+      }
+      // Edge case: sprint is empty but story exceeds any single member's capacity
+      const anyUsed = state.members.some(m => (sprint[m.id] || 0) > 0);
+      if (!anyUsed) {
+        // Assign to member with highest capacity
+        let maxCap = 0;
+        for (const m of state.members) {
+          if (m.capacity > maxCap) { maxCap = m.capacity; targetMember = m.id; }
+        }
+        break;
+      }
+      targetSprint++;
+    }
+
+    sprintAssignment[story.id] = targetSprint;
+    memberAssignment[story.id] = targetMember;
+    const sprint = getOrCreateSprint(targetSprint);
+    sprint[targetMember] = (sprint[targetMember] || 0) + story.effort;
+    story.sprint = targetSprint + 1;
+    story.assignedTo = targetMember;
+  });
+
+  // Build sprint objects
+  const sprintCount = memberSprintHours.length;
+  const sprints = [];
+  for (let i = 0; i < sprintCount; i++) {
+    const stories = STORIES.filter(s => s.sprint === i + 1);
+    const effort = stories.reduce((sum, s) => sum + s.effort, 0);
+    const categories = [...new Set(stories.map(s => s.type))].join(', ');
+
+    // Per-member breakdown for this sprint
+    const memberBreakdown = state.members.map(m => {
+      const mStories = stories.filter(s => s.assignedTo === m.id);
+      return { id: m.id, name: m.name, color: m.color, capacity: m.capacity, used: mStories.reduce((s, st) => s + st.effort, 0) };
+    });
+
+    sprints.push({
+      id: i + 1,
+      name: `Sprint ${i + 1}`,
+      subtitle: categories.length > 40 ? categories.substring(0, 37) + '...' : categories,
+      color: SPRINT_COLORS[i % SPRINT_COLORS.length],
+      weeks: `Wk ${i * 2 + 1}\u2013${i * 2 + 2}`,
+      storyIds: stories.map(s => s.id),
+      effort: effort,
+      memberBreakdown
+    });
+  }
+
+  return sprints;
+}
+
+// ── Recalculate sprints on capacity change ──
+function recalcSprints() {
+  state.sprints = assignSprints(state.capacity);
+  if (state.activeSprint !== null && state.activeSprint > state.sprints.length) {
+    state.activeSprint = null;
+  }
+}
+
+function getFiltered() {
+  return STORIES.filter(s => {
+    if (state.activeSprint !== null && s.sprint !== state.activeSprint) return false;
+    if (state.priority !== 'all' && s.priority !== state.priority) return false;
+    if (state.feature !== 'all' && s.feature !== state.feature) return false;
+    if (state.layer !== 'all' && s.layer !== state.layer) return false;
+    if (state.memberFilter !== 'all' && s.assignedTo !== state.memberFilter) return false;
+    if (state.search) {
+      const q = state.search.toLowerCase();
+      return s.id.toLowerCase().includes(q) || s.title.toLowerCase().includes(q) || s.summary.toLowerCase().includes(q);
+    }
+    return true;
+  });
+}
+
+function getMemberById(id) {
+  return state.members.find(m => m.id === id);
+}
+
+function renderHeaderStats() {
+  const totalEffort = STORIES.reduce((s, st) => s + st.effort, 0);
+  const totalWeeks = state.sprints.length * 2;
+  document.getElementById('header-stats').innerHTML = `
+    <div class="stat"><span class="stat-value">${STORIES.length}</span><span class="stat-label">Stories</span></div>
+    <div class="stat"><span class="stat-value">${totalEffort}h</span><span class="stat-label">Total</span></div>
+    <div class="stat"><span class="stat-value">${state.sprints.length}</span><span class="stat-label">Sprints</span></div>
+    <div class="stat"><span class="stat-value">~${totalWeeks}w</span><span class="stat-label">Duration</span></div>
+  `;
+}
+
+function renderSprintNav() {
+  const nav = document.getElementById('sprint-nav');
+  const totalEffort = STORIES.reduce((s, st) => s + st.effort, 0);
+  let html = `<div class="sprint-nav-item ${state.activeSprint === null ? 'active' : ''}" data-sprint="all">
+    <div class="sn-dot" style="background:var(--accent)"></div>
+    <span class="sn-name">All Sprints</span>
+    <span class="sn-meta">${totalEffort}h</span>
+  </div>`;
+
+  state.sprints.forEach(sp => {
+    const overloaded = sp.effort > state.capacity;
+    html += `<div class="sprint-nav-item ${state.activeSprint === sp.id ? 'active' : ''}" data-sprint="${sp.id}">
+      <div class="sn-dot" style="background:${sp.color}"></div>
+      <span class="sn-name">${sp.name}</span>
+      <span class="sn-meta" style="${overloaded ? 'color:var(--red)' : ''}">${sp.effort}h</span>
+    </div>`;
+  });
+
+  nav.innerHTML = html;
+  nav.querySelectorAll('.sprint-nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const v = item.dataset.sprint;
+      state.activeSprint = v === 'all' ? null : parseInt(v);
+      render();
+    });
+  });
+}
+
+function render() {
+  const filtered = getFiltered();
+  const main = document.getElementById('main');
+  renderHeaderStats();
+  renderSprintNav();
+  renderTeamSection();
+  renderMemberFilter();
+
+  if (state.view === 'sprint') renderSprintView(filtered, main);
+  else if (state.view === 'gantt') renderGanttView(filtered, main);
+  else if (state.view === 'graph') renderGraphView(filtered, main);
+  else renderTeamView(filtered, main);
+
+  attachCardHandlers(main);
+  updatePrompt(filtered);
+  updateViewButtons();
+}
+
+function updateViewButtons() {
+  document.querySelectorAll('.view-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.view === state.view);
+  });
+}
+
+// ── Sprint Metrics ──
+function renderMetrics(filtered) {
+  if (!filtered.length) return '';
+
+  // Layer breakdown
+  const layerCounts = {};
+  const layerColors = { FE: '#6c8aff', BE: '#a78bfa', DB: '#34d399', INFRA: '#fb923c', DEVOPS: '#22d3ee', QA: '#fbbf24' };
+  filtered.forEach(s => { layerCounts[s.layer] = (layerCounts[s.layer] || 0) + s.effort; });
+  const totalEffort = filtered.reduce((sum, s) => sum + s.effort, 0);
+
+  let layerBarHtml = '';
+  let layerLegendHtml = '';
+  for (const [layer, hours] of Object.entries(layerCounts).sort((a, b) => b[1] - a[1])) {
+    const pct = (hours / totalEffort * 100).toFixed(1);
+    const color = layerColors[layer] || '#8b90a0';
+    layerBarHtml += `<div class="metric-bar-seg" style="width:${pct}%;background:${color}"></div>`;
+    layerLegendHtml += `<div class="metric-legend-item"><div class="metric-legend-dot" style="background:${color}"></div>${layer}: ${hours}h (${pct}%)</div>`;
+  }
+
+  // Priority distribution (SVG donut)
+  const prioCounts = { critical: 0, high: 0, medium: 0 };
+  const prioColors = { critical: '#f87171', high: '#fb923c', medium: '#fbbf24' };
+  filtered.forEach(s => { if (prioCounts[s.priority] !== undefined) prioCounts[s.priority]++; });
+  const totalStories = filtered.length;
+  let donutHtml = '<svg viewBox="0 0 36 36" width="64" height="64">';
+  let cumPct = 0;
+  for (const [prio, count] of Object.entries(prioCounts)) {
+    if (!count) continue;
+    const pct = count / totalStories * 100;
+    const dashArray = `${pct} ${100 - pct}`;
+    const dashOffset = 100 - cumPct + 25;
+    donutHtml += `<circle cx="18" cy="18" r="15.9" fill="none" stroke="${prioColors[prio]}" stroke-width="3" stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}" />`;
+    cumPct += pct;
+  }
+  donutHtml += '</svg>';
+  let prioLegendHtml = '';
+  for (const [prio, count] of Object.entries(prioCounts)) {
+    if (!count) continue;
+    prioLegendHtml += `<div class="metric-legend-item"><div class="metric-legend-dot" style="background:${prioColors[prio]}"></div>${prio}: ${count}</div>`;
+  }
+
+  // Critical path length
+  const depthCache = {};
+  function getDepth(id) {
+    if (depthCache[id] !== undefined) return depthCache[id];
+    const s = storyMap[id];
+    if (!s || s.deps.length === 0) { depthCache[id] = 0; return 0; }
+    depthCache[id] = 1 + Math.max(...s.deps.map(d => getDepth(d)));
+    return depthCache[id];
+  }
+  STORIES.forEach(s => getDepth(s.id));
+  const maxDepth = Math.max(0, ...Object.values(depthCache));
+  const totalDeps = STORIES.reduce((sum, s) => sum + s.deps.length, 0);
+
+  return `<div class="metrics-container">
+    <div class="metric-card">
+      <h4>Layer Breakdown</h4>
+      <div class="metric-bar">${layerBarHtml}</div>
+      <div class="metric-legend">${layerLegendHtml}</div>
+    </div>
+    <div class="metric-card">
+      <h4>Priority Distribution</h4>
+      <div class="metric-donut">${donutHtml}<div class="metric-legend" style="flex-direction:column">${prioLegendHtml}</div></div>
+    </div>
+    <div class="metric-card">
+      <h4>Dependency Complexity</h4>
+      <div style="display:flex;gap:20px;margin-top:4px">
+        <div><div style="font-size:22px;font-weight:700;color:var(--accent)">${maxDepth}</div><div style="font-size:10px;color:var(--text2)">Critical Path</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:var(--purple)">${totalDeps}</div><div style="font-size:10px;color:var(--text2)">Total Deps</div></div>
+        <div><div style="font-size:22px;font-weight:700;color:var(--cyan)">${totalStories ? (totalDeps / totalStories).toFixed(1) : 0}</div><div style="font-size:10px;color:var(--text2)">Avg Deps</div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSprintView(filtered, main) {
+  let html = '';
+  const totalEffort = filtered.reduce((s, st) => s + st.effort, 0);
+  const totalACs = filtered.reduce((s, st) => s + st.acs.length, 0);
+  const hasOverrides = Object.keys(state.manualOverrides).length > 0;
+
+  html += `<div class="summary-cards">
+    <div class="summary-card"><div class="sc-value sc-blue">${filtered.length}</div><div class="sc-label">Stories</div></div>
+    <div class="summary-card"><div class="sc-value sc-cyan">${totalEffort}h</div><div class="sc-label">Total Effort</div></div>
+    <div class="summary-card"><div class="sc-value sc-orange">${filtered.length ? (totalEffort / filtered.length).toFixed(1) : 0}h</div><div class="sc-label">Avg / Story</div></div>
+    <div class="summary-card"><div class="sc-value sc-purple">${totalACs}</div><div class="sc-label">Acceptance Criteria</div></div>
+    <div class="summary-card"><div class="sc-value sc-green">${(totalEffort / 8).toFixed(1)}d</div><div class="sc-label">Working Days</div></div>
+  </div>`;
+
+  html += renderMetrics(filtered);
+
+  if (hasOverrides) {
+    html += `<button class="reset-auto-btn" id="reset-auto">Reset to Auto-Assignment</button>`;
+  }
+
+  // Sprint timeline bar
+  const allEffort = STORIES.reduce((s, st) => s + st.effort, 0);
+  html += `<div class="sprint-timeline"><h3>Sprint Timeline</h3><div class="st-bar">`;
+  state.sprints.forEach(sp => {
+    const pct = allEffort ? (sp.effort / allEffort * 100).toFixed(1) : 0;
+    html += `<div class="st-segment" style="width:${pct}%;background:${sp.color};opacity:${state.activeSprint !== null && state.activeSprint !== sp.id ? 0.3 : 1}">
+      ${pct > 8 ? sp.name : ''}
+      <div class="st-tip">${sp.name}: ${sp.subtitle} \u2014 ${sp.effort}h (${sp.storyIds.length} stories, ${sp.weeks})</div>
+    </div>`;
+  });
+  html += `</div><div style="display:flex;justify-content:space-between;margin-top:6px">`;
+  const totalWeeks = state.sprints.length * 2;
+  for (let w = 1; w <= totalWeeks; w++) html += `<span style="flex:1;text-align:center;font-size:10px;color:var(--text2)">W${w}</span>`;
+  html += `</div></div>`;
+
+  // Sprint sections
+  const sprintsToShow = state.activeSprint !== null ? state.sprints.filter(sp => sp.id === state.activeSprint) : state.sprints;
+  sprintsToShow.forEach(sp => {
+    const stories = sp.storyIds.map(id => storyMap[id]).filter(s => filtered.includes(s));
+    if (!stories.length) return;
+    const effort = stories.reduce((s, st) => s + st.effort, 0);
+    const capPct = Math.min(100, (sp.effort / state.capacity * 100));
+    const overloaded = sp.effort > state.capacity;
+    const memberInfo = sp.memberBreakdown.filter(mb => mb.used > 0).map(mb =>
+      `${mb.name}: ${mb.used}h/${mb.capacity}h`
+    ).join(', ');
+
+    html += `<div class="sprint-section" data-sprint-id="${sp.id}">
+      <div class="sprint-header">
+        <div class="sh-dot" style="background:${sp.color}"></div>
+        <h2>${sp.name}</h2>
+        <span class="sh-subtitle">${sp.subtitle}</span>
+        <span class="sh-badge" style="background:${sp.color}22;color:${sp.color}">${stories.length} stories \u00b7 ${sp.weeks}</span>
+        <div class="sh-right">
+          <span class="sh-effort" style="${overloaded ? 'color:var(--red)' : ''}">${effort}h / ${state.capacity}h</span>
+          <div class="sh-capacity-bar"><div class="sh-capacity-fill" style="width:${capPct}%;background:${overloaded ? 'var(--red)' : sp.color}"></div></div>
+        </div>
+        ${state.members.length > 1 ? `<div class="sh-members">${memberInfo}</div>` : ''}
+      </div>
+      <div class="story-grid" data-drop-sprint="${sp.id - 1}">${stories.map(s => storyCard(s, true)).join('')}</div>
+    </div>`;
+  });
+
+  main.innerHTML = html;
+
+  // Reset auto button
+  const resetBtn = document.getElementById('reset-auto');
+  if (resetBtn) resetBtn.addEventListener('click', () => { state.manualOverrides = {}; saveState(); recalcSprints(); render(); });
+
+  // Drag and drop for sprint view
+  if (state.view === 'sprint') initDragDrop(main);
+}
+
+function renderGanttView(filtered, main) {
+  const totalWeeks = state.sprints.length * 2;
+  const colCount = 7 + (state.members.length > 1 ? 1 : 0) + 1; // columns including bar
+  const hasOverrides = Object.keys(state.manualOverrides).length > 0;
+
+  // Stats
+  const totalEffort = filtered.reduce((s, st) => s + st.effort, 0);
+  const critCount = filtered.filter(s => s.priority === 'critical').length;
+  const highCount = filtered.filter(s => s.priority === 'high').length;
+  const avgEffort = filtered.length ? (totalEffort / filtered.length).toFixed(1) : 0;
+  const avgUtil = state.capacity > 0 ? Math.round(totalEffort / (state.sprints.length * state.capacity) * 100) : 0;
+  const overloaded = state.sprints.filter(sp => sp.effort > state.capacity);
+
+  // Stats inside the Sprint Timeline panel
+  let html = `<div class="sprint-timeline">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <h3>Sprint Timeline (Gantt)</h3>
+      <div style="display:flex;gap:16px;font-size:11px">
+        <span style="color:var(--text2)">Stories: <span style="font-weight:700;color:var(--accent)">${filtered.length}</span></span>
+        <span style="color:var(--text2)">Effort: <span style="font-weight:700;color:var(--cyan)">${totalEffort}h</span></span>
+        <span style="color:var(--text2)">Avg: <span style="font-weight:700;color:var(--orange)">${avgEffort}h</span></span>
+        <span style="color:var(--text2)">Util: <span style="font-weight:700;color:${avgUtil > 100 ? 'var(--red)' : avgUtil > 85 ? 'var(--orange)' : 'var(--green)'}">${avgUtil}%</span></span>
+        <span style="color:var(--text2)">Critical: <span style="font-weight:700;color:var(--red)">${critCount}</span></span>
+        <span style="color:var(--text2)">High: <span style="font-weight:700;color:var(--orange)">${highCount}</span></span>
+        ${overloaded.length ? `<span style="color:var(--red);font-weight:600">\u26a0 ${overloaded.map(sp => `${sp.name} ${sp.effort}h/${state.capacity}h`).join(', ')}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+
+  if (hasOverrides) {
+    html += `<button class="reset-auto-btn" id="reset-auto">Reset to Auto-Assignment</button>`;
+  }
+
+  // Sprint drop zone bar
+  html += `<div style="display:flex;gap:4px;margin-bottom:8px">`;
+  state.sprints.forEach(sp => {
+    html += `<div class="gantt-sprint-target" data-drop-sprint="${sp.id - 1}" style="flex:1;padding:6px;text-align:center;border-radius:6px;border:1px dashed var(--border);font-size:11px;font-weight:600;color:${sp.color};transition:all 0.15s">${sp.name}</div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="gantt-container"><table class="gantt-table"><thead><tr>
+    <th style="width:90px">ID</th><th style="width:320px">Story</th><th style="width:60px">Priority</th><th style="width:50px">Effort</th><th style="width:60px">Sprint</th><th style="width:80px">Deps</th><th>`;
+  for (let w = 1; w <= totalWeeks; w++) html += `<span style="display:inline-block;width:${100 / totalWeeks}%;text-align:center">W${w}</span>`;
+  html += `</th></tr></thead><tbody>`;
+
+  filtered.forEach(s => {
+    const sp = state.sprints.find(sp => sp.id === s.sprint);
+    if (!sp) return;
+    const wStart = (s.sprint - 1) * 2;
+    const wEnd = s.sprint * 2;
+    const leftPct = (wStart / totalWeeks * 100);
+    const widthPct = ((wEnd - wStart) / totalWeeks * 100);
+    const depsText = s.deps.length ? s.deps.slice(0, 2).map(d => d.replace('STORY-', '#')).join(', ') + (s.deps.length > 2 ? ` +${s.deps.length - 2}` : '') : '\u2014';
+    const member = getMemberById(s.assignedTo);
+    const isManual = !!state.manualOverrides[s.id];
+
+    const isExpanded = state.expanded.has(s.id);
+    const detailHtml = isExpanded ? `<div class="gantt-detail">
+      <p>${s.summary}</p>
+      <ul class="ac-list">${s.acs.map(ac => `<li>${ac}</li>`).join('')}</ul>
+      ${s.deps.length ? `<div class="gd-deps">Depends on: ${s.deps.map(d => `<span>${d}</span>`).join(', ')}</div>` : '<div class="gd-deps" style="color:var(--green)">No dependencies</div>'}
+    </div>` : '';
+
+    // Line 2: layer | type, plus member name if >1 member
+    const metaLine = state.members.length > 1 && member
+      ? `${s.layer} | ${s.type} \u00b7 <span style="color:${member.color};font-weight:600">${member.name}</span>`
+      : `${s.layer} | ${s.type}`;
+
+    html += `<tr data-id="${s.id}" draggable="true">
+      <td><span class="gantt-id">${s.id}${isManual ? '<span class="manual-badge">manual</span>' : ''}</span></td>
+      <td><div class="gantt-title" title="${s.layer} | ${s.type} | ${s.title}">
+        <span class="gantt-title-name">${s.title}</span>
+        <span class="gantt-title-meta">${metaLine}</span>
+      </div>${detailHtml}</td>
+      <td><span class="tag tag-priority-${s.priority}">${s.priority}</span></td>
+      <td><span class="tag tag-effort">${s.effort}h</span></td>
+      <td><span style="color:${sp.color};font-size:11px;font-weight:600">${sp.name}</span></td>
+      <td><span style="font-size:10px;color:var(--text2);font-family:monospace">${depsText}</span></td>
+      <td class="gantt-bar-cell">
+        <div class="gantt-week-lines">${Array(totalWeeks).fill('<div class="gantt-week-line"></div>').join('')}</div>
+        <div class="gantt-bar" style="margin-left:${leftPct}%;width:${widthPct}%;background:${sp.color}">${s.effort}h</div>
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  main.innerHTML = html;
+
+  // Reset auto button
+  const resetBtn = document.getElementById('reset-auto');
+  if (resetBtn) resetBtn.addEventListener('click', () => { state.manualOverrides = {}; saveState(); recalcSprints(); render(); });
+
+  // Gantt drag-and-drop: drag rows, drop on sprint targets
+  initGanttDragDrop(main);
+}
+
+function initGanttDragDrop(main) {
+  let draggedId = null;
+
+  main.querySelectorAll('tr[draggable="true"]').forEach(row => {
+    row.addEventListener('dragstart', e => {
+      draggedId = row.dataset.id;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.id);
+    });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      main.querySelectorAll('.gantt-sprint-target').forEach(t => {
+        t.style.borderColor = 'var(--border)';
+        t.style.background = 'none';
+      });
+      draggedId = null;
+    });
+  });
+
+  main.querySelectorAll('.gantt-sprint-target').forEach(target => {
+    target.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      target.style.borderColor = 'var(--accent)';
+      target.style.background = 'rgba(108,138,255,0.1)';
+    });
+    target.addEventListener('dragleave', () => {
+      target.style.borderColor = 'var(--border)';
+      target.style.background = 'none';
+    });
+    target.addEventListener('drop', e => {
+      e.preventDefault();
+      target.style.borderColor = 'var(--border)';
+      target.style.background = 'none';
+      const storyId = e.dataTransfer.getData('text/plain');
+      if (!storyId || !storyMap[storyId]) return;
+      const story = storyMap[storyId];
+      const sprintIdx = parseInt(target.dataset.dropSprint);
+      state.manualOverrides[storyId] = { sprint: sprintIdx, memberId: story.assignedTo };
+      saveState();
+      recalcSprints();
+      render();
+    });
+  });
+}
+
+function renderTeamView(filtered, main) {
+  const hasOverrides = Object.keys(state.manualOverrides).length > 0;
+  let html = '';
+  if (hasOverrides) {
+    html += `<button class="reset-auto-btn" id="reset-auto">Reset to Auto-Assignment</button>`;
+  }
+
+  html += renderMetrics(filtered);
+
+  const cols = state.members.length <= 2 ? `repeat(${state.members.length}, 1fr)` : 'repeat(auto-fit, minmax(350px, 1fr))';
+  html += `<div class="team-view-container" style="grid-template-columns:${cols}">`;
+
+  state.members.forEach(m => {
+    const memberStories = filtered.filter(s => s.assignedTo === m.id);
+    const memberEffort = memberStories.reduce((s, st) => s + st.effort, 0);
+    const capPct = Math.min(100, (memberEffort / m.capacity * 100));
+    const overloaded = memberEffort > m.capacity;
+
+    html += `<div class="member-column" data-drop-member="${m.id}">
+      <div class="member-header" style="border-top:3px solid ${m.color}">
+        <div class="member-header-dot" style="background:${m.color}"></div>
+        <span class="member-header-name">${m.name}</span>
+        <span class="member-header-stats" style="${overloaded ? 'color:var(--red)' : ''}">${memberEffort}h / ${m.capacity}h</span>
+      </div>
+      <div class="member-stories" data-drop-member="${m.id}">
+        ${memberStories.length ? memberStories.map(s => storyCard(s, true)).join('') : '<div style="padding:20px;text-align:center;color:var(--text2);font-size:12px">No stories assigned</div>'}
+      </div>
+    </div>`;
+  });
+
+  html += `</div>`;
+  main.innerHTML = html;
+
+  const resetBtn = document.getElementById('reset-auto');
+  if (resetBtn) resetBtn.addEventListener('click', () => { state.manualOverrides = {}; saveState(); recalcSprints(); render(); });
+
+  // Drag and drop for team view
+  initDragDrop(main);
+}
+
+// ── Critical Path Computation ──
+function computeCriticalPath() {
+  const memo = {};
+  const pathMemo = {};
+
+  function longestPath(id) {
+    if (memo[id] !== undefined) return memo[id];
+    const s = storyMap[id];
+    if (!s) { memo[id] = 0; pathMemo[id] = []; return 0; }
+    const dependents = STORIES.filter(st => st.deps.includes(id));
+    if (dependents.length === 0) {
+      memo[id] = s.effort;
+      pathMemo[id] = [id];
+      return s.effort;
+    }
+    let bestLen = 0;
+    let bestPath = [];
+    for (const dep of dependents) {
+      const depLen = longestPath(dep.id);
+      if (depLen > bestLen) { bestLen = depLen; bestPath = pathMemo[dep.id]; }
+    }
+    memo[id] = s.effort + bestLen;
+    pathMemo[id] = [id, ...bestPath];
+    return memo[id];
+  }
+
+  const roots = STORIES.filter(s => s.deps.length === 0);
+  let longestTotal = 0;
+  let criticalPath = [];
+  for (const root of roots) {
+    const len = longestPath(root.id);
+    if (len > longestTotal) { longestTotal = len; criticalPath = pathMemo[root.id]; }
+  }
+  return { path: criticalPath, totalEffort: longestTotal, pathSet: new Set(criticalPath) };
+}
+
+function computeCriticalEdges(pathSet) {
+  const edges = new Set();
+  const pathArr = [...pathSet];
+  for (let i = 0; i < pathArr.length - 1; i++) edges.add(`${pathArr[i]}->${pathArr[i + 1]}`);
+  return edges;
+}
+
+// ── Dependency Graph View ──
+function renderGraphView(filtered, main) {
+  const critical = computeCriticalPath();
+  const criticalEdges = computeCriticalEdges(critical.pathSet);
+
+  // Layout: topological sort into columns by depth
+  const depthCache = {};
+  function getDepth(id) {
+    if (depthCache[id] !== undefined) return depthCache[id];
+    const s = storyMap[id];
+    if (!s || s.deps.length === 0) { depthCache[id] = 0; return 0; }
+    depthCache[id] = 1 + Math.max(...s.deps.map(d => getDepth(d)));
+    return depthCache[id];
+  }
+  STORIES.forEach(s => getDepth(s.id));
+
+  const columns = {};
+  filtered.forEach(s => {
+    const d = depthCache[s.id] || 0;
+    if (!columns[d]) columns[d] = [];
+    columns[d].push(s);
+  });
+
+  const maxDepth = Math.max(0, ...Object.keys(columns).map(Number));
+  const colCount = maxDepth + 1;
+  const nodeW = 160, nodeH = 56, padX = 60, padY = 24;
+  const colWidth = nodeW + padX;
+
+  const prioWeight = { critical: 0, high: 1, medium: 2, low: 3 };
+  for (const d in columns) {
+    columns[d].sort((a, b) => {
+      const pa = prioWeight[a.priority] || 9, pb = prioWeight[b.priority] || 9;
+      if (pa !== pb) return pa - pb;
+      return b.effort - a.effort;
+    });
+  }
+
+  let maxRows = 0;
+  for (const d in columns) maxRows = Math.max(maxRows, columns[d].length);
+
+  const svgW = colCount * colWidth + padX;
+  const svgH = maxRows * (nodeH + padY) + padY * 2 + 40;
+
+  const pos = {};
+  for (const d in columns) {
+    const col = columns[d];
+    const colX = parseInt(d) * colWidth + padX;
+    const totalH = col.length * (nodeH + padY) - padY;
+    const startY = (svgH - totalH) / 2;
+    col.forEach((s, i) => { pos[s.id] = { x: colX, y: startY + i * (nodeH + padY) }; });
+  }
+
+  const edges = [];
+  filtered.forEach(s => {
+    s.deps.forEach(depId => {
+      if (pos[depId] && pos[s.id]) {
+        const isCritical = critical.pathSet.has(depId) && critical.pathSet.has(s.id) && criticalEdges.has(`${depId}->${s.id}`);
+        edges.push({ from: depId, to: s.id, isCritical });
+      }
+    });
+  });
+
+  let html = `<div class="graph-controls">
+    <button class="active" id="graph-highlight-critical">Critical Path (${critical.path.length} stories, ${critical.totalEffort}h)</button>
+    <button id="graph-fit">Fit to View</button>
+    <div class="graph-legend">
+      <div class="graph-legend-item"><div class="graph-legend-dot" style="background:var(--red)"></div>Critical path</div>
+      <div class="graph-legend-item"><div class="graph-legend-dot" style="background:var(--accent)"></div>Normal</div>
+      <div class="graph-legend-item"><div class="graph-legend-dot" style="background:var(--text2);opacity:0.3"></div>Dimmed</div>
+    </div>
+  </div>`;
+
+  html += `<div class="graph-container" id="graph-container" style="height:${Math.min(svgH + 20, 600)}px;overflow:auto">
+    <svg id="graph-svg" width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <polygon points="0 0, 10 3.5, 0 7" fill="var(--border)" class="graph-edge-arrow" />
+        </marker>
+        <marker id="arrow-critical" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+          <polygon points="0 0, 10 3.5, 0 7" fill="var(--red)" class="graph-critical-arrow" />
+        </marker>
+      </defs>`;
+
+  // Column headers
+  for (let d = 0; d <= maxDepth; d++) {
+    const x = d * colWidth + padX + nodeW / 2;
+    html += `<text x="${x}" y="18" text-anchor="middle" fill="var(--text2)" font-size="10" font-weight="600" text-transform="uppercase" letter-spacing="0.5">Depth ${d}</text>`;
+  }
+
+  // Edges
+  edges.forEach(e => {
+    const from = pos[e.from], to = pos[e.to];
+    const x1 = from.x + nodeW, y1 = from.y + nodeH / 2;
+    const x2 = to.x, y2 = to.y + nodeH / 2;
+    const midX = (x1 + x2) / 2;
+    const cls = e.isCritical ? 'graph-edge graph-critical-edge' : 'graph-edge';
+    const marker = e.isCritical ? 'url(#arrow-critical)' : 'url(#arrow)';
+    html += `<path class="${cls}" d="M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}" stroke="var(--border)" marker-end="${marker}" data-from="${e.from}" data-to="${e.to}" />`;
+  });
+
+  // Nodes
+  filtered.forEach(s => {
+    const p = pos[s.id];
+    if (!p) return;
+    const sp = state.sprints.find(sp => sp.id === s.sprint);
+    const color = sp ? sp.color : SPRINT_COLORS[0];
+    const isCritical = critical.pathSet.has(s.id);
+    const cls = isCritical ? 'graph-node graph-critical' : 'graph-node';
+    html += `<g class="${cls}" data-id="${s.id}" transform="translate(${p.x},${p.y})">
+      <rect width="${nodeW}" height="${nodeH}" rx="6" fill="var(--surface2)" stroke="${color}" stroke-width="1.5" />
+      <rect width="4" height="${nodeH}" rx="2" fill="${color}" />
+      <text x="12" y="17" fill="var(--accent)" font-size="10" font-family="'SF Mono',monospace" font-weight="600">${s.id}</text>
+      <text x="${nodeW - 6}" y="17" fill="${isCritical ? 'var(--red)' : 'var(--text2)'}" font-size="9" font-family="'SF Mono',monospace" font-weight="600" text-anchor="end">${s.effort}h</text>
+      <text x="12" y="33" fill="var(--text)" font-size="11" font-weight="600">${s.title.length > 18 ? s.title.substring(0, 17) + '\u2026' : s.title}</text>
+      <text x="12" y="47" fill="var(--text2)" font-size="9">${s.layer} \u00b7 ${s.priority}${isCritical ? ' \u00b7 CRITICAL PATH' : ''}</text>
+    </g>`;
+  });
+
+  html += `</svg>
+    <div class="graph-tooltip" id="graph-tooltip"></div>
+  </div>`;
+
+  // Critical path summary
+  html += `<div style="margin-top:16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px">
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text2);margin-bottom:10px">Critical Path \u2014 ${critical.totalEffort}h across ${critical.path.length} stories</h3>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`;
+
+  critical.path.forEach((id, i) => {
+    const s = storyMap[id];
+    if (!s) return;
+    const sp = state.sprints.find(sp => sp.id === s.sprint);
+    const color = sp ? sp.color : '#6c8aff';
+    html += `<div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid ${color};border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer" class="cp-item" data-id="${id}">
+      <span style="color:var(--accent);font-family:monospace;font-weight:600">${id}</span>
+      <span style="color:var(--text);font-weight:500;margin-left:4px">${s.title.length > 20 ? s.title.substring(0, 19) + '\u2026' : s.title}</span>
+      <span style="color:var(--red);font-family:monospace;margin-left:4px">${s.effort}h</span>
+    </div>`;
+    if (i < critical.path.length - 1) html += `<span style="color:var(--text2);font-size:16px">\u2192</span>`;
+  });
+
+  html += `</div></div>`;
+  main.innerHTML = html;
+
+  // ── Graph Interactions ──
+  const svg = document.getElementById('graph-svg');
+  const tooltip = document.getElementById('graph-tooltip');
+  const container = document.getElementById('graph-container');
+  let highlightMode = 'critical';
+
+  const critBtn = document.getElementById('graph-highlight-critical');
+  critBtn.addEventListener('click', () => {
+    critBtn.classList.toggle('active');
+    highlightMode = critBtn.classList.contains('active') ? 'critical' : 'none';
+    applyHighlight();
+  });
+
+  document.getElementById('graph-fit').addEventListener('click', () => {
+    container.scrollTo({ left: 0, top: (svgH - container.clientHeight) / 2, behavior: 'smooth' });
+  });
+
+  function applyHighlight(hoveredId) {
+    const nodes = svg.querySelectorAll('.graph-node');
+    const edgePaths = svg.querySelectorAll('.graph-edge');
+    if (hoveredId) {
+      const connected = getConnectedNodes(hoveredId);
+      const connectedEdges = getConnectedEdges(hoveredId);
+      nodes.forEach(n => n.classList.toggle('graph-dimmed', !connected.has(n.dataset.id)));
+      edgePaths.forEach(e => e.classList.toggle('graph-dimmed', !connectedEdges.has(e.dataset.from + '->' + e.dataset.to)));
+    } else if (highlightMode === 'critical') {
+      nodes.forEach(n => n.classList.toggle('graph-dimmed', !critical.pathSet.has(n.dataset.id)));
+      edgePaths.forEach(e => {
+        const key = e.dataset.from + '->' + e.dataset.to;
+        e.classList.toggle('graph-dimmed', !criticalEdges.has(key));
+      });
+    } else {
+      nodes.forEach(n => n.classList.remove('graph-dimmed'));
+      edgePaths.forEach(e => e.classList.remove('graph-dimmed'));
+    }
+  }
+
+  function getConnectedNodes(id) {
+    const result = new Set([id]);
+    function addAncestors(sid) {
+      const s = storyMap[sid];
+      if (!s) return;
+      s.deps.forEach(d => { if (!result.has(d)) { result.add(d); addAncestors(d); } });
+    }
+    function addDescendants(sid) {
+      STORIES.forEach(s => {
+        if (s.deps.includes(sid) && !result.has(s.id)) { result.add(s.id); addDescendants(s.id); }
+      });
+    }
+    addAncestors(id);
+    addDescendants(id);
+    return result;
+  }
+
+  function getConnectedEdges(id) {
+    const connected = getConnectedNodes(id);
+    const result = new Set();
+    edges.forEach(e => { if (connected.has(e.from) && connected.has(e.to)) result.add(e.from + '->' + e.to); });
+    return result;
+  }
+
+  // Node hover — tooltip + highlight chain
+  svg.querySelectorAll('.graph-node').forEach(node => {
+    node.addEventListener('mouseenter', () => {
+      const id = node.dataset.id;
+      const s = storyMap[id];
+      if (!s) return;
+      const sp = state.sprints.find(sp => sp.id === s.sprint);
+      tooltip.innerHTML = `
+        <div class="gt-id">${s.id}</div>
+        <div class="gt-title">${s.layer} | ${s.type} | ${s.title}</div>
+        <p style="font-size:11px;color:var(--text2);margin:4px 0">${s.summary.length > 120 ? s.summary.substring(0, 117) + '...' : s.summary}</p>
+        <div class="gt-meta">
+          <span class="tag tag-priority-${s.priority}">${s.priority}</span>
+          <span class="tag tag-effort">${s.effort}h</span>
+          ${sp ? `<span class="tag tag-sprint" style="background:${sp.color}22;color:${sp.color}">${sp.name}</span>` : ''}
+          ${critical.pathSet.has(id) ? '<span class="tag" style="background:#3a1a1a;color:var(--red)">critical path</span>' : ''}
+        </div>
+        ${s.deps.length ? `<div style="margin-top:6px;font-size:10px;color:var(--text2)">Depends on: ${s.deps.join(', ')}</div>` : ''}
+        <div style="margin-top:4px;font-size:10px;color:var(--text2)">ACs: ${s.acs.length}</div>`;
+      const rect = node.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      tooltip.style.left = (rect.right - containerRect.left + 8) + 'px';
+      tooltip.style.top = (rect.top - containerRect.top) + 'px';
+      tooltip.classList.add('visible');
+      applyHighlight(id);
+    });
+    node.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+      applyHighlight();
+    });
+    node.addEventListener('click', () => {
+      const id = node.dataset.id;
+      if (state.expanded.has(id)) state.expanded.delete(id);
+      else state.expanded.add(id);
+    });
+  });
+
+  // Critical path item clicks — scroll to node
+  main.querySelectorAll('.cp-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const id = item.dataset.id;
+      const node = svg.querySelector(`g[data-id="${id}"]`);
+      if (node) {
+        const rect = node.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        container.scrollTo({
+          left: container.scrollLeft + rect.left - containerRect.left - containerRect.width / 2 + 80,
+          top: container.scrollTop + rect.top - containerRect.top - containerRect.height / 2 + 28,
+          behavior: 'smooth'
+        });
+        const r = node.querySelector('rect');
+        const orig = r.getAttribute('stroke');
+        r.setAttribute('stroke', 'var(--accent)');
+        r.setAttribute('stroke-width', '3');
+        setTimeout(() => { r.setAttribute('stroke', orig); r.setAttribute('stroke-width', '1.5'); }, 1500);
+      }
+    });
+  });
+}
+
+function storyCard(s, draggable) {
+  const expanded = state.expanded.has(s.id);
+  const sp = state.sprints.find(sp => sp.id === s.sprint);
+  const color = sp ? sp.color : SPRINT_COLORS[0];
+  const member = getMemberById(s.assignedTo);
+  const isManual = !!state.manualOverrides[s.id];
+  const depsPreview = s.deps.length
+    ? `<div class="story-deps-inline">Deps: ${s.deps.slice(0, 3).map(d => `<span>${d}</span>`).join(', ')}${s.deps.length > 3 ? ` +${s.deps.length - 3}` : ''}</div>`
+    : '';
+  const memberTag = member && state.members.length > 1
+    ? `<span class="tag tag-member" style="background:${member.color}22;color:${member.color}">${member.name}</span>`
+    : '';
+  const manualTag = isManual ? `<span class="manual-badge">manual</span>` : '';
+
+  return `<div class="story-card ${expanded ? 'expanded' : ''}" data-id="${s.id}" ${draggable ? 'draggable="true"' : ''} style="border-left: 4px solid ${color}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="story-id">${s.id}${manualTag}</div>
+      <span class="tag tag-sprint" style="background:${color}22;color:${color}">${sp ? sp.name : '?'}</span>
+    </div>
+    <div class="story-full-title">${s.layer} | ${s.type} | ${s.title}</div>
+    <div class="story-title">${s.title}</div>
+    <div class="story-meta">
+      <span class="story-category">${s.category}</span>
+      <span class="tag tag-priority-${s.priority}">${s.priority}</span>
+      <span class="tag tag-effort">${s.effort}h</span>
+      ${memberTag}
+    </div>
+    ${depsPreview}
+    <div class="story-details">
+      <p>${s.summary}</p>
+      <ul class="ac-list">${s.acs.map(ac => `<li>${ac}</li>`).join('')}</ul>
+      ${s.deps.length ? `<div class="story-deps">Depends on: ${s.deps.map(d => `<span>${d}</span>`).join(', ')}</div>` : '<div class="story-deps" style="color:var(--green)">No dependencies</div>'}
+    </div>
+  </div>`;
+}
+
+// ── Drag and Drop ──
+function initDragDrop(main) {
+  let draggedId = null;
+
+  main.querySelectorAll('.story-card[draggable="true"]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      draggedId = card.dataset.id;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', card.dataset.id);
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      main.querySelectorAll('.drop-zone-active').forEach(z => z.classList.remove('drop-zone-active'));
+      draggedId = null;
+    });
+  });
+
+  // Drop zones: sprint grids or member columns
+  const dropZones = main.querySelectorAll('[data-drop-sprint], [data-drop-member]');
+  dropZones.forEach(zone => {
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      zone.classList.add('drop-zone-active');
+    });
+    zone.addEventListener('dragleave', () => {
+      zone.classList.remove('drop-zone-active');
+    });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drop-zone-active');
+      const storyId = e.dataTransfer.getData('text/plain');
+      if (!storyId || !storyMap[storyId]) return;
+
+      const story = storyMap[storyId];
+      const sprintIdx = zone.dataset.dropSprint !== undefined ? parseInt(zone.dataset.dropSprint) : (story.sprint - 1);
+      const memberId = zone.dataset.dropMember || story.assignedTo;
+
+      state.manualOverrides[storyId] = { sprint: sprintIdx, memberId };
+      saveState();
+      recalcSprints();
+      render();
+    });
+  });
+}
+
+function attachCardHandlers(main) {
+  main.querySelectorAll('.story-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.story-deps span')) return;
+      const id = card.dataset.id;
+      if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+      render();
+    });
+  });
+  main.querySelectorAll('.gantt-table tr[data-id]').forEach(row => {
+    row.addEventListener('click', e => {
+      if (e.target.closest('.gd-deps span')) return;
+      const id = row.dataset.id;
+      if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+      render();
+    });
+  });
+  main.querySelectorAll('.gd-deps span').forEach(link => {
+    link.addEventListener('click', e => {
+      e.stopPropagation();
+      const target = link.textContent;
+      const el = main.querySelector(`tr[data-id="${target}"]`) || main.querySelector(`[data-id="${target}"]`);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.boxShadow = '0 0 0 2px var(--accent)'; setTimeout(() => el.style.boxShadow = '', 1500); }
+    });
+  });
+  main.querySelectorAll('.story-deps span, .story-deps-inline span').forEach(link => {
+    link.addEventListener('click', e => {
+      e.stopPropagation();
+      const target = link.textContent;
+      const el = main.querySelector(`[data-id="${target}"]`);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.boxShadow = '0 0 0 2px var(--accent)'; setTimeout(() => el.style.boxShadow = '', 1500); }
+    });
+  });
+}
+
+function updatePrompt(filtered) {
+  const parts = [];
+  const totalEffort = STORIES.reduce((s, st) => s + st.effort, 0);
+  const totalWeeks = state.sprints.length * 2;
+  const avgUtil = state.capacity > 0 ? Math.round(totalEffort / (state.sprints.length * state.capacity) * 100) : 0;
+  const overloaded = state.sprints.filter(sp => sp.effort > state.capacity);
+
+  if (state.activeSprint !== null) {
+    const sp = state.sprints.find(s => s.id === state.activeSprint);
+    if (sp) {
+      const effort = filtered.reduce((s, st) => s + st.effort, 0);
+      const spUtil = state.capacity > 0 ? Math.round(sp.effort / state.capacity * 100) : 0;
+      parts.push(`${sp.name} (${sp.weeks}): ${filtered.length} stories, ${effort}h effort, ${spUtil}% utilized.`);
+      if (state.members.length > 1) {
+        const memberInfo = sp.memberBreakdown.filter(mb => mb.used > 0).map(mb => {
+          const mUtil = mb.capacity > 0 ? Math.round(mb.used / mb.capacity * 100) : 0;
+          return `${mb.name}: ${mb.used}h/${mb.capacity}h (${mUtil}%)`;
+        }).join(', ');
+        parts.push(`Members: ${memberInfo}.`);
+      }
+      const spStories = sp.storyIds.map(id => storyMap[id]).filter(Boolean);
+      const critCount = spStories.filter(s => s.priority === 'critical').length;
+      const highCount = spStories.filter(s => s.priority === 'high').length;
+      if (critCount || highCount) parts.push(`Priority: ${critCount} critical, ${highCount} high.`);
+    }
+  } else {
+    parts.push(`${state.sprints.length} sprints, ~${totalWeeks} weeks. ${STORIES.length} stories, ${totalEffort}h total. ${state.capacity}h/sprint (${avgUtil}% avg utilization).`);
+    if (overloaded.length) parts.push(`\u26a0 ${overloaded.length} sprint${overloaded.length > 1 ? 's' : ''} overloaded: ${overloaded.map(sp => `${sp.name} ${sp.effort}h/${state.capacity}h`).join(', ')}.`);
+    state.sprints.forEach(sp => {
+      const spUtil = state.capacity > 0 ? Math.round(sp.effort / state.capacity * 100) : 0;
+      parts.push(`${sp.name} (${sp.weeks}): ${sp.effort}h, ${sp.storyIds.length} stories, ${spUtil}%.`);
+    });
+  }
+  document.getElementById('prompt-output').textContent = parts.join(' ');
+}
+
+// ── Export Functions ──
+function exportCSV() {
+  const headers = ['ID', 'Title', 'Layer', 'Category', 'Type', 'Priority', 'Effort (h)', 'Sprint', 'Member', 'Dependencies'];
+  const rows = STORIES.map(s => {
+    const member = getMemberById(s.assignedTo);
+    return [s.id, `"${s.title}"`, s.layer, s.category, s.type, s.priority, s.effort, `Sprint ${s.sprint}`, member ? member.name : '', `"${s.deps.join(', ')}"`];
+  });
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'sprint-plan.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportMarkdown() {
+  let md = '| ID | Title | Layer | Priority | Effort | Sprint | Member | Deps |\n';
+  md += '|---|---|---|---|---|---|---|---|\n';
+  STORIES.forEach(s => {
+    const member = getMemberById(s.assignedTo);
+    md += `| ${s.id} | ${s.title} | ${s.layer} | ${s.priority} | ${s.effort}h | Sprint ${s.sprint} | ${member ? member.name : ''} | ${s.deps.join(', ') || 'None'} |\n`;
+  });
+  navigator.clipboard.writeText(md).then(() => {
+    const btn = document.getElementById('export-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Export', 1500);
+  });
+}
+
+// ── Theme Toggle ──
+function applyTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-toggle').textContent = theme === 'dark' ? 'Light' : 'Dark';
+  saveState();
+}
+
+function toggleTheme() {
+  applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+}
+
+// ── Keyboard Shortcuts ──
+document.addEventListener('keydown', e => {
+  // Don't trigger shortcuts when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+    if (e.key === 'Escape') e.target.blur();
+    return;
+  }
+
+  const overlay = document.getElementById('shortcuts-overlay');
+
+  switch (e.key) {
+    case '/':
+      e.preventDefault();
+      document.getElementById('search').focus();
+      break;
+    case '1': switchView('sprint'); break;
+    case '2': switchView('gantt'); break;
+    case '3': switchView('team'); break;
+    case '4': switchView('graph'); break;
+    case 'n': case 'N': navigateSprint(1); break;
+    case 'p': case 'P': navigateSprint(-1); break;
+    case 't': case 'T': toggleTheme(); break;
+    case 'Escape':
+      state.expanded.clear();
+      overlay.classList.remove('open');
+      render();
+      break;
+    case '?':
+      e.preventDefault();
+      overlay.classList.toggle('open');
+      break;
+  }
+});
+
+function switchView(view) {
+  state.view = view;
+  saveState();
+  render();
+}
+
+function navigateSprint(dir) {
+  const ids = [null, ...state.sprints.map(s => s.id)];
+  const curIdx = ids.indexOf(state.activeSprint);
+  const newIdx = Math.max(0, Math.min(ids.length - 1, curIdx + dir));
+  state.activeSprint = ids[newIdx];
+  render();
+}
+
+// ── Event Bindings ──
+document.getElementById('search').addEventListener('input', e => { state.search = e.target.value; render(); });
+document.getElementById('filter-priority').addEventListener('change', e => { state.priority = e.target.value; render(); });
+document.getElementById('filter-feature').addEventListener('change', e => { state.feature = e.target.value; render(); });
+document.getElementById('filter-layer').addEventListener('change', e => { state.layer = e.target.value; render(); });
+document.getElementById('filter-member').addEventListener('change', e => { state.memberFilter = e.target.value; render(); });
+
+document.getElementById('capacity-slider').addEventListener('input', e => {
+  const newTotal = parseInt(e.target.value);
+  // Distribute proportionally across members
+  const oldTotal = getTotalCapacity();
+  if (oldTotal > 0) {
+    const ratio = newTotal / oldTotal;
+    state.members.forEach(m => {
+      m.capacity = Math.max(4, Math.min(60, Math.round(m.capacity * ratio / 2) * 2));
+    });
+  }
+  state.capacity = getTotalCapacity();
+  updateCapacityDisplay();
+  recalcSprints();
+  saveState();
+  render();
+});
+
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.view = btn.dataset.view;
+    saveState();
+    render();
+  });
+});
+
+document.getElementById('copy-btn').addEventListener('click', () => {
+  const text = document.getElementById('prompt-output').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+});
+
+document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+// Export menu
+document.getElementById('export-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  document.getElementById('export-dropdown').classList.toggle('open');
+});
+document.addEventListener('click', () => document.getElementById('export-dropdown').classList.remove('open'));
+document.querySelectorAll('[data-export]').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('export-dropdown').classList.remove('open');
+    const type = btn.dataset.export;
+    if (type === 'csv') exportCSV();
+    else if (type === 'markdown') exportMarkdown();
+    else if (type === 'print') window.print();
+  });
+});
+
+// Close shortcuts overlay on click outside
+document.getElementById('shortcuts-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.target.classList.remove('open');
+});
+
+// ── Initialize ──
+async function init() {
+  try {
+    const data = await loadStories();
+    const teamConfig = initStoryData(data);
+
+    // Apply team config from JSON (authoritative source for members)
+    state.members = teamConfig.members.map((m, i) => ({ ...m, color: MEMBER_COLORS[i % MEMBER_COLORS.length] }));
+    state.nextMemberId = teamConfig.members.length + 1;
+
+    loadState(); // localStorage restores view/theme/overrides (not members)
+    applyTheme(state.theme);
+    state.capacity = getTotalCapacity();
+    updateCapacityDisplay();
+    document.getElementById('capacity-slider').value = state.capacity;
+    document.getElementById('capacity-slider').max = Math.max(600, state.capacity + 100);
+    recalcSprints();
+    render();
+  } catch (err) {
+    document.getElementById('main').innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text2)">
+        <div style="font-size:48px">&#9888;</div>
+        <h2 style="color:var(--text)">Failed to load stories-data.json</h2>
+        <p style="max-width:500px;text-align:center">${err.message}</p>
+        <p style="font-size:12px">Make sure <code>stories-data.json</code> is in the same directory as this HTML file and you are serving via HTTP (not <code>file://</code>).</p>
+        <code style="font-size:11px;background:var(--surface2);padding:8px 16px;border-radius:6px">python3 -m http.server 8090</code>
+      </div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>

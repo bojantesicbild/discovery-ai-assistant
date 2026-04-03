@@ -1,0 +1,46 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/scripts/statusline.sh"
+  },
+  "showThinkingSummaries": true,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'mkdir -p .memory-bank/.logs && SESSION_ID=\"$(date +%s)-$$\" && echo \"$SESSION_ID\" > .memory-bank/.logs/.session-start && echo \"[$(date +\"%Y-%m-%d %H:%M:%S\")] [Session: $SESSION_ID] Session started\" >> .memory-bank/.logs/session-history.log'",
+            "description": "Generate session ID and log session start"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/update-archive-stats.sh",
+            "description": "Update archive indexes after any subagent completes"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -f .memory-bank/active-task.md ]; then grep -q \"Current Domain: \" .memory-bank/active-task.md 2>/dev/null && ! grep -q \"Current Domain: none\" .memory-bank/active-task.md 2>/dev/null && echo \"Active domain detected\" || true; fi'",
+            "description": "Detect active domain on new user prompts"
+          }
+        ]
+      }
+    ]
+  }
+}
