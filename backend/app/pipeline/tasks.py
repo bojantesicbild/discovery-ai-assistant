@@ -164,8 +164,11 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
 
 
 async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
-    """Extract typed business data using Claude Code."""
-    from app.schemas.extraction import DiscoveryExtraction
+    """Extract typed business data using Claude Code. Returns structured JSON."""
+    from app.schemas.extraction import (
+        DiscoveryExtraction, Requirement, Constraint, Decision,
+        Stakeholder, Assumption, ScopeItem,
+    )
     from app.services.storage import read_upload_text
     from app.agent.claude_runner import claude_runner
     from pathlib import Path
@@ -180,38 +183,233 @@ async def _stage_extract(doc: Document) -> "DiscoveryExtraction":
         if len(text.strip()) < 20:
             return DiscoveryExtraction(document_summary=f"File too short for extraction: {doc.filename}")
 
-        # Use Claude Code to extract — same engine as chat
-        prompt = (
-            f"Extract all structured business data from this client document.\n"
-            f"Document: {doc.filename}\n\n"
-            f"Extract:\n"
-            f"- Requirements (FR-001, NFR-001 with MoSCoW priority, source quotes)\n"
-            f"- Constraints (budget, timeline, technology)\n"
-            f"- Decisions (who decided what, why)\n"
-            f"- Stakeholders (name, role, authority)\n"
-            f"- Assumptions (what we believe, risk if wrong)\n"
-            f"- Scope items (in/out of MVP)\n\n"
-            f"Document content:\n{text[:15000]}\n\n"
-            f"Return a brief summary of what was found."
-        )
+        prompt = f"""Extract structured business data from this document and return ONLY a JSON object.
+
+Document: {doc.filename}
+
+---
+{text[:12000]}
+---
+
+Return ONLY valid JSON (no markdown, no explanation, no code fences) in this exact format:
+{{
+  "document_summary": "one sentence summary",
+  "requirements": [
+    {{
+      "id": "FR-001",
+      "title": "short title",
+      "type": "functional",
+      "priority": "must",
+      "description": "what the system shall do",
+      "user_perspective": "As a [role], I want [X] so that [Y]",
+      "business_rules": ["rule1"],
+      "edge_cases": ["edge case"],
+      "source_doc": "{doc.filename}",
+      "source_quote": "exact quote from document (min 10 chars)",
+      "status": "proposed",
+      "confidence": "medium"
+    }}
+  ],
+  "constraints": [
+    {{
+      "type": "budget|timeline|technology|regulatory|organizational",
+      "description": "what the constraint is",
+      "impact": "how it limits the project",
+      "source_doc": "{doc.filename}",
+      "source_quote": "exact quote",
+      "status": "confirmed|assumed|negotiable"
+    }}
+  ],
+  "decisions": [
+    {{
+      "title": "what was decided",
+      "decided_by": "person name",
+      "rationale": "why",
+      "alternatives_considered": ["alt1"],
+      "source_doc": "{doc.filename}",
+      "status": "confirmed|tentative"
+    }}
+  ],
+  "stakeholders": [
+    {{
+      "name": "person name",
+      "role": "their role",
+      "organization": "company",
+      "decision_authority": "final|recommender|informed",
+      "interests": ["what they care about"]
+    }}
+  ],
+  "assumptions": [
+    {{
+      "statement": "what we assume",
+      "basis": "why we assume it",
+      "risk_if_wrong": "what breaks"
+    }}
+  ],
+  "scope_items": [
+    {{
+      "description": "feature or capability",
+      "in_scope": true,
+      "rationale": "why in or out",
+      "source_doc": "{doc.filename}"
+    }}
+  ]
+}}
+
+Extract everything you can find. If a category has nothing, use an empty array. Return ONLY the JSON."""
 
         result_text = ""
         async for event in claude_runner.run_stream(
             project_id=doc.project_id,
-            user_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),  # system user
+            user_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
             message=prompt,
-            model="sonnet",  # Use cheaper model for extraction pipeline
+            model="sonnet",
         ):
             if event["type"] == "text":
                 result_text += event["content"]
             elif event["type"] == "result":
                 result_text = event.get("content", result_text)
 
-        return DiscoveryExtraction(document_summary=result_text[:500] or f"Processed {doc.filename}")
+        # Parse JSON response
+        extraction = _parse_extraction_json(result_text, doc.filename)
+        log.info("Extraction complete",
+                 document=doc.filename,
+                 requirements=len(extraction.requirements),
+                 constraints=len(extraction.constraints),
+                 decisions=len(extraction.decisions),
+                 stakeholders=len(extraction.stakeholders))
+        return extraction
 
     except Exception as e:
         log.error("Extraction failed", error=str(e), document=doc.filename)
         return DiscoveryExtraction(document_summary=f"Extraction failed for {doc.filename}: {str(e)}")
+
+
+def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
+    """Parse Claude's JSON response into a DiscoveryExtraction model."""
+    from app.schemas.extraction import (
+        DiscoveryExtraction, Requirement, Constraint, Decision,
+        Stakeholder, Assumption, ScopeItem,
+    )
+    import json as _json
+
+    # Strip markdown code fences if present
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        # Remove first and last lines (```json and ```)
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        cleaned = "\n".join(lines)
+
+    # Find the JSON object in the text
+    start = cleaned.find("{")
+    end = cleaned.rfind("}") + 1
+    if start == -1 or end <= start:
+        return DiscoveryExtraction(document_summary=f"No JSON found in extraction for {filename}")
+
+    json_str = cleaned[start:end]
+
+    try:
+        data = _json.loads(json_str)
+    except _json.JSONDecodeError as e:
+        log.warning("JSON parse failed, attempting repair", error=str(e))
+        return DiscoveryExtraction(document_summary=f"JSON parse error for {filename}: {str(e)}")
+
+    # Build the extraction with validation
+    requirements = []
+    for i, r in enumerate(data.get("requirements", [])):
+        try:
+            req = Requirement(
+                id=r.get("id", f"FR-{i+1:03d}"),
+                title=r.get("title", "Untitled"),
+                type=r.get("type", "functional"),
+                priority=r.get("priority", "should"),
+                description=r.get("description", ""),
+                user_perspective=r.get("user_perspective"),
+                business_rules=r.get("business_rules", []),
+                edge_cases=r.get("edge_cases", []),
+                source_doc=r.get("source_doc", filename),
+                source_quote=r.get("source_quote", "extracted from document")[:500] or "extracted from document",
+                status=r.get("status", "proposed"),
+                confidence=r.get("confidence", "medium"),
+            )
+            requirements.append(req)
+        except Exception as e:
+            log.warning("Skipping invalid requirement", error=str(e), data=r)
+
+    constraints = []
+    for c in data.get("constraints", []):
+        try:
+            constraints.append(Constraint(
+                type=c.get("type", "technology"),
+                description=c.get("description", ""),
+                impact=c.get("impact", ""),
+                source_doc=c.get("source_doc", filename),
+                source_quote=c.get("source_quote", "extracted from document")[:500] or "extracted from document",
+                status=c.get("status", "assumed"),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid constraint", error=str(e))
+
+    decisions = []
+    for d in data.get("decisions", []):
+        try:
+            decisions.append(Decision(
+                title=d.get("title", ""),
+                decided_by=d.get("decided_by", "unknown"),
+                rationale=d.get("rationale", ""),
+                alternatives_considered=d.get("alternatives_considered", []),
+                source_doc=d.get("source_doc", filename),
+                status=d.get("status", "tentative"),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid decision", error=str(e))
+
+    stakeholders = []
+    for s in data.get("stakeholders", []):
+        try:
+            stakeholders.append(Stakeholder(
+                name=s.get("name", ""),
+                role=s.get("role", ""),
+                organization=s.get("organization", "unknown"),
+                decision_authority=s.get("decision_authority", "informed"),
+                interests=s.get("interests", []),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid stakeholder", error=str(e))
+
+    assumptions = []
+    for a in data.get("assumptions", []):
+        try:
+            assumptions.append(Assumption(
+                statement=a.get("statement", ""),
+                basis=a.get("basis", ""),
+                risk_if_wrong=a.get("risk_if_wrong", ""),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid assumption", error=str(e))
+
+    scope_items = []
+    for s in data.get("scope_items", []):
+        try:
+            scope_items.append(ScopeItem(
+                description=s.get("description", ""),
+                in_scope=s.get("in_scope", True),
+                rationale=s.get("rationale", ""),
+                source_doc=s.get("source_doc", filename),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid scope item", error=str(e))
+
+    return DiscoveryExtraction(
+        document_summary=data.get("document_summary", f"Processed {filename}"),
+        requirements=requirements,
+        constraints=constraints,
+        decisions=decisions,
+        stakeholders=stakeholders,
+        assumptions=assumptions,
+        scope_items=scope_items,
+    )
 
 
 async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction) -> dict:
@@ -240,6 +438,7 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction)
             confidence=req.confidence,
         )
         db.add(db_req)
+        await db.flush()  # Generate ID before referencing it
         db.add(ChangeHistory(
             project_id=project_id, item_type="requirement",
             item_id=db_req.id, action="create",
