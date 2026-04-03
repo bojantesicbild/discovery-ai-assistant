@@ -138,6 +138,7 @@ export function chatStream(
   onText: (text: string) => void,
   onDone: () => void,
   onError: (error: string) => void,
+  onTool?: (tool: string) => void,
 ) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -176,6 +177,7 @@ export function chatStream(
           try {
             const data = JSON.parse(line.slice(6));
             if (data.text) onText(data.text);
+            if (data.tool) onTool?.(data.tool);
             if (data.error) onError(data.error);
             if (data.done) onDone();
           } catch {

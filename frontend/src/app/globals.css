@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 /* Discovery AI — Design System from discovery-v2.html */
 :root {
   --green: #00E5A0;

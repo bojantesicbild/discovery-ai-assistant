@@ -72,6 +72,11 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_documents", description="Get all uploaded documents with processing status and extraction counts.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search", description="Search across all extracted data (requirements, constraints, decisions, stakeholders) by keyword.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term"}}, "required": ["query"]}),
         Tool(name="get_activity", description="Get recent activity log: uploads, status changes, extractions.", inputSchema={"type": "object", "properties": {"limit": {"type": "integer", "description": "Number of entries (default 20)"}}, "required": []}),
+        # Write tools
+        Tool(name="update_requirement_status", description="Update a business requirement's status. Use when PO asks to confirm, discuss, change, or drop a requirement.", inputSchema={"type": "object", "properties": {"req_id": {"type": "string", "description": "Requirement ID (e.g. BR-001)"}, "status": {"type": "string", "enum": ["proposed", "discussed", "confirmed", "changed", "dropped"], "description": "New status"}}, "required": ["req_id", "status"]}),
+        Tool(name="update_requirement_priority", description="Update a business requirement's priority.", inputSchema={"type": "object", "properties": {"req_id": {"type": "string", "description": "Requirement ID (e.g. BR-001)"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "New priority"}}, "required": ["req_id", "priority"]}),
+        Tool(name="validate_assumption", description="Mark an assumption as validated or unvalidated.", inputSchema={"type": "object", "properties": {"statement_fragment": {"type": "string", "description": "Part of the assumption text to find it"}, "validated": {"type": "boolean", "description": "true = validated, false = unvalidated"}}, "required": ["statement_fragment", "validated"]}),
+        Tool(name="resolve_contradiction", description="Resolve a contradiction with a resolution note.", inputSchema={"type": "object", "properties": {"explanation_fragment": {"type": "string", "description": "Part of the contradiction explanation to find it"}, "resolution_note": {"type": "string", "description": "How it was resolved"}}, "required": ["explanation_fragment", "resolution_note"]}),
     ]
 
 
@@ -176,6 +181,46 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             limit = arguments.get("limit", 20)
             rows = await conn.fetch("SELECT action, summary, created_at FROM activity_log WHERE project_id = $1 ORDER BY created_at DESC LIMIT $2", pid, limit)
             return _json_result([dict(r) for r in rows])
+
+        # ── Write tools ──
+
+        if name == "update_requirement_status":
+            req_id = arguments["req_id"]
+            new_status = arguments["status"]
+            old = await conn.fetchrow("SELECT status FROM requirements WHERE project_id = $1 AND req_id = $2", pid, req_id)
+            if not old:
+                return _json_result({"error": f"Requirement {req_id} not found"})
+            await conn.execute("UPDATE requirements SET status = $1 WHERE project_id = $2 AND req_id = $3", new_status, pid, req_id)
+            await conn.execute("INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'requirement_updated', $2, $3)", pid, f"Updated {req_id}: status {old['status']} → {new_status}", json.dumps({"req_id": req_id, "old_status": old["status"], "new_status": new_status}))
+            return _json_result({"success": True, "req_id": req_id, "old_status": old["status"], "new_status": new_status})
+
+        if name == "update_requirement_priority":
+            req_id = arguments["req_id"]
+            new_priority = arguments["priority"]
+            old = await conn.fetchrow("SELECT priority FROM requirements WHERE project_id = $1 AND req_id = $2", pid, req_id)
+            if not old:
+                return _json_result({"error": f"Requirement {req_id} not found"})
+            await conn.execute("UPDATE requirements SET priority = $1 WHERE project_id = $2 AND req_id = $3", new_priority, pid, req_id)
+            await conn.execute("INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'requirement_updated', $2, $3)", pid, f"Updated {req_id}: priority {old['priority']} → {new_priority}", json.dumps({"req_id": req_id, "change": "priority"}))
+            return _json_result({"success": True, "req_id": req_id, "old_priority": old["priority"], "new_priority": new_priority})
+
+        if name == "validate_assumption":
+            fragment = arguments["statement_fragment"]
+            validated = arguments["validated"]
+            row = await conn.fetchrow("SELECT id, statement FROM assumptions WHERE project_id = $1 AND statement ILIKE $2 LIMIT 1", pid, f"%{fragment}%")
+            if not row:
+                return _json_result({"error": f"Assumption containing '{fragment}' not found"})
+            await conn.execute("UPDATE assumptions SET validated = $1 WHERE id = $2", validated, row["id"])
+            return _json_result({"success": True, "assumption": row["statement"][:60], "validated": validated})
+
+        if name == "resolve_contradiction":
+            fragment = arguments["explanation_fragment"]
+            note = arguments["resolution_note"]
+            row = await conn.fetchrow("SELECT id, explanation FROM contradictions WHERE project_id = $1 AND explanation ILIKE $2 LIMIT 1", pid, f"%{fragment}%")
+            if not row:
+                return _json_result({"error": f"Contradiction containing '{fragment}' not found"})
+            await conn.execute("UPDATE contradictions SET resolved = true, resolution_note = $1 WHERE id = $2", note, row["id"])
+            return _json_result({"success": True, "contradiction": row["explanation"][:60], "resolved": True})
 
     return _json_result({"error": f"Unknown tool: {name}"})
 

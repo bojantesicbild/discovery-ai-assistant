@@ -64,7 +64,7 @@ class ClaudeCodeRunner:
             "--output-format", "stream-json",
             "--verbose",
             "--permission-mode", "bypassPermissions",
-            "--allowedTools", "mcp__discovery__get_project_context mcp__discovery__get_requirements mcp__discovery__get_constraints mcp__discovery__get_decisions mcp__discovery__get_stakeholders mcp__discovery__get_assumptions mcp__discovery__get_scope mcp__discovery__get_contradictions mcp__discovery__get_readiness mcp__discovery__get_documents mcp__discovery__search mcp__discovery__get_activity WebSearch WebFetch",
+            "--allowedTools", "mcp__discovery__* WebSearch WebFetch",
         ]
 
         if session_id:

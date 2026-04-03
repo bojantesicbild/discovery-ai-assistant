@@ -7,6 +7,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   time?: string;
+  toolCalls?: string[];
 }
 
 interface ChatPanelProps {
@@ -17,6 +18,7 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [currentTool, setCurrentTool] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -51,28 +53,45 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
     setIsStreaming(true);
 
     let assistantContent = "";
-    setMessages((prev) => [...prev, { role: "assistant", content: "", time }]);
+    let toolCalls: string[] = [];
+    setMessages((prev) => [...prev, { role: "assistant", content: "", time, toolCalls: [] }]);
 
     chatStream(
       projectId,
       text,
       (chunk) => {
         assistantContent += chunk;
+        setCurrentTool(null);
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time };
+          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls };
           return updated;
         });
       },
-      () => setIsStreaming(false),
+      () => { setIsStreaming(false); setCurrentTool(null); },
       (error) => {
+        if (error.includes("Rate limit")) return; // Ignore rate limit warnings
         assistantContent += `\n\n[Error: ${error}]`;
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time };
+          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls };
           return updated;
         });
         setIsStreaming(false);
+        setCurrentTool(null);
+      },
+      (tool) => {
+        const friendlyName = tool
+          .replace("mcp__discovery__", "")
+          .replace("ToolSearch", "searching tools")
+          .replace(/_/g, " ");
+        toolCalls.push(friendlyName);
+        setCurrentTool(friendlyName);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls: [...toolCalls] };
+          return updated;
+        });
       },
     );
   }
@@ -129,6 +148,26 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
                 {msg.role === "user" ? "You" : "Discovery Assistant"}
               </div>
               <div className="msg-bubble">
+                {/* Tool activity indicator */}
+                {msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0 && (
+                  <div style={{
+                    display: "flex", flexWrap: "wrap", gap: 4, marginBottom: msg.content ? 8 : 0,
+                    paddingBottom: msg.content ? 8 : 0,
+                    borderBottom: msg.content ? "1px solid var(--gray-100)" : "none",
+                  }}>
+                    {msg.toolCalls.map((tool, ti) => (
+                      <span key={ti} style={{
+                        fontSize: 10, fontWeight: 600, padding: "2px 8px",
+                        borderRadius: 10, background: "var(--green-light)", color: "#059669",
+                        display: "inline-flex", alignItems: "center", gap: 3,
+                      }}>
+                        <span style={{ width: 4, height: 4, borderRadius: "50%", background: "currentColor" }} />
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Message content */}
                 {msg.content ? (
                   msg.role === "assistant" ? (
                     <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
@@ -136,7 +175,18 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
                     msg.content
                   )
                 ) : (isStreaming && i === messages.length - 1 ? (
-                  <span style={{ color: "var(--gray-400)" }}>Thinking...</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gray-400)" }}>
+                    <span className="typing-dots" style={{
+                      display: "inline-flex", gap: 3,
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)", animation: "pulse 1.5s infinite", animationDelay: "0s" }} />
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)", animation: "pulse 1.5s infinite", animationDelay: "0.3s" }} />
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--green)", animation: "pulse 1.5s infinite", animationDelay: "0.6s" }} />
+                    </span>
+                    <span style={{ fontSize: 12 }}>
+                      {currentTool ? `Querying ${currentTool}...` : "Thinking..."}
+                    </span>
+                  </div>
                 ) : "")}
               </div>
               {msg.time && <div className="msg-time">{msg.time}</div>}
