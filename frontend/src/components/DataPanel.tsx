@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getDashboard, listRequirements, listContradictions, listDocuments, deleteDocument } from "@/lib/api";
+import {
+  getDashboard, listRequirements, listContradictions, listDocuments,
+  deleteDocument, listConstraints, listDecisions, listStakeholders,
+  listAssumptions, listScope,
+} from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
 interface DataPanelProps {
@@ -16,12 +20,14 @@ interface DetailView {
 }
 
 const TABS = [
-  { id: "facts", label: "Facts" },
   { id: "reqs", label: "Business Requirements" },
-  { id: "gaps", label: "Gaps" },
+  { id: "constraints", label: "Constraints" },
+  { id: "decisions", label: "Decisions" },
+  { id: "stakeholders", label: "Stakeholders" },
+  { id: "assumptions", label: "Assumptions" },
+  { id: "scope", label: "Scope" },
   { id: "contradictions", label: "Contradictions" },
   { id: "docs", label: "Documents" },
-  { id: "meetings", label: "Meeting Notes" },
 ];
 
 export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps) {
@@ -30,7 +36,13 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
   const [requirements, setRequirements] = useState<any[]>([]);
   const [contradictions, setContradictions] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [constraintsData, setConstraintsData] = useState<any[]>([]);
+  const [decisionsData, setDecisionsData] = useState<any[]>([]);
+  const [stakeholdersData, setStakeholdersData] = useState<any[]>([]);
+  const [assumptionsData, setAssumptionsData] = useState<any[]>([]);
+  const [scopeData, setScopeData] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   useEffect(() => {
     loadData();
@@ -40,16 +52,26 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
 
   async function loadData() {
     try {
-      const [dash, reqs, contras, docs] = await Promise.all([
+      const [dash, reqs, contras, docs, cons, decs, stks, asms, scps] = await Promise.all([
         getDashboard(projectId),
         listRequirements(projectId),
         listContradictions(projectId),
         listDocuments(projectId),
+        listConstraints(projectId),
+        listDecisions(projectId),
+        listStakeholders(projectId),
+        listAssumptions(projectId),
+        listScope(projectId),
       ]);
       setDashboard(dash);
       setRequirements(reqs.items || []);
       setContradictions(contras.items || []);
       setDocuments(docs.documents || []);
+      setConstraintsData(cons.items || []);
+      setDecisionsData(decs.items || []);
+      setStakeholdersData(stks.items || []);
+      setAssumptionsData(asms.items || []);
+      setScopeData(scps.items || []);
     } catch {
       // Backend might not be ready
     }
@@ -124,7 +146,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
   // If a detail view is open, show the markdown panel
   if (detail) {
     return (
-      <div className="data-panel" style={{ flex: "0 0 55%" }}>
+      <div className="data-panel" style={{ flex: 1, width: "100%" }}>
         <MarkdownPanel
           title={detail.title}
           content={detail.content}
@@ -136,7 +158,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
   }
 
   return (
-    <div className="data-panel" style={{ flex: "0 0 55%" }}>
+    <div className="data-panel" style={{ flex: 1, width: "100%" }}>
       {/* Header with readiness ring */}
       <div className="dp-header">
         <div className="dp-readiness">
@@ -167,10 +189,14 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
       <div className="dp-tabs">
         {TABS.map((tab) => {
           let count: number | null = null;
-          if (tab.id === "reqs") count = dashboard?.requirements_count ?? 0;
-          if (tab.id === "contradictions") count = dashboard?.contradictions_unresolved ?? 0;
-          if (tab.id === "docs") count = dashboard?.documents_count ?? 0;
-          if (tab.id === "gaps") count = dashboard?.contradictions_unresolved ?? 0;
+          if (tab.id === "reqs") count = requirements.length;
+          if (tab.id === "constraints") count = constraintsData.length;
+          if (tab.id === "decisions") count = decisionsData.length;
+          if (tab.id === "stakeholders") count = stakeholdersData.length;
+          if (tab.id === "assumptions") count = assumptionsData.length;
+          if (tab.id === "scope") count = scopeData.length;
+          if (tab.id === "contradictions") count = contradictions.length;
+          if (tab.id === "docs") count = documents.length;
 
           return (
             <div
@@ -191,10 +217,16 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
         {activeTab === "reqs" && (
           <div className="dp-tab-content active">
             <div className="panel-filter">
-              <button className="panel-filter-btn active">All</button>
-              <button className="panel-filter-btn">Must</button>
-              <button className="panel-filter-btn">Should</button>
-              <button className="panel-filter-btn">Could</button>
+              {["all", "must", "should", "could"].map((f) => (
+                <button
+                  key={f}
+                  className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`}
+                  onClick={() => setPriorityFilter(f)}
+                  style={{ textTransform: "capitalize" }}
+                >
+                  {f === "all" ? "All" : f}
+                </button>
+              ))}
             </div>
             {requirements.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
@@ -213,7 +245,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
                   </tr>
                 </thead>
                 <tbody>
-                  {requirements.map((req: any) => (
+                  {requirements.filter((r: any) => priorityFilter === "all" || r.priority === priorityFilter).map((req: any) => (
                     <tr key={req.id || req.req_id} onClick={() => openRequirement(req)} style={{ cursor: "pointer" }}>
                       <td className="chevron-cell">
                         <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2 }}>
@@ -378,14 +410,118 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
           </div>
         )}
 
-        {/* Placeholder tabs */}
-        {["facts", "gaps", "meetings"].includes(activeTab) && (
+        {/* Constraints tab */}
+        {activeTab === "constraints" && (
           <div className="dp-tab-content active">
-            <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
-              {activeTab === "facts" && "Facts view — extracted facts will appear here after document processing."}
-              {activeTab === "gaps" && "Gap analysis — run gap analysis from the chat to see results here."}
-              {activeTab === "meetings" && "Meeting notes — meeting summaries and extracted decisions."}
-            </div>
+            {constraintsData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No constraints extracted yet.</div>
+            ) : (
+              <table className="panel-table">
+                <thead><tr><th>Type</th><th>Description</th><th>Impact</th><th>Status</th></tr></thead>
+                <tbody>
+                  {constraintsData.map((c: any, i: number) => (
+                    <tr key={c.id || i} onClick={() => setDetail({ title: `${c.type} Constraint`, content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`, meta: { type: c.type, status: c.status } })} style={{ cursor: "pointer" }}>
+                      <td><span className="pri-badge should" style={{ textTransform: "capitalize" }}>{c.type}</span></td>
+                      <td style={{ maxWidth: 300 }}>{c.description}</td>
+                      <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{c.impact?.slice(0, 80)}</td>
+                      <td><span className={`fact-status ${c.status === "confirmed" ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{c.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Decisions tab */}
+        {activeTab === "decisions" && (
+          <div className="dp-tab-content active">
+            {decisionsData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No decisions recorded yet.</div>
+            ) : (
+              <table className="panel-table">
+                <thead><tr><th>Decision</th><th>Decided By</th><th>Rationale</th><th>Status</th></tr></thead>
+                <tbody>
+                  {decisionsData.map((d: any, i: number) => (
+                    <tr key={d.id || i} onClick={() => setDetail({ title: d.title, content: `# ${d.title}\n\n**Decided by:** ${d.decided_by || "unknown"}\n**Status:** ${d.status}\n\n## Rationale\n${d.rationale}\n\n${d.alternatives?.length ? `## Alternatives Considered\n${d.alternatives.map((a: string) => `- ${a}`).join("\n")}` : ""}`, meta: { status: d.status, decided_by: d.decided_by || "unknown" } })} style={{ cursor: "pointer" }}>
+                      <td style={{ fontWeight: 600 }}>{d.title}</td>
+                      <td>{d.decided_by || "—"}</td>
+                      <td style={{ color: "var(--gray-500)", fontSize: 11, maxWidth: 250 }}>{d.rationale?.slice(0, 80)}</td>
+                      <td><span className={`fact-status ${d.status === "confirmed" ? "confirmed" : "pending"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{d.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Stakeholders tab */}
+        {activeTab === "stakeholders" && (
+          <div className="dp-tab-content active">
+            {stakeholdersData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No stakeholders identified yet.</div>
+            ) : (
+              <table className="panel-table">
+                <thead><tr><th>Name</th><th>Role</th><th>Organization</th><th>Authority</th><th>Interests</th></tr></thead>
+                <tbody>
+                  {stakeholdersData.map((s: any, i: number) => (
+                    <tr key={s.id || i} onClick={() => setDetail({ title: s.name, content: `# ${s.name}\n\n**Role:** ${s.role}\n**Organization:** ${s.organization}\n**Decision Authority:** ${s.decision_authority}\n\n## Interests\n${(s.interests || []).map((i: string) => `- ${i}`).join("\n") || "None specified"}`, meta: { role: s.role, authority: s.decision_authority } })} style={{ cursor: "pointer" }}>
+                      <td style={{ fontWeight: 600 }}>{s.name}</td>
+                      <td>{s.role}</td>
+                      <td style={{ color: "var(--gray-500)" }}>{s.organization}</td>
+                      <td><span className={`fact-status ${s.decision_authority === "final" ? "confirmed" : s.decision_authority === "recommender" ? "assumed" : "pending"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{s.decision_authority}</span></td>
+                      <td style={{ fontSize: 11, color: "var(--gray-500)" }}>{(s.interests || []).join(", ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Assumptions tab */}
+        {activeTab === "assumptions" && (
+          <div className="dp-tab-content active">
+            {assumptionsData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No assumptions identified yet.</div>
+            ) : (
+              <table className="panel-table">
+                <thead><tr><th>Assumption</th><th>Basis</th><th>Risk if Wrong</th><th>Validated</th></tr></thead>
+                <tbody>
+                  {assumptionsData.map((a: any, i: number) => (
+                    <tr key={a.id || i} onClick={() => setDetail({ title: "Assumption", content: `# Assumption\n\n${a.statement}\n\n## Basis\n${a.basis}\n\n## Risk if Wrong\n${a.risk_if_wrong}\n\n${a.needs_validation_by ? `## Needs Validation By\n${a.needs_validation_by}` : ""}`, meta: { validated: a.validated ? "yes" : "no" } })} style={{ cursor: "pointer" }}>
+                      <td style={{ maxWidth: 200 }}>{a.statement}</td>
+                      <td style={{ color: "var(--gray-500)", fontSize: 11, maxWidth: 180 }}>{a.basis?.slice(0, 60)}</td>
+                      <td style={{ color: "var(--danger)", fontSize: 11, maxWidth: 180 }}>{a.risk_if_wrong?.slice(0, 60)}</td>
+                      <td><span className={`fact-status ${a.validated ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{a.validated ? "validated" : "unvalidated"}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* Scope tab */}
+        {activeTab === "scope" && (
+          <div className="dp-tab-content active">
+            {scopeData.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No scope items defined yet.</div>
+            ) : (
+              <table className="panel-table">
+                <thead><tr><th>Item</th><th>In/Out</th><th>Rationale</th></tr></thead>
+                <tbody>
+                  {scopeData.map((s: any, i: number) => (
+                    <tr key={s.id || i} onClick={() => setDetail({ title: s.description, content: `# Scope Item\n\n${s.description}\n\n**${s.in_scope ? "IN SCOPE" : "OUT OF SCOPE"}**\n\n## Rationale\n${s.rationale}`, meta: { scope: s.in_scope ? "in" : "out" } })} style={{ cursor: "pointer" }}>
+                      <td>{s.description}</td>
+                      <td><span className={`fact-status ${s.in_scope ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{s.in_scope ? "In scope" : "Out of scope"}</span></td>
+                      <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{s.rationale?.slice(0, 80)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

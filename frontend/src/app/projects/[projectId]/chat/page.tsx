@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
 import ChatPanel from "@/components/ChatPanel";
 import DataPanel from "@/components/DataPanel";
+import SplitLayout from "@/components/SplitLayout";
 
 export default function DiscoveryChatPage() {
   const params = useParams();
@@ -31,11 +32,11 @@ export default function DiscoveryChatPage() {
           onDocumentUploaded={() => setRefreshKey((k) => k + 1)}
         />
 
-        <div className="content-area">
-          <ChatPanel projectId={projectId} />
-          <div className="split-divider" />
-          <DataPanel projectId={projectId} refreshKey={refreshKey} />
-        </div>
+        <SplitLayout
+          left={<ChatPanel projectId={projectId} />}
+          right={<DataPanel projectId={projectId} refreshKey={refreshKey} />}
+          defaultLeftPercent={45}
+        />
       </main>
     </div>
   );

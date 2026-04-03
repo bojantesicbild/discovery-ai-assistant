@@ -78,7 +78,7 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
   ];
 
   return (
-    <div className="chat-panel" style={{ flex: "0 0 45%" }}>
+    <div className="chat-panel" style={{ flex: 1, width: "100%" }}>
       {/* Session header */}
       <div className="chat-session-header">
         <div className="chat-session-icon">AI</div>
@@ -115,7 +115,13 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
                 {msg.role === "user" ? "You" : "Discovery Assistant"}
               </div>
               <div className="msg-bubble">
-                {msg.content || (isStreaming && i === messages.length - 1 ? (
+                {msg.content ? (
+                  msg.role === "assistant" ? (
+                    <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
+                  ) : (
+                    msg.content
+                  )
+                ) : (isStreaming && i === messages.length - 1 ? (
                   <span style={{ color: "var(--gray-400)" }}>Thinking...</span>
                 ) : "")}
               </div>
@@ -167,4 +173,23 @@ export default function ChatPanel({ projectId }: ChatPanelProps) {
       </div>
     </div>
   );
+}
+
+
+function renderChatMarkdown(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, '<strong style="display:block;margin:10px 0 4px;font-size:13px">$1</strong>')
+    .replace(/^## (.+)$/gm, '<strong style="display:block;margin:12px 0 4px;font-size:14px">$1</strong>')
+    .replace(/^# (.+)$/gm, '<strong style="display:block;margin:14px 0 6px;font-size:15px">$1</strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code style="padding:1px 5px;background:var(--gray-100);border-radius:3px;font-size:12px;font-family:monospace">$1</code>')
+    .replace(/^- (.+)$/gm, '<div style="padding-left:12px;margin:2px 0">• $1</div>')
+    .replace(/^\d+\. (.+)$/gm, '<div style="padding-left:12px;margin:2px 0">$1</div>')
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--gray-200);margin:8px 0">')
+    .replace(/\n\n/g, '<div style="height:8px"></div>')
+    .replace(/\n/g, '<br>');
 }
