@@ -143,80 +143,32 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   return (
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Readiness header — dark, rich info */}
-      <div style={{
-        background: "#111111", padding: "12px 16px", flexShrink: 0, cursor: "pointer",
-        borderBottom: "1px solid #222",
-      }} onClick={async () => {
-        try {
-          const data = await getReadiness(projectId);
-          setReadinessChecks(data.breakdown?.checks || []);
-        } catch {}
-        setShowReadiness(true);
-      }}>
-        {/* Top row: ring + title + status */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-          <div style={{ position: "relative", width: 44, height: 44, flexShrink: 0 }}>
-            <svg viewBox="0 0 44 44" style={{ width: 44, height: 44, transform: "rotate(-90deg)" }}>
-              <circle cx="22" cy="22" r="18" fill="none" stroke="#222" strokeWidth="4" />
-              <circle cx="22" cy="22" r="18" fill="none"
-                stroke="#00E5A0" strokeWidth="4" strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 18}
-                strokeDashoffset={2 * Math.PI * 18 - (score / 100) * 2 * Math.PI * 18}
-                style={{ filter: "drop-shadow(0 0 3px #00E5A040)" }}
-              />
+      {/* Header with readiness ring */}
+      <div className="dp-header">
+        <div className="dp-readiness" style={{ cursor: "pointer" }} onClick={async () => {
+          try {
+            const data = await getReadiness(projectId);
+            setReadinessChecks(data.breakdown?.checks || []);
+          } catch {}
+          setShowReadiness(true);
+        }}>
+          <div className="dp-rb-ring">
+            <svg viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" className="bg" />
+              <circle cx="18" cy="18" r="15" className="fg" style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
             </svg>
-            <div style={{
-              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 12, fontWeight: 800, color: "#fff",
-            }}>{Math.round(score)}%</div>
+            <div className="dp-rb-val">{Math.round(score)}%</div>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Discovery Readiness</div>
-            <div style={{
-              fontSize: 9, fontWeight: 700, marginTop: 3,
-              color: score >= 85 ? "#111" : score >= 65 ? "#111" : "#fff",
-              background: score >= 85 ? "#00E5A0" : score >= 65 ? "#fbbf24" : "#ef4444",
-              display: "inline-block", padding: "2px 8px", borderRadius: 4,
-              textTransform: "uppercase", letterSpacing: "0.5px",
-            }}>
-              {score >= 85 ? "Ready" : score >= 65 ? "Conditional" : "Not Ready"}
+            <div className="dp-rb-label">Discovery Readiness</div>
+            <div className="dp-rb-sub">
+              {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
+              {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
             </div>
           </div>
-          <div style={{ fontSize: 10, color: "#00E5A0", fontWeight: 600, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
-            Details
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00E5A0" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+          <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+            View details →
           </div>
-        </div>
-
-        {/* Mini stat chips */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {[
-            { label: `${requirements.length} reqs`, sub: `${requirements.filter((r:any) => r.status === "confirmed").length} confirmed`, ok: true },
-            { label: `${requirements.filter((r:any) => r.priority === "must").length} MUST`, ok: true },
-            { label: `${openGaps.length} gaps`, ok: openGaps.length === 0, warn: openGaps.length > 0 },
-            { label: `${openContras.length} contradictions`, ok: openContras.length === 0, warn: openContras.length > 0 },
-            { label: `${constraints.length} constraints`, ok: true },
-          ].map((chip, i) => (
-            <div key={i} style={{
-              fontSize: 9, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
-              background: chip.warn ? "#ef444420" : "#222",
-              color: chip.warn ? "#f87171" : "#94a3b8",
-              border: `1px solid ${chip.warn ? "#ef444430" : "#2a2a2a"}`,
-              display: "flex", alignItems: "center", gap: 4,
-            }}>
-              <span style={{
-                width: 5, height: 5, borderRadius: "50%",
-                background: chip.warn ? "#ef4444" : chip.ok ? "#00E5A0" : "#64748b",
-              }} />
-              {chip.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Progress bar */}
-        <div style={{ display: "flex", gap: 2, height: 3, borderRadius: 2, overflow: "hidden", background: "#222", marginTop: 8 }}>
-          <div style={{ width: `${score}%`, background: "#00E5A0", borderRadius: 2 }} />
         </div>
       </div>
 
@@ -768,83 +720,84 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#111111" }}>
-      {/* Hero */}
-      <div style={{ padding: "14px 20px 18px", flexShrink: 0 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Header */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--gray-100)", flexShrink: 0, display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={onClose} style={{
-          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 500,
-          color: "#64748b", background: "none", border: "none", cursor: "pointer",
-          padding: 0, fontFamily: "var(--font)", marginBottom: 14,
+          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600,
+          color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer",
+          padding: 0, fontFamily: "var(--font)",
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Back to data
+          Back
         </button>
+        <div style={{ flex: 1 }} />
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--dark)" }}>Discovery Readiness</div>
+      </div>
 
-        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-          {/* Ring */}
-          <div style={{ position: "relative", width: 88, height: 88, flexShrink: 0 }}>
-            <svg viewBox="0 0 120 120" style={{ width: 88, height: 88, transform: "rotate(-90deg)" }}>
-              <circle cx="60" cy="60" r="52" fill="none" stroke="#222222" strokeWidth="7" />
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px" }}>
+
+        {/* Score + status row */}
+        <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 16 }}>
+          <div style={{ position: "relative", width: 80, height: 80, flexShrink: 0 }}>
+            <svg viewBox="0 0 120 120" style={{ width: 80, height: 80, transform: "rotate(-90deg)" }}>
+              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--gray-100)" strokeWidth="8" />
               <circle cx="60" cy="60" r="52" fill="none"
-                stroke="#00E5A0" strokeWidth="7" strokeLinecap="round"
+                stroke="var(--green)" strokeWidth="8" strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 52} strokeDashoffset={2 * Math.PI * 52 - (score / 100) * 2 * Math.PI * 52}
-                style={{ transition: "stroke-dashoffset 1s cubic-bezier(0.4,0,0.2,1)", filter: "drop-shadow(0 0 6px #00E5A040)" }}
+                style={{ transition: "stroke-dashoffset 0.8s ease" }}
               />
             </svg>
             <div style={{
               position: "absolute", inset: 0, display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
             }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "#fff", letterSpacing: "-0.5px" }}>{Math.round(score)}%</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: "var(--dark)" }}>{Math.round(score)}%</div>
             </div>
           </div>
 
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#f1f5f9", letterSpacing: "-0.2px" }}>Discovery Readiness</div>
             <div style={{
-              fontSize: 10, fontWeight: 700, marginTop: 4,
-              color: statusColor === "#059669" ? "#111" : statusColor === "#d97706" ? "#111" : "#fff",
-              background: statusColor === "#059669" ? "#00E5A0" : statusColor === "#d97706" ? "#fbbf24" : "#ef4444",
+              fontSize: 10, fontWeight: 700,
+              color: statusColor === "#059669" ? "#059669" : statusColor === "#d97706" ? "#d97706" : "#ef4444",
+              background: statusColor === "#059669" ? "#d1fae5" : statusColor === "#d97706" ? "#fef3c7" : "#fee2e2",
               display: "inline-block", padding: "3px 10px", borderRadius: 6,
-              textTransform: "uppercase", letterSpacing: "0.8px",
+              textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8,
             }}>
               {statusLabel}
             </div>
 
             {/* Progress */}
-            <div style={{ display: "flex", gap: 2, height: 5, borderRadius: 3, overflow: "hidden", background: "#222", marginTop: 10 }}>
-              <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#00E5A0", borderRadius: 3, transition: "width 0.6s" }} />
+            <div style={{ display: "flex", gap: 2, height: 5, borderRadius: 3, overflow: "hidden", background: "var(--gray-100)" }}>
+              <div style={{ width: `${(passed / checks.length) * 100}%`, background: "var(--green)", borderRadius: 3, transition: "width 0.6s" }} />
               <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#fbbf24", borderRadius: 3, transition: "width 0.6s" }} />
               <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#ef4444", borderRadius: 3, transition: "width 0.6s" }} />
             </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 5, fontSize: 10 }}>
-              <span style={{ color: "#00E5A0" }}>{passed} passed</span>
-              <span style={{ color: "#fbbf24" }}>{partial} partial</span>
-              <span style={{ color: "#ef4444" }}>{missing} missing</span>
+            <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 9, color: "var(--gray-500)" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }} />{passed} passed</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fbbf24" }} />{partial} partial</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444" }} />{missing} missing</span>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Content area — white */}
-      <div style={{ flex: 1, overflowY: "auto", background: "var(--gray-50)", borderRadius: "16px 16px 0 0", padding: "16px 16px" }}>
 
         {/* Stats grid */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 16 }}>
           {[
-            { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed`, icon: icons.reqs, color: "#00E5A0" },
-            { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}`, icon: icons.target, color: "#3b82f6" },
-            { label: "Checks", value: `${passed}/${checks.length}`, sub: `${missing} missing`, icon: icons.check, color: "#8b5cf6" },
-            { label: "Gaps", value: openGaps, sub: `${gaps.length} total`, icon: icons.question, color: openGaps > 0 ? "#ef4444" : "#6b7280", warn: openGaps > 0 },
-            { label: "Contradictions", value: openContras, sub: "open", icon: icons.bolt, color: openContras > 0 ? "#ef4444" : "#6b7280", warn: openContras > 0 },
-            { label: "Constraints", value: constraints.length, sub: "defined", icon: icons.lock, color: "#f59e0b" },
+            { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed`, icon: icons.reqs, color: "#059669", bg: "#f0fdf4" },
+            { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}`, icon: icons.target, color: "#2563eb", bg: "#eff6ff" },
+            { label: "Checks", value: `${passed}/${checks.length}`, sub: `${missing} missing`, icon: icons.check, color: "#7c3aed", bg: "#f5f3ff" },
+            { label: "Gaps", value: openGaps, sub: `${gaps.length} total`, icon: icons.question, color: openGaps > 0 ? "#ef4444" : "#6b7280", bg: openGaps > 0 ? "#fef2f2" : "#f9fafb", warn: openGaps > 0 },
+            { label: "Contradictions", value: openContras, sub: "open", icon: icons.bolt, color: openContras > 0 ? "#ef4444" : "#6b7280", bg: openContras > 0 ? "#fef2f2" : "#f9fafb", warn: openContras > 0 },
+            { label: "Constraints", value: constraints.length, sub: "defined", icon: icons.lock, color: "#d97706", bg: "#fffbeb" },
           ].map((s, i) => (
             <div key={i} style={{
-              padding: "10px", borderRadius: 12, background: "#fff",
-              border: "1px solid var(--gray-100)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              padding: "10px", borderRadius: 10, background: s.bg,
+              border: "1px solid var(--gray-100)",
             }}>
-              <div style={{ marginBottom: 6 }}><StatIcon d={s.icon} color={s.color} /></div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: s.warn ? "#ef4444" : "var(--dark)", letterSpacing: "-0.5px" }}>{s.value}</div>
+              <div style={{ marginBottom: 4 }}><StatIcon d={s.icon} color={s.color} /></div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.warn ? "#ef4444" : "var(--dark)", letterSpacing: "-0.5px" }}>{s.value}</div>
               <div style={{ fontSize: 9, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: "0.3px" }}>{s.label}</div>
               <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 1 }}>{s.sub}</div>
             </div>
@@ -911,17 +864,17 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
         {/* Next steps */}
         {(missing > 0 || partial > 0) && (
           <div style={{
-            marginTop: 14, padding: "14px 16px", borderRadius: 12,
-            background: "#111111", border: "1px solid #222",
+            marginTop: 14, padding: "12px 14px", borderRadius: 10,
+            background: "var(--gray-50)", border: "1px solid var(--gray-200)",
           }}>
             <div style={{
-              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px",
-              color: "#00E5A0", marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
+              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
+              color: "var(--gray-500)", marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
             }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
               </svg>
-              Next Steps
+              Next Steps to Improve Readiness
             </div>
             {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
               <div key={i} style={{
@@ -929,15 +882,15 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
               }}>
                 <span style={{
                   width: 18, height: 18, borderRadius: 5, display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  background: c.status === "missing" ? "#ef444420" : "#fbbf2420",
-                  color: c.status === "missing" ? "#f87171" : "#fbbf24",
+                  background: c.status === "missing" ? "#fee2e2" : "#fef3c7",
+                  color: c.status === "missing" ? "#ef4444" : "#d97706",
                   fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
                 }}>
                   {c.status === "missing" ? "+" : "↑"}
                 </span>
                 <div>
-                  <span style={{ fontWeight: 600, color: "#e2e8f0" }}>{c.check}</span>
-                  {c.detail && <span style={{ color: "#64748b", fontSize: 10 }}> — {c.detail}</span>}
+                  <span style={{ fontWeight: 600, color: "var(--dark)" }}>{c.check}</span>
+                  {c.detail && <span style={{ color: "var(--gray-500)", fontSize: 10 }}> — {c.detail}</span>}
                 </div>
               </div>
             ))}
