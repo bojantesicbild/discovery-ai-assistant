@@ -124,6 +124,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     );
   }
 
+  // Readiness detail view
+  if (showReadiness) {
+    return (
+      <div className="data-panel" style={{ flex: 1, width: "100%" }}>
+        <ReadinessPanel
+          onClose={() => setShowReadiness(false)}
+          score={score}
+          checks={readinessChecks}
+          requirements={requirements}
+          gaps={gaps}
+          contradictions={contradictions}
+          constraints={constraints}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
       {/* Header with readiness ring — clickable */}
@@ -154,18 +171,6 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           </div>
         </div>
       </div>
-
-      {/* Readiness slide-in panel */}
-      <ReadinessPanel
-        open={showReadiness}
-        onClose={() => setShowReadiness(false)}
-        score={score}
-        checks={readinessChecks}
-        requirements={requirements}
-        gaps={gaps}
-        contradictions={contradictions}
-        constraints={constraints}
-      />
 
       {/* Tabs */}
       <div className="dp-tabs">
@@ -681,8 +686,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
 /* ── Readiness Panel ── */
 
-function ReadinessPanel({ open, onClose, score, checks, requirements, gaps, contradictions, constraints }: {
-  open: boolean; onClose: () => void; score: number; checks: any[];
+function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradictions, constraints }: {
+  onClose: () => void; score: number; checks: any[];
   requirements: any[]; gaps: any[]; contradictions: any[]; constraints: any[];
 }) {
   const passed = checks.filter((c: any) => c.status === "covered").length;
@@ -700,165 +705,145 @@ function ReadinessPanel({ open, onClose, score, checks, requirements, gaps, cont
   const offset = circumference - (score / 100) * circumference;
 
   return (
-    <>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 900,
-        opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
-        transition: "opacity 0.3s ease",
-      }} />
-      {/* Panel */}
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 440,
-        background: "var(--white)", zIndex: 901, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
-        transform: open ? "translateX(0)" : "translateX(100%)",
-        transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
-        display: "flex", flexDirection: "column", overflow: "hidden",
-      }}>
-        {/* Header */}
-        <div style={{
-          padding: "20px 24px 16px", borderBottom: "1px solid var(--gray-100)",
-          display: "flex", alignItems: "center", gap: 16,
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Back button */}
+      <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--gray-100)", flexShrink: 0 }}>
+        <button onClick={onClose} style={{
+          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
+          color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer",
+          padding: 0, fontFamily: "var(--font)",
         }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--dark)" }}>Discovery Readiness</div>
-            <div style={{ fontSize: 12, color: statusColor, fontWeight: 600, marginTop: 2 }}>{statusLabel}</div>
-          </div>
-          <button onClick={onClose} style={{
-            background: "none", border: "1px solid var(--gray-200)", borderRadius: 8,
-            width: 32, height: 32, cursor: "pointer", fontSize: 16, color: "var(--gray-400)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>×</button>
-        </div>
+          &larr; Back
+        </button>
+      </div>
 
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
 
-          {/* Score ring + stats */}
-          <div style={{ display: "flex", gap: 24, marginBottom: 24 }}>
-            {/* Large ring */}
-            <div style={{ position: "relative", width: 120, height: 120, flexShrink: 0 }}>
-              <svg viewBox="0 0 120 120" style={{ width: 120, height: 120, transform: "rotate(-90deg)" }}>
-                <circle cx="60" cy="60" r="54" fill="none" stroke="var(--gray-100)" strokeWidth="8" />
-                <circle cx="60" cy="60" r="54" fill="none"
-                  stroke={statusColor} strokeWidth="8" strokeLinecap="round"
-                  strokeDasharray={circumference} strokeDashoffset={offset}
-                  style={{ transition: "stroke-dashoffset 0.8s ease" }}
-                />
-              </svg>
-              <div style={{
-                position: "absolute", inset: 0, display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center",
-              }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "var(--dark)" }}>{Math.round(score)}%</div>
-                <div style={{ fontSize: 9, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: "0.5px" }}>readiness</div>
-              </div>
-            </div>
-
-            {/* Summary stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: 1 }}>
-              {[
-                { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed` },
-                { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length} total` },
-                { label: "Open Gaps", value: openGaps, sub: `${gaps.length} total`, warn: openGaps > 0 },
-                { label: "Contradictions", value: openContras, sub: `open`, warn: openContras > 0 },
-                { label: "Constraints", value: constraints.length, sub: "defined" },
-                { label: "Checks Passed", value: `${passed}/${checks.length}`, sub: `${missing} missing` },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  padding: "8px 10px", borderRadius: 8, background: "#f8fafb",
-                  border: "1px solid var(--gray-100)",
-                }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: s.warn ? "#ef4444" : "var(--dark)" }}>{s.value}</div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)" }}>{s.label}</div>
-                  <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 1 }}>{s.sub}</div>
-                </div>
-              ))}
+        {/* Score ring + stats row */}
+        <div style={{ display: "flex", gap: 20, marginBottom: 20, alignItems: "center" }}>
+          {/* Ring */}
+          <div style={{ position: "relative", width: 100, height: 100, flexShrink: 0 }}>
+            <svg viewBox="0 0 120 120" style={{ width: 100, height: 100, transform: "rotate(-90deg)" }}>
+              <circle cx="60" cy="60" r="54" fill="none" stroke="var(--gray-100)" strokeWidth="8" />
+              <circle cx="60" cy="60" r="54" fill="none"
+                stroke={statusColor} strokeWidth="8" strokeLinecap="round"
+                strokeDasharray={circumference} strokeDashoffset={offset}
+                style={{ transition: "stroke-dashoffset 0.8s ease" }}
+              />
+            </svg>
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--dark)" }}>{Math.round(score)}%</div>
+              <div style={{ fontSize: 8, color: statusColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{statusLabel}</div>
             </div>
           </div>
 
-          {/* Check progress bars */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", gap: 4, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--gray-100)" }}>
-              <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#059669", borderRadius: 3, transition: "width 0.5s" }} />
-              <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#d97706", borderRadius: 3, transition: "width 0.5s" }} />
-              <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#ef4444", borderRadius: 3, transition: "width 0.5s" }} />
-            </div>
-            <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "var(--gray-500)" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#059669" }} /> {passed} passed
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706" }} /> {partial} partial
-              </span>
-              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} /> {missing} missing
-              </span>
-            </div>
-          </div>
-
-          {/* Checklist */}
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Readiness Checklist
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {checks.map((c: any, i: number) => (
+          {/* Stats grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, flex: 1 }}>
+            {[
+              { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed` },
+              { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}` },
+              { label: "Checks Passed", value: `${passed}/${checks.length}`, sub: `${missing} missing` },
+              { label: "Open Gaps", value: openGaps, sub: `${gaps.length} total`, warn: openGaps > 0 },
+              { label: "Contradictions", value: openContras, sub: "open", warn: openContras > 0 },
+              { label: "Constraints", value: constraints.length, sub: "defined" },
+            ].map((s, i) => (
               <div key={i} style={{
-                padding: "10px 12px", borderRadius: 10,
-                background: c.status === "missing" ? "#fef2f2" : c.status === "partial" ? "#fffbeb" : "#f0fdf4",
-                border: `1px solid ${c.status === "missing" ? "#fecaca" : c.status === "partial" ? "#fde68a" : "#bbf7d0"}`,
+                padding: "6px 8px", borderRadius: 6, background: "var(--gray-50)",
+                border: "1px solid var(--gray-100)",
               }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 11, fontWeight: 700, flexShrink: 0,
-                    background: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
-                    color: "white",
-                  }}>
-                    {c.status === "covered" ? "✓" : c.status === "partial" ? "!" : "✗"}
-                  </span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)" }}>{c.check}</div>
-                    {c.detail && <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>}
-                  </div>
-                </div>
-                {c.items && c.items.length > 0 && (
-                  <div style={{ marginTop: 6, paddingLeft: 30 }}>
-                    {c.items.slice(0, 4).map((item: string, j: number) => (
-                      <div key={j} style={{ fontSize: 10, color: "var(--gray-600)", padding: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
-                        <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--gray-400)", flexShrink: 0 }} />
-                        {item}
-                      </div>
-                    ))}
-                    {c.items.length > 4 && (
-                      <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 2 }}>+{c.items.length - 4} more</div>
-                    )}
-                  </div>
-                )}
+                <div style={{ fontSize: 16, fontWeight: 700, color: s.warn ? "#ef4444" : "var(--dark)" }}>{s.value}</div>
+                <div style={{ fontSize: 9, fontWeight: 600, color: "var(--gray-500)" }}>{s.label}</div>
+                <div style={{ fontSize: 8, color: "var(--gray-400)" }}>{s.sub}</div>
               </div>
             ))}
           </div>
-
-          {/* Action items */}
-          {missing > 0 && (
-            <div style={{ marginTop: 20, padding: "14px 16px", borderRadius: 10, background: "#1a1a2e", color: "#e2e8f0" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 8 }}>
-                To reach "Ready" status
-              </div>
-              {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
-                <div key={i} style={{ fontSize: 12, padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ color: c.status === "missing" ? "#f87171" : "#fbbf24" }}>→</span>
-                  <span>{c.status === "missing" ? `Add: ${c.check}` : `Improve: ${c.check}`}</span>
-                  {c.detail && <span style={{ color: "#64748b", fontSize: 10 }}>({c.detail})</span>}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ height: 24 }} />
         </div>
+
+        {/* Progress bar */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", gap: 2, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--gray-100)" }}>
+            <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#059669", transition: "width 0.5s" }} />
+            <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#d97706", transition: "width 0.5s" }} />
+            <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#ef4444", transition: "width 0.5s" }} />
+          </div>
+          <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 9, color: "var(--gray-500)" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#059669" }} /> {passed} passed
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706" }} /> {partial} partial
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444" }} /> {missing} missing
+            </span>
+          </div>
+        </div>
+
+        {/* Checklist */}
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Readiness Checklist
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {checks.map((c: any, i: number) => (
+            <div key={i} style={{
+              padding: "8px 10px", borderRadius: 8,
+              background: c.status === "missing" ? "#fef2f2" : c.status === "partial" ? "#fffbeb" : "#f0fdf4",
+              border: `1px solid ${c.status === "missing" ? "#fecaca" : c.status === "partial" ? "#fde68a" : "#bbf7d0"}`,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 700, flexShrink: 0,
+                  background: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
+                  color: "white",
+                }}>
+                  {c.status === "covered" ? "✓" : c.status === "partial" ? "!" : "✗"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)" }}>{c.check}</div>
+                  {c.detail && <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>}
+                </div>
+              </div>
+              {c.items && c.items.length > 0 && (
+                <div style={{ marginTop: 5, paddingLeft: 28 }}>
+                  {c.items.slice(0, 4).map((item: string, j: number) => (
+                    <div key={j} style={{ fontSize: 10, color: "var(--gray-600)", padding: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
+                      <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--gray-400)", flexShrink: 0 }} />
+                      {item}
+                    </div>
+                  ))}
+                  {c.items.length > 4 && (
+                    <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 2 }}>+{c.items.length - 4} more</div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Action items */}
+        {(missing > 0 || partial > 0) && (
+          <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "#1a1a2e", color: "#e2e8f0" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 6 }}>
+              To reach "Ready" status
+            </div>
+            {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
+              <div key={i} style={{ fontSize: 11, padding: "2px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: c.status === "missing" ? "#f87171" : "#fbbf24" }}>→</span>
+                <span>{c.status === "missing" ? `Add: ${c.check}` : `Improve: ${c.check}`}</span>
+                {c.detail && <span style={{ color: "#64748b", fontSize: 9 }}>({c.detail})</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ height: 16 }} />
       </div>
-    </>
+    </div>
   );
 }
 
