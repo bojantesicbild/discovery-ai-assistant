@@ -136,6 +136,44 @@ async def get_document(
     return DocumentResponse.model_validate(doc)
 
 
+@router.get("/{document_id}/content")
+async def get_document_content(
+    project_id: uuid.UUID,
+    document_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the text content of a document (for text-readable formats)."""
+    result = await db.execute(
+        select(Document).where(
+            Document.id == document_id,
+            Document.project_id == project_id,
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    file_path = (doc.classification or {}).get("file_path")
+    if not file_path:
+        raise HTTPException(status_code=404, detail="File path not found")
+
+    path = Path(file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    TEXT_TYPES = {"txt", "md", "csv", "eml"}
+    if doc.file_type not in TEXT_TYPES:
+        return {"content": None, "message": f"Preview not available for .{doc.file_type} files"}
+
+    try:
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        content = path.read_text(encoding="latin-1")
+
+    return {"content": content, "filename": doc.filename, "file_type": doc.file_type}
+
+
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
     project_id: uuid.UUID,

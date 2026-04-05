@@ -15,6 +15,8 @@ interface GraphNode {
   y: number;
   vx: number;
   vy: number;
+  tx: number; // target x for animation
+  ty: number; // target y for animation
   connections: number;
 }
 
@@ -110,6 +112,141 @@ function runForces(nodes: GraphNode[], edges: GraphEdge[], width: number, height
   }
 }
 
+/* ---------- layout algorithms ---------- */
+// All layout functions set tx/ty (targets). The draw loop lerps x/y toward them.
+
+function applyCircleLayout(nodes: GraphNode[], width: number, height: number) {
+  const cx = width / 2, cy = height / 2;
+  const radius = Math.min(width, height) * 0.38;
+  nodes.forEach((n, i) => {
+    const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
+    n.tx = cx + Math.cos(angle) * radius;
+    n.ty = cy + Math.sin(angle) * radius;
+    n.vx = 0; n.vy = 0;
+  });
+}
+
+function applyGridLayout(nodes: GraphNode[], width: number, height: number) {
+  const cols = Math.ceil(Math.sqrt(nodes.length));
+  const rows = Math.ceil(nodes.length / cols);
+  const padX = 60, padY = 60;
+  const cellW = (width - padX * 2) / Math.max(cols, 1);
+  const cellH = (height - padY * 2) / Math.max(rows, 1);
+  nodes.forEach((n, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    n.tx = padX + col * cellW + cellW / 2;
+    n.ty = padY + row * cellH + cellH / 2;
+    n.vx = 0; n.vy = 0;
+  });
+}
+
+function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[], width: number, height: number) {
+  const adj = new Map<string, string[]>();
+  for (const n of nodes) adj.set(n.id, []);
+  for (const e of edges) {
+    adj.get(e.source)?.push(e.target);
+    adj.get(e.target)?.push(e.source);
+  }
+  const root = [...nodes].sort((a, b) => b.connections - a.connections)[0];
+  if (!root) return;
+
+  const levels = new Map<string, number>();
+  const queue = [root.id];
+  levels.set(root.id, 0);
+  while (queue.length) {
+    const id = queue.shift()!;
+    const lvl = levels.get(id)!;
+    for (const nb of adj.get(id) || []) {
+      if (!levels.has(nb)) { levels.set(nb, lvl + 1); queue.push(nb); }
+    }
+  }
+  for (const n of nodes) { if (!levels.has(n.id)) levels.set(n.id, 999); }
+
+  const maxLvl = Math.max(...levels.values());
+  const byLevel = new Map<number, GraphNode[]>();
+  for (const n of nodes) {
+    const l = levels.get(n.id) || 0;
+    if (!byLevel.has(l)) byLevel.set(l, []);
+    byLevel.get(l)!.push(n);
+  }
+
+  const padY = 60;
+  const levelH = (height - padY * 2) / Math.max(maxLvl, 1);
+  byLevel.forEach((levelNodes, lvl) => {
+    const cellW = (width - 80) / (levelNodes.length + 1);
+    levelNodes.forEach((n, i) => {
+      n.tx = 40 + (i + 1) * cellW;
+      n.ty = padY + lvl * levelH;
+      n.vx = 0; n.vy = 0;
+    });
+  });
+}
+
+function applyClustersLayout(nodes: GraphNode[], width: number, height: number) {
+  const groups = new Map<string, GraphNode[]>();
+  for (const n of nodes) {
+    const g = n.type;
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g)!.push(n);
+  }
+  const gKeys = [...groups.keys()];
+  const cols = Math.ceil(Math.sqrt(gKeys.length));
+  const rows = Math.ceil(gKeys.length / cols);
+  const padX = 80, padY = 80;
+  const spacingX = (width - padX * 2) / Math.max(cols, 1);
+  const spacingY = (height - padY * 2) / Math.max(rows, 1);
+
+  gKeys.forEach((g, gi) => {
+    const col = gi % cols;
+    const row = Math.floor(gi / cols);
+    const cx = padX + col * spacingX + spacingX / 2;
+    const cy = padY + row * spacingY + spacingY / 2;
+    const gNodes = groups.get(g)!;
+    const subCols = Math.max(1, Math.ceil(Math.sqrt(gNodes.length)));
+    const subRows = Math.ceil(gNodes.length / subCols);
+    const gap = 50;
+    gNodes.forEach((n, ni) => {
+      const sc = ni % subCols;
+      const sr = Math.floor(ni / subCols);
+      n.tx = cx + (sc - (subCols - 1) / 2) * gap;
+      n.ty = cy + (sr - (subRows - 1) / 2) * gap;
+      n.vx = 0; n.vy = 0;
+    });
+  });
+}
+
+function applyTimelineLayout(nodes: GraphNode[], width: number, height: number) {
+  const getDate = (n: GraphNode) => (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
+  const dated = nodes.filter((n) => getDate(n)).sort((a, b) => getDate(a).localeCompare(getDate(b)));
+  const undated = nodes.filter((n) => !getDate(n));
+  const dates = [...new Set(dated.map((n) => getDate(n)))];
+
+  const padX = 60;
+  const totalCols = dates.length + (undated.length > 0 ? 1 : 0);
+  const colW = (width - padX * 2) / Math.max(totalCols, 1);
+
+  dates.forEach((d, di) => {
+    const colNodes = dated.filter((n) => getDate(n) === d);
+    const rowH = (height - 80) / (colNodes.length + 1);
+    colNodes.forEach((n, i) => {
+      n.tx = padX + di * colW + colW / 2;
+      n.ty = 40 + (i + 1) * rowH;
+      n.vx = 0; n.vy = 0;
+    });
+  });
+
+  if (undated.length > 0) {
+    const colX = padX + dates.length * colW + colW / 2;
+    const rowH = (height - 80) / (undated.length + 1);
+    undated.forEach((n, i) => {
+      n.tx = colX;
+      n.ty = 40 + (i + 1) * rowH;
+      n.vx = 0; n.vy = 0;
+    });
+  }
+}
+
 /* ---------- component ---------- */
 export default function KnowledgeGraphPage() {
   const params = useParams();
@@ -128,6 +265,13 @@ export default function KnowledgeGraphPage() {
   const [search, setSearch] = useState("");
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(Object.keys(TYPE_COLORS)));
   const [dragNode, setDragNode] = useState<GraphNode | null>(null);
+  const [viewMode, setViewMode] = useState<"graph" | "list" | "timeline">("graph");
+  const [sortCol, setSortCol] = useState<string>("type");
+  const [sortAsc, setSortAsc] = useState(true);
+  const [graphLayout, setGraphLayout] = useState<string>("force");
+  const [timelineStep, setTimelineStep] = useState<number>(-1); // -1 = show all
+  const [timelinePlaying, setTimelinePlaying] = useState(false);
+  const timelineIntervalRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   // Refs for animation loop access
   const nodesRef = useRef<GraphNode[]>([]);
@@ -137,7 +281,13 @@ export default function KnowledgeGraphPage() {
   const selectedRef = useRef<GraphNode | null>(null);
   const hoveredRef = useRef<GraphNode | null>(null);
   const dragRef = useRef<GraphNode | null>(null);
+  const layoutRef = useRef<string>("force");
+  const layoutAppliedRef = useRef<string>("");
 
+  layoutRef.current = graphLayout;
+  const timelineStepRef = useRef<number>(-1);
+  const timelineDatesRef = useRef<string[]>([]);
+  timelineStepRef.current = timelineStep;
   nodesRef.current = nodes;
   edgesRef.current = edges;
   filtersRef.current = activeFilters;
@@ -157,14 +307,11 @@ export default function KnowledgeGraphPage() {
           return;
         }
         const data = await getKnowledgeGraph(projectId);
-        const rawNodes: GraphNode[] = (data.nodes || []).map((n: any, i: number) => ({
-          ...n,
-          x: 400 + Math.cos(i * 0.8) * 200 + Math.random() * 100,
-          y: 300 + Math.sin(i * 0.8) * 200 + Math.random() * 100,
-          vx: 0,
-          vy: 0,
-          connections: 0,
-        }));
+        const rawNodes: GraphNode[] = (data.nodes || []).map((n: any, i: number) => {
+          const x = 400 + Math.cos(i * 0.8) * 200 + Math.random() * 100;
+          const y = 300 + Math.sin(i * 0.8) * 200 + Math.random() * 100;
+          return { ...n, x, y, tx: x, ty: y, vx: 0, vy: 0, connections: 0 };
+        });
 
         // Count connections
         const connCount = new Map<string, number>();
@@ -211,22 +358,69 @@ export default function KnowledgeGraphPage() {
     const q = searchRef.current.toLowerCase();
 
     // Filter nodes
+    const tlStep = timelineStepRef.current;
+    const tlDates = timelineDatesRef.current;
     const visibleIds = new Set<string>();
     const visible = allNodes.filter((n) => {
       if (!filters.has(n.type)) return false;
       if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) return false;
+      // Timeline filter: hide nodes created after current step
+      if (tlStep >= 0 && tlDates.length > 0) {
+        const cutoffDate = tlDates[tlStep];
+        const nodeDate = (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
+        if (nodeDate && nodeDate > cutoffDate) return false;
+      }
       visibleIds.add(n.id);
       return true;
     });
     const visibleEdges = allEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
 
-    // Run physics (only on visible nodes)
-    if (!dragRef.current) {
+    // Apply layout
+    const layout = layoutRef.current;
+    if (layout !== "force" && layoutAppliedRef.current !== layout) {
+      // Compute target positions
+      if (layout === "circle") applyCircleLayout(visible, w, h);
+      else if (layout === "grid") applyGridLayout(visible, w, h);
+      else if (layout === "tree") applyTreeLayout(visible, visibleEdges, w, h);
+      else if (layout === "clusters") applyClustersLayout(visible, w, h);
+      else if (layout === "timeline-layout") applyTimelineLayout(visible, w, h);
+      layoutAppliedRef.current = layout;
+    } else if (layout === "force" && !dragRef.current) {
       runForces(visible, visibleEdges, w, h);
+      layoutAppliedRef.current = "force";
     }
 
-    // Clear
+    // Animate toward targets (for non-force layouts)
+    if (layout !== "force") {
+      const lerp = 0.08;
+      for (const n of visible) {
+        n.x += (n.tx - n.x) * lerp;
+        n.y += (n.ty - n.y) * lerp;
+        n.vx = 0;
+        n.vy = 0;
+      }
+    }
+
+    // Clear + background
     ctx.clearRect(0, 0, w, h);
+
+    // Dot grid background
+    const gridSize = 20;
+    ctx.fillStyle = "rgba(148,163,184,0.25)";
+    for (let gx = gridSize; gx < w; gx += gridSize) {
+      for (let gy = gridSize; gy < h; gy += gridSize) {
+        ctx.beginPath();
+        ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Radial vignette — soft fade at edges
+    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.65);
+    grad.addColorStop(0, "rgba(255,255,255,0)");
+    grad.addColorStop(1, "rgba(249,250,251,0.85)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
 
     // Build node map for edge drawing
     const nodeMap = new Map<string, GraphNode>();
@@ -331,11 +525,11 @@ export default function KnowledgeGraphPage() {
   }, []);
 
   useEffect(() => {
-    if (nodes.length > 0) {
+    if (nodes.length > 0 && viewMode === "graph") {
       animRef.current = requestAnimationFrame(draw);
     }
     return () => cancelAnimationFrame(animRef.current);
-  }, [nodes, draw]);
+  }, [nodes, draw, viewMode]);
 
   /* ---------- mouse interaction ---------- */
   function findNodeAt(mx: number, my: number): GraphNode | null {
@@ -409,6 +603,41 @@ export default function KnowledgeGraphPage() {
     dragStartRef.current = null;
   }
 
+  function setStep(n: number) {
+    setTimelineStep(n);
+  }
+
+  function togglePlay() {
+    if (timelinePlaying) {
+      clearInterval(timelineIntervalRef.current);
+      setTimelinePlaying(false);
+      return;
+    }
+    setTimelinePlaying(true);
+    setTimelineStep(0);
+    let step = 0;
+    timelineIntervalRef.current = setInterval(() => {
+      step++;
+      if (step >= timelineDates.length) {
+        clearInterval(timelineIntervalRef.current);
+        setTimelinePlaying(false);
+        setTimelineStep(-1); // show all
+        return;
+      }
+      setTimelineStep(step);
+    }, 1200);
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { if (timelineIntervalRef.current) clearInterval(timelineIntervalRef.current); };
+  }, []);
+
+  function changeLayout(layout: string) {
+    layoutAppliedRef.current = "";
+    setGraphLayout(layout);
+  }
+
   function toggleFilter(type: string) {
     setActiveFilters((prev) => {
       const next = new Set(prev);
@@ -417,6 +646,18 @@ export default function KnowledgeGraphPage() {
       return next;
     });
   }
+
+  /* ---------- timeline dates ---------- */
+  // Use created_at (file mod time) for timeline, fallback to date. Group by date part.
+  const timelineDates = (() => {
+    const stamps = nodes
+      .map((n) => n.meta?.created_at || n.meta?.date)
+      .filter(Boolean) as string[];
+    // Group by date (YYYY-MM-DD) or full value if already date-only
+    const dateSet = new Set(stamps.map((s) => s.slice(0, 10)));
+    return [...dateSet].sort();
+  })();
+  timelineDatesRef.current = timelineDates;
 
   /* ---------- derived counts ---------- */
   const filteredNodes = nodes.filter(
@@ -444,25 +685,43 @@ export default function KnowledgeGraphPage() {
   /* ---------- render ---------- */
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
-      {/* Graph header */}
-      <div
-        style={{
-          padding: "12px 20px",
-          borderBottom: "1px solid #e2e8f0",
-          background: "#fff",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: "#0f172a", margin: 0 }}>
-            Knowledge Graph
-          </h1>
-          <p style={{ fontSize: 13, color: "#64748b", margin: "2px 0 0" }}>
-            {filteredNodes.length} nodes &middot; {filteredEdgeCount} edges
-          </p>
+      {/* Header — single compact row */}
+      <div style={{
+        padding: "10px 20px",
+        borderBottom: "1px solid #e2e8f0",
+        background: "#fff",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+      }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: 0, whiteSpace: "nowrap" }}>
+          Knowledge Graph
+        </h1>
+        <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>
+          {filteredNodes.length} nodes &middot; {filteredEdgeCount} edges
+        </span>
+
+        {/* View tabs */}
+        <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
+          {([
+            { id: "graph" as const, label: "Graph" },
+            { id: "list" as const, label: "List" },
+            { id: "timeline" as const, label: "Timeline" },
+          ]).map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setViewMode(v.id)}
+              style={{
+                padding: "5px 14px", border: "none", borderRadius: 8,
+                background: viewMode === v.id ? "var(--green)" : "var(--gray-100)",
+                color: viewMode === v.id ? "var(--dark)" : "#64748b",
+                fontSize: 12, fontWeight: 600, cursor: "pointer",
+                fontFamily: "var(--font)", transition: "all 0.15s",
+              }}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
 
         <div style={{ flex: 1 }} />
@@ -474,53 +733,10 @@ export default function KnowledgeGraphPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
-            padding: "6px 12px",
-            border: "1px solid #e2e8f0",
-            borderRadius: 6,
-            fontSize: 13,
-            width: 220,
-            outline: "none",
-            background: "#f8fafc",
+            padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6,
+            fontSize: 12, width: 200, outline: "none", background: "#f8fafc",
           }}
         />
-
-        {/* Filter buttons */}
-        <div style={{ display: "flex", gap: 6 }}>
-          {Object.entries(TYPE_LABELS).map(([type, label]) => {
-            const active = activeFilters.has(type);
-            const color = TYPE_COLORS[type];
-            return (
-              <button
-                key={type}
-                onClick={() => toggleFilter(type)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  padding: "4px 10px",
-                  border: `1px solid ${active ? color : "#e2e8f0"}`,
-                  borderRadius: 20,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  background: active ? `${color}15` : "#fff",
-                  color: active ? color : "#94a3b8",
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                }}
-              >
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: active ? color : "#cbd5e1",
-                  }}
-                />
-                {label}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
       {/* Main area */}
@@ -548,18 +764,439 @@ export default function KnowledgeGraphPage() {
           </div>
         )}
 
-        {/* Canvas — shrinks when panel opens */}
-        <div style={{ flex: 1, position: "relative", transition: "all 0.25s ease" }}>
-          <canvas
-            ref={canvasRef}
-            onClick={handleClick}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => { setDragNode(null); dragStartRef.current = null; }}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-          />
-        </div>
+        {/* Graph view */}
+        {viewMode === "graph" && (
+          <div style={{ flex: 1, position: "relative", transition: "all 0.25s ease", display: "flex", flexDirection: "column" }}>
+            {/* Graph toolbar — layout modes + entity filters */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 0, padding: "6px 12px",
+              background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
+              zIndex: 2, flexShrink: 0,
+            }}>
+              {/* Layout buttons */}
+              {["force", "circle", "grid", "tree", "clusters", "timeline-layout"].map((l) => (
+                <button
+                  key={l}
+                  onClick={() => changeLayout(l)}
+                  style={{
+                    padding: "4px 10px", border: "none", borderRadius: 6,
+                    background: graphLayout === l ? "var(--green)" : "transparent",
+                    color: graphLayout === l ? "var(--dark)" : "#64748b",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    fontFamily: "var(--font)", transition: "all 0.15s",
+                  }}
+                >
+                  {l === "force" ? "Force" : l === "circle" ? "Circle" : l === "grid" ? "Grid" : l === "tree" ? "Tree" : l === "clusters" ? "Clusters" : "Timeline"}
+                </button>
+              ))}
+
+              <div style={{ width: 1, height: 16, background: "#e2e8f0", margin: "0 8px" }} />
+
+              {/* Reset */}
+              <button
+                onClick={() => changeLayout("force")}
+                style={{
+                  padding: "4px 8px", border: "none", borderRadius: 6,
+                  background: "transparent", color: "#94a3b8",
+                  fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)",
+                }}
+              >
+                Reset
+              </button>
+
+              <div style={{ flex: 1 }} />
+
+              {/* Entity type filters */}
+              <div style={{ display: "flex", gap: 4 }}>
+                {Object.entries(TYPE_LABELS).map(([type, label]) => {
+                  const active = activeFilters.has(type);
+                  const color = TYPE_COLORS[type];
+                  const count = filteredNodes.filter((n) => n.type === type).length;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => toggleFilter(type)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 4,
+                        padding: "3px 8px", border: "none", borderRadius: 4,
+                        background: active ? `${color}15` : "transparent",
+                        color: active ? color : "#94a3b8",
+                        fontSize: 10, fontWeight: 600, cursor: "pointer",
+                        fontFamily: "var(--font)", transition: "all 0.15s",
+                        opacity: active ? 1 : 0.6,
+                      }}
+                    >
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: active ? color : "#cbd5e1",
+                      }} />
+                      {label}
+                      {active && count > 0 && (
+                        <span style={{ fontSize: 9, color: "#94a3b8", marginLeft: 2 }}>{count}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ flex: 1, position: "relative" }}>
+            <canvas
+              ref={canvasRef}
+              onClick={handleClick}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={() => { setDragNode(null); dragStartRef.current = null; }}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+            />
+            </div>
+
+            {/* Timeline scrubber bar */}
+            {timelineDates.length > 0 && (
+              <div style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
+                background: "#f8fafc", borderTop: "1px solid #e2e8f0", flexShrink: 0,
+              }}>
+                <button
+                  onClick={togglePlay}
+                  style={{
+                    width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0",
+                    background: timelinePlaying ? "#059669" : "#fff",
+                    color: timelinePlaying ? "#fff" : "#64748b", fontSize: 12, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {timelinePlaying ? "❚❚" : "▶"}
+                </button>
+
+                <div style={{ flex: 1, position: "relative", height: 32, display: "flex", alignItems: "center" }}>
+                  {/* Track line */}
+                  <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "#e2e8f0", borderRadius: 1 }} />
+                  {/* Fill line */}
+                  <div style={{
+                    position: "absolute", left: 0, height: 2, borderRadius: 1,
+                    background: "#059669", transition: "width 0.3s ease",
+                    width: timelineStep < 0
+                      ? "100%"
+                      : `${(timelineStep / Math.max(timelineDates.length - 1, 1)) * 100}%`,
+                  }} />
+                  {/* Dots */}
+                  {timelineDates.map((date, i) => {
+                    const left = `${(i / Math.max(timelineDates.length - 1, 1)) * 100}%`;
+                    const isReached = timelineStep < 0 || i <= timelineStep;
+                    const isActive = i === timelineStep;
+                    return (
+                      <div
+                        key={date}
+                        onClick={() => setStep(i)}
+                        title={date}
+                        style={{
+                          position: "absolute", left, transform: "translateX(-50%)",
+                          width: isActive ? 24 : 18, height: isActive ? 24 : 18,
+                          borderRadius: "50%", cursor: "pointer",
+                          background: isActive ? "#059669" : isReached ? "#059669" : "#e2e8f0",
+                          border: isActive ? "2px solid #fff" : "2px solid #f8fafc",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 9, fontWeight: 700, color: isReached ? "#fff" : "#94a3b8",
+                          transition: "all 0.3s ease", zIndex: isActive ? 2 : 1,
+                          boxShadow: isActive ? "0 0 0 3px rgba(5,150,105,0.2)" : "none",
+                        }}
+                      >
+                        {i + 1}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Stats */}
+                <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap", minWidth: 120, textAlign: "right" }}>
+                  {(() => {
+                    if (timelineStep < 0) {
+                      return `${filteredNodes.length} entities · ${filteredEdgeCount} edges`;
+                    }
+                    const cutoff = timelineDates[timelineStep];
+                    const nodeDate = (n: GraphNode) => (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
+                    const visCount = nodes.filter((n) => { const d = nodeDate(n); return !d || d <= cutoff; }).length;
+                    const prevCutoff = timelineStep > 0 ? timelineDates[timelineStep - 1] : null;
+                    const prevCount = prevCutoff ? nodes.filter((n) => { const d = nodeDate(n); return !d || d <= prevCutoff; }).length : 0;
+                    const diff = visCount - prevCount;
+                    return (
+                      <>
+                        {visCount} entities
+                        {diff > 0 && (
+                          <span style={{ color: "#059669", marginLeft: 8, fontWeight: 600 }}>+{diff} new</span>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* Show all button */}
+                {timelineStep >= 0 && (
+                  <button
+                    onClick={() => { setTimelineStep(-1); setTimelinePlaying(false); clearInterval(timelineIntervalRef.current); }}
+                    style={{
+                      padding: "3px 10px", borderRadius: 6, border: "1px solid #e2e8f0",
+                      background: "#fff", color: "#64748b",
+                      fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
+                    }}
+                  >
+                    Show All
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* List view */}
+        {viewMode === "list" && (
+          <div style={{ flex: 1, overflow: "auto", padding: 0 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+                  {[
+                    { key: "type", label: "Type" },
+                    { key: "id", label: "ID" },
+                    { key: "label", label: "Name" },
+                    { key: "status", label: "Status" },
+                    { key: "priority", label: "Priority" },
+                    { key: "connections", label: "Links" },
+                    { key: "date", label: "Date" },
+                  ].map((col) => (
+                    <th
+                      key={col.key}
+                      onClick={() => {
+                        if (sortCol === col.key) setSortAsc(!sortAsc);
+                        else { setSortCol(col.key); setSortAsc(true); }
+                      }}
+                      style={{
+                        textAlign: "left", padding: "10px 12px", fontWeight: 600,
+                        color: sortCol === col.key ? "#059669" : "#64748b",
+                        cursor: "pointer", userSelect: "none", fontSize: 11,
+                        textTransform: "uppercase", letterSpacing: "0.5px",
+                      }}
+                    >
+                      {col.label}
+                      {sortCol === col.key && <span style={{ marginLeft: 4 }}>{sortAsc ? "↑" : "↓"}</span>}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[...filteredNodes].sort((a, b) => {
+                  let av: string | number = "", bv: string | number = "";
+                  if (sortCol === "connections") { av = a.connections; bv = b.connections; }
+                  else if (sortCol === "status") { av = a.meta?.status || ""; bv = b.meta?.status || ""; }
+                  else if (sortCol === "priority") { av = a.meta?.priority || ""; bv = b.meta?.priority || ""; }
+                  else if (sortCol === "date") { av = a.meta?.date || "zzzz"; bv = b.meta?.date || "zzzz"; }
+                  else { av = (a as any)[sortCol] || ""; bv = (b as any)[sortCol] || ""; }
+                  if (typeof av === "number" && typeof bv === "number") return sortAsc ? av - bv : bv - av;
+                  return sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+                }).map((n) => {
+                  const color = TYPE_COLORS[n.type] || "#6b7280";
+                  const isSelected = selectedNode?.id === n.id;
+                  return (
+                    <tr
+                      key={n.id}
+                      onClick={() => setSelectedNode({ ...n })}
+                      style={{
+                        borderBottom: "1px solid #f1f5f9",
+                        cursor: "pointer",
+                        background: isSelected ? "#f0fdf8" : undefined,
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
+                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = ""; }}
+                    >
+                      <td style={{ padding: "8px 12px" }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 6,
+                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
+                          background: `${color}15`, color,
+                        }}>
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
+                          {TYPE_LABELS[n.type] || n.type}
+                        </span>
+                      </td>
+                      <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "#64748b", fontSize: 11 }}>{n.id}</td>
+                      <td style={{ padding: "8px 12px", fontWeight: 500, color: "#0f172a", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        {n.meta?.status && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                            background: n.meta.status === "confirmed" ? "#d1fae5" : n.meta.status === "proposed" ? "#FEF3C7" : "#f1f5f9",
+                            color: n.meta.status === "confirmed" ? "#059669" : n.meta.status === "proposed" ? "#D97706" : "#64748b",
+                          }}>
+                            {n.meta.status}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "8px 12px" }}>
+                        {n.meta?.priority && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                            background: n.meta.priority === "must" ? "#fee2e2" : n.meta.priority === "should" ? "#FEF3C7" : "#eff6ff",
+                            color: n.meta.priority === "must" ? "#EF4444" : n.meta.priority === "should" ? "#D97706" : "#3B82F6",
+                          }}>
+                            {n.meta.priority.toUpperCase()}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: "8px 12px", color: "#64748b", textAlign: "center" }}>{n.connections}</td>
+                      <td style={{ padding: "8px 12px", color: "#94a3b8", fontSize: 11 }}>{n.meta?.date || "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Timeline view */}
+        {viewMode === "timeline" && (
+          <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
+            {(() => {
+              const dated = filteredNodes.filter((n) => n.meta?.date);
+              const undated = filteredNodes.filter((n) => !n.meta?.date);
+              const grouped = new Map<string, GraphNode[]>();
+              for (const n of dated) {
+                const d = n.meta.date;
+                if (!grouped.has(d)) grouped.set(d, []);
+                grouped.get(d)!.push(n);
+              }
+              const sortedDates = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
+
+              return (
+                <div style={{ position: "relative", paddingLeft: 28 }}>
+                  {/* Vertical line */}
+                  <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, width: 2, background: "#e2e8f0" }} />
+
+                  {sortedDates.map((date) => (
+                    <div key={date} style={{ marginBottom: 24 }}>
+                      {/* Date marker */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, marginLeft: -28 }}>
+                        <div style={{
+                          width: 22, height: 22, borderRadius: "50%", background: "#059669",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          border: "3px solid #fff", boxShadow: "0 0 0 2px #e2e8f0", zIndex: 1,
+                        }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{date}</span>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{grouped.get(date)!.length} item{grouped.get(date)!.length !== 1 ? "s" : ""}</span>
+                      </div>
+
+                      {/* Nodes for this date */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {grouped.get(date)!.map((n) => {
+                          const color = TYPE_COLORS[n.type] || "#6b7280";
+                          const isSelected = selectedNode?.id === n.id;
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => setSelectedNode({ ...n })}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 10,
+                                padding: "10px 14px", borderRadius: 8,
+                                border: `1px solid ${isSelected ? "#059669" : "#e2e8f0"}`,
+                                background: isSelected ? "#f0fdf8" : "#fff",
+                                cursor: "pointer", transition: "all 0.15s",
+                                borderLeft: `3px solid ${color}`,
+                              }}
+                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
+                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = isSelected ? "#f0fdf8" : "#fff"; }}
+                            >
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                background: `${color}15`, color, textTransform: "uppercase",
+                              }}>
+                                {TYPE_LABELS[n.type] || n.type}
+                              </span>
+                              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {n.label}
+                              </span>
+                              {n.meta?.status && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+                                  background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
+                                  color: n.meta.status === "confirmed" ? "#059669" : "#64748b",
+                                }}>
+                                  {n.meta.status}
+                                </span>
+                              )}
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{n.connections} links</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Undated section */}
+                  {undated.length > 0 && (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, marginLeft: -28 }}>
+                        <div style={{
+                          width: 22, height: 22, borderRadius: "50%", background: "#94a3b8",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          border: "3px solid #fff", boxShadow: "0 0 0 2px #e2e8f0", zIndex: 1,
+                        }}>
+                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8" }}>Undated</span>
+                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{undated.length} item{undated.length !== 1 ? "s" : ""}</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {undated.map((n) => {
+                          const color = TYPE_COLORS[n.type] || "#6b7280";
+                          const isSelected = selectedNode?.id === n.id;
+                          return (
+                            <div
+                              key={n.id}
+                              onClick={() => setSelectedNode({ ...n })}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 10,
+                                padding: "10px 14px", borderRadius: 8,
+                                border: `1px solid ${isSelected ? "#059669" : "#e2e8f0"}`,
+                                background: isSelected ? "#f0fdf8" : "#fff",
+                                cursor: "pointer", transition: "all 0.15s",
+                                borderLeft: `3px solid ${color}`,
+                              }}
+                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
+                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = isSelected ? "#f0fdf8" : "#fff"; }}
+                            >
+                              <span style={{
+                                fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                                background: `${color}15`, color, textTransform: "uppercase",
+                              }}>
+                                {TYPE_LABELS[n.type] || n.type}
+                              </span>
+                              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {n.label}
+                              </span>
+                              {n.meta?.status && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
+                                  background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
+                                  color: n.meta.status === "confirmed" ? "#059669" : "#64748b",
+                                }}>
+                                  {n.meta.status}
+                                </span>
+                              )}
+                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{n.connections} links</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Side panel — slides in/out */}
         <div

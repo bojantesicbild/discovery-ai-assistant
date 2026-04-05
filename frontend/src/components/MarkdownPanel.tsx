@@ -187,42 +187,98 @@ export default function MarkdownPanel({
 
 
 function renderMarkdown(text: string): string {
-  // Simple markdown → HTML renderer (no dependency needed)
-  let html = text
-    // Escape HTML
+  // 1. Extract tables into a map, replace with placeholders
+  const tables: Record<string, string> = {};
+  const lines = text.split("\n");
+  const cleaned: string[] = [];
+  let i = 0;
+  let tableIdx = 0;
+
+  while (i < lines.length) {
+    if (
+      lines[i].includes("|") &&
+      i + 1 < lines.length &&
+      /^\|?\s*[-:]+[-| :]*$/.test(lines[i + 1])
+    ) {
+      const tableLines: string[] = [];
+      tableLines.push(lines[i]);
+      i++;
+      const separatorLine = lines[i];
+      i++;
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") {
+        tableLines.push(lines[i]);
+        i++;
+      }
+
+      const alignments = separatorLine
+        .split("|")
+        .filter((c) => c.trim())
+        .map((c) => {
+          const t = c.trim();
+          if (t.startsWith(":") && t.endsWith(":")) return "center";
+          if (t.endsWith(":")) return "right";
+          return "left";
+        });
+
+      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const parseCells = (line: string) =>
+        line.split("|").filter((_, idx, arr) => idx > 0 && idx < arr.length - (line.endsWith("|") ? 1 : 0)).map((c) => c.trim());
+
+      const headerCells = parseCells(tableLines[0]);
+      let h = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px"><thead><tr>';
+      headerCells.forEach((cell, ci) => {
+        const a = alignments[ci] || "left";
+        h += `<th style="text-align:${a};padding:8px 12px;border:1px solid var(--gray-200);background:var(--gray-50);font-weight:600;color:var(--dark)">${esc(cell)}</th>`;
+      });
+      h += "</tr></thead><tbody>";
+      for (let r = 1; r < tableLines.length; r++) {
+        const cells = parseCells(tableLines[r]);
+        h += "<tr>";
+        cells.forEach((cell, ci) => {
+          const a = alignments[ci] || "left";
+          h += `<td style="text-align:${a};padding:6px 12px;border:1px solid var(--gray-200);color:var(--gray-600)">${esc(cell)}</td>`;
+        });
+        h += "</tr>";
+      }
+      h += "</tbody></table>";
+
+      const key = `__TABLE_${tableIdx++}__`;
+      tables[key] = h;
+      cleaned.push(key);
+    } else {
+      cleaned.push(lines[i]);
+      i++;
+    }
+  }
+
+  // 2. Process the rest as markdown (tables are now just placeholder strings)
+  let html = cleaned.join("\n")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    // Headers
     .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--dark)">$1</h3>')
     .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:20px 0 10px;color:var(--dark)">$1</h2>')
     .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:24px 0 12px;color:var(--dark)">$1</h1>')
-    // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Code inline
     .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:12px;font-family:monospace">$1</code>')
-    // Bullet lists
     .replace(/^- (.+)$/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>')
-    // Numbered lists
     .replace(/^\d+\. (.+)$/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>')
-    // Blockquote
-    .replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
-    // Horizontal rule
+    .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
     .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--gray-200);margin:16px 0">')
-    // Paragraphs (double newline)
     .replace(/\n\n/g, '</p><p style="margin:10px 0">')
-    // Single newline
     .replace(/\n/g, '<br>');
 
-  // Wrap in paragraph
   html = '<p style="margin:10px 0">' + html + '</p>';
 
-  // Wrap consecutive <li> in <ul>
   html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) => {
     return '<ul style="padding-left:20px;margin:8px 0">' + match.replace(/<br>/g, '') + '</ul>';
   });
+
+  // 3. Re-insert tables
+  for (const [key, tableHtml] of Object.entries(tables)) {
+    html = html.replace(key, tableHtml);
+  }
 
   return html;
 }

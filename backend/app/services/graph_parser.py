@@ -219,6 +219,14 @@ def parse_knowledge_graph(discovery_dir: Path) -> dict:
         if quote_match:
             node_meta["source_quote"] = quote_match.group(1)[:150]
 
+        # Add file modification time for timeline
+        try:
+            mtime = md_file.stat().st_mtime
+            from datetime import datetime
+            node_meta["created_at"] = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+        except OSError:
+            pass
+
         node_ids[file_id] = {
             "id": file_id,
             "label": label,
