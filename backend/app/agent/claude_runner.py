@@ -96,6 +96,29 @@ class ClaudeCodeRunner:
                 "spellcheck": True,
             }, indent=2))
 
+        # Seed Obsidian templates for manual note creation
+        templates_dir = obsidian_dir / "templates"
+        templates_dir.mkdir(exist_ok=True)
+        ClaudeCodeRunner._seed_obsidian_templates(templates_dir)
+
+        # Seed Obsidian graph config with type-based color groups
+        graph_json = obsidian_dir / "graph.json"
+        if not graph_json.exists():
+            graph_json.write_text(json.dumps({
+                "colorGroups": [
+                    {"query": "tag:#requirement", "color": {"a": 1, "rgb": 65765}},
+                    {"query": "tag:#decision", "color": {"a": 1, "rgb": 2523891}},
+                    {"query": "tag:#constraint", "color": {"a": 1, "rgb": 561602}},
+                    {"query": "tag:#gap", "color": {"a": 1, "rgb": 16097803}},
+                    {"query": "tag:#stakeholder", "color": {"a": 1, "rgb": 8142062}},
+                ],
+            }, indent=2))
+
+        # Seed reports directory
+        (mb / "docs" / "reports").mkdir(exist_ok=True)
+        (mb / "docs" / "reports" / "daily").mkdir(exist_ok=True)
+        (mb / "docs" / "reports" / "weekly").mkdir(exist_ok=True)
+
         # Seed memory bank files
         self._create_seed_files(mb)
 
@@ -341,6 +364,114 @@ class ClaudeCodeRunner:
     async def clear_session(self, project_id: uuid.UUID, user_id: uuid.UUID):
         """Clear session — next message starts a new conversation."""
         self._sessions.pop(self._session_key(project_id, user_id), None)
+
+    @staticmethod
+    def _seed_obsidian_templates(templates_dir):
+        """Create Obsidian note templates for manual note creation."""
+        from pathlib import Path
+        templates = {
+            "new-requirement.md": """---
+id: BR-XXX
+title: ""
+priority: should
+status: proposed
+confidence: medium
+source_doc: ""
+source_person: ""
+date: {{date}}
+category: requirement
+tags: [requirement, should, proposed]
+aliases: [BR-XXX]
+cssclasses: [requirement, node-green]
+---
+
+# BR-XXX: {{title}}
+
+Description here.
+
+## Source
+> "Quote from client or document"
+
+## People
+- [[person]] — requested
+
+## Related
+- [[BR-xxx]] — related
+""",
+            "new-decision.md": """---
+title: ""
+status: tentative
+decided_by: ""
+date: {{date}}
+category: decision
+tags: [decision, tentative]
+---
+
+# Decision: {{title}}
+
+## Rationale
+
+
+## Alternatives
+-
+-
+
+## Impact
+-
+""",
+            "new-gap.md": """---
+id: GAP-XXX
+question: ""
+severity: medium
+area: general
+status: open
+date: {{date}}
+category: gap
+tags: [gap, medium, open]
+aliases: [GAP-XXX]
+cssclasses: [gap, node-amber]
+---
+
+# GAP-XXX: {{title}}
+
+## Suggested Action
+
+
+## Blocked Requirements
+- [[BR-xxx]] — blocked
+
+## Source Documents
+- [[document]]
+""",
+            "meeting-notes.md": """---
+date: {{date}}
+attendees: []
+category: meeting
+tags: [meeting]
+---
+
+# Meeting Notes — {{date}}
+
+## Attendees
+-
+
+## Key Decisions
+-
+
+## Action Items
+- [ ]
+
+## Requirements Discussed
+-
+
+## Open Questions
+-
+""",
+        }
+        for name, content in templates.items():
+            path = templates_dir / name
+            if not path.exists():
+                path.write_text(content)
 
     def sync_assistants(self, project_id: uuid.UUID):
         """Sync assistant files (CLAUDE.md, skills, agents, scripts, templates) from template

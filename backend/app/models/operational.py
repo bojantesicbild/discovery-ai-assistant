@@ -68,6 +68,18 @@ class Learning(Base, IdMixin, TimestampMixin):
     source: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class Notification(Base, IdMixin, TimestampMixin):
+    __tablename__ = "notifications"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    type: Mapped[str] = mapped_column(String, nullable=False)  # daily-digest, weekly-summary, etc.
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    read: Mapped[bool] = mapped_column(Boolean, default=False)
+    data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
 class PipelineSync(Base, IdMixin, TimestampMixin):
     __tablename__ = "pipeline_syncs"
 

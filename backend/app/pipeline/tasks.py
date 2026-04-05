@@ -739,6 +739,9 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             f"date: {today}",
             "category: requirement",
             f'description: "{desc_escaped}"',
+            f"tags: [requirement, {r.priority}, {r.status}]",
+            f"aliases: [{r.req_id}]",
+            f"cssclasses: [requirement, node-green]",
             "---",
             "",
             f"# {r.req_id}: {r.title}",
@@ -846,6 +849,9 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             f"status: {con.status}",
             f"date: {today}",
             "category: constraint",
+            f"tags: [constraint, {con.type}, {con.status}]",
+            f"aliases: [{con_id}]",
+            "cssclasses: [constraint, node-cyan]",
             "---",
             "",
             f"# {con_id}: {con.type} constraint",
@@ -886,6 +892,9 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             f"status: {g.status}",
             f"date: {today}",
             "category: gap",
+            f"tags: [gap, {g.severity}, {g.status}]",
+            f"aliases: [{g.gap_id}]",
+            "cssclasses: [gap, node-amber]",
             "---",
             "",
             f"# {g.gap_id}: {g.question}",
@@ -947,6 +956,24 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         for s in stakeholders:
             idx_lines.append(f"| [[{s.name}]] | {s.role} | {s.decision_authority} |")
         idx_lines.append("")
+    # Add Dataview queries for Obsidian users
+    idx_lines += [
+        "## Dynamic Views (Obsidian Dataview)", "",
+        "### Unconfirmed Requirements",
+        "```dataview",
+        "TABLE priority, status, confidence",
+        'FROM "requirements"',
+        'WHERE status != "confirmed"',
+        "SORT priority ASC",
+        "```", "",
+        "### Open Gaps",
+        "```dataview",
+        "TABLE severity, area, status",
+        'FROM "gaps"',
+        'WHERE status = "open"',
+        "SORT severity ASC",
+        "```", "",
+    ]
     (discovery_dir / "index.md").write_text("\n".join(idx_lines))
 
     # --- log.md (append operation log) ---

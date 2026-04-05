@@ -1,6 +1,6 @@
-"""arq worker — async document processing queue."""
+"""arq worker — async document processing queue + scheduled digests."""
 
-from arq import create_pool
+from arq import create_pool, cron
 from arq.connections import RedisSettings
 from app.config import settings
 from app.pipeline.tasks import process_document
@@ -21,8 +21,24 @@ async def shutdown(ctx):
         await ctx["ragflow"].close()
 
 
+async def run_daily_digests(ctx):
+    """Generate morning digests for all active projects."""
+    from app.pipeline.digest import generate_all_digests
+    await generate_all_digests()
+
+
+async def run_weekly_summaries(ctx):
+    """Generate weekly summaries for all active projects."""
+    from app.pipeline.digest import generate_all_weekly_summaries
+    await generate_all_weekly_summaries()
+
+
 class WorkerSettings:
     functions = [process_document]
+    cron_jobs = [
+        cron(run_daily_digests, hour=7, minute=0),          # Every day at 7:00 AM
+        cron(run_weekly_summaries, weekday=0, hour=7, minute=30),  # Monday 7:30 AM
+    ]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(settings.redis_url)

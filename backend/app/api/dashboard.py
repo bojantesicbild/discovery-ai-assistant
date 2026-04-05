@@ -223,6 +223,67 @@ async def trigger_digest(
     return {"status": "generated", "data": data}
 
 
+@router.get("/notifications")
+async def list_notifications(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get notifications for current user."""
+    from app.models.operational import Notification
+    result = await db.execute(
+        select(Notification)
+        .where(Notification.project_id == project_id, Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(20)
+    )
+    return {"notifications": [
+        {"id": str(n.id), "type": n.type, "title": n.title, "body": n.body,
+         "read": n.read, "data": n.data,
+         "created_at": n.created_at.isoformat() if n.created_at else None}
+        for n in result.scalars().all()
+    ]}
+
+
+@router.get("/notifications/count")
+async def notification_count(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.operational import Notification
+    count = await db.scalar(
+        select(func.count()).where(
+            Notification.project_id == project_id,
+            Notification.user_id == user.id,
+            Notification.read == False,
+        )
+    ) or 0
+    return {"count": count}
+
+
+@router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    project_id: uuid.UUID,
+    notification_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.operational import Notification
+    result = await db.execute(
+        select(Notification).where(
+            Notification.id == notification_id,
+            Notification.project_id == project_id,
+            Notification.user_id == user.id,
+        )
+    )
+    n = result.scalar_one_or_none()
+    if n:
+        n.read = True
+        await db.flush()
+    return {"status": "ok"}
+
+
 @router.post("/gaps")
 async def trigger_gap_analysis(
     project_id: uuid.UUID,

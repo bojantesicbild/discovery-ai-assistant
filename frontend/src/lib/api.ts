@@ -307,6 +307,19 @@ export async function getRepoPulls(projectId: string, repoId: string, state: str
   return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/pulls?state=${state}`);
 }
 
+// Notifications
+export async function getNotifications(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/notifications`);
+}
+
+export async function getNotificationCount(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/notifications/count`);
+}
+
+export async function markNotificationRead(projectId: string, notificationId: string) {
+  return fetchAPI(`/api/projects/${projectId}/notifications/${notificationId}/read`, { method: "PATCH" });
+}
+
 // Wiki
 export async function getWikiFiles(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/files`);
