@@ -5,6 +5,7 @@ import {
   getDashboard, listRequirements, listContradictions, listDocuments,
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
+  getDocumentContent,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
@@ -13,6 +14,7 @@ interface DataPanelProps {
   refreshKey?: number;
   initialTab?: string;
   highlightId?: string;
+  onNavigate?: (tab: string, itemId?: string) => void;
 }
 
 interface DetailView {
@@ -33,7 +35,7 @@ const TABS = [
   { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
 ];
 
-export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId }: DataPanelProps) {
+export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
   const [activeTab, setActiveTab] = useState(initialTab || "reqs");
   const [dashboard, setDashboard] = useState<any>(null);
   const [requirements, setRequirements] = useState<any[]>([]);
@@ -43,6 +45,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [constraints, setConstraints] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [contraFilter, setContraFilter] = useState("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
@@ -111,7 +114,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           title={detail.title}
           content={detail.content}
           meta={detail.meta}
-          onClose={() => setDetail(null)}
+          onClose={() => { setDetail(null); onNavigate?.(activeTab); }}
           actions={detail.actions}
           onAction={detail.onAction}
         />
@@ -155,7 +158,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             <div
               key={tab.id}
               className={`dp-tab${activeTab === tab.id ? " active" : ""}`}
-              onClick={() => { setActiveTab(tab.id); setExpandedRow(null); }}
+              onClick={() => { setActiveTab(tab.id); setExpandedRow(null); onNavigate?.(tab.id); }}
             >
               {tab.label}
               {count !== null && count > 0 && <span className="tab-count">{count}</span>}
@@ -170,12 +173,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── REQUIREMENTS ── */}
         {activeTab === "reqs" && (
           <div className="dp-tab-content active">
-            <div className="panel-filter">
-              {["all", "must", "should", "could"].map((f) => (
-                <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
-                  {f === "all" ? "All" : f}
-                </button>
-              ))}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+              <div className="panel-filter" style={{ marginBottom: 0 }}>
+                {["all", "must", "should", "could"].map((f) => (
+                  <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
+                    {f === "all" ? "All" : f}
+                  </button>
+                ))}
+              </div>
+              <div style={{ width: 1, height: 16, background: "var(--gray-200)" }} />
+              <div className="panel-filter" style={{ marginBottom: 0 }}>
+                {["all", "confirmed", "discussed", "proposed"].map((f) => (
+                  <button key={f} className={`panel-filter-btn${statusFilter === f ? " active" : ""}`} onClick={() => setStatusFilter(f)} style={{ textTransform: "capitalize" }}>
+                    {f === "all" ? "All Status" : f}
+                  </button>
+                ))}
+              </div>
             </div>
             {requirements.length === 0 ? (
               <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
@@ -192,8 +205,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   </tr>
                 </thead>
                 <tbody>
-                  {requirements.filter((r: any) => priorityFilter === "all" || r.priority === priorityFilter).map((req: any) => (
-                    <tr key={req.id || req.req_id} onClick={() => openRequirement(req)} className="clickable-row">
+                  {requirements.filter((r: any) =>
+                    (priorityFilter === "all" || r.priority === priorityFilter) &&
+                    (statusFilter === "all" || r.status === statusFilter)
+                  ).map((req: any) => (
+                    <tr key={req.id || req.req_id} onClick={() => { openRequirement(req); onNavigate?.("reqs", req.req_id); }} className="clickable-row">
                       <td className="chevron-cell"><Chevron /></td>
                       <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{req.req_id}</td>
                       <td>
@@ -240,7 +256,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 <tbody>
                   {gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter).map((gap: any) => (
                     <Fragment key={gap.id}>
-                      <tr className="clickable-row" onClick={() => setExpandedRow(expandedRow === gap.id ? null : gap.id)}>
+                      <tr className="clickable-row" onClick={() => { const next = expandedRow === gap.id ? null : gap.id; setExpandedRow(next); onNavigate?.("gaps", next ? gap.gap_id : undefined); }}>
                         <td className="chevron-cell"><Chevron open={expandedRow === gap.id} /></td>
                         <td><SevBadge severity={gap.severity} /></td>
                         <td style={{ fontWeight: 500 }}>{gap.question}</td>
@@ -349,11 +365,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 </thead>
                 <tbody>
                   {constraints.map((c: any, i: number) => (
-                    <tr key={c.id || i} className="clickable-row" onClick={() => setDetail({
+                    <tr key={c.id || i} className="clickable-row" onClick={() => { setDetail({
                       title: `${c.type} Constraint`,
                       content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
                       meta: { type: c.type, status: c.status },
-                    })}>
+                    }); onNavigate?.("constraints", String(c.id).slice(0, 8)); }}>
                       <td className="chevron-cell"><Chevron /></td>
                       <td>
                         <span className="sev-badge" style={{
@@ -405,7 +421,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     c.resolved
                   ).map((c: any) => (
                     <Fragment key={c.id}>
-                      <tr className="clickable-row" onClick={() => setExpandedRow(expandedRow === c.id ? null : c.id)}>
+                      <tr className="clickable-row" onClick={() => { const next = expandedRow === c.id ? null : c.id; setExpandedRow(next); onNavigate?.("contradictions", next ? String(c.id).slice(0, 8) : undefined); }}>
                         <td className="chevron-cell"><Chevron open={expandedRow === c.id} /></td>
                         <td><SevBadge severity="high" /></td>
                         <td>
@@ -606,8 +622,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     });
   }
 
-  function openDocument(doc: any) {
-    const md = [
+  async function openDocument(doc: any) {
+    // Show metadata immediately
+    const metaLines = [
       `# ${doc.filename}`,
       "", `**Type:** ${doc.file_type} | **Status:** ${doc.pipeline_stage}`,
       doc.file_size_bytes ? `**Size:** ${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "",
@@ -616,7 +633,21 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       doc.pipeline_error ? `\n## Pipeline Error\n\`\`\`\n${doc.pipeline_error}\n\`\`\`` : "",
     ].filter(Boolean).join("\n");
 
-    setDetail({ title: doc.filename, content: md, meta: { type: doc.file_type, status: doc.pipeline_stage } });
+    setDetail({ title: doc.filename, content: metaLines + "\n\n---\n\n*Loading content...*", meta: { type: doc.file_type, status: doc.pipeline_stage } });
+
+    // Fetch actual file content
+    try {
+      const data = await getDocumentContent(projectId, doc.id);
+      if (data.content) {
+        const fullMd = metaLines + "\n\n---\n\n## Content\n\n" + data.content;
+        setDetail({ title: doc.filename, content: fullMd, meta: { type: doc.file_type, status: doc.pipeline_stage } });
+      } else {
+        const fullMd = metaLines + (data.message ? `\n\n---\n\n*${data.message}*` : "");
+        setDetail({ title: doc.filename, content: fullMd, meta: { type: doc.file_type, status: doc.pipeline_stage } });
+      }
+    } catch {
+      // Keep showing metadata if content fetch fails
+    }
   }
 }
 

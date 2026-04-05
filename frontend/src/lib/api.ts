@@ -84,6 +84,10 @@ export async function listDocuments(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/documents`);
 }
 
+export async function getDocumentContent(projectId: string, documentId: string) {
+  return fetchAPI(`/api/projects/${projectId}/documents/${documentId}/content`);
+}
+
 // Extracted items
 export async function listRequirements(projectId: string, params?: Record<string, string>) {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -208,6 +212,10 @@ export function chatStream(
 
 export async function getConversation(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/conversation`);
+}
+
+export async function clearConversation(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/conversation`, { method: "DELETE" });
 }
 
 // Knowledge Graph

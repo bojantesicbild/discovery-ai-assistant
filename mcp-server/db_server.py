@@ -339,13 +339,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             unconfirmed_rows = await conn.fetch("SELECT req_id, title, status FROM requirements WHERE project_id = $1 AND status != 'confirmed'", pid)
             confirmed_reqs = len(confirmed_rows)
 
+            nfr_count = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type = 'non_functional'", pid) or 0
+
             func_checks = []
             func_checks.append({"check": "Requirements defined (≥5)", "status": "covered" if total_reqs >= 5 else "partial" if total_reqs >= 2 else "missing", "detail": f"{total_reqs} total"})
-            func_checks.append({"check": "Requirements confirmed", "status": "covered" if total_reqs > 0 and confirmed_reqs / total_reqs >= 0.8 else "partial" if confirmed_reqs > 0 else "missing",
-                                 "detail": f"{confirmed_reqs} of {total_reqs} confirmed",
+            conf_ratio = confirmed_reqs / total_reqs if total_reqs > 0 else 0
+            func_checks.append({"check": "Requirements confirmed", "status": "covered" if conf_ratio >= 0.8 else "partial" if confirmed_reqs > 0 else "missing",
+                                 "detail": f"{confirmed_reqs} of {total_reqs} confirmed ({round(conf_ratio*100)}%)",
                                  "items": [f"{r['req_id']}: {r['title'][:40]} ({r['status']})" for r in unconfirmed_rows] if unconfirmed_rows else []})
             func_checks.append({"check": "MUST requirements (≥3)", "status": "covered" if len(must_reqs) >= 3 else "partial" if len(must_reqs) >= 1 else "missing", "detail": f"{len(must_reqs)} MUST",
                                  "items": must_items})
+            func_checks.append({"check": "Non-functional requirements defined", "status": "covered" if nfr_count >= 1 else "missing", "detail": f"{nfr_count} non-functional"})
 
             # Technical: decisions + tech constraints
             dec_rows = await conn.fetch("SELECT title, status, decided_by FROM decisions WHERE project_id = $1", pid)
@@ -365,6 +369,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             out_items = await conn.fetch("SELECT description FROM scope_items WHERE project_id = $1 AND in_scope = false", pid)
             unresolved_contras = await conn.fetch("SELECT explanation FROM contradictions WHERE project_id = $1 AND resolved = false", pid)
 
+            total_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1", pid) or 0
+            validated_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1 AND validated = true", pid) or 0
+
             scope_checks = []
             scope_checks.append({"check": "In-scope items (≥3)", "status": "covered" if len(in_items) >= 3 else "partial" if len(in_items) >= 1 else "missing",
                                   "items": [r["description"][:50] for r in in_items[:5]]})
@@ -372,6 +379,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                                   "items": [r["description"][:50] for r in out_items[:5]]})
             scope_checks.append({"check": "No unresolved contradictions", "status": "covered" if not unresolved_contras else "missing",
                                   "items": [r["explanation"][:60] for r in unresolved_contras[:3]]})
+            assumption_ratio = validated_assumptions / total_assumptions if total_assumptions > 0 else 0.5
+            scope_checks.append({"check": "Assumptions validated", "status": "covered" if assumption_ratio >= 0.8 else "partial" if assumption_ratio > 0 else "missing",
+                                  "detail": f"{validated_assumptions} of {total_assumptions} validated" if total_assumptions > 0 else "no assumptions tracked"})
 
             def _score(checks):
                 covered = sum(1 for c in checks if c["status"] == "covered")
