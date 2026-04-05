@@ -145,7 +145,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
       {/* Header with readiness ring */}
       <div className="dp-header" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="dp-readiness" style={{ flex: 1 }}>
+        <div className="dp-readiness" style={{ flex: 1, cursor: "pointer" }} onClick={async () => {
+          try {
+            const data = await getReadiness(projectId);
+            setReadinessChecks(data.breakdown?.checks || []);
+          } catch {}
+          setShowReadiness(true);
+        }}>
           <div className="dp-rb-ring">
             <svg viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15" className="bg" />
