@@ -59,19 +59,29 @@ async def process_document(ctx, document_id: str):
 
             # Stage 3: Extract (Claude Code)
             await _update_stage(db, doc, "extracting")
-            # Get project context for smarter extraction
             from app.models.project import Project
+            from app.models.extraction import Requirement as ReqModel
             project = await db.get(Project, project_id)
-            extraction = await _stage_extract(doc, project)
+
+            # Build compact summary of existing requirements for dedup context
+            existing_reqs = await db.execute(
+                select(ReqModel).where(ReqModel.project_id == project_id)
+            )
+            existing_list = existing_reqs.scalars().all()
+            existing_summary = "\n".join(
+                f"- {r.req_id}: {r.title}" for r in existing_list
+            ) if existing_list else ""
+
+            extraction = await _stage_extract(doc, project, existing_summary)
             await _save_checkpoint(db, doc.id, "extract", {"summary": extraction.document_summary})
 
             # Stage 4: Dedup
             await _update_stage(db, doc, "deduplicating")
             from app.pipeline.stages.dedup import dedup_requirements, apply_dedup_actions
             dedup_actions = await dedup_requirements(db, project_id, extraction.requirements)
-            dedup_counts = await apply_dedup_actions(db, project_id, doc.id, dedup_actions)
+            dedup_counts = await apply_dedup_actions(db, project_id, doc.id, dedup_actions, doc_filename=doc.filename)
             # Filter out duplicates before storing
-            non_dup_reqs = [a["item"] for a in dedup_actions if a["action"] != "DUPLICATE"]
+            non_dup_reqs = [a["item"] for a in dedup_actions if a["action"] == "ADD"]
             extraction.requirements = non_dup_reqs
             await _save_checkpoint(db, doc.id, "dedup", dedup_counts)
 
@@ -89,6 +99,13 @@ async def process_document(ctx, document_id: str):
             from app.services.evaluator import evaluator
             readiness = await evaluator.evaluate(project_id, db, triggered_by=f"pipeline:doc:{doc.id}")
             await _save_checkpoint(db, doc.id, "evaluate", readiness)
+
+            # Stage 7: Export markdown to memory bank
+            await _update_stage(db, doc, "exporting")
+            try:
+                await _stage_export_markdown(db, project_id, doc)
+            except Exception as e:
+                log.warning("Markdown export failed (non-fatal)", error=str(e))
 
             # Done
             doc.pipeline_stage = "completed"
@@ -166,7 +183,7 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     return {"dataset_id": dataset_id, "doc_id": "no-file", "status": "skipped"}
 
 
-async def _stage_extract(doc: Document, project=None) -> "DiscoveryExtraction":
+async def _stage_extract(doc: Document, project=None, existing_summary: str = "") -> "DiscoveryExtraction":
     """Extract typed business data using Claude Code. Returns structured JSON."""
     from app.schemas.extraction import (
         DiscoveryExtraction, Requirement, Constraint, Decision,
@@ -194,22 +211,32 @@ Type: {project.project_type}
 
 Extract business requirements relevant to this project for the client."""
 
+        existing_context = ""
+        if existing_summary:
+            existing_context = f"""
+EXISTING REQUIREMENTS (already extracted from other documents):
+{existing_summary}
+
+IMPORTANT: If the document mentions something already covered above, return it with "existing_match": "BR-XXX" so we can merge sources. Only create genuinely NEW requirements."""
+
         prompt = f"""You are extracting business requirements from a client discovery document.
 
 {project_context}
 Document: {doc.filename}
-
+{existing_context}
 ---
 {text[:12000]}
 ---
 
 RULES:
 - Extract ONLY distinct, unique items. NO DUPLICATES.
-- Each requirement/constraint/decision should appear ONCE.
+- SEPARATE requirements from gaps/open questions:
+  - REQUIREMENT = something the system SHALL do (a concrete capability or behavior)
+  - GAP = something UNKNOWN or UNDEFINED (an open question, missing info, unclear scope)
+- If an item matches an existing requirement, include "existing_match": "BR-XXX".
+- If it CONTRADICTS an existing requirement, still include "existing_match": "BR-XXX" and set confidence to "low".
 - Be selective: extract the most important items, not every detail.
-- Focus on what the CLIENT needs, not internal implementation details.
 - Keep titles concise (under 60 chars).
-- Quality over quantity.
 
 Return ONLY valid JSON (no markdown, no code fences):
 {{
@@ -217,7 +244,8 @@ Return ONLY valid JSON (no markdown, no code fences):
   "requirements": [
     {{
       "id": "BR-001",
-      "title": "concise title",
+      "title": "concise title of what system shall do",
+      "existing_match": "BR-XXX or null",
       "type": "functional",
       "priority": "must|should|could|wont",
       "description": "what the system shall do",
@@ -226,8 +254,22 @@ Return ONLY valid JSON (no markdown, no code fences):
       "edge_cases": [],
       "source_doc": "{doc.filename}",
       "source_quote": "exact quote from document (min 10 chars)",
+      "source_person": "person name who said/requested this, or unknown",
       "status": "proposed|discussed|confirmed",
       "confidence": "high|medium|low"
+    }}
+  ],
+  "gaps": [
+    {{
+      "id": "GAP-001",
+      "question": "the open question or undefined area",
+      "severity": "high|medium|low",
+      "area": "which domain this gap affects",
+      "source_doc": "{doc.filename}",
+      "source_quote": "exact quote showing the gap",
+      "source_person": "who raised this or who should answer",
+      "blocked_reqs": ["BR-XXX"],
+      "suggested_action": "what to do to close this gap"
     }}
   ],
   "constraints": [
@@ -283,14 +325,17 @@ Return ONLY the JSON. No duplicates. Be concise and selective."""
             project_id=doc.project_id,
             user_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
             message=prompt,
+            system_prompt="You are a JSON extraction engine. Return ONLY valid JSON. No markdown, no explanation, no code fences. Just the raw JSON object.",
             model="sonnet",
         ):
             if event["type"] == "text":
                 result_text += event["content"]
             elif event["type"] == "result":
-                result_text = event.get("content", result_text)
+                if not result_text:
+                    result_text = event.get("content", "")
 
         # Parse JSON response
+        log.info("Extraction raw response", filename=doc.filename, length=len(result_text), preview=result_text[:200])
         extraction = _parse_extraction_json(result_text, doc.filename)
 
         # Post-extraction dedup: remove duplicates within this extraction
@@ -313,7 +358,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
     """Parse Claude's JSON response into a DiscoveryExtraction model."""
     from app.schemas.extraction import (
         DiscoveryExtraction, Requirement, Constraint, Decision,
-        Stakeholder, Assumption, ScopeItem,
+        Stakeholder, Assumption, ScopeItem, GapItem,
     )
     import json as _json
 
@@ -357,6 +402,12 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 status=r.get("status", "proposed"),
                 confidence=r.get("confidence", "medium"),
             )
+            # Carry source_person for storage
+            if r.get("source_person") and r["source_person"] != "unknown":
+                req._source_person = r["source_person"]
+            # Carry existing_match for dedup merge
+            if r.get("existing_match"):
+                req._existing_match = r["existing_match"]
             requirements.append(req)
         except Exception as e:
             log.warning("Skipping invalid requirement", error=str(e), data=r)
@@ -425,9 +476,28 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
         except Exception as e:
             log.warning("Skipping invalid scope item", error=str(e))
 
+    # Parse gaps
+    gaps = []
+    for g in data.get("gaps", []):
+        try:
+            gaps.append(GapItem(
+                id=g.get("id", f"GAP-{len(gaps)+1:03d}"),
+                question=g.get("question", ""),
+                severity=g.get("severity", "medium"),
+                area=g.get("area", "general"),
+                source_doc=g.get("source_doc", filename),
+                source_quote=g.get("source_quote", ""),
+                source_person=g.get("source_person", "unknown"),
+                blocked_reqs=g.get("blocked_reqs", []),
+                suggested_action=g.get("suggested_action", ""),
+            ))
+        except Exception as e:
+            log.warning("Skipping invalid gap", error=str(e))
+
     return DiscoveryExtraction(
         document_summary=data.get("document_summary", f"Processed {filename}"),
         requirements=requirements,
+        gaps=gaps,
         constraints=constraints,
         decisions=decisions,
         stakeholders=stakeholders,
@@ -482,6 +552,7 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction)
             source_quote=req.source_quote,
             status=req.status,
             confidence=req.confidence,
+            source_person=getattr(req, '_source_person', None),
         )
         db.add(db_req)
         await db.flush()  # Generate ID before referencing it
@@ -561,8 +632,339 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction)
         db.add(db_scp)
         counts["scope_items"] += 1
 
+    # Store gaps
+    from app.models.extraction import Gap as GapModel
+    # Get next GAP number
+    from sqlalchemy import func as sql_func
+    max_gap = await db.execute(
+        select(sql_func.count()).where(GapModel.project_id == project_id)
+    )
+    next_gap_num = (max_gap.scalar() or 0) + 1
+
+    for gap in extraction.gaps:
+        gap_id = f"GAP-{next_gap_num:03d}"
+        next_gap_num += 1
+        db_gap = GapModel(
+            project_id=project_id,
+            gap_id=gap_id,
+            question=gap.question,
+            severity=gap.severity,
+            area=gap.area,
+            source_doc_id=doc_id,
+            source_quote=gap.source_quote,
+            source_person=gap.source_person if gap.source_person != "unknown" else None,
+            blocked_reqs=gap.blocked_reqs,
+            suggested_action=gap.suggested_action,
+            status="open",
+        )
+        db.add(db_gap)
+        counts["gaps"] = counts.get("gaps", 0) + 1
+
     counts["contradictions"] = len(extraction.contradictions)
-    counts["total"] = sum(v for k, v in counts.items() if k != "total" and k != "contradictions")
+    counts["total"] = sum(v for k, v in counts.items() if k != "total" and k != "contradictions" and k != "gaps")
 
     await db.flush()
     return counts
+
+
+async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
+    """Export all extracted items to markdown files in the project's memory bank."""
+    from app.agent.claude_runner import claude_runner
+    from app.models.document import Document
+    from datetime import date as date_today
+
+    project_dir = claude_runner.get_project_dir(project_id)
+    discovery_dir = project_dir / ".memory-bank" / "docs" / "discovery"
+    discovery_dir.mkdir(parents=True, exist_ok=True)
+    reqs_dir = discovery_dir / "requirements"
+    reqs_dir.mkdir(parents=True, exist_ok=True)
+
+    today = date_today.today().isoformat()
+
+    # Load all items for this project
+    reqs_result = await db.execute(
+        select(Requirement, Document.filename)
+        .outerjoin(Document, Requirement.source_doc_id == Document.id)
+        .where(Requirement.project_id == project_id)
+        .order_by(Requirement.req_id)
+    )
+    reqs_rows = reqs_result.all()
+
+    contras_result = await db.execute(
+        select(Contradiction).where(Contradiction.project_id == project_id)
+    )
+    contras = contras_result.scalars().all()
+
+    decisions_result = await db.execute(
+        select(Decision).where(Decision.project_id == project_id)
+    )
+    decisions = decisions_result.scalars().all()
+
+    stakeholders_result = await db.execute(
+        select(Stakeholder).where(Stakeholder.project_id == project_id)
+    )
+    stakeholders = stakeholders_result.scalars().all()
+
+    constraints_result = await db.execute(
+        select(Constraint).where(Constraint.project_id == project_id)
+    )
+    constraints = constraints_result.scalars().all()
+
+    from app.models.extraction import Gap as GapModel
+    gaps_result = await db.execute(
+        select(GapModel, Document.filename)
+        .outerjoin(Document, GapModel.source_doc_id == Document.id)
+        .where(GapModel.project_id == project_id)
+        .order_by(GapModel.gap_id)
+    )
+    gaps_rows = gaps_result.all()
+
+    # --- requirements.md ---
+    lines = [
+        "---",
+        "category: requirements-index",
+        f"date: {today}",
+        f"total: {len(reqs_rows)}",
+        "---",
+        "",
+        "# Requirements",
+        "",
+        "| ID | Title | Priority | Status | Confidence | Source Person |",
+        "|---|---|---|---|---|---|",
+    ]
+    for r, doc_name in reqs_rows:
+        person = r.source_person or ""
+        lines.append(
+            f"| [[{r.req_id}]] | {r.title} | {r.priority} | {r.status} | {r.confidence} | {person} |"
+        )
+    lines.append("")
+    (discovery_dir / "requirements.md").write_text("\n".join(lines))
+
+    # --- Individual requirement files ---
+    for r, doc_name in reqs_rows:
+        source_doc_name = doc_name or "unknown"
+        person = r.source_person or "unknown"
+        desc_escaped = (r.description or "").replace('"', '\\"')
+        sources_list = r.sources or []
+
+        req_lines = [
+            "---",
+            f"id: {r.req_id}",
+            f'title: "{r.title}"',
+            f"priority: {r.priority}",
+            f"status: {r.status}",
+            f"confidence: {r.confidence}",
+            f'source_doc: "{source_doc_name}"',
+            f"source_person: {person}",
+            f"version: {r.version or 1}",
+            f"date: {today}",
+            "category: requirement",
+            f'description: "{desc_escaped}"',
+            "---",
+            "",
+            f"# {r.req_id}: {r.title}",
+            "",
+            r.description or "",
+            "",
+            "## Source",
+            f"> \"{r.source_quote}\"" if r.source_quote else "> (no quote)",
+            "",
+            "## People",
+        ]
+        if person and person != "unknown":
+            req_lines.append(f"- [[{person}]] — requested")
+        else:
+            req_lines.append("- (unknown)")
+
+        req_lines.append("")
+        req_lines.append("## Related")
+
+        # Link other requirements from the same source doc
+        for other_r, other_doc in reqs_rows:
+            if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id:
+                req_lines.append(f"- [[{other_r.req_id}]] — co-extracted")
+
+        req_lines.append("")
+        req_lines.append("## Sources")
+        req_lines.append(f"- [[{source_doc_name}]] — original extraction")
+        for src in sources_list:
+            fname = src.get("filename", "unknown")
+            req_lines.append(f"- [[{fname}]] — v{r.version or 1} merge")
+
+        req_lines.append("")
+        (reqs_dir / f"{r.req_id}.md").write_text("\n".join(req_lines))
+
+    # --- contradictions.md ---
+    contra_lines = [
+        "---",
+        "category: contradictions-index",
+        f"date: {today}",
+        f"total: {len(contras)}",
+        "---",
+        "",
+        "# Contradictions",
+        "",
+    ]
+    for c in contras:
+        resolved_str = "RESOLVED" if c.resolved else "OPEN"
+        contra_lines.append(f"- **[{resolved_str}]** {c.explanation}")
+        if c.resolution_note:
+            contra_lines.append(f"  - Resolution: {c.resolution_note}")
+    contra_lines.append("")
+    (discovery_dir / "contradictions.md").write_text("\n".join(contra_lines))
+
+    # --- decisions.md ---
+    dec_lines = [
+        "---",
+        "category: decisions-index",
+        f"date: {today}",
+        f"total: {len(decisions)}",
+        "---",
+        "",
+        "# Decisions",
+        "",
+    ]
+    for i, d in enumerate(decisions):
+        dec_id = f"DEC-{i+1:03d}"
+        dec_lines.append(f"## {dec_id}: {d.title}")
+        dec_lines.append(f"- **Decided by**: {d.decided_by or 'unknown'}")
+        dec_lines.append(f"- **Status**: {d.status}")
+        dec_lines.append(f"- **Rationale**: {d.rationale}")
+        if d.alternatives:
+            dec_lines.append(f"- **Alternatives**: {', '.join(str(a) for a in d.alternatives)}")
+        dec_lines.append("")
+    (discovery_dir / "decisions.md").write_text("\n".join(dec_lines))
+
+    # --- people.md ---
+    stk_lines = [
+        "---",
+        "category: stakeholders-index",
+        f"date: {today}",
+        f"total: {len(stakeholders)}",
+        "---",
+        "",
+        "# People",
+        "",
+    ]
+    for s in stakeholders:
+        stk_lines.append(f"## [[{s.name}]]")
+        stk_lines.append(f"- **Role**: {s.role}")
+        stk_lines.append(f"- **Organization**: {s.organization}")
+        stk_lines.append(f"- **Authority**: {s.decision_authority}")
+        # Link requirements by this person
+        person_reqs = [r for r, _ in reqs_rows if r.source_person == s.name]
+        if person_reqs:
+            stk_lines.append("- **Requirements**:")
+            for pr in person_reqs:
+                stk_lines.append(f"  - [[{pr.req_id}]] — {pr.title}")
+        stk_lines.append("")
+    (discovery_dir / "people.md").write_text("\n".join(stk_lines))
+
+    # --- readiness.md ---
+    from app.services.evaluator import evaluator
+    try:
+        readiness = await evaluator.evaluate(project_id, db, triggered_by="export")
+    except Exception:
+        readiness = {"score": 0, "details": {}}
+    rd_lines = [
+        "---",
+        "category: readiness",
+        f"date: {today}",
+        f"score: {readiness.get('score', 0)}",
+        "---",
+        "",
+        "# Readiness Scores",
+        "",
+        f"**Overall Score**: {readiness.get('score', 0)}%",
+        "",
+    ]
+    details = readiness.get("details", {})
+    if isinstance(details, dict):
+        for key, val in details.items():
+            rd_lines.append(f"- **{key}**: {val}")
+    rd_lines.append("")
+    (discovery_dir / "readiness.md").write_text("\n".join(rd_lines))
+
+    # --- constraints/ individual files ---
+    constraints_dir = discovery_dir / "constraints"
+    constraints_dir.mkdir(parents=True, exist_ok=True)
+    for i, con in enumerate(constraints, 1):
+        con_id = f"CON-{i:03d}"
+        con_lines = [
+            "---",
+            f"id: {con_id}",
+            f'title: "{con.type}: {con.description[:50]}"',
+            f"type: {con.type}",
+            f"status: {con.status}",
+            f"date: {today}",
+            "category: constraint",
+            "---",
+            "",
+            f"# {con_id}: {con.type} constraint",
+            "",
+            con.description,
+            "",
+            "## Impact",
+            con.impact or "Not specified",
+            "",
+        ]
+        if con.source_quote:
+            con_lines.append("## Source")
+            con_lines.append(f'> "{con.source_quote}"')
+            con_lines.append("")
+        # Link to requirements that this constraint affects
+        con_lines.append("## Affected Requirements")
+        for r, _ in reqs_rows:
+            if r.source_doc_id == con.source_doc_id:
+                con_lines.append(f"- [[{r.req_id}]] — constrained")
+        con_lines.append("")
+        (constraints_dir / f"{con_id}.md").write_text("\n".join(con_lines))
+
+    # --- gaps/ individual files ---
+    gaps_dir = discovery_dir / "gaps"
+    gaps_dir.mkdir(parents=True, exist_ok=True)
+    for g, g_doc_name in gaps_rows:
+        g_doc = g_doc_name or "unknown"
+        g_person = g.source_person or "unknown"
+        blocked = ", ".join(g.blocked_reqs or [])
+        gap_lines = [
+            "---",
+            f"id: {g.gap_id}",
+            f'question: "{g.question}"',
+            f"severity: {g.severity}",
+            f"area: {g.area}",
+            f'source_doc: "{g_doc}"',
+            f"source_person: {g_person}",
+            f"status: {g.status}",
+            f"date: {today}",
+            "category: gap",
+            "---",
+            "",
+            f"# {g.gap_id}: {g.question}",
+            "",
+        ]
+        if g.suggested_action:
+            gap_lines.append(f"{g.suggested_action}")
+            gap_lines.append("")
+        if g.source_quote:
+            gap_lines.append("## Source")
+            gap_lines.append(f'> "{g.source_quote}"')
+            gap_lines.append("")
+        if g_person and g_person != "unknown":
+            gap_lines.append("## Ask")
+            gap_lines.append(f"- [[{g_person}]] — ask")
+            gap_lines.append("")
+        if blocked:
+            gap_lines.append("## Blocked Requirements")
+            for br in (g.blocked_reqs or []):
+                gap_lines.append(f"- [[{br}]] — blocked")
+            gap_lines.append("")
+        gap_lines.append("## Source Documents")
+        gap_lines.append(f"- [[{g_doc}]]")
+        gap_lines.append("")
+        (gaps_dir / f"{g.gap_id}.md").write_text("\n".join(gap_lines))
+
+    log.info("Markdown export complete",
+             project_id=str(project_id),
+             requirements=len(reqs_rows),
+             path=str(discovery_dir))

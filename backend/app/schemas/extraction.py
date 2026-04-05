@@ -10,7 +10,7 @@ from typing import Optional, Literal
 class Requirement(BaseModel):
     id: str = Field(description="Auto-generated: BR-001, BR-002")
     title: str = Field(description="Short title: 'SSO Authentication'")
-    type: Literal["functional", "non_functional"]
+    type: str = Field(description="functional, non_functional, organizational, etc.")
     priority: Literal["must", "should", "could", "wont"]
     description: str = Field(description="What the system shall do")
     user_perspective: Optional[str] = Field(None, description="As a [role], I want [X], so that [Y]")
@@ -86,9 +86,23 @@ class Contradiction(BaseModel):
     recommended_resolution: Literal["keep_a", "keep_b", "merge", "flag_for_review"]
 
 
+class GapItem(BaseModel):
+    """An open question or undefined area — NOT a requirement."""
+    id: str = Field(description="GAP-001, GAP-002")
+    question: str
+    severity: str = "medium"
+    area: str = "general"
+    source_doc: str = ""
+    source_quote: str = ""
+    source_person: str = "unknown"
+    blocked_reqs: list[str] = Field(default_factory=list)
+    suggested_action: str = ""
+
+
 class DiscoveryExtraction(BaseModel):
     """Everything extracted from a single client document."""
     requirements: list[Requirement] = Field(default_factory=list)
+    gaps: list[GapItem] = Field(default_factory=list)
     constraints: list[Constraint] = Field(default_factory=list)
     decisions: list[Decision] = Field(default_factory=list)
     stakeholders: list[Stakeholder] = Field(default_factory=list)

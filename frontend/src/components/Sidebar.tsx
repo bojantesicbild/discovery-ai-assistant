@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getMe } from "@/lib/api";
 import NewProjectModal from "./NewProjectModal";
 
 const NAV_ITEMS = [
@@ -22,54 +23,86 @@ const NAV_ITEMS = [
   ]},
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}
+
+function getInitials(name: string): string {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
+export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollapsed }: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+
+  const collapsed = controlledCollapsed ?? internalCollapsed;
+  const toggleCollapsed = onToggleCollapsed ?? (() => setInternalCollapsed((c) => !c));
+
+  useEffect(() => {
+    getMe()
+      .then((u) => setUser({ name: u.name, email: u.email }))
+      .catch(() => {});
+  }, []);
+
+  // Extract projectId from pathname for project-scoped links
+  const projectIdMatch = pathname?.match(/\/projects\/([^/]+)/);
+  const projectId = projectIdMatch ? projectIdMatch[1] : null;
 
   return (
     <>
-    <aside className={`sidebar${collapsed ? " collapsed" : ""}`} style={collapsed ? { width: 64 } : {}}>
+    <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
       <div className="sidebar-logo">
-        <h1>Crnogorchi<span></span></h1>
+        <h1>C{!collapsed && "rnogorchi"}<span></span></h1>
       </div>
 
       <nav className="sidebar-nav">
         {/* New Project button */}
-        {!collapsed && (
-          <button
-            onClick={() => setShowNewProject(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              width: "100%", padding: "8px 12px", marginBottom: 8,
-              background: "var(--green)", color: "var(--dark)",
-              border: "none", borderRadius: "var(--radius-sm)",
-              fontSize: 13, fontWeight: 600, fontFamily: "var(--font)",
-              cursor: "pointer", transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--green-hover)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "var(--green)")}
-          >
-            <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            New Project
-          </button>
-        )}
+        <button
+          onClick={() => setShowNewProject(true)}
+          title={collapsed ? "New Project" : undefined}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : undefined,
+            gap: 8,
+            width: "100%", padding: "8px 12px", marginBottom: 8,
+            background: "var(--green)", color: "var(--dark)",
+            border: "none", borderRadius: "var(--radius-sm)",
+            fontSize: 13, fontWeight: 600, fontFamily: "var(--font)",
+            cursor: "pointer", transition: "all 0.15s",
+            overflow: "hidden", whiteSpace: "nowrap",
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--green-hover)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "var(--green)")}
+        >
+          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, flexShrink: 0, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          {!collapsed && "New Project"}
+        </button>
         {NAV_ITEMS.map((section) => (
           <div key={section.label}>
-            <div className="nav-label">{section.label}</div>
+            <div className="nav-label" style={collapsed ? { visibility: "hidden" } : undefined}>{section.label}</div>
             {section.items.map((item) => {
+              // Build the actual href — knowledge is project-scoped
+              const resolvedHref = item.href === "/knowledge" && projectId
+                ? `/projects/${projectId}/knowledge`
+                : item.href;
+
               const isActive = item.href === "/discovery"
                 ? pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")
-                : pathname === item.href;
+                : item.href === "/knowledge"
+                  ? pathname?.includes("/knowledge")
+                  : pathname === item.href;
 
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
-                  className={`nav-item${isActive ? " active" : ""}`}
+                  href={resolvedHref}
+                  className={`nav-item${isActive ? " active" : ""}${collapsed ? " collapsed" : ""}`}
+                  title={collapsed ? item.label : undefined}
                 >
                   <div className="nav-icon">
                     <svg viewBox="0 0 24 24">{item.icon}</svg>
@@ -82,11 +115,13 @@ export default function Sidebar() {
           </div>
         ))}
 
-        <div style={{ flex: 1 }} />
+      </nav>
 
+      <div className="sidebar-bottom">
         <button
-          className="nav-item"
-          onClick={() => setCollapsed(!collapsed)}
+          className={`nav-item${collapsed ? " collapsed" : ""}`}
+          onClick={toggleCollapsed}
+          title={collapsed ? "Expand" : undefined}
           style={{ border: "none", background: "none", fontFamily: "var(--font)", width: "100%", textAlign: "left" }}
         >
           <div className="nav-icon">
@@ -97,16 +132,16 @@ export default function Sidebar() {
           </div>
           {!collapsed && "Collapse"}
         </button>
-      </nav>
 
-      <div className="sidebar-user">
-        <div className="user-avatar">BT</div>
-        {!collapsed && (
-          <div className="user-info">
-            <div className="user-name">Bojan Tesic</div>
-            <div className="user-role">Product Owner</div>
-          </div>
-        )}
+        <div className={`sidebar-user${collapsed ? " collapsed" : ""}`} title={collapsed && user ? user.name : undefined}>
+          <div className="user-avatar">{user ? getInitials(user.name) : "?"}</div>
+          {!collapsed && (
+            <div className="user-info">
+              <div className="user-name">{user?.name || "Loading..."}</div>
+              <div className="user-role">{user?.email || ""}</div>
+            </div>
+          )}
+        </div>
       </div>
     </aside>
     <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} />

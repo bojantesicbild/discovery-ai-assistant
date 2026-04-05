@@ -23,6 +23,9 @@ class Requirement(Base, IdMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String, default="proposed")
     confidence: Mapped[str] = mapped_column(String, default="medium")
     ragflow_chunk_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_person: Mapped[str | None] = mapped_column(String, nullable=True)
+    sources: Mapped[list] = mapped_column(JSONB, default=list)  # [{doc_id, filename, quote, added_at}]
+    version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -86,6 +89,23 @@ class ScopeItem(Base, IdMixin, TimestampMixin):
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
 
 
+class Gap(Base, IdMixin, TimestampMixin):
+    __tablename__ = "gaps"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    gap_id: Mapped[str] = mapped_column(String, nullable=False)  # GAP-001
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String, default="medium")  # high, medium, low
+    area: Mapped[str] = mapped_column(String, default="general")
+    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_person: Mapped[str | None] = mapped_column(String, nullable=True)
+    blocked_reqs: Mapped[list] = mapped_column(JSONB, default=list)  # ["BR-001", "BR-002"]
+    suggested_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="open")  # open, in-progress, resolved, dismissed
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Contradiction(Base, IdMixin, TimestampMixin):
     __tablename__ = "contradictions"
 
@@ -95,6 +115,7 @@ class Contradiction(Base, IdMixin, TimestampMixin):
     item_b_type: Mapped[str] = mapped_column(String, nullable=False)
     item_b_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 

@@ -13,8 +13,42 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'mkdir -p .memory-bank/.logs && SESSION_ID=\"$(date +%s)-$$\" && echo \"$SESSION_ID\" > .memory-bank/.logs/.session-start && echo \"[$(date +\"%Y-%m-%d %H:%M:%S\")] [Session: $SESSION_ID] Session started\" >> .memory-bank/.logs/session-history.log'",
-            "description": "Generate session ID and log session start"
+            "command": ".claude/scripts/session-start.sh",
+            "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/validate-write.py",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/pre-compact.sh",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '⏹ Session end checklist: Archive completed tasks? Update key-decisions.md? Promote learnings? Check unresolved contradictions?'",
+            "timeout": 2000
           }
         ]
       }
@@ -25,7 +59,7 @@
           {
             "type": "command",
             "command": ".claude/scripts/update-archive-stats.sh",
-            "description": "Update archive indexes after any subagent completes"
+            "timeout": 10000
           }
         ]
       }
@@ -36,8 +70,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash -c 'if [ -f .memory-bank/active-task.md ]; then grep -q \"Current Domain: \" .memory-bank/active-task.md 2>/dev/null && ! grep -q \"Current Domain: none\" .memory-bank/active-task.md 2>/dev/null && echo \"Active domain detected\" || true; fi'",
-            "description": "Detect active domain on new user prompts"
+            "command": "bash -c 'if [ -f .memory-bank/active-task.md ]; then DOMAIN=$(grep -oP \"Current Domain: \\K.*\" .memory-bank/active-task.md 2>/dev/null); if [ -n \"$DOMAIN\" ] && [ \"$DOMAIN\" != \"none\" ]; then echo \"Active: $DOMAIN\"; fi; fi'",
+            "timeout": 3000
           }
         ]
       }

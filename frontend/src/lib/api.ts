@@ -51,6 +51,11 @@ export async function getProject(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}`);
 }
 
+// Search
+export async function searchProject(projectId: string, query: string) {
+  return fetchAPI(`/api/projects/${projectId}/search?q=${encodeURIComponent(query)}`);
+}
+
 // Documents
 export async function uploadDocument(projectId: string, file: File) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -122,6 +127,14 @@ export async function listContradictions(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/contradictions`);
 }
 
+export async function listGaps(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/gaps`);
+}
+
+export async function resolveGap(projectId: string, gapId: string, resolution: string) {
+  return fetchAPI(`/api/projects/${projectId}/gaps/${gapId}/resolve?resolution=${encodeURIComponent(resolution)}`, { method: "PATCH" });
+}
+
 // Dashboard
 export async function getDashboard(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/dashboard`);
@@ -136,9 +149,11 @@ export function chatStream(
   projectId: string,
   text: string,
   onText: (text: string) => void,
-  onDone: () => void,
+  onDone: (stats?: { numTurns?: number; durationMs?: number }) => void,
   onError: (error: string) => void,
-  onTool?: (tool: string) => void,
+  onTool?: (tool: string, toolType?: string) => void,
+  onThinking?: () => void,
+  onRetry?: (attempt: number, maxRetries: number) => void,
 ) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -177,9 +192,11 @@ export function chatStream(
           try {
             const data = JSON.parse(line.slice(6));
             if (data.text) onText(data.text);
-            if (data.tool) onTool?.(data.tool);
+            if (data.tool) onTool?.(data.tool, data.toolType);
+            if (data.thinking) onThinking?.();
+            if (data.retry) onRetry?.(data.attempt, data.maxRetries);
             if (data.error) onError(data.error);
-            if (data.done) onDone();
+            if (data.done) onDone(data.stats);
           } catch {
             // Skip unparseable lines
           }
@@ -193,7 +210,57 @@ export async function getConversation(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/conversation`);
 }
 
-// Generate
-export async function generateHandoff(projectId: string) {
-  return fetchAPI(`/api/projects/${projectId}/generate`, { method: "POST" });
+// Knowledge Graph
+export async function getKnowledgeGraph(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/knowledge-graph`);
+}
+
+// Generate / Handoff
+export async function listHandoffDocs(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/handoff`);
+}
+
+export async function getHandoffDoc(projectId: string, docType: string) {
+  return fetchAPI(`/api/projects/${projectId}/handoff/${docType}`);
+}
+
+export function generateHandoffStream(
+  projectId: string,
+  onText: (text: string) => void,
+  onDone: (generated: string[]) => void,
+  onTool?: (tool: string) => void,
+  onError?: (error: string) => void,
+) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  fetch(`${API_URL}/api/projects/${projectId}/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  }).then(async (response) => {
+    if (!response.ok) { onError?.("Generation failed"); return; }
+    const reader = response.body?.getReader();
+    if (!reader) { onError?.("No response body"); return; }
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.text) onText(data.text);
+            if (data.tool) onTool?.(data.tool);
+            if (data.error) onError?.(data.error);
+            if (data.done) onDone(data.generated || []);
+          } catch {}
+        }
+      }
+    }
+  }).catch((err) => onError?.(err.message));
 }

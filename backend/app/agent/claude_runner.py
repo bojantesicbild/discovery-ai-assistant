@@ -73,10 +73,60 @@ class ClaudeCodeRunner:
         # Ensure uploads dir
         (project_dir / "uploads").mkdir(exist_ok=True)
 
+        # Seed memory bank files
+        self._create_seed_files(mb)
+
         # Write MCP config for this project
         self._write_mcp_config(project_id, project_dir)
 
         log.info("Project directory ready", project_id=str(project_id))
+
+    def _create_seed_files(self, mb: Path):
+        """Create seed memory bank files with template content."""
+        # project-brief.md
+        if not (mb / "project-brief.md").exists():
+            (mb / "project-brief.md").write_text(
+                "---\ncategory: project-brief\nstatus: draft\n---\n\n"
+                "# Project Brief\n\n"
+                "## Overview\n(Populated automatically from discovery pipeline)\n\n"
+                "## Goals\n- TBD\n\n"
+                "## Success Criteria\n- TBD\n\n"
+                "## Timeline\n- TBD\n"
+            )
+
+        # system-patterns.md
+        if not (mb / "system-patterns.md").exists():
+            (mb / "system-patterns.md").write_text(
+                "---\ncategory: system-patterns\nstatus: draft\n---\n\n"
+                "# System Patterns\n\n"
+                "## Architecture\n(Discovered during analysis)\n\n"
+                "## Key Design Decisions\n- TBD\n\n"
+                "## Integration Points\n- TBD\n"
+            )
+
+        # tech-context.md
+        if not (mb / "tech-context.md").exists():
+            (mb / "tech-context.md").write_text(
+                "---\ncategory: tech-context\nstatus: draft\n---\n\n"
+                "# Tech Context\n\n"
+                "## Stack\n(Populated from discovery)\n\n"
+                "## Constraints\n- TBD\n\n"
+                "## Dependencies\n- TBD\n"
+            )
+
+        # key-decisions.md
+        if not (mb / "key-decisions.md").exists():
+            (mb / "key-decisions.md").write_text(
+                "---\ncategory: key-decisions\nstatus: draft\n---\n\n"
+                "# Key Decisions\n\n"
+            )
+
+        # gotchas.md
+        if not (mb / "gotchas.md").exists():
+            (mb / "gotchas.md").write_text(
+                "---\ncategory: gotchas\nstatus: draft\n---\n\n"
+                "# Gotchas\n\n"
+            )
 
     def _write_mcp_config(self, project_id: uuid.UUID, project_dir: Path):
         """Write .mcp.json with discovery MCP server for this project."""
@@ -177,25 +227,39 @@ class ClaudeCodeRunner:
                     yield {"type": "session", "session_id": new_session_id}
                     continue
 
-                # Assistant message — stream text content
+                # Assistant message — stream text, thinking, and tool calls
                 if event_type == "assistant":
                     msg = event.get("message", {})
                     for block in msg.get("content", []):
-                        if block.get("type") == "text":
+                        block_type = block.get("type")
+                        if block_type == "text":
                             yield {"type": "text", "content": block["text"]}
-                        elif block.get("type") == "tool_use":
+                        elif block_type == "tool_use":
                             yield {
                                 "type": "tool_use",
                                 "tool": block.get("name", "unknown"),
                                 "input": block.get("input", {}),
                             }
+                        elif block_type == "thinking":
+                            yield {
+                                "type": "thinking",
+                                "content": block.get("thinking", ""),
+                            }
                     continue
 
-                # Tool result — Claude handles execution internally
-                if event_type == "tool_result":
+                # Tool result — surface tool execution status
+                if event_type == "tool_result" or event_type == "user":
+                    msg = event.get("message", {})
+                    for block in msg.get("content", []):
+                        if block.get("type") == "tool_result":
+                            yield {
+                                "type": "tool_result",
+                                "tool_use_id": block.get("tool_use_id", ""),
+                                "is_error": block.get("is_error", False),
+                            }
                     continue
 
-                # Final result
+                # Final result — full stats
                 if event_type == "result":
                     result_session = event.get("session_id")
                     if result_session:
@@ -206,6 +270,18 @@ class ClaudeCodeRunner:
                         "session_id": result_session,
                         "cost_usd": event.get("total_cost_usd", 0),
                         "duration_ms": event.get("duration_ms", 0),
+                        "duration_api_ms": event.get("duration_api_ms", 0),
+                        "num_turns": event.get("num_turns", 0),
+                    }
+                    continue
+
+                # API retry — surface to UI
+                if event_type == "system" and event.get("subtype") == "api_retry":
+                    yield {
+                        "type": "retry",
+                        "attempt": event.get("attempt", 1),
+                        "max_retries": event.get("max_retries", 3),
+                        "error": event.get("error", "unknown"),
                     }
                     continue
 

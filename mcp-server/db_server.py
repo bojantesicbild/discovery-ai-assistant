@@ -57,6 +57,17 @@ def _json_result(data) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(data, indent=2, default=str))]
 
 
+async def _trigger_markdown_sync(pid: str):
+    """Trigger markdown re-export via the backend API (fire-and-forget)."""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(f"http://localhost:8000/api/projects/{pid}/sync-markdown",
+                            headers={"Authorization": "Bearer internal"})
+    except Exception:
+        pass  # Non-fatal
+
+
 async def _recalculate_readiness(conn, pid: str):
     """Recalculate readiness score after a write operation."""
     # Business (20%)
@@ -120,6 +131,8 @@ async def _recalculate_readiness(conn, pid: str):
         "INSERT INTO readiness_history (id, project_id, score, breakdown, triggered_by) VALUES (gen_random_uuid(), $1, $2, $3, $4)",
         pid, overall, breakdown, "mcp_write"
     )
+    # Trigger markdown sync (fire-and-forget)
+    asyncio.ensure_future(_trigger_markdown_sync(pid))
     return overall
 
 
@@ -130,19 +143,23 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_requirements", description="Get all business requirements with ID, title, priority (must/should/could), status (proposed/discussed/confirmed/dropped), description, and source quote. Filter by priority or status.", inputSchema={"type": "object", "properties": {"priority": {"type": "string", "description": "Filter: must, should, could, wont"}, "status": {"type": "string", "description": "Filter: proposed, discussed, confirmed, changed, dropped"}}, "required": []}),
         Tool(name="get_constraints", description="Get all project constraints: budget, timeline, technology, regulatory, organizational. Each has description, impact, and status.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_decisions", description="Get all decisions made during discovery: what was decided, by whom, rationale, alternatives considered, and status.", inputSchema={"type": "object", "properties": {}, "required": []}),
-        Tool(name="get_stakeholders", description="Get all identified stakeholders: name, role, organization, decision authority (final/recommender/informed), and interests.", inputSchema={"type": "object", "properties": {}, "required": []}),
+        Tool(name="get_stakeholders", description="Get all identified people: name, role, organization, decision authority (final/recommender/informed), and interests.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_assumptions", description="Get all assumptions: what we believe, basis for believing it, risk if wrong, and whether it's been validated.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_scope", description="Get all scope items: what's explicitly in or out of MVP, with rationale.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_contradictions", description="Get all contradictions/conflicts between items, with resolution status.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_readiness", description="Get discovery readiness score and per-area breakdown (business, functional, technical, scope).", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_documents", description="Get all uploaded documents with processing status and extraction counts.", inputSchema={"type": "object", "properties": {}, "required": []}),
-        Tool(name="search", description="Search across all extracted data (requirements, constraints, decisions, stakeholders) by keyword.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term"}}, "required": ["query"]}),
+        Tool(name="search", description="Search across all extracted data (requirements, constraints, decisions, people) by keyword.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term"}}, "required": ["query"]}),
         Tool(name="get_activity", description="Get recent activity log: uploads, status changes, extractions.", inputSchema={"type": "object", "properties": {"limit": {"type": "integer", "description": "Number of entries (default 20)"}}, "required": []}),
         # Write tools
         Tool(name="update_requirement_status", description="Update a business requirement's status. Use when PO asks to confirm, discuss, change, or drop a requirement.", inputSchema={"type": "object", "properties": {"req_id": {"type": "string", "description": "Requirement ID (e.g. BR-001)"}, "status": {"type": "string", "enum": ["proposed", "discussed", "confirmed", "changed", "dropped"], "description": "New status"}}, "required": ["req_id", "status"]}),
         Tool(name="update_requirement_priority", description="Update a business requirement's priority.", inputSchema={"type": "object", "properties": {"req_id": {"type": "string", "description": "Requirement ID (e.g. BR-001)"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "New priority"}}, "required": ["req_id", "priority"]}),
         Tool(name="validate_assumption", description="Mark an assumption as validated or unvalidated.", inputSchema={"type": "object", "properties": {"statement_fragment": {"type": "string", "description": "Part of the assumption text to find it"}, "validated": {"type": "boolean", "description": "true = validated, false = unvalidated"}}, "required": ["statement_fragment", "validated"]}),
         Tool(name="resolve_contradiction", description="Resolve a contradiction with a resolution note.", inputSchema={"type": "object", "properties": {"explanation_fragment": {"type": "string", "description": "Part of the contradiction explanation to find it"}, "resolution_note": {"type": "string", "description": "How it was resolved"}}, "required": ["explanation_fragment", "resolution_note"]}),
+        Tool(name="get_control_points", description="Get control point coverage status for all readiness areas (business, functional, technical, scope). Shows total requirements, confirmed count, and coverage percentage per area.", inputSchema={"type": "object", "properties": {}, "required": []}),
+        Tool(name="get_gaps", description="Get all identified gaps — requirements with low confidence or pending/assumed status that need attention.", inputSchema={"type": "object", "properties": {}, "required": []}),
+        Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, and scope items.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
+        Tool(name="store_finding", description="Store a new finding (requirement, constraint, or decision) discovered during agent analysis. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title of the finding"}, "description": {"type": "string", "description": "Detailed description"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "Priority (for requirements, default: should)"}, "source": {"type": "string", "description": "Source of the finding (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
     ]
 
 
@@ -291,6 +308,142 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             await conn.execute("UPDATE contradictions SET resolved = true, resolution_note = $1 WHERE id = $2", note, row["id"])
             new_score = await _recalculate_readiness(conn, pid)
             return _json_result({"success": True, "contradiction": row["explanation"][:60], "resolved": True, "readiness": new_score})
+
+        # ── New read tools ──
+
+        if name == "get_control_points":
+            areas = {
+                "business": {
+                    "total_query": "SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type = 'business'",
+                    "confirmed_query": "SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type = 'business' AND status = 'confirmed'",
+                },
+                "functional": {
+                    "total_query": "SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type IN ('functional', 'non_functional')",
+                    "confirmed_query": "SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type IN ('functional', 'non_functional') AND status = 'confirmed'",
+                },
+                "technical": {
+                    "total_query": "SELECT COUNT(*) FROM decisions WHERE project_id = $1",
+                    "confirmed_query": "SELECT COUNT(*) FROM decisions WHERE project_id = $1 AND status = 'confirmed'",
+                },
+                "scope": {
+                    "total_query": "SELECT COUNT(*) FROM scope_items WHERE project_id = $1",
+                    "confirmed_query": "SELECT COUNT(*) FROM scope_items WHERE project_id = $1 AND rationale IS NOT NULL AND rationale != ''",
+                },
+            }
+            control_points = []
+            for area_name, queries in areas.items():
+                total = await conn.fetchval(queries["total_query"], pid) or 0
+                confirmed = await conn.fetchval(queries["confirmed_query"], pid) or 0
+                coverage = round((confirmed / total) * 100, 1) if total > 0 else 0.0
+                control_points.append({
+                    "area": area_name,
+                    "total_requirements": total,
+                    "confirmed": confirmed,
+                    "coverage_percent": coverage,
+                })
+            return _json_result(control_points)
+
+        if name == "get_gaps":
+            rows = await conn.fetch(
+                "SELECT req_id, title, confidence, status, source_quote, description "
+                "FROM requirements WHERE project_id = $1 AND (confidence = 'low' OR status IN ('pending', 'assumed', 'proposed')) "
+                "ORDER BY confidence ASC, req_id",
+                pid
+            )
+            return _json_result([dict(r) for r in rows])
+
+        if name == "search_documents":
+            q = arguments.get("query", "")
+            pattern = f"%{q}%"
+            results = []
+
+            reqs = await conn.fetch("SELECT req_id, title, description, priority, status FROM requirements WHERE project_id = $1 AND (title ILIKE $2 OR description ILIKE $2) LIMIT 10", pid, pattern)
+            for r in reqs:
+                results.append({"type": "requirement", "id": r["req_id"], "title": r["title"], "description": (r["description"] or "")[:200], "status": r["status"]})
+
+            cons = await conn.fetch("SELECT type, description, impact, status FROM constraints WHERE project_id = $1 AND (description ILIKE $2 OR impact ILIKE $2) LIMIT 10", pid, pattern)
+            for c in cons:
+                results.append({"type": "constraint", "id": c["type"], "title": f"{c['type']}: {(c['description'] or '')[:80]}", "description": (c["impact"] or "")[:200], "status": c["status"]})
+
+            decs = await conn.fetch("SELECT title, rationale, decided_by, status FROM decisions WHERE project_id = $1 AND (title ILIKE $2 OR rationale ILIKE $2) LIMIT 10", pid, pattern)
+            for d in decs:
+                results.append({"type": "decision", "id": None, "title": d["title"], "description": (d["rationale"] or "")[:200], "status": d["status"]})
+
+            stkh = await conn.fetch("SELECT name, role, organization, interests FROM stakeholders WHERE project_id = $1 AND (name ILIKE $2 OR role ILIKE $2 OR interests ILIKE $2) LIMIT 10", pid, pattern)
+            for s in stkh:
+                results.append({"type": "stakeholder", "id": None, "title": f"{s['name']} ({s['role']})", "description": (s["interests"] or "")[:200]})
+
+            asms = await conn.fetch("SELECT statement, basis, risk_if_wrong FROM assumptions WHERE project_id = $1 AND (statement ILIKE $2 OR basis ILIKE $2) LIMIT 10", pid, pattern)
+            for a in asms:
+                results.append({"type": "assumption", "id": None, "title": (a["statement"] or "")[:100], "description": (a["risk_if_wrong"] or "")[:200]})
+
+            scps = await conn.fetch("SELECT description, in_scope, rationale FROM scope_items WHERE project_id = $1 AND (description ILIKE $2 OR rationale ILIKE $2) LIMIT 10", pid, pattern)
+            for s in scps:
+                results.append({"type": "scope_item", "id": None, "title": (s["description"] or "")[:100], "description": f"{'In scope' if s['in_scope'] else 'Out of scope'}: {(s['rationale'] or '')[:150]}"})
+
+            return _json_result({"query": q, "results": results, "total": len(results)})
+
+        # ── New write tool ──
+
+        if name == "store_finding":
+            finding_type = arguments["finding_type"]
+            title = arguments["title"]
+            description = arguments["description"]
+            priority = arguments.get("priority", "should")
+            source = arguments.get("source", "agent")
+            source_person = arguments.get("source_person", "unknown")
+
+            if finding_type == "requirement":
+                # Auto-assign next BR-XXX id
+                last = await conn.fetchval(
+                    "SELECT req_id FROM requirements WHERE project_id = $1 AND req_id LIKE 'BR-%' ORDER BY req_id DESC LIMIT 1", pid
+                )
+                if last:
+                    num = int(last.split("-")[1]) + 1
+                else:
+                    num = 1
+                new_req_id = f"BR-{num:03d}"
+
+                await conn.execute(
+                    "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'business', $5, 'proposed', 'medium', $6)",
+                    pid, new_req_id, title, description, priority, f"[{source}] {source_person}"
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New requirement {new_req_id}: {title}", json.dumps({"type": "requirement", "req_id": new_req_id, "source": source})
+                )
+                new_score = await _recalculate_readiness(conn, pid)
+                return _json_result({"success": True, "type": "requirement", "req_id": new_req_id, "title": title, "readiness": new_score})
+
+            elif finding_type == "constraint":
+                await conn.execute(
+                    "INSERT INTO constraints (id, project_id, type, description, impact, source_quote, status) "
+                    "VALUES (gen_random_uuid(), $1, 'general', $2, $3, $4, 'proposed')",
+                    pid, title, description, f"[{source}] {source_person}"
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New constraint: {title}", json.dumps({"type": "constraint", "source": source})
+                )
+                new_score = await _recalculate_readiness(conn, pid)
+                return _json_result({"success": True, "type": "constraint", "title": title, "readiness": new_score})
+
+            elif finding_type == "decision":
+                await conn.execute(
+                    "INSERT INTO decisions (id, project_id, title, decided_by, rationale, alternatives, status) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, '', 'proposed')",
+                    pid, title, source_person, description
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New decision: {title}", json.dumps({"type": "decision", "source": source})
+                )
+                new_score = await _recalculate_readiness(conn, pid)
+                return _json_result({"success": True, "type": "decision", "title": title, "readiness": new_score})
+
+            else:
+                return _json_result({"error": f"Unknown finding_type: {finding_type}. Must be requirement, constraint, or decision."})
 
     return _json_result({"error": f"Unknown tool: {name}"})
 

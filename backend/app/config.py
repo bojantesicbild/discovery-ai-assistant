@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Auth
     jwt_secret: str = "change-this-to-a-random-secret"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_hours: int = 24
+    jwt_expiration_hours: int = 720  # 30 days for dev
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]

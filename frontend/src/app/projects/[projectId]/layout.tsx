@@ -1,3 +1,7 @@
+"use client";
+
+import ProjectShell from "@/components/ProjectShell";
+
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <ProjectShell>{children}</ProjectShell>;
 }

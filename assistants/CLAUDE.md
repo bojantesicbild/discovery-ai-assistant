@@ -46,15 +46,31 @@ If intent is unclear, ask:
 
 ---
 
-## Context Loading (All Domains)
+## Context Loading (All Domains — 3-Tier Progressive)
 
-For any task, load:
-- `.memory-bank/project-brief.md`
-- `.memory-bank/system-patterns.md`
-- `.memory-bank/tech-context.md`
+### Tier 1: Always Load (every session)
 - `.memory-bank/active-task.md` (router)
+- `.memory-bank/project-brief.md`
+- `.memory-bank/key-decisions.md`
+- `.memory-bank/gotchas.md`
+
+### Tier 2: Domain Load (when domain is active)
 - `.memory-bank/active-tasks/[domain].md`
+- `.memory-bank/docs/discovery/readiness.md` (discovery domain)
 - `.memory-bank/learnings.jsonl` (top 5 relevant entries)
+- `.memory-bank/system-patterns.md` (coding/tech domains)
+- `.memory-bank/tech-context.md` (coding/tech domains)
+
+### Tier 3: On-Demand Search (when needed)
+Search these locations and show results to user:
+- `docs/completed-tasks/` — Similar past work
+- `docs/system-architecture/` — Architecture patterns
+- `docs/best-practices/` — Guidelines
+- `docs/decisions/` — Technical decisions
+- `docs/errors/` — Known solutions
+- `docs/research-sessions/` — Research findings
+- `docs/discovery/` — Discovery phase handoff documents
+- `learnings.jsonl` — Transient observations
 
 ---
 

@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   getDashboard, listRequirements, listContradictions, listDocuments,
-  deleteDocument, listConstraints, listDecisions, listStakeholders,
-  listAssumptions, listScope, updateRequirement,
+  deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
+  listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
 interface DataPanelProps {
   projectId: string;
   refreshKey?: number;
+  initialTab?: string;
+  highlightId?: string;
 }
 
 interface DetailView {
@@ -22,29 +24,51 @@ interface DetailView {
 }
 
 const TABS = [
-  { id: "reqs", label: "Business Requirements" },
-  { id: "constraints", label: "Constraints" },
-  { id: "decisions", label: "Decisions" },
-  { id: "stakeholders", label: "Stakeholders" },
-  { id: "assumptions", label: "Assumptions" },
-  { id: "scope", label: "Scope" },
-  { id: "contradictions", label: "Contradictions" },
-  { id: "docs", label: "Documents" },
+  { id: "reqs", label: "Requirements", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
+  { id: "gaps", label: "Gaps", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" },
+  { id: "constraints", label: "Constraints", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4" },
+  { id: "contradictions", label: "Contradictions", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+  { id: "meeting", label: "Meeting Prep", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "handoff", label: "Handoff", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
+  { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
 ];
 
-export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps) {
-  const [activeTab, setActiveTab] = useState("reqs");
+export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId }: DataPanelProps) {
+  const [activeTab, setActiveTab] = useState(initialTab || "reqs");
   const [dashboard, setDashboard] = useState<any>(null);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [contradictions, setContradictions] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
-  const [constraintsData, setConstraintsData] = useState<any[]>([]);
-  const [decisionsData, setDecisionsData] = useState<any[]>([]);
-  const [stakeholdersData, setStakeholdersData] = useState<any[]>([]);
-  const [assumptionsData, setAssumptionsData] = useState<any[]>([]);
-  const [scopeData, setScopeData] = useState<any[]>([]);
+  const [gaps, setGaps] = useState<any[]>([]);
+  const [constraints, setConstraints] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [contraFilter, setContraFilter] = useState("all");
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  // React to external tab/highlight changes
+  useEffect(() => {
+    if (initialTab) setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // Auto-open highlighted item after data loads
+  useEffect(() => {
+    if (!highlightId) return;
+
+    if (initialTab === "reqs") {
+      const req = requirements.find((r: any) => r.req_id === highlightId);
+      if (req) openRequirement(req);
+    } else if (initialTab === "gaps") {
+      const gap = gaps.find((g: any) => g.gap_id === highlightId);
+      if (gap) setExpandedRow(gap.id);
+    } else if (initialTab === "constraints") {
+      const con = constraints.find((c: any) => String(c.id).startsWith(highlightId));
+      if (con) setExpandedRow(con.id);
+    } else if (initialTab === "contradictions") {
+      const ct = contradictions.find((c: any) => String(c.id).startsWith(highlightId));
+      if (ct) setExpandedRow(ct.id);
+    }
+  }, [highlightId, initialTab, requirements, gaps, constraints, contradictions]);
 
   useEffect(() => {
     loadData();
@@ -54,108 +78,32 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
 
   async function loadData() {
     try {
-      const [dash, reqs, contras, docs, cons, decs, stks, asms, scps] = await Promise.all([
+      const [dash, reqs, contras, docs, gapsData, consData] = await Promise.all([
         getDashboard(projectId),
         listRequirements(projectId),
         listContradictions(projectId),
         listDocuments(projectId),
+        listGaps(projectId),
         listConstraints(projectId),
-        listDecisions(projectId),
-        listStakeholders(projectId),
-        listAssumptions(projectId),
-        listScope(projectId),
       ]);
       setDashboard(dash);
       setRequirements(reqs.items || []);
       setContradictions(contras.items || []);
       setDocuments(docs.documents || []);
-      setConstraintsData(cons.items || []);
-      setDecisionsData(decs.items || []);
-      setStakeholdersData(stks.items || []);
-      setAssumptionsData(asms.items || []);
-      setScopeData(scps.items || []);
-    } catch {
-      // Backend might not be ready
-    }
+      setGaps(gapsData.items || []);
+      setConstraints(consData.items || []);
+    } catch {}
   }
 
   const readiness = dashboard?.readiness;
   const score = readiness?.score ?? 0;
-  const circumference = 2 * Math.PI * 15; // r=15 for viewBox 36
+  const circumference = 2 * Math.PI * 15;
   const offset = circumference - (score / 100) * circumference;
 
-  function openRequirement(req: any) {
-    const md = [
-      `# ${req.req_id}: ${req.title}`,
-      "",
-      `**Type:** ${req.type} | **Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
-      "",
-      "## Description",
-      req.description || "No description",
-      "",
-      req.user_perspective ? `## User Perspective\n${req.user_perspective}` : "",
-      "",
-      req.business_rules?.length ? `## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
-      "",
-      req.edge_cases?.length ? `## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
-      "",
-      "## Source",
-      `> ${req.source_quote || "No source quote"}`,
-    ].filter(Boolean).join("\n");
+  const openContras = contradictions.filter((c: any) => !c.resolved);
+  const openGaps = gaps.filter((g: any) => g.status === "open" || g.status === "in-progress");
 
-    setDetail({
-      title: `${req.req_id}: ${req.title}`,
-      content: md,
-      meta: {
-        priority: req.priority,
-        status: req.status,
-        type: req.type,
-        confidence: req.confidence,
-      },
-      actions: [
-        { label: "Confirm", value: "confirmed", color: "#059669" },
-        { label: "Discussed", value: "discussed", color: "var(--info)" },
-        { label: "Drop", value: "dropped", color: "var(--danger)" },
-      ],
-      onAction: async (action: string) => {
-        await updateRequirement(projectId, req.req_id, { status: action });
-        loadData();
-        setDetail(null);
-      },
-    });
-  }
-
-  function openDocument(doc: any) {
-    const md = [
-      `# ${doc.filename}`,
-      "",
-      `**Type:** ${doc.file_type} | **Size:** ${doc.file_size_bytes ? `${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "unknown"} | **Status:** ${doc.pipeline_stage}`,
-      "",
-      `**Uploaded:** ${doc.created_at ? new Date(doc.created_at).toLocaleString() : "unknown"}`,
-      "",
-      doc.items_extracted > 0 ? `**Extracted:** ${doc.items_extracted} items` : "",
-      doc.contradictions_found > 0 ? `**Contradictions:** ${doc.contradictions_found} found` : "",
-      "",
-      doc.pipeline_error ? `## Pipeline Error\n\`\`\`\n${doc.pipeline_error}\n\`\`\`` : "",
-      "",
-      "## Processing Pipeline",
-      `- Classification: ${doc.chunking_template || "auto"}`,
-      `- Stage: ${doc.pipeline_stage}`,
-      doc.pipeline_started_at ? `- Started: ${new Date(doc.pipeline_started_at).toLocaleString()}` : "",
-      doc.pipeline_completed_at ? `- Completed: ${new Date(doc.pipeline_completed_at).toLocaleString()}` : "",
-    ].filter(Boolean).join("\n");
-
-    setDetail({
-      title: doc.filename,
-      content: md,
-      meta: {
-        type: doc.file_type,
-        status: doc.pipeline_stage,
-      },
-    });
-  }
-
-  // If a detail view is open, show the markdown panel
+  // If detail view is open
   if (detail) {
     return (
       <div className="data-panel" style={{ flex: 1, width: "100%" }}>
@@ -179,13 +127,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
           <div className="dp-rb-ring">
             <svg viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15" className="bg" />
-              <circle
-                cx="18" cy="18" r="15" className="fg"
-                style={{
-                  strokeDasharray: circumference,
-                  strokeDashoffset: offset,
-                }}
-              />
+              <circle cx="18" cy="18" r="15" className="fg" style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
             </svg>
             <div className="dp-rb-val">{Math.round(score)}%</div>
           </div>
@@ -193,7 +135,7 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
             <div className="dp-rb-label">Discovery Readiness</div>
             <div className="dp-rb-sub">
               {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
-              {dashboard?.requirements_count ?? 0} business requirements
+              {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
             </div>
           </div>
         </div>
@@ -204,11 +146,8 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
         {TABS.map((tab) => {
           let count: number | null = null;
           if (tab.id === "reqs") count = requirements.length;
-          if (tab.id === "constraints") count = constraintsData.length;
-          if (tab.id === "decisions") count = decisionsData.length;
-          if (tab.id === "stakeholders") count = stakeholdersData.length;
-          if (tab.id === "assumptions") count = assumptionsData.length;
-          if (tab.id === "scope") count = scopeData.length;
+          if (tab.id === "gaps") count = gaps.length;
+          if (tab.id === "constraints") count = constraints.length;
           if (tab.id === "contradictions") count = contradictions.length;
           if (tab.id === "docs") count = documents.length;
 
@@ -216,10 +155,10 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
             <div
               key={tab.id}
               className={`dp-tab${activeTab === tab.id ? " active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); setExpandedRow(null); }}
             >
               {tab.label}
-              {count !== null && <span className="tab-count">{count}</span>}
+              {count !== null && count > 0 && <span className="tab-count">{count}</span>}
             </div>
           );
         })}
@@ -227,60 +166,45 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
 
       {/* Tab content */}
       <div className="dp-body">
-        {/* Requirements tab */}
+
+        {/* ── REQUIREMENTS ── */}
         {activeTab === "reqs" && (
           <div className="dp-tab-content active">
             <div className="panel-filter">
               {["all", "must", "should", "could"].map((f) => (
-                <button
-                  key={f}
-                  className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`}
-                  onClick={() => setPriorityFilter(f)}
-                  style={{ textTransform: "capitalize" }}
-                >
+                <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
                   {f === "all" ? "All" : f}
                 </button>
               ))}
             </div>
             {requirements.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
-                No business requirements extracted yet. Upload documents to get started.
-              </div>
+              <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
             ) : (
               <table className="panel-table">
                 <thead>
                   <tr>
-                    <th style={{ width: 30 }}></th>
+                    <th style={{ width: 20 }}></th>
                     <th>ID</th>
-                    <th>Business Requirement</th>
+                    <th>Requirement</th>
                     <th>Priority</th>
                     <th>Status</th>
-                    <th>Confidence</th>
+                    <th>Source</th>
                   </tr>
                 </thead>
                 <tbody>
                   {requirements.filter((r: any) => priorityFilter === "all" || r.priority === priorityFilter).map((req: any) => (
-                    <tr key={req.id || req.req_id} onClick={() => openRequirement(req)} style={{ cursor: "pointer" }}>
-                      <td className="chevron-cell">
-                        <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2 }}>
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </td>
+                    <tr key={req.id || req.req_id} onClick={() => openRequirement(req)} className="clickable-row">
+                      <td className="chevron-cell"><Chevron /></td>
                       <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{req.req_id}</td>
                       <td>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
                         <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>{req.description?.slice(0, 80)}{req.description?.length > 80 ? "..." : ""}</div>
                       </td>
-                      <td>
-                        <span className={`pri-badge ${req.priority}`}>{req.priority?.toUpperCase()}</span>
+                      <td><PriBadge priority={req.priority} /></td>
+                      <td><StatusPill status={req.status} /></td>
+                      <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
+                        <SourceBadges sourceDoc={req.source_doc} sources={req.sources} version={req.version} person={req.source_person} />
                       </td>
-                      <td>
-                        <span className={`fact-status ${req.status}`}>
-                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />
-                          {req.status}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 11, color: "var(--gray-500)" }}>{req.confidence}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -289,34 +213,159 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
           </div>
         )}
 
-        {/* Contradictions tab */}
-        {activeTab === "contradictions" && (
+        {/* ── GAPS ── */}
+        {activeTab === "gaps" && (
           <div className="dp-tab-content active">
-            {contradictions.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
-                No contradictions detected.
-              </div>
+            <div className="panel-filter">
+              {["all", "open", "in-progress"].map((f) => (
+                <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
+                  {f === "all" ? "All" : f.replace("-", " ")}
+                </button>
+              ))}
+            </div>
+            {gaps.length === 0 ? (
+              <EmptyState icon="M12 9v2m0 4h.01" text="No gaps detected. Run gap analysis from the chat to identify missing requirements." />
             ) : (
               <table className="panel-table">
                 <thead>
                   <tr>
-                    <th>Type A</th>
-                    <th>Type B</th>
-                    <th>Explanation</th>
+                    <th style={{ width: 20 }}></th>
+                    <th>Severity</th>
+                    <th>Gap Question</th>
+                    <th>Area</th>
+                    <th>Status</th>
+                    <th style={{ width: 70 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter).map((gap: any) => (
+                    <Fragment key={gap.id}>
+                      <tr className="clickable-row" onClick={() => setExpandedRow(expandedRow === gap.id ? null : gap.id)}>
+                        <td className="chevron-cell"><Chevron open={expandedRow === gap.id} /></td>
+                        <td><SevBadge severity={gap.severity} /></td>
+                        <td style={{ fontWeight: 500 }}>{gap.question}</td>
+                        <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
+                        <td><GapStatusPill status={gap.status} /></td>
+                        <td>
+                          <button className="inline-action" onClick={(e) => { e.stopPropagation(); }} title="Resolve">&#10003;</button>
+                        </td>
+                      </tr>
+                      {expandedRow === gap.id && (
+                        <tr className="detail-row">
+                          <td colSpan={6}>
+                            <div className="gap-detail">
+                              {/* Suggested action */}
+                              {gap.suggested_action && (
+                                <div className="gap-detail-desc">{gap.suggested_action}</div>
+                              )}
+
+                              {/* Source quote */}
+                              {gap.source_quote && gap.source_quote !== "extracted from document" && (
+                                <div className="gap-quote-box">
+                                  <div className="gap-quote-label">From document</div>
+                                  <div className="gap-quote-text">"{gap.source_quote}"</div>
+                                </div>
+                              )}
+
+                              {/* Suggested question */}
+                              <div className="gap-ai-suggestion">
+                                <div className="ai-label">
+                                  <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                  </svg>
+                                  Suggested Question for Next Meeting
+                                </div>
+                                {_generateGapQuestion(gap)}
+                              </div>
+
+                              {/* Metadata */}
+                              <div className="gap-detail-meta">
+                                {gap.source_person && (
+                                  <span className="person-chip">
+                                    Ask: {gap.source_person}
+                                  </span>
+                                )}
+                                {gap.source_doc && (
+                                  <span className="gap-meta-chip file">
+                                    {gap.source_doc}
+                                  </span>
+                                )}
+                                <span className="gap-meta-chip linked">
+                                  {gap.gap_id}
+                                </span>
+                                <span className="gap-meta-chip" style={{
+                                  background: gap.severity === "high" ? "#EF444415" : "#F59E0B15",
+                                  color: gap.severity === "high" ? "#EF4444" : "#F59E0B",
+                                }}>
+                                  {gap.severity} severity
+                                </span>
+                                {gap.blocked_reqs?.length > 0 && (
+                                  <span className="gap-meta-chip">
+                                    Blocks: {gap.blocked_reqs.join(", ")}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Actions */}
+                              <div className="gap-detail-actions">
+                                <button className="gap-action-btn resolve" onClick={(e) => {
+                                  e.stopPropagation();
+                                  const answer = prompt("Resolution — what was the answer?");
+                                  if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
+                                }}>Resolve</button>
+                                <button className="gap-action-btn meeting" onClick={(e) => { e.stopPropagation(); }}>Add to Meeting</button>
+                                <button className="gap-action-btn dismiss" onClick={(e) => {
+                                  e.stopPropagation();
+                                  resolveGap(projectId, gap.gap_id, "Dismissed").then(() => loadData());
+                                }}>Dismiss</button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ── CONSTRAINTS ── */}
+        {activeTab === "constraints" && (
+          <div className="dp-tab-content active">
+            {constraints.length === 0 ? (
+              <EmptyState icon="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4" text="No constraints extracted yet." />
+            ) : (
+              <table className="panel-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 20 }}></th>
+                    <th>Type</th>
+                    <th>Constraint</th>
+                    <th>Impact</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {contradictions.map((c: any) => (
-                    <tr key={c.id}>
-                      <td>{c.item_a_type}</td>
-                      <td>{c.item_b_type}</td>
-                      <td>{c.explanation}</td>
+                  {constraints.map((c: any, i: number) => (
+                    <tr key={c.id || i} className="clickable-row" onClick={() => setDetail({
+                      title: `${c.type} Constraint`,
+                      content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
+                      meta: { type: c.type, status: c.status },
+                    })}>
+                      <td className="chevron-cell"><Chevron /></td>
                       <td>
-                        <span className={`fact-status ${c.resolved ? "confirmed" : "assumed"}`}>
-                          {c.resolved ? "Resolved" : "Open"}
-                        </span>
+                        <span className="sev-badge" style={{
+                          background: c.type === "budget" ? "#EF444420" : c.type === "technology" ? "#3B82F620" : "#F59E0B20",
+                          color: c.type === "budget" ? "#EF4444" : c.type === "technology" ? "#3B82F6" : "#F59E0B",
+                        }}>{c.type}</span>
                       </td>
+                      <td>
+                        <div style={{ fontWeight: 500, fontSize: 12 }}>{c.description?.slice(0, 80)}{c.description?.length > 80 ? "..." : ""}</div>
+                      </td>
+                      <td style={{ fontSize: 11, color: "var(--gray-500)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
+                      <td><StatusPill status={c.status} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -325,20 +374,154 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
           </div>
         )}
 
-        {/* Documents tab */}
+        {/* ── CONTRADICTIONS ── */}
+        {activeTab === "contradictions" && (
+          <div className="dp-tab-content active">
+            <div className="panel-filter">
+              {["all", "open", "resolved"].map((f) => (
+                <button key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
+                  {f}
+                </button>
+              ))}
+            </div>
+            {contradictions.length === 0 ? (
+              <EmptyState icon="M13 10V3L4 14h7v7l9-11h-7z" text="No contradictions detected between sources." />
+            ) : (
+              <table className="panel-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 20 }}></th>
+                    <th>Impact</th>
+                    <th>Contradiction</th>
+                    <th>Area</th>
+                    <th>Status</th>
+                    <th style={{ width: 70 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contradictions.filter((c: any) =>
+                    contraFilter === "all" ? true :
+                    contraFilter === "open" ? !c.resolved :
+                    c.resolved
+                  ).map((c: any) => (
+                    <Fragment key={c.id}>
+                      <tr className="clickable-row" onClick={() => setExpandedRow(expandedRow === c.id ? null : c.id)}>
+                        <td className="chevron-cell"><Chevron open={expandedRow === c.id} /></td>
+                        <td><SevBadge severity="high" /></td>
+                        <td>
+                          <div style={{ fontWeight: 600, fontSize: 12 }}>{c.item_a_ref?.slice(0, 50) || "Requirement conflict"}</div>
+                          <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>vs: {_extractConflictDetail(c.explanation).slice(0, 60)}...</div>
+                        </td>
+                        <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{c.item_a_type}</td>
+                        <td><GapStatusPill status={c.resolved ? "resolved" : "open"} /></td>
+                        <td>
+                          {!c.resolved && (
+                            <button className="inline-action" onClick={(e) => { e.stopPropagation(); setExpandedRow(c.id); }} title="Resolve">&#10003;</button>
+                          )}
+                        </td>
+                      </tr>
+                      {expandedRow === c.id && (
+                        <tr className="detail-row">
+                          <td colSpan={6}>
+                            <div className="contra-detail">
+                              {/* Stacked source cards with VS divider */}
+                              <div className="cd-quotes">
+                                <div className="cd-quote side-a">
+                                  <div className="cd-quote-header">
+                                    <span className="cd-quote-badge a">Current</span>
+                                    {c.item_a_source && <span className="gap-meta-chip file">{c.item_a_source}</span>}
+                                    {c.item_a_person && <span className="person-chip">{c.item_a_person}</span>}
+                                  </div>
+                                  <div className="cd-quote-text">{c.item_a_ref || "Existing requirement"}</div>
+                                </div>
+                                <div className="cd-quote-vs">VS</div>
+                                <div className="cd-quote side-b">
+                                  <div className="cd-quote-header">
+                                    <span className="cd-quote-badge b">Conflicting</span>
+                                    {c.item_b_source && <span className="gap-meta-chip" style={{ background: "#fee2e2", color: "#EF4444" }}>{c.item_b_source}</span>}
+                                    {c.item_b_person && <span className="person-chip">{c.item_b_person}</span>}
+                                  </div>
+                                  <div className="cd-quote-text">{c.item_b_ref && !c.item_b_ref.includes("from uploaded") ? c.item_b_ref : _extractConflictDetail(c.explanation)}</div>
+                                </div>
+                              </div>
+
+                              {/* What's the conflict */}
+                              <div className="cd-explanation">{c.explanation}</div>
+
+                              {/* Metadata chips */}
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                {c.created_at && (
+                                  <span className="gap-meta-chip">Detected {new Date(c.created_at).toLocaleDateString()}</span>
+                                )}
+                                <span className="gap-meta-chip" style={{ background: "#EF444415", color: "#EF4444" }}>
+                                  {c.resolved ? "Resolved" : "Unresolved"}
+                                </span>
+                              </div>
+
+                              {/* AI Recommendation */}
+                              <div className="gap-ai-suggestion">
+                                <div className="ai-label">
+                                  AI Recommendation
+                                </div>
+                                {c.suggested_resolution || "Review both sources with the people involved. Determine which statement is current and whether the earlier requirement needs updating."}
+                              </div>
+
+                              {/* Resolution */}
+                              {c.resolved ? (
+                                <div className="gap-resolution-box">
+                                  <div className="res-label">Resolution</div>
+                                  {c.resolution_note}
+                                </div>
+                              ) : (
+                                <ContraResolveForm
+                                  onResolve={async (note) => {
+                                    await resolveContradiction(projectId, c.id, note);
+                                    setExpandedRow(null);
+                                    loadData();
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {/* ── MEETING PREP ── */}
+        {activeTab === "meeting" && (
+          <div className="dp-tab-content active">
+            <MeetingPrepTab
+              contradictions={openContras}
+              gaps={gaps}
+              requirements={requirements}
+            />
+          </div>
+        )}
+
+        {/* ── HANDOFF ── */}
+        {activeTab === "handoff" && (
+          <div className="dp-tab-content active">
+            <HandoffTab projectId={projectId} />
+          </div>
+        )}
+
+        {/* ── DOCUMENTS ── */}
         {activeTab === "docs" && (
           <div className="dp-tab-content active">
             {documents.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>
-                No documents uploaded yet. Click &ldquo;Upload Document&rdquo; to get started.
-              </div>
+              <EmptyState icon="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" text='No documents uploaded yet. Click "Upload Document" to get started.' />
             ) : (
               <table className="panel-table">
                 <thead>
                   <tr>
                     <th>File</th>
                     <th>Type</th>
-                    <th>Size</th>
                     <th>Status</th>
                     <th>Extracted</th>
                     <th>Date</th>
@@ -347,68 +530,31 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
                 </thead>
                 <tbody>
                   {documents.map((doc: any) => (
-                    <tr key={doc.id} onClick={() => openDocument(doc)} style={{ cursor: "pointer" }}>
+                    <tr key={doc.id} onClick={() => openDocument(doc)} className="clickable-row">
                       <td style={{ fontWeight: 600 }}>{doc.filename}</td>
-                      <td>
-                        <span className="pri-badge could" style={{ textTransform: "uppercase" }}>
-                          {doc.file_type}
-                        </span>
-                      </td>
-                      <td style={{ color: "var(--gray-500)" }}>
-                        {doc.file_size_bytes ? `${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "—"}
-                      </td>
-                      <td>
-                        <span className={`fact-status ${
-                          doc.pipeline_stage === "completed" ? "confirmed" :
-                          doc.pipeline_stage === "failed" ? "assumed" : "pending"
-                        }`}>
-                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />
-                          {doc.pipeline_stage}
-                        </span>
-                      </td>
+                      <td><span className="type-badge">{doc.file_type?.toUpperCase()}</span></td>
+                      <td><StatusPill status={doc.pipeline_stage === "completed" ? "confirmed" : doc.pipeline_stage === "failed" ? "dropped" : "pending"} label={doc.pipeline_stage} /></td>
                       <td>
                         {doc.items_extracted > 0 ? (
-                          <span>
+                          <span style={{ fontSize: 12 }}>
                             {doc.items_extracted} items
                             {doc.contradictions_found > 0 && (
-                              <span style={{ color: "var(--danger)", marginLeft: 4, fontSize: 10 }}>
-                                +{doc.contradictions_found} conflicts
-                              </span>
+                              <span style={{ color: "var(--danger)", marginLeft: 4, fontSize: 10 }}>+{doc.contradictions_found} conflicts</span>
                             )}
                           </span>
-                        ) : (
-                          <span style={{ color: "var(--gray-400)" }}>—</span>
-                        )}
+                        ) : <span style={{ color: "var(--gray-400)" }}>—</span>}
                       </td>
-                      <td style={{ color: "var(--gray-500)", whiteSpace: "nowrap" }}>
+                      <td style={{ color: "var(--gray-500)", whiteSpace: "nowrap", fontSize: 11 }}>
                         {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}
                       </td>
                       <td>
                         <button
                           title="Delete document"
-                          style={{
-                            width: 26, height: 26, borderRadius: 6,
-                            border: "1px solid var(--gray-200)", background: "var(--white)",
-                            display: "inline-flex", alignItems: "center", justifyContent: "center",
-                            cursor: "pointer", transition: "all 0.15s",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--danger-light)";
-                            e.currentTarget.style.borderColor = "var(--danger)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "var(--white)";
-                            e.currentTarget.style.borderColor = "var(--gray-200)";
-                          }}
+                          className="delete-btn"
                           onClick={async (e) => {
                             e.stopPropagation();
                             if (!confirm(`Delete ${doc.filename}?`)) return;
-                            try {
-                              await deleteDocument(projectId, doc.id);
-                              loadData();
-                            } catch {
-                              alert("Delete failed");
-                            }
+                            try { await deleteDocument(projectId, doc.id); loadData(); } catch { alert("Delete failed"); }
                           }}
                         >
                           <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "var(--danger)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
@@ -423,121 +569,644 @@ export default function DataPanel({ projectId, refreshKey = 0 }: DataPanelProps)
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
 
-        {/* Constraints tab */}
-        {activeTab === "constraints" && (
-          <div className="dp-tab-content active">
-            {constraintsData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No constraints extracted yet.</div>
-            ) : (
-              <table className="panel-table">
-                <thead><tr><th>Type</th><th>Description</th><th>Impact</th><th>Status</th></tr></thead>
-                <tbody>
-                  {constraintsData.map((c: any, i: number) => (
-                    <tr key={c.id || i} onClick={() => setDetail({ title: `${c.type} Constraint`, content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`, meta: { type: c.type, status: c.status } })} style={{ cursor: "pointer" }}>
-                      <td><span className="pri-badge should" style={{ textTransform: "capitalize" }}>{c.type}</span></td>
-                      <td style={{ maxWidth: 300 }}>{c.description}</td>
-                      <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{c.impact?.slice(0, 80)}</td>
-                      <td><span className={`fact-status ${c.status === "confirmed" ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{c.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+  function openRequirement(req: any) {
+    const md = [
+      `# ${req.req_id}: ${req.title}`,
+      "", `**Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
+      req.source_person ? `**Requested by:** ${req.source_person}` : "",
+      "", "## Description", req.description || "No description",
+      req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
+      req.business_rules?.length ? `\n## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
+      req.edge_cases?.length ? `\n## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
+      "\n## Sources",
+      req.source_doc ? `**Primary:** ${req.source_doc}` : "",
+      req.source_quote ? `> ${req.source_quote}` : "",
+      ...(req.sources?.length ? req.sources.map((s: any, i: number) =>
+        `**Source ${i + 2}:** ${s.filename || s.doc_id?.slice(0, 8) || "document"}${s.quote ? `\n> ${s.quote}` : ""}`
+      ) : []),
+      req.version > 1 ? `\n*Version ${req.version} — merged from ${1 + (req.sources?.length || 0)} documents*` : "",
+    ].filter(Boolean).join("\n");
 
-        {/* Decisions tab */}
-        {activeTab === "decisions" && (
-          <div className="dp-tab-content active">
-            {decisionsData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No decisions recorded yet.</div>
-            ) : (
-              <table className="panel-table">
-                <thead><tr><th>Decision</th><th>Decided By</th><th>Rationale</th><th>Status</th></tr></thead>
-                <tbody>
-                  {decisionsData.map((d: any, i: number) => (
-                    <tr key={d.id || i} onClick={() => setDetail({ title: d.title, content: `# ${d.title}\n\n**Decided by:** ${d.decided_by || "unknown"}\n**Status:** ${d.status}\n\n## Rationale\n${d.rationale}\n\n${d.alternatives?.length ? `## Alternatives Considered\n${d.alternatives.map((a: string) => `- ${a}`).join("\n")}` : ""}`, meta: { status: d.status, decided_by: d.decided_by || "unknown" } })} style={{ cursor: "pointer" }}>
-                      <td style={{ fontWeight: 600 }}>{d.title}</td>
-                      <td>{d.decided_by || "—"}</td>
-                      <td style={{ color: "var(--gray-500)", fontSize: 11, maxWidth: 250 }}>{d.rationale?.slice(0, 80)}</td>
-                      <td><span className={`fact-status ${d.status === "confirmed" ? "confirmed" : "pending"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{d.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+    setDetail({
+      title: `${req.req_id}: ${req.title}`, content: md,
+      meta: { priority: req.priority, status: req.status, confidence: req.confidence, version: `v${req.version || 1}`, source: req.source_doc || "unknown" },
+      actions: [
+        { label: "Confirm", value: "confirmed", color: "#059669" },
+        { label: "Discussed", value: "discussed", color: "#3B82F6" },
+        { label: "Drop", value: "dropped", color: "#EF4444" },
+      ],
+      onAction: async (action: string) => {
+        await updateRequirement(projectId, req.req_id, { status: action });
+        loadData(); setDetail(null);
+      },
+    });
+  }
 
-        {/* Stakeholders tab */}
-        {activeTab === "stakeholders" && (
-          <div className="dp-tab-content active">
-            {stakeholdersData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No stakeholders identified yet.</div>
-            ) : (
-              <table className="panel-table">
-                <thead><tr><th>Name</th><th>Role</th><th>Organization</th><th>Authority</th><th>Interests</th></tr></thead>
-                <tbody>
-                  {stakeholdersData.map((s: any, i: number) => (
-                    <tr key={s.id || i} onClick={() => setDetail({ title: s.name, content: `# ${s.name}\n\n**Role:** ${s.role}\n**Organization:** ${s.organization}\n**Decision Authority:** ${s.decision_authority}\n\n## Interests\n${(s.interests || []).map((i: string) => `- ${i}`).join("\n") || "None specified"}`, meta: { role: s.role, authority: s.decision_authority } })} style={{ cursor: "pointer" }}>
-                      <td style={{ fontWeight: 600 }}>{s.name}</td>
-                      <td>{s.role}</td>
-                      <td style={{ color: "var(--gray-500)" }}>{s.organization}</td>
-                      <td><span className={`fact-status ${s.decision_authority === "final" ? "confirmed" : s.decision_authority === "recommender" ? "assumed" : "pending"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{s.decision_authority}</span></td>
-                      <td style={{ fontSize: 11, color: "var(--gray-500)" }}>{(s.interests || []).join(", ") || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+  function openDocument(doc: any) {
+    const md = [
+      `# ${doc.filename}`,
+      "", `**Type:** ${doc.file_type} | **Status:** ${doc.pipeline_stage}`,
+      doc.file_size_bytes ? `**Size:** ${(doc.file_size_bytes / 1024).toFixed(1)} KB` : "",
+      `**Uploaded:** ${doc.created_at ? new Date(doc.created_at).toLocaleString() : "unknown"}`,
+      doc.items_extracted > 0 ? `**Extracted:** ${doc.items_extracted} items` : "",
+      doc.pipeline_error ? `\n## Pipeline Error\n\`\`\`\n${doc.pipeline_error}\n\`\`\`` : "",
+    ].filter(Boolean).join("\n");
 
-        {/* Assumptions tab */}
-        {activeTab === "assumptions" && (
-          <div className="dp-tab-content active">
-            {assumptionsData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No assumptions identified yet.</div>
-            ) : (
-              <table className="panel-table">
-                <thead><tr><th>Assumption</th><th>Basis</th><th>Risk if Wrong</th><th>Validated</th></tr></thead>
-                <tbody>
-                  {assumptionsData.map((a: any, i: number) => (
-                    <tr key={a.id || i} onClick={() => setDetail({ title: "Assumption", content: `# Assumption\n\n${a.statement}\n\n## Basis\n${a.basis}\n\n## Risk if Wrong\n${a.risk_if_wrong}\n\n${a.needs_validation_by ? `## Needs Validation By\n${a.needs_validation_by}` : ""}`, meta: { validated: a.validated ? "yes" : "no" } })} style={{ cursor: "pointer" }}>
-                      <td style={{ maxWidth: 200 }}>{a.statement}</td>
-                      <td style={{ color: "var(--gray-500)", fontSize: 11, maxWidth: 180 }}>{a.basis?.slice(0, 60)}</td>
-                      <td style={{ color: "var(--danger)", fontSize: 11, maxWidth: 180 }}>{a.risk_if_wrong?.slice(0, 60)}</td>
-                      <td><span className={`fact-status ${a.validated ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{a.validated ? "validated" : "unvalidated"}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+    setDetail({ title: doc.filename, content: md, meta: { type: doc.file_type, status: doc.pipeline_stage } });
+  }
+}
 
-        {/* Scope tab */}
-        {activeTab === "scope" && (
-          <div className="dp-tab-content active">
-            {scopeData.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "var(--gray-400)", fontSize: 13 }}>No scope items defined yet.</div>
-            ) : (
-              <table className="panel-table">
-                <thead><tr><th>Item</th><th>In/Out</th><th>Rationale</th></tr></thead>
-                <tbody>
-                  {scopeData.map((s: any, i: number) => (
-                    <tr key={s.id || i} onClick={() => setDetail({ title: s.description, content: `# Scope Item\n\n${s.description}\n\n**${s.in_scope ? "IN SCOPE" : "OUT OF SCOPE"}**\n\n## Rationale\n${s.rationale}`, meta: { scope: s.in_scope ? "in" : "out" } })} style={{ cursor: "pointer" }}>
-                      <td>{s.description}</td>
-                      <td><span className={`fact-status ${s.in_scope ? "confirmed" : "assumed"}`}><span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />{s.in_scope ? "In scope" : "Out of scope"}</span></td>
-                      <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{s.rationale?.slice(0, 80)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+
+/* ── Small Components ── */
+
+function Chevron({ open }: { open?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none" }}>
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
+function PriBadge({ priority }: { priority: string }) {
+  const cls = priority === "must" ? "high" : priority === "should" ? "medium" : "low";
+  return <span className={`sev-badge ${cls}`}>{priority?.toUpperCase()}</span>;
+}
+
+function SevBadge({ severity }: { severity: string }) {
+  return <span className={`sev-badge ${severity}`}>{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>;
+}
+
+function StatusPill({ status, label }: { status: string; label?: string }) {
+  const display = label || status;
+  const cls = status === "confirmed" || status === "resolved" ? "resolved" : status === "dropped" || status === "failed" ? "dropped" : status === "discussed" || status === "in-progress" ? "in-progress" : "open";
+  return (
+    <span className={`gap-status-pill ${cls}`}>
+      <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", display: "inline-block" }} />
+      {" "}{display}
+    </span>
+  );
+}
+
+function GapStatusPill({ status }: { status: string }) {
+  return <span className={`gap-status-pill ${status}`}>{status.replace("-", " ")}</span>;
+}
+
+function SourceBadges({ sourceDoc, sources, version, person }: { sourceDoc?: string; sources?: any[]; version?: number; person?: string }) {
+  const totalSources = 1 + (sources?.length || 0);
+  const allNames: string[] = [];
+  if (sourceDoc) allNames.push(sourceDoc);
+  if (sources) {
+    for (const s of sources) {
+      // sources entries might not have filename, use doc_id short
+      const name = s.filename || s.doc_id?.slice(0, 8) || "doc";
+      if (!allNames.includes(name)) allNames.push(name);
+    }
+  }
+
+  if (allNames.length === 0) return <span style={{ color: "var(--gray-300)" }}>—</span>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {person && (
+        <span className="person-chip">
+          <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2, flexShrink: 0 }}>
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+          {person}
+        </span>
+      )}
+      {allNames.map((name, i) => (
+        <span key={i} className="source-tag" title={name}>
+          <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2, flexShrink: 0 }}>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+          {name.length > 18 ? name.slice(0, 16) + "..." : name}
+        </span>
+      ))}
+      {(version || 1) > 1 && (
+        <span style={{ fontSize: 9, fontWeight: 600, color: "#7c3aed", background: "#f3e8ff", padding: "0 5px", borderRadius: 4, width: "fit-content" }}>
+          v{version}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--gray-400)" }}>
+      <svg viewBox="0 0 24 24" style={{ width: 32, height: 32, stroke: "var(--gray-300)", fill: "none", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", margin: "0 auto 12px" }}>
+        <path d={icon} />
+      </svg>
+      <div style={{ fontSize: 13, maxWidth: 280, margin: "0 auto" }}>{text}</div>
+    </div>
+  );
+}
+
+function _extractConflictDetail(explanation: string): string {
+  if (!explanation) return "Conflicting information from new document";
+  // Try "New document from Meeting X says..." pattern
+  const m1 = explanation.match(/[Nn]ew document[^.]*says\s+(.+?)(?:\.|$)/);
+  if (m1) return m1[1].trim();
+  // Try "but new document says:" pattern
+  const m2 = explanation.match(/new document says:?\s*"?(.+?)(?:"|$)/i);
+  if (m2) return m2[1].trim();
+  // Try text after the dash "—"
+  const m3 = explanation.match(/—\s*(.+?)(?:\.|$)/);
+  if (m3) return m3[1].trim();
+  // Fallback: everything after "New" or "but"
+  const m4 = explanation.match(/(?:New|but)\s+(.{20,120})/i);
+  if (m4) return m4[1].trim().replace(/\.$/, "");
+  return explanation.slice(0, 120);
+}
+
+function _generateGapQuestion(gap: any): string {
+  const title = gap.question || "";
+  // Generate a concrete meeting question from the gap title
+  if (title.toLowerCase().includes("authority") || title.toLowerCase().includes("who")) {
+    return `"Who has the final authority on ${title.toLowerCase().replace("requirement confirmation authority definition", "confirming requirements")}? Can we agree on the decision-making process today?"`;
+  }
+  if (title.toLowerCase().includes("process") || title.toLowerCase().includes("how")) {
+    return `"Can you walk us through how ${title.toLowerCase()} should work? What's the expected workflow?"`;
+  }
+  if (title.toLowerCase().includes("policy") || title.toLowerCase().includes("archival")) {
+    return `"What's your preference for ${title.toLowerCase()}? Should we keep an audit trail or clean up permanently?"`;
+  }
+  return `"Can we clarify the requirement for '${title}'? What specifically do you need, and what's the priority?"`;
+}
+
+function ContraResolveForm({ onResolve }: { onResolve: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  return (
+    <div className="cd-decision">
+      <div className="cd-decision-label">Your Decision</div>
+      <textarea
+        placeholder="Type your decision to resolve this contradiction..."
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        className="gap-resolve-input"
+      />
+      <div className="cd-decision-actions">
+        <button className="cd-action-btn primary" disabled={!note.trim()} onClick={() => onResolve(note)}>Resolve</button>
+        <button className="cd-action-btn info">Add to Meeting</button>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Meeting Prep Tab ── */
+
+function HandoffTab({ projectId }: { projectId: string }) {
+  const [docs, setDocs] = useState<any[]>([]);
+  const [generations, setGenerations] = useState<any[]>([]);
+  const [selectedDoc, setSelectedDoc] = useState<string | null>(null);
+  const [docContent, setDocContent] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [genLog, setGenLog] = useState<string[]>([]);
+  const [expandedGen, setExpandedGen] = useState<number | null>(null);
+  const [fileViewer, setFileViewer] = useState<{ path: string; name: string; content: string } | null>(null);
+
+  async function openFile(path: string) {
+    try {
+      const token = localStorage.getItem("token") || "";
+      const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${base}/api/projects/${projectId}/file?path=${encodeURIComponent(path)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setFileViewer(data);
+    } catch {}
+  }
+
+  function handleContentClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    const link = target.closest("a[data-file]") as HTMLElement | null;
+    if (link) {
+      e.preventDefault();
+      const filePath = link.getAttribute("data-file") || "";
+      // Try multiple possible locations
+      const candidates = [
+        filePath,
+        filePath.startsWith(".") ? filePath : `.memory-bank/${filePath}`,
+        `.memory-bank/docs/discovery/${filePath.split("/").pop()}`,
+      ];
+      tryOpenFile(candidates);
+    }
+  }
+
+  async function tryOpenFile(paths: string[]) {
+    const token = localStorage.getItem("token") || "";
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    for (const p of paths) {
+      try {
+        const res = await fetch(`${base}/api/projects/${projectId}/file?path=${encodeURIComponent(p)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          setFileViewer(await res.json());
+          return;
+        }
+      } catch {}
+    }
+  }
+
+  function loadData() {
+    listHandoffDocs(projectId).then((d) => {
+      setDocs(d.documents || []);
+      setGenerations(d.generations || []);
+    }).catch(() => {});
+  }
+
+  useEffect(() => { loadData(); }, [projectId]);
+
+  function handleGenerate() {
+    setGenerating(true);
+    setGenLog(["Starting handoff document generation..."]);
+    generateHandoffStream(
+      projectId,
+      (text) => setGenLog((prev) => [...prev.slice(-20), text.slice(0, 80)]),
+      (generated) => {
+        setGenerating(false);
+        setGenLog((prev) => [...prev, `Done! Generated: ${generated.join(", ")}`]);
+        loadData();
+      },
+      (tool) => setGenLog((prev) => [...prev.slice(-20), `Using: ${tool}`]),
+      (error) => {
+        setGenerating(false);
+        setGenLog((prev) => [...prev, `Error: ${error}`]);
+      },
+    );
+  }
+
+  function viewDoc(docType: string) {
+    setSelectedDoc(docType);
+    setDocContent(null);
+    getHandoffDoc(projectId, docType).then((d) => {
+      setDocContent(d.content || "Document not yet generated.");
+    });
+  }
+
+  if (fileViewer) {
+    return (
+      <div style={{ padding: 16 }}>
+        <button onClick={() => setFileViewer(null)} style={{
+          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
+          color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer",
+          marginBottom: 12, padding: 0, fontFamily: "var(--font)",
+        }}>
+          &larr; Back
+        </button>
+        <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)", marginBottom: 4 }}>📄 {fileViewer.name}</div>
+        <div style={{ fontSize: 10, color: "var(--gray-400)", marginBottom: 12, fontFamily: "monospace" }}>{fileViewer.path}</div>
+        <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--gray-700)" }} onClick={handleContentClick} dangerouslySetInnerHTML={{ __html: renderHandoffMarkdown(fileViewer.content) }} />
+      </div>
+    );
+  }
+
+  if (selectedDoc && docContent !== null) {
+    return (
+      <div style={{ padding: 16 }}>
+        <button onClick={() => setSelectedDoc(null)} style={{
+          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
+          color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer",
+          marginBottom: 12, padding: 0, fontFamily: "var(--font)",
+        }}>
+          &larr; Back to Handoff
+        </button>
+        <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--gray-700)" }} onClick={handleContentClick} dangerouslySetInnerHTML={{ __html: renderHandoffMarkdown(docContent) }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--dark)" }}>Handoff Documents</div>
+          <div style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 2 }}>
+            3 deliverables for Phase 2 handoff
           </div>
-        )}
+        </div>
+        <button
+          onClick={handleGenerate}
+          disabled={generating}
+          style={{
+            padding: "8px 16px", borderRadius: 8, border: "none",
+            background: generating ? "var(--gray-200)" : "var(--green)",
+            color: generating ? "var(--gray-500)" : "white",
+            fontSize: 12, fontWeight: 600, cursor: generating ? "not-allowed" : "pointer",
+            fontFamily: "var(--font)",
+          }}
+        >
+          {generating ? "Generating..." : "Generate All"}
+        </button>
+      </div>
+
+      {/* Document cards */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {[
+          { type: "discovery_brief", label: "Discovery Brief", desc: "Client overview, business context, target users, market analysis" },
+          { type: "mvp_scope_freeze", label: "MVP Scope Freeze", desc: "Core features, out of scope, platform decisions, sign-off" },
+          { type: "functional_requirements", label: "Functional Requirements", desc: "Detailed requirements with user stories and business rules" },
+        ].map((d) => {
+          const info = docs.find((x: any) => x.type === d.type);
+          const generated = info?.generated;
+          return (
+            <div key={d.type} style={{
+              padding: "14px 16px", border: "1px solid var(--gray-200)", borderRadius: 10,
+              background: generated ? "#f0fdf8" : "var(--white)",
+              cursor: generated ? "pointer" : "default",
+              transition: "all 0.15s",
+            }}
+            onClick={() => generated && viewDoc(d.type)}
+            onMouseEnter={(e) => generated && (e.currentTarget.style.borderColor = "var(--green)")}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "var(--gray-200)")}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: generated ? "#d1fae5" : "var(--gray-100)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: generated ? "#059669" : "var(--gray-400)", fontSize: 14,
+                }}>
+                  {generated ? "\u2713" : "\u2014"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{d.label}</div>
+                  <div style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 1 }}>{d.desc}</div>
+                </div>
+                {generated && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#059669", background: "#d1fae5", padding: "2px 8px", borderRadius: 6 }}>
+                    Generated
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Generation log */}
+      {genLog.length > 0 && (
+        <div style={{
+          marginTop: 14, padding: 12, background: "#1a1a2e", borderRadius: 8,
+          maxHeight: 150, overflow: "auto", fontSize: 11, fontFamily: "monospace", color: "#a1a1aa",
+        }}>
+          {genLog.map((line, i) => (
+            <div key={i} style={{ marginBottom: 2 }}>{line}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Generation history */}
+      {generations.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--gray-400)", marginBottom: 8 }}>
+            Generation History
+          </div>
+          {generations.map((gen: any) => (
+            <div key={gen.version} style={{
+              marginBottom: 6, border: "1px solid var(--gray-200)", borderRadius: 8, overflow: "hidden",
+            }}>
+              <div
+                onClick={() => setExpandedGen(expandedGen === gen.version ? null : gen.version)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 12px",
+                  cursor: "pointer", background: "var(--gray-50)", transition: "background 0.15s",
+                }}
+              >
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                  background: gen.status === "completed" ? "#d1fae5" : gen.status === "partial" ? "#FEF3C7" : "#fee2e2",
+                  color: gen.status === "completed" ? "#059669" : gen.status === "partial" ? "#D97706" : "#EF4444",
+                }}>v{gen.version}</span>
+                <span style={{ fontSize: 11, fontWeight: 500, flex: 1 }}>
+                  {gen.status === "completed" ? "3/3 docs" : gen.status === "partial" ? `${gen.documents?.length}/3 docs` : "Failed"}
+                </span>
+                {gen.errors?.length > 0 && (
+                  <span style={{ fontSize: 9, fontWeight: 600, color: "#EF4444" }}>{gen.errors.length} error{gen.errors.length > 1 ? "s" : ""}</span>
+                )}
+                <span style={{ fontSize: 10, color: "var(--gray-400)" }}>
+                  {gen.duration_ms ? `${(gen.duration_ms / 1000).toFixed(0)}s` : ""} · {gen.created_at ? new Date(gen.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
+                </span>
+              </div>
+              {expandedGen === gen.version && gen.logs?.length > 0 && (
+                <div style={{
+                  padding: 10, background: "#1a1a2e", fontSize: 10, fontFamily: "monospace",
+                  color: "#a1a1aa", maxHeight: 200, overflow: "auto",
+                }}>
+                  {gen.logs.map((line: string, i: number) => (
+                    <div key={i} style={{
+                      marginBottom: 2,
+                      color: line.includes("ERROR") ? "#EF4444" : line.includes("WARNING") ? "#F59E0B" : line.includes("COMPLETED") ? "#059669" : "#a1a1aa",
+                    }}>{line}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function renderHandoffMarkdown(text: string): string {
+  let html = text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Tables
+  html = html.replace(/((?:^\|.+\|[ ]*$\n?)+)/gm, (tableBlock) => {
+    const rows = tableBlock.trim().split("\n").filter(r => r.trim());
+    if (rows.length < 2) return tableBlock;
+    const isSep = (r: string) => /^\|[\s\-:|]+\|$/.test(r) && r.includes("-");
+    const parse = (row: string) => row.split("|").slice(1, -1).map(c => c.trim());
+    const header = rows[0];
+    const body = rows.filter((r, i) => i > 0 && !isSep(r));
+    if (body.length === 0) return tableBlock;
+    const hCells = parse(header);
+    let t = '\x00BLOCK<div class="chat-table-wrap"><table class="chat-table"><thead><tr>';
+    hCells.forEach(c => { t += `<th>${_inl(c)}</th>`; });
+    t += "</tr></thead><tbody>";
+    body.forEach(row => {
+      const cells = parse(row);
+      t += "<tr>";
+      cells.forEach((c, ci) => { t += `<td${ci === 0 ? ' class="chat-td-label"' : ""}>${_inl(c)}</td>`; });
+      t += "</tr>";
+    });
+    t += "</tbody></table></div>BLOCK\x00";
+    return t;
+  });
+
+  // Headings
+  html = html
+    .replace(/^#### (.+)$/gm, (_m, t) => `\x00BLOCK<h4 class="chat-h4">${_inl(t)}</h4>BLOCK\x00`)
+    .replace(/^### (.+)$/gm, (_m, t) => `\x00BLOCK<h3 class="chat-h3">${_inl(t)}</h3>BLOCK\x00`)
+    .replace(/^## (.+)$/gm, (_m, t) => `\x00BLOCK<div class="ho-h2">${_inl(t)}</div>BLOCK\x00`)
+    .replace(/^# (.+)$/gm, (_m, t) => `\x00BLOCK<div class="ho-h1">${_inl(t)}</div>BLOCK\x00`);
+
+  // Lists — collect consecutive
+  html = html.replace(/((?:^- .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map(l => l.replace(/^- /, ""));
+    return '\x00BLOCK<ul class="chat-ul">' + items.map(i => `<li class="chat-li">${_inl(i)}</li>`).join("") + "</ul>BLOCK\x00";
+  });
+  html = html.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map(l => l.replace(/^\d+\. /, ""));
+    return '\x00BLOCK<ol class="chat-ol">' + items.map(i => `<li class="chat-oli">${_inl(i)}</li>`).join("") + "</ol>BLOCK\x00";
+  });
+
+  // Horizontal rule
+  html = html.replace(/^---$/gm, '\x00BLOCK<hr class="chat-hr">BLOCK\x00');
+
+  // Process text segments only — inline formatting + line breaks
+  const parts = html.split(/\x00BLOCK|BLOCK\x00/);
+  html = parts.map((part, i) => {
+    if (i % 2 === 1) return part; // block element — already processed
+    part = _inl(part);
+    return part
+      .replace(/\n\n+/g, '<div class="chat-paragraph-break"></div>')
+      .replace(/\n/g, "<br>");
+  }).join("");
+
+  return html;
+}
+
+const FILE_STYLE = 'padding:1px 6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;font-size:0.88em;font-family:monospace;color:#2563eb;cursor:pointer;text-decoration:none;display:inline-block';
+const CODE_STYLE = 'padding:1px 5px;background:#f0fdf4;border:1px solid #dcfce7;border-radius:4px;font-size:0.88em;font-family:monospace;color:#16a34a';
+const WIKI_STYLE = 'color:#059669;font-weight:600;cursor:pointer;border-bottom:1px dashed #059669;text-decoration:none';
+const BADGE_STYLES: Record<string, string> = {
+  confirmed: 'font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:#d1fae5;color:#059669;vertical-align:middle;letter-spacing:0.3px;white-space:nowrap',
+  assumed: 'font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:#FEF3C7;color:#D97706;vertical-align:middle;letter-spacing:0.3px;white-space:nowrap',
+  notcovered: 'font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;background:#fee2e2;color:#EF4444;vertical-align:middle;letter-spacing:0.3px;white-space:nowrap',
+};
+
+function _inl(t: string): string {
+  const slots: string[] = [];
+  const slot = (html: string) => { slots.push(html); return `\x01S${slots.length - 1}\x01`; };
+
+  // File paths in backticks → slot
+  t = t.replace(/`([^`]*\.(?:md|json|yaml|yml|txt|py|ts|tsx|js|sh))`/g, (_m, path) => {
+    const name = path.split("/").pop() || path;
+    return slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📄 ${name}</a>`);
+  });
+  // Remaining backticks → slot
+  t = t.replace(/`([^`]+)`/g, (_m, code) => slot(`<code style="${CODE_STYLE}">${code}</code>`));
+  // Directory paths → slot
+  t = t.replace(/(?<!["a-zA-Z])(\.?[\w.-]+(?:\/[\w.-]+)+\/)/g, (_m, path) => slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📁 ${path}</a>`));
+  // Bare file paths → slot
+  t = t.replace(/(?<!["\/a-zA-Z\x01])((?:[\w.-]+\/)+[\w.-]+\.(?:md|json|yaml|yml|txt|py|ts|tsx|js|sh))(?![a-zA-Z])/g, (_m, path) => {
+    const name = path.split("/").pop() || path;
+    return slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📄 ${name}</a>`);
+  });
+  // Wikilinks
+  t = t.replace(/\[\[([^\]]+)\]\]/g, (_m, target) => slot(`<a style="${WIKI_STYLE}" data-wiki="${target}">${target}</a>`));
+  // Attribution badges
+  t = t.replace(/\[CONFIRMED([^\]]*)\]/g, (_m, s) => slot(`<span style="${BADGE_STYLES.confirmed}">CONFIRMED${s}</span>`));
+  t = t.replace(/\[ASSUMED([^\]]*)\]/g, (_m, s) => slot(`<span style="${BADGE_STYLES.assumed}">ASSUMED${s}</span>`));
+  t = t.replace(/\[NOT COVERED([^\]]*)\]/g, (_m, s) => slot(`<span style="${BADGE_STYLES.notcovered}">NOT COVERED${s}</span>`));
+  // Bold / italic
+  t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  // Restore slots
+  t = t.replace(/\x01S(\d+)\x01/g, (_m, i) => slots[parseInt(i)]);
+  return t;
+}
+
+
+function MeetingPrepTab({ contradictions, gaps, requirements }: {
+  contradictions: any[]; gaps: any[]; requirements: any[];
+}) {
+  const unconfirmed = requirements.filter((r: any) => r.status === "assumed" || r.status === "pending");
+  const totalItems = contradictions.length + gaps.length + unconfirmed.length;
+  const estimatedMin = contradictions.length * 10 + gaps.filter((g: any) => g.severity === "high").length * 5 + gaps.filter((g: any) => g.severity !== "high").length * 3 + unconfirmed.length * 2;
+
+  if (totalItems === 0) {
+    return (
+      <EmptyState
+        icon="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
+        text="No items for the agenda. All requirements confirmed, no gaps or contradictions."
+      />
+    );
+  }
+
+  return (
+    <div className="mp-container">
+      <div className="mp-header">
+        <div className="mp-badge">AI-Generated Agenda</div>
+        <div className="mp-title">Next Meeting — Agenda</div>
+        <div className="mp-date">{totalItems} items to discuss</div>
+      </div>
+
+      {/* Contradictions */}
+      {contradictions.length > 0 && (
+        <div className="mp-section">
+          <div className="mp-section-head">
+            <div className="mp-section-icon" style={{ background: "#EF444420", color: "#EF4444" }}>!</div>
+            <div className="mp-section-title">Resolve Contradictions ({contradictions.length})</div>
+          </div>
+          {contradictions.map((c: any) => (
+            <div key={c.id} className="mp-item">
+              <div className="mp-item-priority high">Critical</div>
+              <div className="mp-item-body">
+                <div className="mp-item-question">{c.explanation?.slice(0, 80)}</div>
+                <div className="mp-item-context">{c.item_a_type} vs {c.item_b_type}</div>
+              </div>
+              <div className="mp-time-est">~10 min</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Gaps */}
+      {gaps.length > 0 && (
+        <div className="mp-section">
+          <div className="mp-section-head">
+            <div className="mp-section-icon" style={{ background: "#F59E0B20", color: "#F59E0B" }}>?</div>
+            <div className="mp-section-title">Close Gaps ({gaps.length})</div>
+          </div>
+          {gaps.sort((a: any, b: any) => a.severity === "high" ? -1 : b.severity === "high" ? 1 : 0).map((g: any) => (
+            <div key={g.id} className="mp-item">
+              <div className={`mp-item-priority ${g.severity}`}>{g.severity === "high" ? "High" : g.severity === "medium" ? "Med" : "Low"}</div>
+              <div className="mp-item-body">
+                <div className="mp-item-question">{g.question}</div>
+                <div className="mp-item-context">Area: {g.area}</div>
+              </div>
+              <div className="mp-time-est">~{g.severity === "high" ? 5 : 3} min</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Unconfirmed requirements */}
+      {unconfirmed.length > 0 && (
+        <div className="mp-section">
+          <div className="mp-section-head">
+            <div className="mp-section-icon" style={{ background: "#3B82F620", color: "#3B82F6" }}>?</div>
+            <div className="mp-section-title">Confirm Requirements ({unconfirmed.length})</div>
+          </div>
+          {unconfirmed.map((r: any) => (
+            <div key={r.req_id} className="mp-item">
+              <div className={`mp-item-priority ${r.priority === "must" ? "high" : "medium"}`}>{r.priority === "must" ? "Must" : "Should"}</div>
+              <div className="mp-item-body">
+                <div className="mp-item-question">{r.title}</div>
+                <div className="mp-item-context">{r.req_id} · Status: {r.status}</div>
+              </div>
+              <div className="mp-time-est">~2 min</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Total */}
+      <div className="mp-total">
+        <div className="mp-total-label">Estimated meeting duration</div>
+        <div className="mp-total-val">{estimatedMin} min</div>
       </div>
     </div>
   );

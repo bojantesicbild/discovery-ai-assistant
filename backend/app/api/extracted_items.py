@@ -11,10 +11,26 @@ from app.deps import get_current_user
 from app.models.auth import User
 from app.models.extraction import (
     Requirement, Constraint, Decision, Stakeholder,
-    Assumption, ScopeItem, Contradiction,
+    Assumption, ScopeItem, Contradiction, Gap,
 )
+from app.models.document import Document
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["extracted-items"])
+
+import structlog
+log = structlog.get_logger()
+
+async def _sync_markdown(project_id: uuid.UUID, db):
+    """Re-export all data to markdown files after any write operation."""
+    try:
+        from app.pipeline.tasks import _stage_export_markdown
+        # Get any doc to pass (needed for function signature but not used for data)
+        result = await db.execute(select(Document).where(Document.project_id == project_id).limit(1))
+        doc = result.scalar_one_or_none()
+        if doc:
+            await _stage_export_markdown(db, project_id, doc)
+    except Exception as e:
+        log.warning("Markdown sync failed (non-fatal)", error=str(e))
 
 
 # ── Requirements ──────────────────────────────────────
@@ -29,7 +45,11 @@ async def list_requirements(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Requirement).where(Requirement.project_id == project_id)
+    query = (
+        select(Requirement, Document.filename)
+        .outerjoin(Document, Requirement.source_doc_id == Document.id)
+        .where(Requirement.project_id == project_id)
+    )
     if priority:
         query = query.where(Requirement.priority == priority)
     if status:
@@ -42,8 +62,8 @@ async def list_requirements(
         )
     query = query.order_by(Requirement.req_id)
     result = await db.execute(query)
-    items = result.scalars().all()
-    return {"items": [_req_dict(r) for r in items], "total": len(items)}
+    rows = result.all()
+    return {"items": [_req_dict(r, doc_name) for r, doc_name in rows], "total": len(rows)}
 
 
 @router.get("/requirements/{req_id}")
@@ -54,12 +74,14 @@ async def get_requirement(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Requirement).where(Requirement.project_id == project_id, Requirement.req_id == req_id)
+        select(Requirement, Document.filename)
+        .outerjoin(Document, Requirement.source_doc_id == Document.id)
+        .where(Requirement.project_id == project_id, Requirement.req_id == req_id)
     )
-    item = result.scalar_one_or_none()
-    if not item:
+    row = result.one_or_none()
+    if not row:
         return {"error": "Not found"}
-    return _req_dict(item)
+    return _req_dict(row[0], row[1])
 
 
 @router.patch("/requirements/{req_id}")
@@ -109,6 +131,9 @@ async def update_requirement(
     from app.services.evaluator import evaluator
     await evaluator.evaluate(project_id, db, triggered_by=f"user:{user.id}")
 
+    # Sync markdown files
+    await _sync_markdown(project_id, db)
+
     return _req_dict(item)
 
 
@@ -131,7 +156,65 @@ async def validate_assumption(
 
     from app.services.evaluator import evaluator
     await evaluator.evaluate(project_id, db, triggered_by=f"user:{user.id}")
+    await _sync_markdown(project_id, db)
     return {"id": str(item.id), "validated": item.validated}
+
+
+# ── Gaps ──────────────────────────────────────────────
+
+@router.get("/gaps")
+async def list_gaps(
+    project_id: uuid.UUID,
+    status: Optional[str] = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = (
+        select(Gap, Document.filename)
+        .outerjoin(Document, Gap.source_doc_id == Document.id)
+        .where(Gap.project_id == project_id)
+    )
+    if status:
+        query = query.where(Gap.status == status)
+    query = query.order_by(Gap.gap_id)
+    result = await db.execute(query)
+    rows = result.all()
+    return {"items": [{
+        "id": str(g.id),
+        "gap_id": g.gap_id,
+        "question": g.question,
+        "severity": g.severity,
+        "area": g.area,
+        "source_doc": doc_name,
+        "source_quote": g.source_quote,
+        "source_person": g.source_person,
+        "blocked_reqs": g.blocked_reqs or [],
+        "suggested_action": g.suggested_action,
+        "status": g.status,
+        "resolution": g.resolution,
+        "created_at": g.created_at.isoformat() if g.created_at else None,
+    } for g, doc_name in rows], "total": len(rows)}
+
+
+@router.patch("/gaps/{gap_id}/resolve")
+async def resolve_gap(
+    project_id: uuid.UUID,
+    gap_id: str,
+    resolution: str = Query(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Gap).where(Gap.project_id == project_id, Gap.gap_id == gap_id)
+    )
+    gap = result.scalar_one_or_none()
+    if not gap:
+        return {"error": "Not found"}
+    gap.status = "resolved"
+    gap.resolution = resolution
+    await db.flush()
+    await _sync_markdown(project_id, db)
+    return {"id": str(gap.id), "status": gap.status}
 
 
 @router.patch("/contradictions/{contradiction_id}/resolve")
@@ -151,15 +234,33 @@ async def resolve_contradiction(
     item.resolved = True
     item.resolution_note = resolution_note
     await db.flush()
+    await _sync_markdown(project_id, db)
     return {"id": str(item.id), "resolved": True}
 
 
-def _req_dict(r: Requirement) -> dict:
+@router.post("/sync-markdown")
+async def sync_markdown(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger markdown export sync."""
+    await _sync_markdown(project_id, db)
+    return {"status": "synced"}
+
+
+def _req_dict(r: Requirement, source_doc_name: str = None) -> dict:
     return {
         "id": str(r.id), "req_id": r.req_id, "title": r.title,
         "type": r.type, "priority": r.priority, "description": r.description,
         "user_perspective": r.user_perspective, "business_rules": r.business_rules,
-        "edge_cases": r.edge_cases, "source_quote": r.source_quote,
+        "edge_cases": r.edge_cases,
+        "source_doc": source_doc_name,
+        "source_doc_id": str(r.source_doc_id) if r.source_doc_id else None,
+        "source_quote": r.source_quote,
+        "source_person": r.source_person,
+        "sources": r.sources or [],
+        "version": r.version or 1,
         "status": r.status, "confidence": r.confidence,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
@@ -276,12 +377,76 @@ async def list_contradictions(
         query = query.where(Contradiction.resolved == resolved)
     result = await db.execute(query)
     items = result.scalars().all()
-    return {"items": [{"id": str(c.id), "item_a_type": c.item_a_type,
-                        "item_b_type": c.item_b_type,
-                        "explanation": c.explanation,
-                        "resolved": c.resolved,
-                        "resolution_note": c.resolution_note}
-                       for c in items], "total": len(items)}
+
+    # Look up referenced items and source docs
+    contra_list = []
+    for c in items:
+        item_a_ref = await _lookup_item_ref(db, c.item_a_type, c.item_a_id)
+        item_b_ref = await _lookup_item_ref(db, c.item_b_type, c.item_b_id)
+
+        # Look up source document for item_a and for the contradiction itself
+        source_a_doc = None
+        if c.item_a_type == "requirement":
+            r = await db.execute(
+                select(Requirement, Document.filename)
+                .outerjoin(Document, Requirement.source_doc_id == Document.id)
+                .where(Requirement.id == c.item_a_id)
+            )
+            row = r.one_or_none()
+            if row:
+                source_a_doc = row[1]
+
+        source_b_doc = None
+        if c.source_doc_id:
+            r = await db.execute(select(Document.filename).where(Document.id == c.source_doc_id))
+            row = r.one_or_none()
+            if row:
+                source_b_doc = row[0]
+
+        contra_list.append({
+            "id": str(c.id),
+            "item_a_type": c.item_a_type,
+            "item_a_id": str(c.item_a_id),
+            "item_a_ref": item_a_ref,
+            "item_a_source": source_a_doc,
+            "item_b_type": c.item_b_type,
+            "item_b_id": str(c.item_b_id),
+            "item_b_ref": item_b_ref,
+            "item_b_source": source_b_doc,
+            "explanation": c.explanation,
+            "resolved": c.resolved,
+            "resolution_note": c.resolution_note,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        })
+    return {"items": contra_list, "total": len(contra_list)}
+
+
+async def _lookup_item_ref(db: AsyncSession, item_type: str, item_id: uuid.UUID) -> str:
+    """Look up a referenced item to get its title/quote for display."""
+    try:
+        if item_type == "requirement":
+            r = await db.execute(select(Requirement).where(Requirement.id == item_id))
+            req = r.scalar_one_or_none()
+            if req:
+                return f"{req.req_id}: {req.title}"
+        elif item_type == "constraint":
+            r = await db.execute(select(Constraint).where(Constraint.id == item_id))
+            con = r.scalar_one_or_none()
+            if con:
+                return f"{con.type}: {con.description[:60]}"
+        elif item_type == "decision":
+            r = await db.execute(select(Decision).where(Decision.id == item_id))
+            dec = r.scalar_one_or_none()
+            if dec:
+                return dec.title
+        elif item_type == "assumption":
+            r = await db.execute(select(Assumption).where(Assumption.id == item_id))
+            asm = r.scalar_one_or_none()
+            if asm:
+                return asm.statement[:60]
+    except Exception:
+        pass
+    return f"New {item_type} (from uploaded document)"
 
 
 # ── Search across all types ──────────────────────────
@@ -293,31 +458,51 @@ async def search_all(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search across all extracted data types."""
+    """Search across all extracted data types by title, description, or ID."""
     results = []
     pattern = f"%{q}%"
 
-    # Requirements
+    # Requirements — match on req_id, title, or description
     reqs = await db.execute(
         select(Requirement).where(
             Requirement.project_id == project_id,
-            (Requirement.title.ilike(pattern) | Requirement.description.ilike(pattern)),
+            (
+                Requirement.req_id.ilike(pattern)
+                | Requirement.title.ilike(pattern)
+                | Requirement.description.ilike(pattern)
+            ),
         ).limit(10)
     )
     for r in reqs.scalars():
         results.append({"type": "requirement", "id": r.req_id, "title": r.title, "priority": r.priority, "status": r.status})
 
-    # Constraints
+    # Gaps — match on gap_id or question
+    gaps = await db.execute(
+        select(Gap).where(
+            Gap.project_id == project_id,
+            (
+                Gap.gap_id.ilike(pattern)
+                | Gap.question.ilike(pattern)
+            ),
+        ).limit(5)
+    )
+    for g in gaps.scalars():
+        results.append({"type": "gap", "id": g.gap_id, "title": g.question[:80], "status": g.status})
+
+    # Constraints — match on type or description
     cons = await db.execute(
         select(Constraint).where(
             Constraint.project_id == project_id,
-            Constraint.description.ilike(pattern),
+            (
+                Constraint.type.ilike(pattern)
+                | Constraint.description.ilike(pattern)
+            ),
         ).limit(5)
     )
     for c in cons.scalars():
-        results.append({"type": "constraint", "id": str(c.id)[:8], "title": f"{c.type}: {c.description[:50]}", "status": c.status})
+        results.append({"type": "constraint", "id": str(c.id)[:8], "title": f"{c.type}: {c.description[:80]}", "status": c.status})
 
-    # Decisions
+    # Decisions — match on title or rationale
     decs = await db.execute(
         select(Decision).where(
             Decision.project_id == project_id,
@@ -327,7 +512,17 @@ async def search_all(
     for d in decs.scalars():
         results.append({"type": "decision", "id": str(d.id)[:8], "title": d.title, "status": d.status})
 
-    # Stakeholders
+    # Contradictions — match on explanation
+    contras = await db.execute(
+        select(Contradiction).where(
+            Contradiction.project_id == project_id,
+            Contradiction.explanation.ilike(pattern),
+        ).limit(5)
+    )
+    for ct in contras.scalars():
+        results.append({"type": "contradiction", "id": str(ct.id)[:8], "title": ct.explanation[:80], "status": "resolved" if ct.resolved else "open"})
+
+    # Stakeholders — match on name or role
     stks = await db.execute(
         select(Stakeholder).where(
             Stakeholder.project_id == project_id,

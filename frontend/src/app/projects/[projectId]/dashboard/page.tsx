@@ -88,7 +88,7 @@ export default function DashboardPage() {
         <StatCard label="Requirements" value={data.requirements_count} sub={`${data.requirements_confirmed} confirmed`} />
         <StatCard label="Constraints" value={data.constraints_count} />
         <StatCard label="Decisions" value={data.decisions_count} />
-        <StatCard label="Stakeholders" value={data.stakeholders_count} />
+        <StatCard label="People" value={data.stakeholders_count} />
         <StatCard label="Assumptions" value={data.assumptions_count} sub={`${data.assumptions_validated} validated`} />
         <StatCard label="Scope (in/out)" value={`${data.scope_in}/${data.scope_out}`} />
         <StatCard label="Contradictions" value={data.contradictions_unresolved} color={data.contradictions_unresolved > 0 ? "red" : undefined} />
