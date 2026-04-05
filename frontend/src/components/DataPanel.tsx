@@ -129,13 +129,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       {/* Header with readiness ring — clickable */}
       <div className="dp-header">
         <div className="dp-readiness" style={{ cursor: "pointer" }} onClick={async () => {
-          if (!showReadiness) {
-            try {
-              const data = await getReadiness(projectId);
-              setReadinessChecks(data.breakdown?.checks || []);
-            } catch {}
-          }
-          setShowReadiness(!showReadiness);
+          try {
+            const data = await getReadiness(projectId);
+            setReadinessChecks(data.breakdown?.checks || []);
+          } catch {}
+          setShowReadiness(true);
         }}>
           <div className="dp-rb-ring">
             <svg viewBox="0 0 36 36">
@@ -151,49 +149,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
             </div>
           </div>
-          <div style={{ fontSize: 10, color: "var(--gray-400)", display: "flex", alignItems: "center", gap: 4 }}>
-            {showReadiness ? "▲" : "▼"} Details
+          <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+            View details →
           </div>
         </div>
-
-        {/* Readiness checklist panel */}
-        {showReadiness && readinessChecks.length > 0 && (
-          <div style={{
-            padding: "8px 16px 12px", borderTop: "1px solid var(--gray-100)",
-            background: "#fafbfc",
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-              Readiness Checklist ({readinessChecks.filter((c: any) => c.status === "covered").length}/{readinessChecks.length} passed)
-            </div>
-            {readinessChecks.map((c: any, i: number) => (
-              <div key={i} style={{
-                display: "flex", alignItems: "flex-start", gap: 8, padding: "4px 0",
-                borderBottom: i < readinessChecks.length - 1 ? "1px solid var(--gray-100)" : "none",
-              }}>
-                <span style={{
-                  fontSize: 12, flexShrink: 0, marginTop: 1,
-                  color: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
-                }}>
-                  {c.status === "covered" ? "✓" : c.status === "partial" ? "◐" : "✗"}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: "var(--dark)" }}>{c.check}</div>
-                  {c.detail && (
-                    <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>
-                  )}
-                </div>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, flexShrink: 0,
-                  background: c.status === "covered" ? "#d1fae5" : c.status === "partial" ? "#fef3c7" : "#fee2e2",
-                  color: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
-                }}>
-                  {c.status === "covered" ? "PASSED" : c.status === "partial" ? "PARTIAL" : "MISSING"}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Readiness slide-in panel */}
+      <ReadinessPanel
+        open={showReadiness}
+        onClose={() => setShowReadiness(false)}
+        score={score}
+        checks={readinessChecks}
+        requirements={requirements}
+        gaps={gaps}
+        contradictions={contradictions}
+        constraints={constraints}
+      />
 
       {/* Tabs */}
       <div className="dp-tabs">
@@ -704,6 +676,190 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       // Keep showing metadata if content fetch fails
     }
   }
+}
+
+
+/* ── Readiness Panel ── */
+
+function ReadinessPanel({ open, onClose, score, checks, requirements, gaps, contradictions, constraints }: {
+  open: boolean; onClose: () => void; score: number; checks: any[];
+  requirements: any[]; gaps: any[]; contradictions: any[]; constraints: any[];
+}) {
+  const passed = checks.filter((c: any) => c.status === "covered").length;
+  const partial = checks.filter((c: any) => c.status === "partial").length;
+  const missing = checks.filter((c: any) => c.status === "missing").length;
+  const statusLabel = score >= 85 ? "Ready for Handoff" : score >= 65 ? "Conditionally Ready" : "Not Ready";
+  const statusColor = score >= 85 ? "#059669" : score >= 65 ? "#d97706" : "#ef4444";
+  const confirmedReqs = requirements.filter((r: any) => r.status === "confirmed").length;
+  const mustReqs = requirements.filter((r: any) => r.priority === "must").length;
+  const openContras = contradictions.filter((c: any) => !c.resolved).length;
+  const openGaps = gaps.filter((g: any) => g.status === "open" || g.status === "in-progress").length;
+
+  // Ring math
+  const circumference = 2 * Math.PI * 54;
+  const offset = circumference - (score / 100) * circumference;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)", zIndex: 900,
+        opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none",
+        transition: "opacity 0.3s ease",
+      }} />
+      {/* Panel */}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, width: 440,
+        background: "var(--white)", zIndex: 901, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+        transform: open ? "translateX(0)" : "translateX(100%)",
+        transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: "20px 24px 16px", borderBottom: "1px solid var(--gray-100)",
+          display: "flex", alignItems: "center", gap: 16,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--dark)" }}>Discovery Readiness</div>
+            <div style={{ fontSize: 12, color: statusColor, fontWeight: 600, marginTop: 2 }}>{statusLabel}</div>
+          </div>
+          <button onClick={onClose} style={{
+            background: "none", border: "1px solid var(--gray-200)", borderRadius: 8,
+            width: 32, height: 32, cursor: "pointer", fontSize: 16, color: "var(--gray-400)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>×</button>
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+
+          {/* Score ring + stats */}
+          <div style={{ display: "flex", gap: 24, marginBottom: 24 }}>
+            {/* Large ring */}
+            <div style={{ position: "relative", width: 120, height: 120, flexShrink: 0 }}>
+              <svg viewBox="0 0 120 120" style={{ width: 120, height: 120, transform: "rotate(-90deg)" }}>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="var(--gray-100)" strokeWidth="8" />
+                <circle cx="60" cy="60" r="54" fill="none"
+                  stroke={statusColor} strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={circumference} strokeDashoffset={offset}
+                  style={{ transition: "stroke-dashoffset 0.8s ease" }}
+                />
+              </svg>
+              <div style={{
+                position: "absolute", inset: 0, display: "flex", flexDirection: "column",
+                alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: "var(--dark)" }}>{Math.round(score)}%</div>
+                <div style={{ fontSize: 9, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: "0.5px" }}>readiness</div>
+              </div>
+            </div>
+
+            {/* Summary stats */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, flex: 1 }}>
+              {[
+                { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed` },
+                { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length} total` },
+                { label: "Open Gaps", value: openGaps, sub: `${gaps.length} total`, warn: openGaps > 0 },
+                { label: "Contradictions", value: openContras, sub: `open`, warn: openContras > 0 },
+                { label: "Constraints", value: constraints.length, sub: "defined" },
+                { label: "Checks Passed", value: `${passed}/${checks.length}`, sub: `${missing} missing` },
+              ].map((s, i) => (
+                <div key={i} style={{
+                  padding: "8px 10px", borderRadius: 8, background: "#f8fafb",
+                  border: "1px solid var(--gray-100)",
+                }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: s.warn ? "#ef4444" : "var(--dark)" }}>{s.value}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)" }}>{s.label}</div>
+                  <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 1 }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Check progress bars */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 4, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--gray-100)" }}>
+              <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#059669", borderRadius: 3, transition: "width 0.5s" }} />
+              <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#d97706", borderRadius: 3, transition: "width 0.5s" }} />
+              <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#ef4444", borderRadius: 3, transition: "width 0.5s" }} />
+            </div>
+            <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 10, color: "var(--gray-500)" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#059669" }} /> {passed} passed
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#d97706" }} /> {partial} partial
+              </span>
+              <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#ef4444" }} /> {missing} missing
+              </span>
+            </div>
+          </div>
+
+          {/* Checklist */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Readiness Checklist
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {checks.map((c: any, i: number) => (
+              <div key={i} style={{
+                padding: "10px 12px", borderRadius: 10,
+                background: c.status === "missing" ? "#fef2f2" : c.status === "partial" ? "#fffbeb" : "#f0fdf4",
+                border: `1px solid ${c.status === "missing" ? "#fecaca" : c.status === "partial" ? "#fde68a" : "#bbf7d0"}`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 700, flexShrink: 0,
+                    background: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
+                    color: "white",
+                  }}>
+                    {c.status === "covered" ? "✓" : c.status === "partial" ? "!" : "✗"}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)" }}>{c.check}</div>
+                    {c.detail && <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>}
+                  </div>
+                </div>
+                {c.items && c.items.length > 0 && (
+                  <div style={{ marginTop: 6, paddingLeft: 30 }}>
+                    {c.items.slice(0, 4).map((item: string, j: number) => (
+                      <div key={j} style={{ fontSize: 10, color: "var(--gray-600)", padding: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--gray-400)", flexShrink: 0 }} />
+                        {item}
+                      </div>
+                    ))}
+                    {c.items.length > 4 && (
+                      <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 2 }}>+{c.items.length - 4} more</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Action items */}
+          {missing > 0 && (
+            <div style={{ marginTop: 20, padding: "14px 16px", borderRadius: 10, background: "#1a1a2e", color: "#e2e8f0" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 8 }}>
+                To reach "Ready" status
+              </div>
+              {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
+                <div key={i} style={{ fontSize: 12, padding: "3px 0", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ color: c.status === "missing" ? "#f87171" : "#fbbf24" }}>→</span>
+                  <span>{c.status === "missing" ? `Add: ${c.check}` : `Improve: ${c.check}`}</span>
+                  {c.detail && <span style={{ color: "#64748b", fontSize: 10 }}>({c.detail})</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ height: 24 }} />
+        </div>
+      </div>
+    </>
+  );
 }
 
 
@@ -1343,10 +1499,27 @@ function MeetingPrepTab({ contradictions, gaps, requirements, constraints, dashb
 
   const approvedCount = Object.values(statuses).filter((s) => s === "approved").length;
   const totalItems = activeContras.length + activeGaps.length + activeUnconfirmed.length;
-  const estimatedMin = activeContras.length * 10
-    + activeGaps.filter((g: any) => g.severity === "high").length * 5
-    + activeGaps.filter((g: any) => g.severity !== "high").length * 3
-    + activeUnconfirmed.length * 2;
+
+  // Calculate time per item based on status
+  function itemTime(id: string, baseMin: number) {
+    const st = getStatus(id);
+    if (st === "dismissed") return 0;
+    return baseMin;
+  }
+
+  const approvedMin =
+    contradictions.filter((c) => getStatus(c.id) === "approved").length * 10
+    + gaps.filter((g) => getStatus(g.id) === "approved" && g.severity === "high").length * 5
+    + gaps.filter((g) => getStatus(g.id) === "approved" && g.severity !== "high").length * 3
+    + unconfirmed.filter((r) => getStatus(r.req_id) === "approved").length * 2;
+
+  const pendingMin =
+    contradictions.filter((c) => !getStatus(c.id)).length * 10
+    + gaps.filter((g) => !getStatus(g.id) && g.severity === "high").length * 5
+    + gaps.filter((g) => !getStatus(g.id) && g.severity !== "high").length * 3
+    + unconfirmed.filter((r) => !getStatus(r.req_id)).length * 2;
+
+  const estimatedMin = approvedMin + pendingMin;
 
   const allItems = contradictions.length + gaps.length + unconfirmed.length;
 
@@ -1551,6 +1724,20 @@ function MeetingPrepTab({ contradictions, gaps, requirements, constraints, dashb
       <div className="mp-total">
         <div className="mp-total-label">Estimated meeting duration</div>
         <div className="mp-total-val">{estimatedMin} min</div>
+        {(approvedMin > 0 || pendingMin > 0) && (
+          <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11 }}>
+            {approvedMin > 0 && (
+              <span style={{ color: "#059669", fontWeight: 600 }}>
+                {approvedMin} min approved
+              </span>
+            )}
+            {pendingMin > 0 && (
+              <span style={{ color: "var(--gray-400)", fontWeight: 500 }}>
+                {pendingMin} min pending
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
