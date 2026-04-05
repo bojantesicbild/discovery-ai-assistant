@@ -879,11 +879,22 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
                 />
                 {/* Line */}
                 <polyline points={points.join(" ")} fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                {/* Dots */}
+                {/* Dots with hover */}
                 {pts.map((p: any, i: number) => {
                   const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
                   const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
-                  return <circle key={i} cx={x} cy={y} r={i === pts.length - 1 ? 3.5 : 2} fill={i === pts.length - 1 ? "#00E5A0" : "#059669"} />;
+                  const date = p.created_at ? new Date(p.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+                  const isLast = i === pts.length - 1;
+                  return (
+                    <g key={i} style={{ cursor: "pointer" }}>
+                      {/* Larger invisible hit area */}
+                      <circle cx={x} cy={y} r={10} fill="transparent">
+                        <title>{`${p.score}% — ${date}`}</title>
+                      </circle>
+                      {/* Visible dot */}
+                      <circle cx={x} cy={y} r={isLast ? 4 : 2.5} fill={isLast ? "#00E5A0" : "#059669"} stroke="#fff" strokeWidth={isLast ? 2 : 0} />
+                    </g>
+                  );
                 })}
                 <defs>
                   <linearGradient id="trajectoryGrad" x1="0" y1="0" x2="0" y2="1">
