@@ -713,8 +713,8 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
     bolt: "M13 10V3L4 14h7v7l9-11h-7z",
     lock: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
   };
-  const StatIcon = ({ d, color }: { d: string; color: string }) => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+  const StatIcon = ({ d, color, size = 20 }: { d: string; color: string; size?: number }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d={d} />
     </svg>
   );
@@ -783,23 +783,31 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
         </div>
 
         {/* Stats grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 18 }}>
           {[
-            { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed`, icon: icons.reqs, color: "#059669", bg: "#f0fdf4" },
-            { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}`, icon: icons.target, color: "#2563eb", bg: "#eff6ff" },
-            { label: "Checks", value: `${passed}/${checks.length}`, sub: `${missing} missing`, icon: icons.check, color: "#7c3aed", bg: "#f5f3ff" },
-            { label: "Gaps", value: openGaps, sub: `${gaps.length} total`, icon: icons.question, color: openGaps > 0 ? "#ef4444" : "#6b7280", bg: openGaps > 0 ? "#fef2f2" : "#f9fafb", warn: openGaps > 0 },
-            { label: "Contradictions", value: openContras, sub: "open", icon: icons.bolt, color: openContras > 0 ? "#ef4444" : "#6b7280", bg: openContras > 0 ? "#fef2f2" : "#f9fafb", warn: openContras > 0 },
-            { label: "Constraints", value: constraints.length, sub: "defined", icon: icons.lock, color: "#d97706", bg: "#fffbeb" },
+            { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed`, icon: icons.reqs, color: "#059669" },
+            { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}`, icon: icons.target, color: "#2563eb" },
+            { label: "Checks Passed", value: `${passed}/${checks.length}`, sub: `${missing} missing`, icon: icons.check, color: "#7c3aed" },
+            { label: "Open Gaps", value: openGaps, sub: `${gaps.length} total`, icon: icons.question, color: openGaps > 0 ? "#ef4444" : "#6b7280", warn: openGaps > 0 },
+            { label: "Contradictions", value: openContras, sub: "open", icon: icons.bolt, color: openContras > 0 ? "#ef4444" : "#6b7280", warn: openContras > 0 },
+            { label: "Constraints", value: constraints.length, sub: "defined", icon: icons.lock, color: "#d97706" },
           ].map((s, i) => (
             <div key={i} style={{
-              padding: "10px", borderRadius: 10, background: s.bg,
-              border: "1px solid var(--gray-100)",
+              padding: "12px 14px", borderRadius: 12, background: "#fff",
+              border: "1px solid var(--gray-100)", display: "flex", alignItems: "center", gap: 14,
+              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
             }}>
-              <div style={{ marginBottom: 4 }}><StatIcon d={s.icon} color={s.color} /></div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: s.warn ? "#ef4444" : "var(--dark)", letterSpacing: "-0.5px" }}>{s.value}</div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: "0.3px" }}>{s.label}</div>
-              <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 1 }}>{s.sub}</div>
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: `${s.color}10`, display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <StatIcon d={s.icon} color={s.color} size={22} />
+              </div>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: s.warn ? "#ef4444" : "var(--dark)", letterSpacing: "-0.5px", lineHeight: 1 }}>{s.value}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)", marginTop: 2 }}>{s.label}</div>
+                <div style={{ fontSize: 9, color: "var(--gray-400)" }}>{s.sub}</div>
+              </div>
             </div>
           ))}
         </div>
