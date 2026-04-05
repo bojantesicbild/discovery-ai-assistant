@@ -143,32 +143,80 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   return (
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Header with readiness ring — clickable */}
-      <div className="dp-header">
-        <div className="dp-readiness" style={{ cursor: "pointer" }} onClick={async () => {
-          try {
-            const data = await getReadiness(projectId);
-            setReadinessChecks(data.breakdown?.checks || []);
-          } catch {}
-          setShowReadiness(true);
-        }}>
-          <div className="dp-rb-ring">
-            <svg viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15" className="bg" />
-              <circle cx="18" cy="18" r="15" className="fg" style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
+      {/* Readiness header — dark, rich info */}
+      <div style={{
+        background: "#111111", padding: "12px 16px", flexShrink: 0, cursor: "pointer",
+        borderBottom: "1px solid #222",
+      }} onClick={async () => {
+        try {
+          const data = await getReadiness(projectId);
+          setReadinessChecks(data.breakdown?.checks || []);
+        } catch {}
+        setShowReadiness(true);
+      }}>
+        {/* Top row: ring + title + status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+          <div style={{ position: "relative", width: 44, height: 44, flexShrink: 0 }}>
+            <svg viewBox="0 0 44 44" style={{ width: 44, height: 44, transform: "rotate(-90deg)" }}>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#222" strokeWidth="4" />
+              <circle cx="22" cy="22" r="18" fill="none"
+                stroke="#00E5A0" strokeWidth="4" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 18}
+                strokeDashoffset={2 * Math.PI * 18 - (score / 100) * 2 * Math.PI * 18}
+                style={{ filter: "drop-shadow(0 0 3px #00E5A040)" }}
+              />
             </svg>
-            <div className="dp-rb-val">{Math.round(score)}%</div>
+            <div style={{
+              position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 12, fontWeight: 800, color: "#fff",
+            }}>{Math.round(score)}%</div>
           </div>
           <div style={{ flex: 1 }}>
-            <div className="dp-rb-label">Discovery Readiness</div>
-            <div className="dp-rb-sub">
-              {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
-              {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Discovery Readiness</div>
+            <div style={{
+              fontSize: 9, fontWeight: 700, marginTop: 3,
+              color: score >= 85 ? "#111" : score >= 65 ? "#111" : "#fff",
+              background: score >= 85 ? "#00E5A0" : score >= 65 ? "#fbbf24" : "#ef4444",
+              display: "inline-block", padding: "2px 8px", borderRadius: 4,
+              textTransform: "uppercase", letterSpacing: "0.5px",
+            }}>
+              {score >= 85 ? "Ready" : score >= 65 ? "Conditional" : "Not Ready"}
             </div>
           </div>
-          <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-            View details →
+          <div style={{ fontSize: 10, color: "#00E5A0", fontWeight: 600, display: "flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+            Details
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00E5A0" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
           </div>
+        </div>
+
+        {/* Mini stat chips */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[
+            { label: `${requirements.length} reqs`, sub: `${requirements.filter((r:any) => r.status === "confirmed").length} confirmed`, ok: true },
+            { label: `${requirements.filter((r:any) => r.priority === "must").length} MUST`, ok: true },
+            { label: `${openGaps.length} gaps`, ok: openGaps.length === 0, warn: openGaps.length > 0 },
+            { label: `${openContras.length} contradictions`, ok: openContras.length === 0, warn: openContras.length > 0 },
+            { label: `${constraints.length} constraints`, ok: true },
+          ].map((chip, i) => (
+            <div key={i} style={{
+              fontSize: 9, fontWeight: 600, padding: "3px 8px", borderRadius: 6,
+              background: chip.warn ? "#ef444420" : "#222",
+              color: chip.warn ? "#f87171" : "#94a3b8",
+              border: `1px solid ${chip.warn ? "#ef444430" : "#2a2a2a"}`,
+              display: "flex", alignItems: "center", gap: 4,
+            }}>
+              <span style={{
+                width: 5, height: 5, borderRadius: "50%",
+                background: chip.warn ? "#ef4444" : chip.ok ? "#00E5A0" : "#64748b",
+              }} />
+              {chip.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ display: "flex", gap: 2, height: 3, borderRadius: 2, overflow: "hidden", background: "#222", marginTop: 8 }}>
+          <div style={{ width: `${score}%`, background: "#00E5A0", borderRadius: 2 }} />
         </div>
       </div>
 
