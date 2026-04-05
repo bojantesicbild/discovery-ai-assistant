@@ -1811,6 +1811,21 @@ function WikiView({ projectId, onSelectNode }: { projectId: string; onSelectNode
             </div>
           );
         })}
+
+        {/* Obsidian hint */}
+        <div style={{
+          padding: "10px 14px", borderTop: "1px solid #e2e8f0",
+          fontSize: 10, color: "#94a3b8", lineHeight: 1.4,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>Open in Obsidian</div>
+          <div
+            style={{ fontFamily: "monospace", fontSize: 9, cursor: "pointer", wordBreak: "break-all" }}
+            onClick={() => { navigator.clipboard.writeText(`.runtime/projects/${projectId}/.memory-bank`); }}
+            title="Click to copy path"
+          >
+            .runtime/projects/{projectId.slice(0, 8)}.../.memory-bank
+          </div>
+        </div>
       </div>
 
       {/* Content panel */}

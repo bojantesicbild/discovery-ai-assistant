@@ -964,6 +964,62 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         gap_lines.append("")
         (gaps_dir / f"{g.gap_id}.md").write_text("\n".join(gap_lines))
 
+    # --- index.md (wiki table of contents) ---
+    idx_lines = [
+        "---", "category: wiki-index", f"date: {today}", "---", "",
+        "# Discovery Wiki Index", "",
+    ]
+    if reqs_rows:
+        idx_lines += [f"## Requirements ({len(reqs_rows)})", "",
+            "| ID | Title | Priority | Status |", "|---|---|---|---|"]
+        for r, _ in reqs_rows:
+            idx_lines.append(f"| [[{r.req_id}]] | {r.title} | {r.priority} | {r.status} |")
+        idx_lines.append("")
+    if constraints:
+        idx_lines += [f"## Constraints ({len(constraints)})", "",
+            "| ID | Type | Status |", "|---|---|---|"]
+        for i, c in enumerate(constraints, 1):
+            idx_lines.append(f"| [[CON-{i:03d}]] | {c.type} | {c.status} |")
+        idx_lines.append("")
+    if decisions:
+        idx_lines += [f"## Decisions ({len(decisions)})", "",
+            "| ID | Title | Status |", "|---|---|---|"]
+        for i, d in enumerate(decisions):
+            idx_lines.append(f"| DEC-{i+1:03d} | {d.title} | {d.status} |")
+        idx_lines.append("")
+    if gaps_rows:
+        idx_lines += [f"## Gaps ({len(gaps_rows)})", "",
+            "| ID | Question | Severity | Status |", "|---|---|---|---|"]
+        for g, _ in gaps_rows:
+            idx_lines.append(f"| [[{g.gap_id}]] | {g.question[:60]} | {g.severity} | {g.status} |")
+        idx_lines.append("")
+    if stakeholders:
+        idx_lines += [f"## Stakeholders ({len(stakeholders)})", "",
+            "| Name | Role | Authority |", "|---|---|---|"]
+        for s in stakeholders:
+            idx_lines.append(f"| [[{s.name}]] | {s.role} | {s.decision_authority} |")
+        idx_lines.append("")
+    (discovery_dir / "index.md").write_text("\n".join(idx_lines))
+
+    # --- log.md (append operation log) ---
+    log_path = discovery_dir / "log.md"
+    from datetime import datetime as dt
+    timestamp = dt.now().strftime("%Y-%m-%d %H:%M")
+    doc_name = doc.filename if doc else "unknown"
+    entry = (
+        f"\n## [INGEST] {timestamp} — {doc_name}\n"
+        f"Extracted: {len(reqs_rows)} requirements, {len(constraints)} constraints, "
+        f"{len(decisions)} decisions, {len(gaps_rows)} gaps, {len(stakeholders)} stakeholders\n"
+        f"Readiness: {readiness.get('score', 0)}%\n"
+    )
+    if log_path.exists():
+        existing = log_path.read_text()
+        log_path.write_text(existing + entry)
+    else:
+        log_path.write_text(
+            "---\ncategory: wiki-log\n---\n\n# Discovery Log\n" + entry
+        )
+
     log.info("Markdown export complete",
              project_id=str(project_id),
              requirements=len(reqs_rows),

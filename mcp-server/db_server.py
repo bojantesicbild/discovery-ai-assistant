@@ -159,7 +159,7 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_control_points", description="Get readiness as a flat checklist of 12 checks. Returns overall score and each check with status (covered/partial/missing) and the actual items found. Present as a simple checklist showing what's done and what's missing — do NOT group into areas.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_gaps", description="Get all identified gaps — requirements with low confidence or pending/assumed status that need attention.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, and scope items.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
-        Tool(name="store_finding", description="Store a new finding (requirement, constraint, or decision) discovered during agent analysis. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title of the finding"}, "description": {"type": "string", "description": "Detailed description"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "Priority (for requirements, default: should)"}, "source": {"type": "string", "description": "Source of the finding (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
+        Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
     ]
 
 
@@ -502,8 +502,75 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "decision", "title": title, "readiness": new_score})
 
+            elif finding_type == "stakeholder":
+                await conn.execute(
+                    "INSERT INTO stakeholders (id, project_id, name, role, organization, decision_authority) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)",
+                    pid, title, description or "unknown", source or "unknown", priority or "informed"
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New stakeholder: {title}", json.dumps({"type": "stakeholder"})
+                )
+                return _json_result({"success": True, "type": "stakeholder", "name": title})
+
+            elif finding_type == "assumption":
+                await conn.execute(
+                    "INSERT INTO assumptions (id, project_id, statement, impact, basis, validated) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, false)",
+                    pid, title, description or "", source or "inferred"
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New assumption: {title}", json.dumps({"type": "assumption"})
+                )
+                return _json_result({"success": True, "type": "assumption", "statement": title})
+
+            elif finding_type == "gap":
+                last = await conn.fetchval(
+                    "SELECT gap_id FROM gaps WHERE project_id = $1 AND gap_id LIKE 'GAP-%' ORDER BY gap_id DESC LIMIT 1", pid
+                )
+                num = int(last.split("-")[1]) + 1 if last else 1
+                gap_id = f"GAP-{num:03d}"
+                await conn.execute(
+                    "INSERT INTO gaps (id, project_id, gap_id, question, severity, area, status, source_quote) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'open', $6)",
+                    pid, gap_id, title, priority or "medium", source or "general", description or ""
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New gap {gap_id}: {title}", json.dumps({"type": "gap", "gap_id": gap_id})
+                )
+                new_score = await _recalculate_readiness(conn, pid)
+                return _json_result({"success": True, "type": "gap", "gap_id": gap_id, "question": title, "readiness": new_score})
+
+            elif finding_type == "scope":
+                in_scope = priority != "out"
+                await conn.execute(
+                    "INSERT INTO scope_items (id, project_id, item, in_scope, rationale, confirmed) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, false)",
+                    pid, title, in_scope, description or ""
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"Scope item: {title} ({'IN' if in_scope else 'OUT'})", json.dumps({"type": "scope", "in_scope": in_scope})
+                )
+                return _json_result({"success": True, "type": "scope", "item": title, "in_scope": in_scope})
+
+            elif finding_type == "contradiction":
+                await conn.execute(
+                    "INSERT INTO contradictions (id, project_id, item_a_type, item_a_id, item_b_type, item_b_id, explanation, resolved) "
+                    "VALUES (gen_random_uuid(), $1, 'unknown', gen_random_uuid(), 'unknown', gen_random_uuid(), $2, false)",
+                    pid, title + ": " + (description or "")
+                )
+                await conn.execute(
+                    "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
+                    pid, f"New contradiction: {title}", json.dumps({"type": "contradiction"})
+                )
+                return _json_result({"success": True, "type": "contradiction", "explanation": title})
+
             else:
-                return _json_result({"error": f"Unknown finding_type: {finding_type}. Must be requirement, constraint, or decision."})
+                return _json_result({"error": f"Unknown finding_type: {finding_type}. Supported: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction."})
 
     return _json_result({"error": f"Unknown tool: {name}"})
 

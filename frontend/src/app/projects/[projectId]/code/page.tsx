@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { listRepos, addRepo, removeRepo, getRepoPulls, listRequirements, listConstraints } from "@/lib/api";
+import { listRepos, addRepo, removeRepo, getRepoPulls, listRequirements, listConstraints, listDecisions } from "@/lib/api";
 
 interface Repo {
   id: string;
@@ -51,6 +51,7 @@ export default function CodePage() {
   const [showAddRepo, setShowAddRepo] = useState(false);
   const [newRepo, setNewRepo] = useState({ name: "", url: "", access_token: "" });
   const [decisions, setDecisions] = useState<any[]>([]);
+  const [decisionItems, setDecisionItems] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
   const [dlFilter, setDlFilter] = useState("all");
@@ -72,12 +73,14 @@ export default function CodePage() {
 
   async function loadDecisions() {
     try {
-      const [reqs, cons] = await Promise.all([
+      const [reqs, cons, decs] = await Promise.all([
         listRequirements(projectId),
         listConstraints(projectId),
+        listDecisions(projectId),
       ]);
       setRequirements(reqs.items || []);
       setConstraints(cons.items || []);
+      setDecisionItems(decs.items || []);
     } catch {}
   }
 
@@ -329,6 +332,7 @@ export default function CodePage() {
               {[
                 ...(dlFilter === "all" || dlFilter === "requirement" ? requirements.map((r: any) => ({ ...r, _type: "requirement", _title: r.title, _desc: r.description, _status: r.status })) : []),
                 ...(dlFilter === "all" || dlFilter === "constraint" ? constraints.map((c: any) => ({ ...c, _type: "constraint", _title: `${c.type}: ${c.description?.slice(0, 60)}`, _desc: c.impact, _status: c.status })) : []),
+                ...(dlFilter === "all" || dlFilter === "decision" ? decisionItems.map((d: any) => ({ ...d, _type: "decision", _title: d.title, _desc: d.rationale, _status: d.status })) : []),
               ].map((item, i) => (
                 <div key={item.id || i} style={{
                   padding: 16, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff",

@@ -38,6 +38,13 @@ async def create_project(
     db.add(member)
     await db.flush()
 
+    # Initialize .memory-bank, .obsidian, seed files immediately
+    try:
+        from app.agent.claude_runner import claude_runner
+        claude_runner.get_project_dir(project.id)
+    except Exception:
+        pass  # Non-fatal — will be created on first chat
+
     return ProjectResponse(
         id=project.id,
         name=project.name,

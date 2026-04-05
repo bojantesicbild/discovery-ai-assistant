@@ -11,7 +11,7 @@ interface NewProjectModalProps {
 
 export default function NewProjectModal({ open, onClose }: NewProjectModalProps) {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", client_name: "", project_type: "Greenfield" });
+  const [form, setForm] = useState({ name: "", client_name: "", project_type: "Greenfield", repo_url: "" });
   const [creating, setCreating] = useState(false);
 
   if (!open) return null;
@@ -20,8 +20,9 @@ export default function NewProjectModal({ open, onClose }: NewProjectModalProps)
     e.preventDefault();
     setCreating(true);
     try {
-      const project = await createProject(form);
-      setForm({ name: "", client_name: "", project_type: "Greenfield" });
+      const { repo_url, ...projectData } = form;
+      const project = await createProject({ ...projectData, ...(repo_url ? { repo_url } : {}) });
+      setForm({ name: "", client_name: "", project_type: "Greenfield", repo_url: "" });
       onClose();
       router.push(`/projects/${project.id}/chat`);
     } catch (err: any) {
@@ -105,6 +106,24 @@ export default function NewProjectModal({ open, onClose }: NewProjectModalProps)
             <option>Mobile</option>
             <option>Custom</option>
           </select>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--gray-600)" }}>
+            Repository URL <span style={{ fontWeight: 400, color: "var(--gray-400)" }}>(optional)</span>
+          </label>
+          <input
+            value={form.repo_url}
+            onChange={(e) => setForm({ ...form, repo_url: e.target.value })}
+            placeholder="https://github.com/owner/repo"
+            style={{
+              width: "100%", padding: "10px 14px", border: "1px solid var(--gray-200)",
+              borderRadius: "var(--radius-sm)", fontSize: 14, fontFamily: "var(--font)",
+              outline: "none",
+            }}
+            onFocus={(e) => e.target.style.borderColor = "var(--green)"}
+            onBlur={(e) => e.target.style.borderColor = "var(--gray-200)"}
+          />
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
