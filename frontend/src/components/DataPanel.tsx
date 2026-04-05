@@ -834,7 +834,7 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
           const minS = Math.min(...scores, 0);
           const maxS = Math.max(...scores, 100);
           const range = maxS - minS || 1;
-          const w = 320, h = 80, pad = 4;
+          const w = 600, h = 80, pad = 8;
           const points = pts.map((p: any, i: number) => {
             const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
             const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
