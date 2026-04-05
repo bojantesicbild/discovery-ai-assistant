@@ -306,3 +306,12 @@ export async function removeRepo(projectId: string, repoId: string) {
 export async function getRepoPulls(projectId: string, repoId: string, state: string = "all") {
   return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/pulls?state=${state}`);
 }
+
+// Wiki
+export async function getWikiFiles(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/wiki/files`);
+}
+
+export async function getWikiFile(projectId: string, path: string) {
+  return fetchAPI(`/api/projects/${projectId}/wiki/file?path=${encodeURIComponent(path)}`);
+}

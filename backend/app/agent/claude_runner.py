@@ -73,6 +73,19 @@ class ClaudeCodeRunner:
         # Ensure uploads dir
         (project_dir / "uploads").mkdir(exist_ok=True)
 
+        # Seed Obsidian vault config so .memory-bank is openable in Obsidian
+        obsidian_dir = mb / ".obsidian"
+        obsidian_dir.mkdir(exist_ok=True)
+        app_json = obsidian_dir / "app.json"
+        if not app_json.exists():
+            import json
+            app_json.write_text(json.dumps({
+                "useMarkdownLinks": False,
+                "showFrontmatter": True,
+                "foldHeading": True,
+                "spellcheck": True,
+            }, indent=2))
+
         # Seed memory bank files
         self._create_seed_files(mb)
 

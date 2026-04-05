@@ -86,16 +86,18 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
           <div key={section.label}>
             <div className="nav-label" style={collapsed ? { visibility: "hidden" } : undefined}>{section.label}</div>
             {section.items.map((item) => {
-              // Build the actual href — knowledge is project-scoped
-              const resolvedHref = item.href === "/knowledge" && projectId
-                ? `/projects/${projectId}/knowledge`
+              // Build the actual href — knowledge and code are project-scoped
+              const resolvedHref = (item.href === "/knowledge" || item.href === "/code") && projectId
+                ? `/projects/${projectId}${item.href}`
                 : item.href;
 
               const isActive = item.href === "/discovery"
-                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge")
+                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge") && !pathname?.includes("/code")
                 : item.href === "/knowledge"
                   ? pathname?.includes("/knowledge")
-                  : pathname === item.href;
+                  : item.href === "/code"
+                    ? pathname?.includes("/code")
+                    : pathname === item.href;
 
               return (
                 <Link

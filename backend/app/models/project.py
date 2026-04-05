@@ -22,6 +22,18 @@ class Project(Base, IdMixin, TimestampMixin):
     members: Mapped[list["ProjectMember"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
+class ProjectRepo(Base, IdMixin, TimestampMixin):
+    __tablename__ = "project_repos"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)  # e.g. "frontend", "backend"
+    url: Mapped[str] = mapped_column(String, nullable=False)  # GitHub URL
+    provider: Mapped[str] = mapped_column(String, default="github")  # github, gitlab, bitbucket
+    access_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    default_branch: Mapped[str] = mapped_column(String, default="main")
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class ProjectMember(Base):
     __tablename__ = "project_members"
 

@@ -278,3 +278,79 @@ template via get_control_points().
 | discovery-docs-agent | User requests handoff documents (discovery brief, scope freeze, requirements) |
 | discovery-prep-agent | User wants to prepare for a client meeting |
 | research-agent | Deep research on unfamiliar technology, industry, or competitor |
+
+---
+
+## Wiki Maintenance (Karpathy Pattern)
+
+After EVERY extraction, update, or gap analysis operation, maintain these two files:
+
+### `docs/discovery/index.md`
+Rebuild the full table of contents after each change. Format:
+
+```markdown
+---
+category: wiki-index
+date: {today}
+---
+
+# Discovery Wiki Index
+
+## Requirements
+| ID | Title | Priority | Status |
+|---|---|---|---|
+| [[BR-001]] | Title here | must | confirmed |
+
+## Constraints
+| ID | Type | Status |
+|---|---|---|
+| [[CON-001]] | technology | confirmed |
+
+## Decisions
+| ID | Title | Status |
+|---|---|---|
+| DEC-001 | Decision title | confirmed |
+
+## Gaps
+| ID | Question | Severity | Status |
+|---|---|---|---|
+| [[GAP-001]] | Question here | high | open |
+
+## Stakeholders
+| Name | Role | Authority |
+|---|---|---|
+| [[David Miller]] | CTO | final |
+
+## Documents
+- discovery-brief.md
+- mvp-scope-freeze.md
+- functional-requirements.md
+```
+
+### `docs/discovery/log.md`
+Append-only operation log. NEVER edit previous entries. Format:
+
+```markdown
+---
+category: wiki-log
+---
+
+# Discovery Log
+
+## [INGEST] 2026-04-05 14:30 — client-meeting-notes-2.md
+Extracted: 3 requirements (BR-008, BR-009, BR-010), 2 gaps (GAP-003, GAP-004), 1 stakeholder (Sarah Chen)
+Updated: requirements.md index, stakeholders.md
+
+## [GAP-ANALYSIS] 2026-04-05 15:00
+Found 4 open gaps. Readiness: 76.6%
+
+## [READINESS] 2026-04-05 15:30
+Score updated: 76.6% → 77.5% after BR-007 status change
+```
+
+### Rules
+1. Update index.md AFTER every MCP store operation
+2. Append to log.md AFTER every operation (ingest, gap analysis, readiness update, document generation)
+3. Use `[[wikilinks]]` in index.md for all items that have individual files
+4. Log entries use format: `## [OPERATION] YYYY-MM-DD HH:MM — context`
+5. Never delete or edit previous log entries

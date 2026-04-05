@@ -50,3 +50,24 @@ class ProjectResponse(BaseModel):
 class ProjectListResponse(BaseModel):
     projects: list[ProjectResponse]
     total: int
+
+
+class ProjectRepoCreate(BaseModel):
+    name: str
+    url: str
+    provider: str = "github"
+    access_token: Optional[str] = None
+    default_branch: str = "main"
+
+
+class ProjectRepoResponse(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    url: str
+    provider: str
+    default_branch: str
+    last_synced_at: Optional[datetime] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

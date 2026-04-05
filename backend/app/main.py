@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos
 
 
 @asynccontextmanager
@@ -98,6 +98,7 @@ app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(generate.router)
 app.include_router(knowledge.router)
+app.include_router(repos.router)
 
 
 @app.get("/health")

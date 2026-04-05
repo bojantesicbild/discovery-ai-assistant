@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { getKnowledgeGraph } from "@/lib/api";
+import { getKnowledgeGraph, getWikiFiles, getWikiFile } from "@/lib/api";
 
 /* ---------- types ---------- */
 interface GraphNode {
@@ -28,7 +28,7 @@ interface GraphEdge {
 
 /* ---------- constants ---------- */
 const TYPE_COLORS: Record<string, string> = {
-  requirement: "#059669",
+  requirement: "#00E5A0",
   decision: "#2563eb",
   stakeholder: "#7c3aed",
   contradiction: "#EF4444",
@@ -263,9 +263,10 @@ export default function KnowledgeGraphPage() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [search, setSearch] = useState("");
+  const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(Object.keys(TYPE_COLORS)));
   const [dragNode, setDragNode] = useState<GraphNode | null>(null);
-  const [viewMode, setViewMode] = useState<"graph" | "list" | "timeline">("graph");
+  const [viewMode, setViewMode] = useState<"graph" | "wiki" | "list" | "timeline">("graph");
   const [sortCol, setSortCol] = useState<string>("type");
   const [sortAsc, setSortAsc] = useState(true);
   const [graphLayout, setGraphLayout] = useState<string>("force");
@@ -292,6 +293,10 @@ export default function KnowledgeGraphPage() {
   edgesRef.current = edges;
   filtersRef.current = activeFilters;
   searchRef.current = search;
+  const pinnedRef = useRef<Set<string>>(new Set());
+  pinnedRef.current = pinnedNodes;
+  const pinnedNeighborRef = useRef<Set<string> | null>(null);
+
   selectedRef.current = selectedNode;
   hoveredRef.current = hoveredNode;
   dragRef.current = dragNode;
@@ -360,11 +365,18 @@ export default function KnowledgeGraphPage() {
     // Filter nodes
     const tlStep = timelineStepRef.current;
     const tlDates = timelineDatesRef.current;
+    const pinned = pinnedNeighborRef.current;
     const visibleIds = new Set<string>();
     const visible = allNodes.filter((n) => {
       if (!filters.has(n.type)) return false;
-      if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) return false;
-      // Timeline filter: hide nodes created after current step
+      // Pinned filter: if nodes are pinned, only show pinned + neighbors
+      if (pinned) {
+        if (!pinned.has(n.id)) return false;
+        // Don't apply text search when pinned — pinning is the filter
+      } else if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) {
+        return false;
+      }
+      // Timeline filter
       if (tlStep >= 0 && tlDates.length > 0) {
         const cutoffDate = tlDates[tlStep];
         const nodeDate = (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
@@ -439,7 +451,7 @@ export default function KnowledgeGraphPage() {
       if (isHighlighted) {
         highlightedEdges.push({ e, a, b });
       }
-      ctx.strokeStyle = isHighlighted ? "rgba(5,150,105,0.6)" : "rgba(148,163,184,0.25)";
+      ctx.strokeStyle = isHighlighted ? "rgba(0,229,160,0.6)" : "rgba(148,163,184,0.25)";
       ctx.lineWidth = isHighlighted ? 2 : 1;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
@@ -463,7 +475,7 @@ export default function KnowledgeGraphPage() {
       ctx.beginPath();
       ctx.roundRect(mx - tw / 2 - 4, my - 6, tw + 8, 13, 4);
       ctx.fill();
-      ctx.strokeStyle = "rgba(5,150,105,0.3)";
+      ctx.strokeStyle = "rgba(0,229,160,0.3)";
       ctx.lineWidth = 1;
       ctx.stroke();
       // Text
@@ -633,6 +645,22 @@ export default function KnowledgeGraphPage() {
     return () => { if (timelineIntervalRef.current) clearInterval(timelineIntervalRef.current); };
   }, []);
 
+  function pinNode(id: string) {
+    setPinnedNodes((prev) => { const next = new Set(prev); next.add(id); return next; });
+    setSearch("");
+    layoutAppliedRef.current = ""; // re-apply layout for new node set
+  }
+
+  function unpinNode(id: string) {
+    setPinnedNodes((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    layoutAppliedRef.current = "";
+  }
+
+  function clearPins() {
+    setPinnedNodes(new Set());
+    layoutAppliedRef.current = "";
+  }
+
   function changeLayout(layout: string) {
     layoutAppliedRef.current = "";
     setGraphLayout(layout);
@@ -658,6 +686,18 @@ export default function KnowledgeGraphPage() {
     return [...dateSet].sort();
   })();
   timelineDatesRef.current = timelineDates;
+
+  // Compute pinned + neighbor IDs for filtering
+  const pinnedAndNeighbors = (() => {
+    if (pinnedNodes.size === 0) return null;
+    const ids = new Set<string>(pinnedNodes);
+    for (const e of edges) {
+      if (pinnedNodes.has(e.source)) ids.add(e.target);
+      if (pinnedNodes.has(e.target)) ids.add(e.source);
+    }
+    return ids;
+  })();
+  pinnedNeighborRef.current = pinnedAndNeighbors;
 
   /* ---------- derived counts ---------- */
   const filteredNodes = nodes.filter(
@@ -695,7 +735,7 @@ export default function KnowledgeGraphPage() {
         gap: 16,
       }}>
         <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: 0, whiteSpace: "nowrap" }}>
-          Knowledge Graph
+          Knowledge Base
         </h1>
         <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>
           {filteredNodes.length} nodes &middot; {filteredEdgeCount} edges
@@ -703,40 +743,126 @@ export default function KnowledgeGraphPage() {
 
         {/* View tabs */}
         <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
-          {([
-            { id: "graph" as const, label: "Graph" },
-            { id: "list" as const, label: "List" },
-            { id: "timeline" as const, label: "Timeline" },
-          ]).map((v) => (
+          {(["graph", "wiki"] as const).map((v) => (
             <button
-              key={v.id}
-              onClick={() => setViewMode(v.id)}
+              key={v}
+              onClick={() => setViewMode(v)}
               style={{
-                padding: "5px 14px", border: "none", borderRadius: 8,
-                background: viewMode === v.id ? "var(--green)" : "var(--gray-100)",
-                color: viewMode === v.id ? "var(--dark)" : "#64748b",
+                padding: "4px 14px", border: "none", borderRadius: 6,
+                background: viewMode === v ? "var(--green)" : "var(--gray-100)",
+                color: viewMode === v ? "var(--dark)" : "#64748b",
                 fontSize: 12, fontWeight: 600, cursor: "pointer",
                 fontFamily: "var(--font)", transition: "all 0.15s",
               }}
             >
-              {v.label}
+              {v === "graph" ? "Graph" : "Wiki"}
             </button>
           ))}
         </div>
 
         <div style={{ flex: 1 }} />
 
-        {/* Search */}
-        <input
-          type="text"
-          placeholder="Search nodes..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{
-            padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6,
-            fontSize: 12, width: 200, outline: "none", background: "#f8fafc",
-          }}
-        />
+        {/* Search + pinned pills */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", position: "relative" }}>
+          {/* Pinned node pills */}
+          {[...pinnedNodes].map((id) => {
+            const node = nodes.find((n) => n.id === id);
+            const color = TYPE_COLORS[node?.type || ""] || "#6b7280";
+            return (
+              <span
+                key={id}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "3px 8px", borderRadius: 12,
+                  background: `${color}15`, border: `1px solid ${color}40`,
+                  fontSize: 11, fontWeight: 600, color,
+                }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                {node?.label || id}
+                <button
+                  onClick={() => unpinNode(id)}
+                  style={{
+                    background: "none", border: "none", padding: 0, marginLeft: 2,
+                    cursor: "pointer", color, fontSize: 13, lineHeight: 1, fontWeight: 700,
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            );
+          })}
+          {pinnedNodes.size > 0 && (
+            <button
+              onClick={clearPins}
+              style={{
+                background: "none", border: "none", padding: "2px 4px",
+                cursor: "pointer", color: "#94a3b8", fontSize: 11, fontFamily: "var(--font)",
+              }}
+            >
+              Clear
+            </button>
+          )}
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              placeholder={pinnedNodes.size > 0 ? "Add node..." : "Search nodes..."}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6,
+                fontSize: 12, width: 180, outline: "none", background: "#f8fafc",
+              }}
+            />
+            {/* Search dropdown — click to pin */}
+            {search.length >= 2 && (
+              <div style={{
+                position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+                background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
+                boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200,
+                maxHeight: 200, overflowY: "auto",
+              }}>
+                {nodes
+                  .filter((n) =>
+                    !pinnedNodes.has(n.id) &&
+                    (n.label.toLowerCase().includes(search.toLowerCase()) ||
+                     n.id.toLowerCase().includes(search.toLowerCase()))
+                  )
+                  .slice(0, 10)
+                  .map((n) => {
+                    const color = TYPE_COLORS[n.type] || "#6b7280";
+                    return (
+                      <button
+                        key={n.id}
+                        onClick={() => pinNode(n.id)}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 8, width: "100%",
+                          padding: "7px 12px", border: "none", background: "none",
+                          cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
+                          fontSize: 12, transition: "background 0.1s",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
+                      >
+                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#0f172a" }}>{n.label}</span>
+                        <span style={{ fontSize: 9, fontWeight: 600, color, textTransform: "uppercase" }}>{n.type}</span>
+                      </button>
+                    );
+                  })}
+                {nodes.filter((n) =>
+                  !pinnedNodes.has(n.id) &&
+                  (n.label.toLowerCase().includes(search.toLowerCase()) ||
+                   n.id.toLowerCase().includes(search.toLowerCase()))
+                ).length === 0 && (
+                  <div style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
+                    No matching nodes
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Main area */}
@@ -861,7 +987,7 @@ export default function KnowledgeGraphPage() {
                   onClick={togglePlay}
                   style={{
                     width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0",
-                    background: timelinePlaying ? "#059669" : "#fff",
+                    background: timelinePlaying ? "#00E5A0" : "#fff",
                     color: timelinePlaying ? "#fff" : "#64748b", fontSize: 12, cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     transition: "all 0.15s",
@@ -876,7 +1002,7 @@ export default function KnowledgeGraphPage() {
                   {/* Fill line */}
                   <div style={{
                     position: "absolute", left: 0, height: 2, borderRadius: 1,
-                    background: "#059669", transition: "width 0.3s ease",
+                    background: "#00E5A0", transition: "width 0.3s ease",
                     width: timelineStep < 0
                       ? "100%"
                       : `${(timelineStep / Math.max(timelineDates.length - 1, 1)) * 100}%`,
@@ -895,12 +1021,12 @@ export default function KnowledgeGraphPage() {
                           position: "absolute", left, transform: "translateX(-50%)",
                           width: isActive ? 24 : 18, height: isActive ? 24 : 18,
                           borderRadius: "50%", cursor: "pointer",
-                          background: isActive ? "#059669" : isReached ? "#059669" : "#e2e8f0",
+                          background: isActive ? "#00E5A0" : isReached ? "#00E5A0" : "#e2e8f0",
                           border: isActive ? "2px solid #fff" : "2px solid #f8fafc",
                           display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 9, fontWeight: 700, color: isReached ? "#fff" : "#94a3b8",
+                          fontSize: 9, fontWeight: 700, color: isReached ? "#1A1A1A" : "#94a3b8",
                           transition: "all 0.3s ease", zIndex: isActive ? 2 : 1,
-                          boxShadow: isActive ? "0 0 0 3px rgba(5,150,105,0.2)" : "none",
+                          boxShadow: isActive ? "0 0 0 3px rgba(0,229,160,0.2)" : "none",
                         }}
                       >
                         {i + 1}
@@ -925,7 +1051,7 @@ export default function KnowledgeGraphPage() {
                       <>
                         {visCount} entities
                         {diff > 0 && (
-                          <span style={{ color: "#059669", marginLeft: 8, fontWeight: 600 }}>+{diff} new</span>
+                          <span style={{ color: "#00E5A0", marginLeft: 8, fontWeight: 600 }}>+{diff} new</span>
                         )}
                       </>
                     );
@@ -973,7 +1099,7 @@ export default function KnowledgeGraphPage() {
                       }}
                       style={{
                         textAlign: "left", padding: "10px 12px", fontWeight: 600,
-                        color: sortCol === col.key ? "#059669" : "#64748b",
+                        color: sortCol === col.key ? "#00E5A0" : "#64748b",
                         cursor: "pointer", userSelect: "none", fontSize: 11,
                         textTransform: "uppercase", letterSpacing: "0.5px",
                       }}
@@ -1027,7 +1153,7 @@ export default function KnowledgeGraphPage() {
                           <span style={{
                             fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
                             background: n.meta.status === "confirmed" ? "#d1fae5" : n.meta.status === "proposed" ? "#FEF3C7" : "#f1f5f9",
-                            color: n.meta.status === "confirmed" ? "#059669" : n.meta.status === "proposed" ? "#D97706" : "#64748b",
+                            color: n.meta.status === "confirmed" ? "#00E5A0" : n.meta.status === "proposed" ? "#D97706" : "#64748b",
                           }}>
                             {n.meta.status}
                           </span>
@@ -1078,7 +1204,7 @@ export default function KnowledgeGraphPage() {
                       {/* Date marker */}
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, marginLeft: -28 }}>
                         <div style={{
-                          width: 22, height: 22, borderRadius: "50%", background: "#059669",
+                          width: 22, height: 22, borderRadius: "50%", background: "#00E5A0",
                           display: "flex", alignItems: "center", justifyContent: "center",
                           border: "3px solid #fff", boxShadow: "0 0 0 2px #e2e8f0", zIndex: 1,
                         }}>
@@ -1100,7 +1226,7 @@ export default function KnowledgeGraphPage() {
                               style={{
                                 display: "flex", alignItems: "center", gap: 10,
                                 padding: "10px 14px", borderRadius: 8,
-                                border: `1px solid ${isSelected ? "#059669" : "#e2e8f0"}`,
+                                border: `1px solid ${isSelected ? "#00E5A0" : "#e2e8f0"}`,
                                 background: isSelected ? "#f0fdf8" : "#fff",
                                 cursor: "pointer", transition: "all 0.15s",
                                 borderLeft: `3px solid ${color}`,
@@ -1121,7 +1247,7 @@ export default function KnowledgeGraphPage() {
                                 <span style={{
                                   fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
                                   background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
-                                  color: n.meta.status === "confirmed" ? "#059669" : "#64748b",
+                                  color: n.meta.status === "confirmed" ? "#00E5A0" : "#64748b",
                                 }}>
                                   {n.meta.status}
                                 </span>
@@ -1159,7 +1285,7 @@ export default function KnowledgeGraphPage() {
                               style={{
                                 display: "flex", alignItems: "center", gap: 10,
                                 padding: "10px 14px", borderRadius: 8,
-                                border: `1px solid ${isSelected ? "#059669" : "#e2e8f0"}`,
+                                border: `1px solid ${isSelected ? "#00E5A0" : "#e2e8f0"}`,
                                 background: isSelected ? "#f0fdf8" : "#fff",
                                 cursor: "pointer", transition: "all 0.15s",
                                 borderLeft: `3px solid ${color}`,
@@ -1180,7 +1306,7 @@ export default function KnowledgeGraphPage() {
                                 <span style={{
                                   fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
                                   background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
-                                  color: n.meta.status === "confirmed" ? "#059669" : "#64748b",
+                                  color: n.meta.status === "confirmed" ? "#00E5A0" : "#64748b",
                                 }}>
                                   {n.meta.status}
                                 </span>
@@ -1196,6 +1322,14 @@ export default function KnowledgeGraphPage() {
               );
             })()}
           </div>
+        )}
+
+        {/* Wiki view */}
+        {viewMode === "wiki" && (
+          <WikiView projectId={projectId} onSelectNode={(id) => {
+            const node = nodes.find((n) => n.id === id);
+            if (node) setSelectedNode({ ...node });
+          }} />
         )}
 
         {/* Side panel — slides in/out */}
@@ -1252,7 +1386,7 @@ export default function KnowledgeGraphPage() {
                   href={`/projects/${projectId}/chat`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 11, fontWeight: 600, color: "#059669",
+                    fontSize: 11, fontWeight: 600, color: "#00E5A0",
                     textDecoration: "none", padding: "3px 8px",
                     background: "#d1fae5", borderRadius: 6, marginBottom: 12,
                   }}
@@ -1293,8 +1427,8 @@ export default function KnowledgeGraphPage() {
                   {Object.entries(selectedNode.meta).map(([key, value]) => {
                     if (!value) return null;
                     const chipColor = key === "priority" ? (value === "must" ? "#EF4444" : value === "should" ? "#F59E0B" : "#3B82F6")
-                      : key === "status" ? (value === "confirmed" ? "#059669" : value === "proposed" ? "#F59E0B" : "#6b7280")
-                      : key === "confidence" ? (value === "high" ? "#059669" : value === "low" ? "#EF4444" : "#F59E0B")
+                      : key === "status" ? (value === "confirmed" ? "#00E5A0" : value === "proposed" ? "#F59E0B" : "#6b7280")
+                      : key === "confidence" ? (value === "high" ? "#00E5A0" : value === "low" ? "#EF4444" : "#F59E0B")
                       : "#6b7280";
                     return (
                       <span key={key} style={{
@@ -1405,6 +1539,360 @@ export default function KnowledgeGraphPage() {
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>
+    </div>
+  );
+}
+
+
+/* ══════════ Wiki View Component ══════════ */
+
+interface WikiFile {
+  path: string;
+  name: string;
+  folder: string;
+  id: string;
+  title: string;
+  category: string;
+  status: string;
+  priority: string;
+  date: string;
+}
+
+interface WikiBacklink {
+  path: string;
+  id: string;
+  title: string;
+  category: string;
+}
+
+const STATUS_ICONS: Record<string, string> = {
+  confirmed: "✓",
+  discussed: "◐",
+  open: "?",
+  tentative: "~",
+  proposed: "○",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  confirmed: "#00E5A0",
+  discussed: "#F59E0B",
+  open: "#EF4444",
+  tentative: "#94a3b8",
+  proposed: "#3B82F6",
+};
+
+function WikiView({ projectId, onSelectNode }: { projectId: string; onSelectNode: (id: string) => void }) {
+  const [files, setFiles] = useState<WikiFile[]>([]);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [content, setContent] = useState<string>("");
+  const [frontmatter, setFrontmatter] = useState<Record<string, string>>({});
+  const [backlinks, setBacklinks] = useState<WikiBacklink[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(["", "requirements", "gaps", "constraints"]));
+
+  useEffect(() => {
+    getWikiFiles(projectId).then((data) => {
+      setFiles(data.files || []);
+      setLoading(false);
+      // Auto-select index.md or first file
+      const idx = (data.files || []).find((f: WikiFile) => f.name === "index");
+      if (idx) openFile(idx.path);
+      else if (data.files?.length > 0) openFile(data.files[0].path);
+    }).catch(() => setLoading(false));
+  }, [projectId]);
+
+  async function openFile(path: string) {
+    setSelectedPath(path);
+    try {
+      const data = await getWikiFile(projectId, path);
+      setContent(data.body || "");
+      setFrontmatter(data.frontmatter || {});
+      setBacklinks(data.backlinks || []);
+    } catch {
+      setContent("*Failed to load file*");
+    }
+  }
+
+  function handleWikiLinkClick(target: string) {
+    // Try to find the file by ID or name
+    const normalized = target.toLowerCase().trim();
+    const match = files.find((f) =>
+      f.id.toLowerCase() === normalized ||
+      f.name.toLowerCase() === normalized ||
+      f.path.toLowerCase().replace(".md", "") === normalized ||
+      f.path.toLowerCase().endsWith(`/${normalized}.md`)
+    );
+    if (match) {
+      openFile(match.path);
+    } else {
+      onSelectNode(target);
+    }
+  }
+
+  // Group files by folder
+  const grouped = new Map<string, WikiFile[]>();
+  for (const f of files) {
+    const folder = f.folder || "";
+    if (!grouped.has(folder)) grouped.set(folder, []);
+    grouped.get(folder)!.push(f);
+  }
+
+  const folderOrder = ["", "requirements", "gaps", "constraints"];
+  const sortedFolders = [...grouped.keys()].sort((a, b) => {
+    const ai = folderOrder.indexOf(a);
+    const bi = folderOrder.indexOf(b);
+    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+  });
+
+  function toggleFolder(folder: string) {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folder)) next.delete(folder);
+      else next.add(folder);
+      return next;
+    });
+  }
+
+  function renderWikiMarkdown(md: string): string {
+    // 1. Extract tables and wikilinks before escaping
+    const tables: Record<string, string> = {};
+    const lines = md.split("\n");
+    const cleaned: string[] = [];
+    let li = 0;
+    let tIdx = 0;
+
+    while (li < lines.length) {
+      if (
+        lines[li].includes("|") &&
+        li + 1 < lines.length &&
+        /^\|?\s*[-:]+[-| :]*$/.test(lines[li + 1])
+      ) {
+        const tableLines: string[] = [];
+        tableLines.push(lines[li]);
+        li++;
+        const sepLine = lines[li];
+        li++;
+        while (li < lines.length && lines[li].includes("|") && lines[li].trim() !== "") {
+          tableLines.push(lines[li]);
+          li++;
+        }
+
+        const aligns = sepLine.split("|").filter((c) => c.trim()).map((c) => {
+          const t = c.trim();
+          if (t.startsWith(":") && t.endsWith(":")) return "center";
+          if (t.endsWith(":")) return "right";
+          return "left";
+        });
+
+        const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const parseCells = (line: string) =>
+          line.split("|").filter((_, idx, arr) => idx > 0 && idx < arr.length - (line.endsWith("|") ? 1 : 0)).map((c) => c.trim());
+
+        // Render wikilinks inside table cells
+        const renderCell = (cell: string) => {
+          const escaped = esc(cell);
+          return escaped.replace(/\[\[([^\]]+)\]\]/g, (_m, target) =>
+            `<a class="wiki-link" data-target="${target}" style="color:#00E5A0;font-weight:600;cursor:pointer;border-bottom:1px dashed #00E5A0;text-decoration:none">${target}</a>`
+          );
+        };
+
+        const hdrCells = parseCells(tableLines[0]);
+        let h = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px"><thead><tr>';
+        hdrCells.forEach((cell, ci) => {
+          h += `<th style="text-align:${aligns[ci] || "left"};padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600;color:#0f172a">${renderCell(cell)}</th>`;
+        });
+        h += "</tr></thead><tbody>";
+        for (let r = 1; r < tableLines.length; r++) {
+          const cells = parseCells(tableLines[r]);
+          h += "<tr>";
+          cells.forEach((cell, ci) => {
+            h += `<td style="text-align:${aligns[ci] || "left"};padding:6px 12px;border:1px solid #e2e8f0;color:#4b5563">${renderCell(cell)}</td>`;
+          });
+          h += "</tr>";
+        }
+        h += "</tbody></table>";
+        const key = `__TBL_${tIdx++}__`;
+        tables[key] = h;
+        cleaned.push(key);
+      } else {
+        cleaned.push(lines[li]);
+        li++;
+      }
+    }
+
+    // 2. Process remaining text
+    let html = cleaned.join("\n")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/\[\[([^\]]+)\]\]/g, (_m, target) =>
+        `<a class="wiki-link" data-target="${target}" style="color:#00E5A0;font-weight:600;cursor:pointer;border-bottom:1px dashed #00E5A0;text-decoration:none">${target}</a>`
+      )
+      .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:16px 0 6px;color:#0f172a">$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:18px 0 8px;color:#0f172a">$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:20px 0 10px;color:#0f172a">$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code style="padding:1px 5px;background:#f0fdf4;border:1px solid #dcfce7;border-radius:4px;font-size:0.88em;font-family:monospace;color:#16a34a">$1</code>')
+      .replace(/^- (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
+      .replace(/^\d+\. (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
+      .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid #00E5A0;padding:6px 12px;margin:8px 0;background:#f0fdf8;border-radius:0 6px 6px 0;font-size:12px;color:#4b5563;font-style:italic">$1</blockquote>')
+      .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:14px 0">')
+      .replace(/\n\n/g, '</p><p style="margin:8px 0">')
+      .replace(/\n/g, '<br>');
+
+    html = '<p style="margin:8px 0">' + html + '</p>';
+    html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) =>
+      '<ul style="padding-left:18px;margin:6px 0">' + match.replace(/<br>/g, '') + '</ul>'
+    );
+
+    // 3. Re-insert tables
+    for (const [key, tableHtml] of Object.entries(tables)) {
+      html = html.replace(key, tableHtml);
+    }
+
+    return html;
+  }
+
+  if (loading) return <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>Loading wiki...</div>;
+
+  return (
+    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      {/* File tree sidebar */}
+      <div style={{
+        width: 240, flexShrink: 0, borderRight: "1px solid #e2e8f0",
+        background: "#fafbfc", overflowY: "auto", padding: "12px 0",
+      }}>
+        {sortedFolders.map((folder) => {
+          const folderFiles = grouped.get(folder) || [];
+          const isExpanded = expandedFolders.has(folder);
+          const label = folder || "Overview";
+
+          return (
+            <div key={folder}>
+              <div
+                onClick={() => toggleFolder(folder)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 14px", cursor: "pointer", userSelect: "none",
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.5px", color: "#64748b",
+                }}
+              >
+                <span style={{ fontSize: 10, transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "none" }}>
+                  ▶
+                </span>
+                {label}
+                <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500, marginLeft: "auto" }}>{folderFiles.length}</span>
+              </div>
+              {isExpanded && folderFiles.map((f) => {
+                const isActive = selectedPath === f.path;
+                const statusIcon = STATUS_ICONS[f.status] || "";
+                const statusColor = STATUS_COLORS[f.status] || "#94a3b8";
+                return (
+                  <div
+                    key={f.path}
+                    onClick={() => openFile(f.path)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "5px 14px 5px 28px", cursor: "pointer",
+                      background: isActive ? "#f0fdf8" : "transparent",
+                      borderRight: isActive ? "2px solid #00E5A0" : "2px solid transparent",
+                      fontSize: 12, color: isActive ? "#0f172a" : "#4b5563",
+                      fontWeight: isActive ? 600 : 400,
+                      transition: "all 0.1s",
+                    }}
+                  >
+                    {statusIcon && <span style={{ color: statusColor, fontSize: 11 }}>{statusIcon}</span>}
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {f.id || f.title}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Content panel */}
+      <div style={{ flex: 1, overflow: "auto", padding: "16px 24px" }}>
+        {!selectedPath ? (
+          <div style={{ color: "#94a3b8", textAlign: "center", paddingTop: 60 }}>
+            <p style={{ fontSize: 15, fontWeight: 500 }}>Select a file to view</p>
+          </div>
+        ) : (
+          <>
+            {/* Breadcrumb */}
+            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
+              discovery / {selectedPath.replace(".md", "")}
+            </div>
+
+            {/* Frontmatter badges */}
+            {Object.keys(frontmatter).length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+                {Object.entries(frontmatter).map(([key, value]) => {
+                  if (!value || key === "description" || key === "category") return null;
+                  const color =
+                    key === "priority" ? (value === "must" ? "#EF4444" : value === "should" ? "#F59E0B" : "#3B82F6")
+                    : key === "status" ? (STATUS_COLORS[value] || "#94a3b8")
+                    : key === "confidence" ? (value === "high" ? "#00E5A0" : value === "low" ? "#EF4444" : "#F59E0B")
+                    : "#64748b";
+                  return (
+                    <span key={key} style={{
+                      fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
+                      background: `${color}15`, color,
+                    }}>
+                      {key}: {value}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Rendered content */}
+            <div
+              style={{ fontSize: 13, lineHeight: 1.7, color: "#1e293b" }}
+              dangerouslySetInnerHTML={{ __html: renderWikiMarkdown(content) }}
+              onClick={(e) => {
+                const target = (e.target as HTMLElement).closest("[data-target]");
+                if (target) {
+                  e.preventDefault();
+                  handleWikiLinkClick(target.getAttribute("data-target") || "");
+                }
+              }}
+            />
+
+            {/* Backlinks */}
+            {backlinks.length > 0 && (
+              <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #e2e8f0" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 8 }}>
+                  Referenced By ({backlinks.length})
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {backlinks.map((bl) => (
+                    <button
+                      key={bl.path}
+                      onClick={() => openFile(bl.path)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        padding: "6px 10px", borderRadius: 6,
+                        border: "1px solid #e2e8f0", background: "#fff",
+                        cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
+                        fontSize: 12, color: "#0f172a", transition: "all 0.1s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#00E5A0"; e.currentTarget.style.background = "#f0fdf8"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00E5A0", flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{bl.title}</span>
+                      <span style={{ fontSize: 10, color: "#94a3b8" }}>{bl.id}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
