@@ -92,7 +92,7 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
                 : item.href;
 
               const isActive = item.href === "/discovery"
-                ? pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")
+                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge")
                 : item.href === "/knowledge"
                   ? pathname?.includes("/knowledge")
                   : pathname === item.href;
