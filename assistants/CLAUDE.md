@@ -160,15 +160,17 @@ Every agent MUST provide upon completion:
 ## File Structure
 ```
 .claude/
-├── agents/           # All agent definitions
+├── agents/           # All agent definitions (12 agents)
 ├── skills/           # Domain orchestration
 │   ├── coding/SKILL.md
+│   ├── discovery/SKILL.md + commands/
 │   ├── tech-stories/SKILL.md
 │   └── qa/SKILL.md
 ├── templates/        # All templates
 └── scripts/          # Automation scripts
 
 .memory-bank/
+├── .obsidian/                  # Obsidian vault config (openable in Obsidian)
 ├── active-task.md              # Router file (~15 lines)
 ├── active-tasks/               # Domain-scoped task state
 │   ├── coding.md
@@ -182,6 +184,17 @@ Every agent MUST provide upon completion:
 ├── testing-standards.md        # QA config (on-demand)
 ├── archive-index.md            # Auto-generated navigation
 └── docs/                       # Tier 2: permanent (git-committed)
+    ├── discovery/              # Discovery wiki (Karpathy pattern)
+    │   ├── index.md            # Wiki table of contents (auto-maintained)
+    │   ├── log.md              # Operation log (append-only)
+    │   ├── decisions.md        # All decisions
+    │   ├── people.md           # Stakeholders/people
+    │   ├── discovery-brief.md  # Handoff document
+    │   ├── mvp-scope-freeze.md # Handoff document
+    │   ├── functional-requirements.md
+    │   ├── requirements/       # Individual BR-xxx.md files
+    │   ├── constraints/        # Individual CON-xxx.md files
+    │   └── gaps/               # Individual GAP-xxx.md files
     ├── completed-tasks/
     ├── research-sessions/
     ├── best-practices/
@@ -196,6 +209,16 @@ Every agent MUST provide upon completion:
 ```
 
 ---
+
+## MCP Discovery Server
+
+The MCP server (`mcp-server/db_server.py`) provides these tools to agents:
+
+**Read tools**: `get_project_context`, `get_requirements`, `get_constraints`, `get_decisions`, `get_readiness`, `get_gaps`, `search_documents`
+
+**Write tools**: `store_finding` (supports 8 types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction), `update_requirement_status`
+
+All write operations auto-sync DB → markdown files and recalculate readiness.
 
 ## MCP Integration (Optional)
 

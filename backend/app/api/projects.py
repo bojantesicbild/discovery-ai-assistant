@@ -157,6 +157,17 @@ async def update_project(
     )
 
 
+@router.post("/{project_id}/sync-assistants")
+async def sync_assistants(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Sync assistant files (CLAUDE.md, skills, agents) from template to this project."""
+    from app.agent.claude_runner import claude_runner
+    claude_runner.sync_assistants(project_id)
+    return {"status": "synced"}
+
+
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def archive_project(
     project_id: uuid.UUID,

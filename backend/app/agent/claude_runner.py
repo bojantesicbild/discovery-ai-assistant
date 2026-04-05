@@ -46,6 +46,16 @@ class ClaudeCodeRunner:
 
         if not project_dir.exists():
             self._setup_project_dir(project_id, project_dir)
+        else:
+            # Sync assistant files if template is newer than project's CLAUDE.md
+            try:
+                template_md = ASSISTANTS_DIR / "CLAUDE.md"
+                project_md = project_dir / "CLAUDE.md"
+                if (template_md.exists() and project_md.exists() and
+                    template_md.stat().st_mtime > project_md.stat().st_mtime):
+                    self.sync_assistants(project_id)
+            except Exception:
+                pass  # Non-fatal
 
         return project_dir
 
@@ -331,6 +341,35 @@ class ClaudeCodeRunner:
     async def clear_session(self, project_id: uuid.UUID, user_id: uuid.UUID):
         """Clear session — next message starts a new conversation."""
         self._sessions.pop(self._session_key(project_id, user_id), None)
+
+    def sync_assistants(self, project_id: uuid.UUID):
+        """Sync assistant files (CLAUDE.md, skills, agents, scripts, templates) from template
+        to an existing project without touching .memory-bank or project data."""
+        project_dir = self.get_project_dir(project_id)
+        if not ASSISTANTS_DIR.exists():
+            return
+
+        # Files/dirs to sync from assistants/ template
+        sync_items = ["CLAUDE.md", ".claude"]
+        for item in sync_items:
+            src = ASSISTANTS_DIR / item
+            dst = project_dir / item
+            if not src.exists():
+                continue
+            if src.is_file():
+                shutil.copy2(src, dst)
+            else:
+                # Merge directory — copy new/updated files, don't delete existing
+                for src_file in src.rglob("*"):
+                    if src_file.is_file() and not any(p in str(src_file) for p in ["__pycache__", ".DS_Store"]):
+                        rel = src_file.relative_to(src)
+                        dst_file = dst / rel
+                        dst_file.parent.mkdir(parents=True, exist_ok=True)
+                        # Only copy if source is newer or destination doesn't exist
+                        if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
+                            shutil.copy2(src_file, dst_file)
+
+        log.info("Assistants synced", project_id=str(project_id))
 
     def get_upload_dir(self, project_id: uuid.UUID) -> Path:
         """Get the uploads directory for a project."""
