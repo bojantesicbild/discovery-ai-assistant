@@ -287,6 +287,12 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                 ) : (isStreaming && i === messages.length - 1 ? (
                   <ActiveIndicator status={status} />
                 ) : "")}
+                {/* Live status while streaming (shows under content when thinking/tool/retry) */}
+                {isStreaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
+                  <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
+                    <ActiveIndicator status={status} />
+                  </div>
+                )}
               </div>
               {msg.time && <div className="msg-time">{msg.time}</div>}
             </div>

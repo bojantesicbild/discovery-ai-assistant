@@ -199,6 +199,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     <th style={{ width: 20 }}></th>
                     <th>ID</th>
                     <th>Requirement</th>
+                    <th>Type</th>
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Source</th>
@@ -216,6 +217,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
                         <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>{req.description?.slice(0, 80)}{req.description?.length > 80 ? "..." : ""}</div>
                       </td>
+                      <td><TypeBadge type={req.type} /></td>
                       <td><PriBadge priority={req.priority} /></td>
                       <td><StatusPill status={req.status} /></td>
                       <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
@@ -659,6 +661,26 @@ function Chevron({ open }: { open?: boolean }) {
     <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2, transition: "transform 0.2s", transform: open ? "rotate(90deg)" : "none" }}>
       <polyline points="9 18 15 12 9 6" />
     </svg>
+  );
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const labels: Record<string, { label: string; bg: string; color: string }> = {
+    functional: { label: "Functional", bg: "#dbeafe", color: "#2563eb" },
+    non_functional: { label: "Non-Func", bg: "#f3e8ff", color: "#7c3aed" },
+    business: { label: "Business", bg: "#d1fae5", color: "#059669" },
+    technical: { label: "Technical", bg: "#fef3c7", color: "#d97706" },
+    organizational: { label: "Org", bg: "#fee2e2", color: "#dc2626" },
+  };
+  const t = labels[type] || { label: type || "—", bg: "#f3f4f6", color: "#6b7280" };
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+      background: t.bg, color: t.color, whiteSpace: "nowrap", textTransform: "uppercase",
+      letterSpacing: "0.3px",
+    }}>
+      {t.label}
+    </span>
   );
 }
 
@@ -1154,10 +1176,35 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
   contradictions: any[]; gaps: any[]; requirements: any[];
 }) {
   const unconfirmed = requirements.filter((r: any) => r.status === "assumed" || r.status === "pending");
-  const totalItems = contradictions.length + gaps.length + unconfirmed.length;
-  const estimatedMin = contradictions.length * 10 + gaps.filter((g: any) => g.severity === "high").length * 5 + gaps.filter((g: any) => g.severity !== "high").length * 3 + unconfirmed.length * 2;
 
-  if (totalItems === 0) {
+  // Track approved/dismissed state per item
+  const [statuses, setStatuses] = useState<Record<string, "approved" | "dismissed">>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  function approve(id: string) {
+    setStatuses((s) => ({ ...s, [id]: s[id] === "approved" ? undefined as any : "approved" }));
+  }
+  function dismiss(id: string) {
+    setStatuses((s) => ({ ...s, [id]: s[id] === "dismissed" ? undefined as any : "dismissed" }));
+  }
+
+  const getStatus = (id: string) => statuses[id];
+
+  // Filter out dismissed items for counts
+  const activeContras = contradictions.filter((c) => getStatus(c.id) !== "dismissed");
+  const activeGaps = gaps.filter((g) => getStatus(g.id) !== "dismissed");
+  const activeUnconfirmed = unconfirmed.filter((r) => getStatus(r.req_id) !== "dismissed");
+
+  const approvedCount = Object.values(statuses).filter((s) => s === "approved").length;
+  const totalItems = activeContras.length + activeGaps.length + activeUnconfirmed.length;
+  const estimatedMin = activeContras.length * 10
+    + activeGaps.filter((g: any) => g.severity === "high").length * 5
+    + activeGaps.filter((g: any) => g.severity !== "high").length * 3
+    + activeUnconfirmed.length * 2;
+
+  const allItems = contradictions.length + gaps.length + unconfirmed.length;
+
+  if (allItems === 0) {
     return (
       <EmptyState
         icon="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
@@ -1166,12 +1213,49 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
     );
   }
 
+  function ItemActions({ id }: { id: string }) {
+    const st = getStatus(id);
+    return (
+      <div style={{ display: "flex", gap: 4, marginLeft: "auto", flexShrink: 0 }}>
+        <button
+          title={st === "approved" ? "Remove from agenda" : "Approve for meeting"}
+          onClick={(e) => { e.stopPropagation(); approve(id); }}
+          style={{
+            width: 26, height: 26, borderRadius: 6, border: "none",
+            background: st === "approved" ? "#d1fae5" : "var(--gray-100)",
+            color: st === "approved" ? "#059669" : "var(--gray-400)",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, transition: "all 0.15s",
+          }}
+        >
+          ✓
+        </button>
+        <button
+          title={st === "dismissed" ? "Restore to agenda" : "Dismiss from agenda"}
+          onClick={(e) => { e.stopPropagation(); dismiss(id); }}
+          style={{
+            width: 26, height: 26, borderRadius: 6, border: "none",
+            background: st === "dismissed" ? "#fee2e2" : "var(--gray-100)",
+            color: st === "dismissed" ? "#EF4444" : "var(--gray-400)",
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, transition: "all 0.15s",
+          }}
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="mp-container">
       <div className="mp-header">
         <div className="mp-badge">AI-Generated Agenda</div>
         <div className="mp-title">Next Meeting — Agenda</div>
-        <div className="mp-date">{totalItems} items to discuss</div>
+        <div className="mp-date">
+          {totalItems} item{totalItems !== 1 ? "s" : ""} to discuss
+          {approvedCount > 0 && <span style={{ color: "#059669", marginLeft: 6 }}>· {approvedCount} approved</span>}
+        </div>
       </div>
 
       {/* Contradictions */}
@@ -1179,18 +1263,39 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
         <div className="mp-section">
           <div className="mp-section-head">
             <div className="mp-section-icon" style={{ background: "#EF444420", color: "#EF4444" }}>!</div>
-            <div className="mp-section-title">Resolve Contradictions ({contradictions.length})</div>
+            <div className="mp-section-title">Resolve Contradictions ({activeContras.length})</div>
           </div>
-          {contradictions.map((c: any) => (
-            <div key={c.id} className="mp-item">
-              <div className="mp-item-priority high">Critical</div>
-              <div className="mp-item-body">
-                <div className="mp-item-question">{c.explanation?.slice(0, 80)}</div>
-                <div className="mp-item-context">{c.item_a_type} vs {c.item_b_type}</div>
+          {contradictions.map((c: any) => {
+            const st = getStatus(c.id);
+            const isOpen = expandedId === c.id;
+            return (
+              <div key={c.id}>
+                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : c.id)} style={{
+                  opacity: st === "dismissed" ? 0.4 : 1,
+                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
+                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
+                  cursor: "pointer", transition: "all 0.2s",
+                }}>
+                  <div className="mp-item-priority high">Critical</div>
+                  <div className="mp-item-body">
+                    <div className="mp-item-question">{c.explanation?.slice(0, 80)}</div>
+                    <div className="mp-item-context">{c.item_a_type} vs {c.item_b_type}</div>
+                  </div>
+                  <ItemActions id={c.id} />
+                  <div className="mp-time-est">~10 min</div>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
+                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Contradiction Details</div>
+                    <div>{c.explanation}</div>
+                    {c.item_a_ref && <div style={{ marginTop: 6 }}><strong>Item A:</strong> {c.item_a_ref}</div>}
+                    {c.item_b_ref && <div><strong>Item B:</strong> {c.item_b_ref}</div>}
+                    {c.resolution_note && <div style={{ marginTop: 6, padding: "6px 10px", background: "#d1fae5", borderRadius: 6, color: "#059669" }}><strong>Resolution:</strong> {c.resolution_note}</div>}
+                  </div>
+                )}
               </div>
-              <div className="mp-time-est">~10 min</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1199,18 +1304,42 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
         <div className="mp-section">
           <div className="mp-section-head">
             <div className="mp-section-icon" style={{ background: "#F59E0B20", color: "#F59E0B" }}>?</div>
-            <div className="mp-section-title">Close Gaps ({gaps.length})</div>
+            <div className="mp-section-title">Close Gaps ({activeGaps.length})</div>
           </div>
-          {gaps.sort((a: any, b: any) => a.severity === "high" ? -1 : b.severity === "high" ? 1 : 0).map((g: any) => (
-            <div key={g.id} className="mp-item">
-              <div className={`mp-item-priority ${g.severity}`}>{g.severity === "high" ? "High" : g.severity === "medium" ? "Med" : "Low"}</div>
-              <div className="mp-item-body">
-                <div className="mp-item-question">{g.question}</div>
-                <div className="mp-item-context">Area: {g.area}</div>
+          {gaps.sort((a: any, b: any) => a.severity === "high" ? -1 : b.severity === "high" ? 1 : 0).map((g: any) => {
+            const st = getStatus(g.id);
+            const isOpen = expandedId === g.id;
+            return (
+              <div key={g.id}>
+                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : g.id)} style={{
+                  opacity: st === "dismissed" ? 0.4 : 1,
+                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
+                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
+                  cursor: "pointer", transition: "all 0.2s",
+                }}>
+                  <div className={`mp-item-priority ${g.severity}`}>{g.severity === "high" ? "High" : g.severity === "medium" ? "Med" : "Low"}</div>
+                  <div className="mp-item-body">
+                    <div className="mp-item-question">{g.question}</div>
+                    <div className="mp-item-context">Area: {g.area}</div>
+                  </div>
+                  <ItemActions id={g.id} />
+                  <div className="mp-time-est">~{g.severity === "high" ? 5 : 3} min</div>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
+                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Gap Details</div>
+                    <div><strong>ID:</strong> {g.gap_id}</div>
+                    <div><strong>Question:</strong> {g.question}</div>
+                    <div><strong>Severity:</strong> {g.severity} · <strong>Area:</strong> {g.area}</div>
+                    {g.source_quote && <div style={{ marginTop: 6, padding: "6px 10px", borderLeft: "3px solid var(--green)", background: "#f0fdf8", borderRadius: "0 6px 6px 0", fontStyle: "italic" }}>"{g.source_quote}"</div>}
+                    {g.source_person && <div style={{ marginTop: 4 }}><strong>Raised by:</strong> {g.source_person}</div>}
+                    {g.suggested_action && <div style={{ marginTop: 6 }}><strong>Suggested action:</strong> {g.suggested_action}</div>}
+                    {g.blocked_reqs?.length > 0 && <div style={{ marginTop: 4 }}><strong>Blocks:</strong> {g.blocked_reqs.join(", ")}</div>}
+                  </div>
+                )}
               </div>
-              <div className="mp-time-est">~{g.severity === "high" ? 5 : 3} min</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1219,18 +1348,48 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
         <div className="mp-section">
           <div className="mp-section-head">
             <div className="mp-section-icon" style={{ background: "#3B82F620", color: "#3B82F6" }}>?</div>
-            <div className="mp-section-title">Confirm Requirements ({unconfirmed.length})</div>
+            <div className="mp-section-title">Confirm Requirements ({activeUnconfirmed.length})</div>
           </div>
-          {unconfirmed.map((r: any) => (
-            <div key={r.req_id} className="mp-item">
-              <div className={`mp-item-priority ${r.priority === "must" ? "high" : "medium"}`}>{r.priority === "must" ? "Must" : "Should"}</div>
-              <div className="mp-item-body">
-                <div className="mp-item-question">{r.title}</div>
-                <div className="mp-item-context">{r.req_id} · Status: {r.status}</div>
+          {unconfirmed.map((r: any) => {
+            const st = getStatus(r.req_id);
+            const isOpen = expandedId === r.req_id;
+            return (
+              <div key={r.req_id}>
+                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : r.req_id)} style={{
+                  opacity: st === "dismissed" ? 0.4 : 1,
+                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
+                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
+                  cursor: "pointer", transition: "all 0.2s",
+                }}>
+                  <div className={`mp-item-priority ${r.priority === "must" ? "high" : "medium"}`}>{r.priority === "must" ? "Must" : "Should"}</div>
+                  <div className="mp-item-body">
+                    <div className="mp-item-question">{r.title}</div>
+                    <div className="mp-item-context">{r.req_id} · Status: {r.status}</div>
+                  </div>
+                  <ItemActions id={r.req_id} />
+                  <div className="mp-time-est">~2 min</div>
+                </div>
+                {isOpen && (
+                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
+                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Requirement Details</div>
+                    <div><strong>ID:</strong> {r.req_id} · <strong>Priority:</strong> {r.priority} · <strong>Confidence:</strong> {r.confidence}</div>
+                    <div style={{ marginTop: 6 }}>{r.description}</div>
+                    {r.user_perspective && <div style={{ marginTop: 6 }}><strong>User perspective:</strong> {r.user_perspective}</div>}
+                    {r.business_rules?.length > 0 && (
+                      <div style={{ marginTop: 6 }}>
+                        <strong>Business rules:</strong>
+                        <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+                          {r.business_rules.map((rule: string, i: number) => <li key={i}>{rule}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {r.source_quote && <div style={{ marginTop: 6, padding: "6px 10px", borderLeft: "3px solid var(--green)", background: "#f0fdf8", borderRadius: "0 6px 6px 0", fontStyle: "italic" }}>"{r.source_quote}"</div>}
+                    {r.source_doc && <div style={{ marginTop: 4 }}><strong>Source:</strong> {r.source_doc}</div>}
+                  </div>
+                )}
               </div>
-              <div className="mp-time-est">~2 min</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

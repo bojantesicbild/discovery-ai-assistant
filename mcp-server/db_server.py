@@ -156,7 +156,7 @@ async def list_tools() -> list[Tool]:
         Tool(name="update_requirement_priority", description="Update a business requirement's priority.", inputSchema={"type": "object", "properties": {"req_id": {"type": "string", "description": "Requirement ID (e.g. BR-001)"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "New priority"}}, "required": ["req_id", "priority"]}),
         Tool(name="validate_assumption", description="Mark an assumption as validated or unvalidated.", inputSchema={"type": "object", "properties": {"statement_fragment": {"type": "string", "description": "Part of the assumption text to find it"}, "validated": {"type": "boolean", "description": "true = validated, false = unvalidated"}}, "required": ["statement_fragment", "validated"]}),
         Tool(name="resolve_contradiction", description="Resolve a contradiction with a resolution note.", inputSchema={"type": "object", "properties": {"explanation_fragment": {"type": "string", "description": "Part of the contradiction explanation to find it"}, "resolution_note": {"type": "string", "description": "How it was resolved"}}, "required": ["explanation_fragment", "resolution_note"]}),
-        Tool(name="get_control_points", description="Get control point coverage status for all readiness areas (business, functional, technical, scope). Shows total requirements, confirmed count, and coverage percentage per area.", inputSchema={"type": "object", "properties": {}, "required": []}),
+        Tool(name="get_control_points", description="Get readiness as a flat checklist of 12 checks. Returns overall score and each check with status (covered/partial/missing) and the actual items found. Present as a simple checklist showing what's done and what's missing — do NOT group into areas.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_gaps", description="Get all identified gaps — requirements with low confidence or pending/assumed status that need attention.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, and scope items.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
         Tool(name="store_finding", description="Store a new finding (requirement, constraint, or decision) discovered during agent analysis. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title of the finding"}, "description": {"type": "string", "description": "Detailed description"}, "priority": {"type": "string", "enum": ["must", "should", "could", "wont"], "description": "Priority (for requirements, default: should)"}, "source": {"type": "string", "description": "Source of the finding (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
@@ -312,89 +312,96 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         # ── New read tools ──
 
         if name == "get_control_points":
-            # Business: stakeholders + budget/timeline constraints
-            biz_checks = []
+            checks = []
 
+            # 1. Decision-maker identified
             final_makers = await conn.fetch("SELECT name, role FROM stakeholders WHERE project_id = $1 AND decision_authority = 'final'", pid)
-            items = [f"{r['name']} ({r['role']})" for r in final_makers]
-            biz_checks.append({"check": "Decision-maker identified", "status": "covered" if final_makers else "missing", "items": items})
+            checks.append({"check": "Decision-maker identified", "status": "covered" if final_makers else "missing",
+                           "items": [f"{r['name']} ({r['role']})" for r in final_makers]})
 
-            budget_cons = await conn.fetch("SELECT description FROM constraints WHERE project_id = $1 AND type = 'budget'", pid)
-            biz_checks.append({"check": "Budget constraint defined", "status": "covered" if budget_cons else "missing", "items": [r["description"][:60] for r in budget_cons]})
-
-            timeline_cons = await conn.fetch("SELECT description FROM constraints WHERE project_id = $1 AND type = 'timeline'", pid)
-            biz_checks.append({"check": "Timeline constraint defined", "status": "covered" if timeline_cons else "missing", "items": [r["description"][:60] for r in timeline_cons]})
-
+            # 2. People identified (≥2)
             all_stk = await conn.fetch("SELECT name, role, decision_authority FROM stakeholders WHERE project_id = $1", pid)
-            stk_items = [f"{r['name']} ({r['role']}, {r['decision_authority']})" for r in all_stk]
-            biz_checks.append({"check": "People identified (≥2)", "status": "covered" if len(all_stk) >= 2 else "partial" if len(all_stk) >= 1 else "missing", "items": stk_items})
+            checks.append({"check": "People identified (≥2)", "status": "covered" if len(all_stk) >= 2 else "partial" if len(all_stk) >= 1 else "missing",
+                           "items": [f"{r['name']} ({r['role']}, {r['decision_authority']})" for r in all_stk]})
 
-            must_reqs = await conn.fetch("SELECT req_id, title FROM requirements WHERE project_id = $1 AND priority = 'must'", pid)
-            must_items = [f"{r['req_id']}: {r['title'][:50]}" for r in must_reqs]
-            biz_checks.append({"check": "MUST-priority requirements (≥2)", "status": "covered" if len(must_reqs) >= 2 else "partial" if len(must_reqs) >= 1 else "missing", "items": must_items})
-
-            # Functional: requirements count + confirmation
+            # 3. Requirements defined (≥5)
             total_reqs = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1", pid) or 0
-            confirmed_rows = await conn.fetch("SELECT req_id, title FROM requirements WHERE project_id = $1 AND status = 'confirmed'", pid)
-            unconfirmed_rows = await conn.fetch("SELECT req_id, title, status FROM requirements WHERE project_id = $1 AND status != 'confirmed'", pid)
-            confirmed_reqs = len(confirmed_rows)
+            checks.append({"check": "Requirements defined (≥5)", "status": "covered" if total_reqs >= 5 else "partial" if total_reqs >= 2 else "missing",
+                           "detail": f"{total_reqs} total"})
 
-            nfr_count = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND type = 'non_functional'", pid) or 0
-
-            func_checks = []
-            func_checks.append({"check": "Requirements defined (≥5)", "status": "covered" if total_reqs >= 5 else "partial" if total_reqs >= 2 else "missing", "detail": f"{total_reqs} total"})
+            # 4. Requirements confirmed (ratio)
+            confirmed_reqs = await conn.fetchval("SELECT COUNT(*) FROM requirements WHERE project_id = $1 AND status = 'confirmed'", pid) or 0
+            unconfirmed = await conn.fetch("SELECT req_id, title, status FROM requirements WHERE project_id = $1 AND status != 'confirmed'", pid)
             conf_ratio = confirmed_reqs / total_reqs if total_reqs > 0 else 0
-            func_checks.append({"check": "Requirements confirmed", "status": "covered" if conf_ratio >= 0.8 else "partial" if confirmed_reqs > 0 else "missing",
-                                 "detail": f"{confirmed_reqs} of {total_reqs} confirmed ({round(conf_ratio*100)}%)",
-                                 "items": [f"{r['req_id']}: {r['title'][:40]} ({r['status']})" for r in unconfirmed_rows] if unconfirmed_rows else []})
-            func_checks.append({"check": "MUST requirements (≥3)", "status": "covered" if len(must_reqs) >= 3 else "partial" if len(must_reqs) >= 1 else "missing", "detail": f"{len(must_reqs)} MUST",
-                                 "items": must_items})
-            func_checks.append({"check": "Non-functional requirements defined", "status": "covered" if nfr_count >= 1 else "missing", "detail": f"{nfr_count} non-functional"})
+            checks.append({"check": "Requirements confirmed", "status": "covered" if conf_ratio >= 0.8 else "partial" if confirmed_reqs > 0 else "missing",
+                           "detail": f"{confirmed_reqs} of {total_reqs} confirmed ({round(conf_ratio*100)}%)",
+                           "items": [f"{r['req_id']}: {r['title'][:40]} ({r['status']})" for r in unconfirmed]})
 
-            # Technical: decisions + tech constraints
+            # 5. MUST requirements (≥3)
+            must_reqs = await conn.fetch("SELECT req_id, title FROM requirements WHERE project_id = $1 AND priority = 'must'", pid)
+            checks.append({"check": "MUST requirements (≥3)", "status": "covered" if len(must_reqs) >= 3 else "partial" if len(must_reqs) >= 1 else "missing",
+                           "detail": f"{len(must_reqs)} MUST", "items": [f"{r['req_id']}: {r['title'][:50]}" for r in must_reqs]})
+
+            # 6. Decisions documented (≥2)
             dec_rows = await conn.fetch("SELECT title, status, decided_by FROM decisions WHERE project_id = $1", pid)
+            checks.append({"check": "Decisions documented (≥2)", "status": "covered" if len(dec_rows) >= 2 else "partial" if len(dec_rows) >= 1 else "missing",
+                           "items": [f"{r['title'][:50]} ({r['status']})" for r in dec_rows]})
+
+            # 7. Decisions confirmed (≥1)
             confirmed_dec = [r for r in dec_rows if r["status"] == "confirmed"]
-            tech_cons = await conn.fetch("SELECT description FROM constraints WHERE project_id = $1 AND type = 'technology'", pid)
+            checks.append({"check": "Decisions confirmed (≥1)", "status": "covered" if confirmed_dec else "missing",
+                           "detail": f"{len(confirmed_dec)} confirmed"})
 
-            tech_checks = []
-            tech_checks.append({"check": "Decisions documented (≥2)", "status": "covered" if len(dec_rows) >= 2 else "partial" if len(dec_rows) >= 1 else "missing",
-                                 "items": [f"{r['title'][:50]} (by {r['decided_by'] or '?'}, {r['status']})" for r in dec_rows]})
-            tech_checks.append({"check": "Technology constraints defined", "status": "covered" if tech_cons else "missing",
-                                 "items": [r["description"][:60] for r in tech_cons]})
-            tech_checks.append({"check": "Decisions confirmed", "status": "covered" if confirmed_dec else "missing",
-                                 "items": [r["title"][:50] for r in confirmed_dec]})
-
-            # Scope: in/out items + contradictions
+            # 8. Scope defined (in + out)
             in_items = await conn.fetch("SELECT description FROM scope_items WHERE project_id = $1 AND in_scope = true", pid)
             out_items = await conn.fetch("SELECT description FROM scope_items WHERE project_id = $1 AND in_scope = false", pid)
-            unresolved_contras = await conn.fetch("SELECT explanation FROM contradictions WHERE project_id = $1 AND resolved = false", pid)
+            scope_ok = len(in_items) >= 3 and len(out_items) >= 1
+            checks.append({"check": "Scope defined (in + out)", "status": "covered" if scope_ok else "partial" if in_items or out_items else "missing",
+                           "detail": f"{len(in_items)} in-scope, {len(out_items)} out-of-scope"})
 
+            # 9. No unresolved contradictions
+            contras = await conn.fetch("SELECT explanation FROM contradictions WHERE project_id = $1 AND resolved = false", pid)
+            checks.append({"check": "No unresolved contradictions", "status": "covered" if not contras else "missing",
+                           "detail": f"{len(contras)} open" if contras else "none",
+                           "items": [r["explanation"][:60] for r in contras[:3]]})
+
+            # 10. Budget constraint defined
+            budget = await conn.fetch("SELECT description FROM constraints WHERE project_id = $1 AND type = 'budget'", pid)
+            checks.append({"check": "Budget constraint defined", "status": "covered" if budget else "missing",
+                           "items": [r["description"][:60] for r in budget]})
+
+            # 11. Timeline constraint defined
+            timeline = await conn.fetch("SELECT description FROM constraints WHERE project_id = $1 AND type = 'timeline'", pid)
+            checks.append({"check": "Timeline constraint defined", "status": "covered" if timeline else "missing",
+                           "items": [r["description"][:60] for r in timeline]})
+
+            # 12. Assumptions validated (ratio)
             total_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1", pid) or 0
             validated_assumptions = await conn.fetchval("SELECT COUNT(*) FROM assumptions WHERE project_id = $1 AND validated = true", pid) or 0
+            if total_assumptions > 0:
+                a_ratio = validated_assumptions / total_assumptions
+                a_status = "covered" if a_ratio >= 0.8 else "partial" if a_ratio > 0 else "missing"
+                a_detail = f"{validated_assumptions} of {total_assumptions} validated"
+            else:
+                a_ratio = 0.5
+                a_status = "partial"
+                a_detail = "no assumptions tracked"
+            checks.append({"check": "Assumptions validated", "status": a_status, "detail": a_detail})
 
-            scope_checks = []
-            scope_checks.append({"check": "In-scope items (≥3)", "status": "covered" if len(in_items) >= 3 else "partial" if len(in_items) >= 1 else "missing",
-                                  "items": [r["description"][:50] for r in in_items[:5]]})
-            scope_checks.append({"check": "Out-of-scope items defined", "status": "covered" if out_items else "missing",
-                                  "items": [r["description"][:50] for r in out_items[:5]]})
-            scope_checks.append({"check": "No unresolved contradictions", "status": "covered" if not unresolved_contras else "missing",
-                                  "items": [r["explanation"][:60] for r in unresolved_contras[:3]]})
-            assumption_ratio = validated_assumptions / total_assumptions if total_assumptions > 0 else 0.5
-            scope_checks.append({"check": "Assumptions validated", "status": "covered" if assumption_ratio >= 0.8 else "partial" if assumption_ratio > 0 else "missing",
-                                  "detail": f"{validated_assumptions} of {total_assumptions} validated" if total_assumptions > 0 else "no assumptions tracked"})
+            # Score: same as evaluator
+            score_map = {"covered": 1.0, "partial": 0.5, "missing": 0.0}
+            # Use exact ratio for checks 4 (confirmation) and 12 (assumptions)
+            scores = []
+            for i, c in enumerate(checks):
+                if i == 3:  # confirmation ratio
+                    scores.append(conf_ratio)
+                elif i == 11:  # assumptions ratio
+                    scores.append(a_ratio)
+                else:
+                    scores.append(score_map.get(c["status"], 0))
+            overall = round((sum(scores) / len(scores)) * 100, 1)
 
-            def _score(checks):
-                covered = sum(1 for c in checks if c["status"] == "covered")
-                partial = sum(0.5 for c in checks if c["status"] == "partial")
-                return round(((covered + partial) / len(checks)) * 100, 1) if checks else 0
-
-            control_points = [
-                {"area": "business", "checks": biz_checks, "coverage_percent": _score(biz_checks)},
-                {"area": "functional", "checks": func_checks, "coverage_percent": _score(func_checks)},
-                {"area": "technical", "checks": tech_checks, "coverage_percent": _score(tech_checks)},
-                {"area": "scope", "checks": scope_checks, "coverage_percent": _score(scope_checks)},
-            ]
-            return _json_result(control_points)
+            return _json_result({"score": overall, "total_checks": len(checks), "checks": checks})
 
         if name == "get_gaps":
             rows = await conn.fetch(
