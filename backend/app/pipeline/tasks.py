@@ -719,28 +719,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     )
     gaps_rows = gaps_result.all()
 
-    # --- requirements.md ---
-    lines = [
-        "---",
-        "category: requirements-index",
-        f"date: {today}",
-        f"total: {len(reqs_rows)}",
-        "---",
-        "",
-        "# Requirements",
-        "",
-        "| ID | Title | Priority | Status | Confidence | Source Person |",
-        "|---|---|---|---|---|---|",
-    ]
-    for r, doc_name in reqs_rows:
-        person = r.source_person or ""
-        lines.append(
-            f"| [[{r.req_id}]] | {r.title} | {r.priority} | {r.status} | {r.confidence} | {person} |"
-        )
-    lines.append("")
-    (discovery_dir / "requirements.md").write_text("\n".join(lines))
-
-    # --- Individual requirement files ---
+    # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
     for r, doc_name in reqs_rows:
         source_doc_name = doc_name or "unknown"
         person = r.source_person or "unknown"
@@ -794,26 +773,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         req_lines.append("")
         (reqs_dir / f"{r.req_id}.md").write_text("\n".join(req_lines))
 
-    # --- contradictions.md ---
-    contra_lines = [
-        "---",
-        "category: contradictions-index",
-        f"date: {today}",
-        f"total: {len(contras)}",
-        "---",
-        "",
-        "# Contradictions",
-        "",
-    ]
-    for c in contras:
-        resolved_str = "RESOLVED" if c.resolved else "OPEN"
-        contra_lines.append(f"- **[{resolved_str}]** {c.explanation}")
-        if c.resolution_note:
-            contra_lines.append(f"  - Resolution: {c.resolution_note}")
-    contra_lines.append("")
-    (discovery_dir / "contradictions.md").write_text("\n".join(contra_lines))
-
-    # --- decisions.md ---
+    # --- decisions.md (kept as single file — decisions don't have individual IDs like BR/CON/GAP) ---
     dec_lines = [
         "---",
         "category: decisions-index",
@@ -860,30 +820,18 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         stk_lines.append("")
     (discovery_dir / "people.md").write_text("\n".join(stk_lines))
 
-    # --- readiness.md ---
+    # Evaluate readiness for index/log (but don't write a separate readiness.md)
     from app.services.evaluator import evaluator
     try:
         readiness = await evaluator.evaluate(project_id, db, triggered_by="export")
     except Exception:
         readiness = {"score": 0, "details": {}}
-    rd_lines = [
-        "---",
-        "category: readiness",
-        f"date: {today}",
-        f"score: {readiness.get('score', 0)}",
-        "---",
-        "",
-        "# Readiness Scores",
-        "",
-        f"**Overall Score**: {readiness.get('score', 0)}%",
-        "",
-    ]
-    details = readiness.get("details", {})
-    if isinstance(details, dict):
-        for key, val in details.items():
-            rd_lines.append(f"- **{key}**: {val}")
-    rd_lines.append("")
-    (discovery_dir / "readiness.md").write_text("\n".join(rd_lines))
+
+    # Clean up redundant files from previous exports
+    for old_file in ["contradictions.md", "requirements.md", "readiness.md", "stakeholders.md"]:
+        old_path = discovery_dir / old_file
+        if old_path.exists():
+            old_path.unlink()
 
     # --- constraints/ individual files ---
     constraints_dir = discovery_dir / "constraints"
