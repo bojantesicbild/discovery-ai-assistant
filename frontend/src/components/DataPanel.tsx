@@ -706,29 +706,27 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Back button */}
-      <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--gray-100)", flexShrink: 0 }}>
+      {/* Dark hero header */}
+      <div style={{
+        background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+        padding: "16px 20px 20px", flexShrink: 0,
+      }}>
         <button onClick={onClose} style={{
-          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600,
-          color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer",
-          padding: 0, fontFamily: "var(--font)",
+          display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 600,
+          color: "#94a3b8", background: "none", border: "none", cursor: "pointer",
+          padding: 0, fontFamily: "var(--font)", marginBottom: 12,
         }}>
-          &larr; Back
+          &larr; Back to data
         </button>
-      </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-
-        {/* Score ring + stats row */}
-        <div style={{ display: "flex", gap: 20, marginBottom: 20, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
           {/* Ring */}
-          <div style={{ position: "relative", width: 100, height: 100, flexShrink: 0 }}>
-            <svg viewBox="0 0 120 120" style={{ width: 100, height: 100, transform: "rotate(-90deg)" }}>
-              <circle cx="60" cy="60" r="54" fill="none" stroke="var(--gray-100)" strokeWidth="8" />
-              <circle cx="60" cy="60" r="54" fill="none"
-                stroke={statusColor} strokeWidth="8" strokeLinecap="round"
-                strokeDasharray={circumference} strokeDashoffset={offset}
+          <div style={{ position: "relative", width: 90, height: 90, flexShrink: 0 }}>
+            <svg viewBox="0 0 120 120" style={{ width: 90, height: 90, transform: "rotate(-90deg)" }}>
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#2d2d44" strokeWidth="8" />
+              <circle cx="60" cy="60" r="52" fill="none"
+                stroke="#00E5A0" strokeWidth="8" strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 52} strokeDashoffset={2 * Math.PI * 52 - (score / 100) * 2 * Math.PI * 52}
                 style={{ transition: "stroke-dashoffset 0.8s ease" }}
               />
             </svg>
@@ -736,106 +734,140 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
               position: "absolute", inset: 0, display: "flex", flexDirection: "column",
               alignItems: "center", justifyContent: "center",
             }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--dark)" }}>{Math.round(score)}%</div>
-              <div style={{ fontSize: 8, color: statusColor, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{statusLabel}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: "#fff" }}>{Math.round(score)}%</div>
             </div>
           </div>
 
-          {/* Stats grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, flex: 1 }}>
-            {[
-              { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed` },
-              { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}` },
-              { label: "Checks Passed", value: `${passed}/${checks.length}`, sub: `${missing} missing` },
-              { label: "Open Gaps", value: openGaps, sub: `${gaps.length} total`, warn: openGaps > 0 },
-              { label: "Contradictions", value: openContras, sub: "open", warn: openContras > 0 },
-              { label: "Constraints", value: constraints.length, sub: "defined" },
-            ].map((s, i) => (
-              <div key={i} style={{
-                padding: "6px 8px", borderRadius: 6, background: "var(--gray-50)",
-                border: "1px solid var(--gray-100)",
-              }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: s.warn ? "#ef4444" : "var(--dark)" }}>{s.value}</div>
-                <div style={{ fontSize: 9, fontWeight: 600, color: "var(--gray-500)" }}>{s.label}</div>
-                <div style={{ fontSize: 8, color: "var(--gray-400)" }}>{s.sub}</div>
-              </div>
-            ))}
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>Discovery Readiness</div>
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: "#1a1a2e",
+              background: statusColor === "#059669" ? "#00E5A0" : statusColor === "#d97706" ? "#fbbf24" : "#f87171",
+              display: "inline-block", padding: "2px 10px", borderRadius: 10,
+              textTransform: "uppercase", letterSpacing: "0.5px",
+            }}>
+              {statusLabel}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ display: "flex", gap: 2, height: 4, borderRadius: 2, overflow: "hidden", background: "#2d2d44", marginTop: 10 }}>
+              <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#00E5A0", transition: "width 0.5s" }} />
+              <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#fbbf24", transition: "width 0.5s" }} />
+              <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#f87171", transition: "width 0.5s" }} />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 9, color: "#64748b" }}>
+              <span>{passed} passed</span>
+              <span>{partial} partial</span>
+              <span>{missing} missing</span>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Progress bar */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", gap: 2, height: 6, borderRadius: 3, overflow: "hidden", background: "var(--gray-100)" }}>
-            <div style={{ width: `${(passed / checks.length) * 100}%`, background: "#059669", transition: "width 0.5s" }} />
-            <div style={{ width: `${(partial / checks.length) * 100}%`, background: "#d97706", transition: "width 0.5s" }} />
-            <div style={{ width: `${(missing / checks.length) * 100}%`, background: "#ef4444", transition: "width 0.5s" }} />
-          </div>
-          <div style={{ display: "flex", gap: 12, marginTop: 4, fontSize: 9, color: "var(--gray-500)" }}>
-            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#059669" }} /> {passed} passed
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#d97706" }} /> {partial} partial
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#ef4444" }} /> {missing} missing
-            </span>
-          </div>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px" }}>
+
+        {/* Stats cards — dark style */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+          {[
+            { label: "Requirements", value: requirements.length, sub: `${confirmedReqs} confirmed`, icon: "📋" },
+            { label: "MUST Priority", value: mustReqs, sub: `of ${requirements.length}`, icon: "🎯" },
+            { label: "Checks", value: `${passed}/${checks.length}`, sub: `${missing} missing`, icon: "✅" },
+            { label: "Gaps", value: openGaps, sub: `${gaps.length} total`, icon: "❓", warn: openGaps > 0 },
+            { label: "Contradictions", value: openContras, sub: "open", icon: "⚡", warn: openContras > 0 },
+            { label: "Constraints", value: constraints.length, sub: "defined", icon: "🔒" },
+          ].map((s, i) => (
+            <div key={i} style={{
+              padding: "10px 10px", borderRadius: 10,
+              background: "#1a1a2e", border: "1px solid #2d2d44",
+            }}>
+              <div style={{ fontSize: 9, marginBottom: 4 }}>{s.icon}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: s.warn ? "#f87171" : "#fff" }}>{s.value}</div>
+              <div style={{ fontSize: 9, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.3px" }}>{s.label}</div>
+              <div style={{ fontSize: 9, color: "#4b5563" }}>{s.sub}</div>
+            </div>
+          ))}
         </div>
 
         {/* Checklist */}
-        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          Readiness Checklist
+        <div style={{
+          fontSize: 10, fontWeight: 700, color: "var(--gray-400)", marginBottom: 8,
+          textTransform: "uppercase", letterSpacing: "0.5px",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span>Readiness Checklist</span>
+          <div style={{ flex: 1, height: 1, background: "var(--gray-200)" }} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          {checks.map((c: any, i: number) => (
-            <div key={i} style={{
-              padding: "8px 10px", borderRadius: 8,
-              background: c.status === "missing" ? "#fef2f2" : c.status === "partial" ? "#fffbeb" : "#f0fdf4",
-              border: `1px solid ${c.status === "missing" ? "#fecaca" : c.status === "partial" ? "#fde68a" : "#bbf7d0"}`,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {checks.map((c: any, i: number) => {
+            const bg = c.status === "covered" ? "#f0fdf4" : c.status === "partial" ? "#fffbeb" : "#fef2f2";
+            const border = c.status === "covered" ? "#dcfce7" : c.status === "partial" ? "#fef3c7" : "#fecaca";
+            const iconBg = c.status === "covered" ? "#00E5A0" : c.status === "partial" ? "#fbbf24" : "#ef4444";
+            return (
+              <div key={i} style={{
+                padding: "8px 12px", borderRadius: 10, background: bg,
+                border: `1px solid ${border}`, display: "flex", alignItems: "flex-start", gap: 10,
+              }}>
                 <span style={{
-                  width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 10, fontWeight: 700, flexShrink: 0,
-                  background: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
-                  color: "white",
+                  width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 1,
+                  background: iconBg, color: c.status === "partial" ? "#1a1a2e" : "#fff",
                 }}>
                   {c.status === "covered" ? "✓" : c.status === "partial" ? "!" : "✗"}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)" }}>{c.check}</div>
                   {c.detail && <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>}
-                </div>
-              </div>
-              {c.items && c.items.length > 0 && (
-                <div style={{ marginTop: 5, paddingLeft: 28 }}>
-                  {c.items.slice(0, 4).map((item: string, j: number) => (
-                    <div key={j} style={{ fontSize: 10, color: "var(--gray-600)", padding: "1px 0", display: "flex", alignItems: "center", gap: 4 }}>
-                      <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--gray-400)", flexShrink: 0 }} />
-                      {item}
+                  {c.items && c.items.length > 0 && (
+                    <div style={{ marginTop: 4 }}>
+                      {c.items.slice(0, 3).map((item: string, j: number) => (
+                        <div key={j} style={{
+                          fontSize: 10, color: "var(--gray-600)", padding: "1px 0",
+                          display: "flex", alignItems: "center", gap: 4,
+                        }}>
+                          <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--gray-400)", flexShrink: 0 }} />
+                          {item}
+                        </div>
+                      ))}
+                      {c.items.length > 3 && (
+                        <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 1 }}>+{c.items.length - 3} more</div>
+                      )}
                     </div>
-                  ))}
-                  {c.items.length > 4 && (
-                    <div style={{ fontSize: 9, color: "var(--gray-400)", marginTop: 2 }}>+{c.items.length - 4} more</div>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
         {/* Action items */}
         {(missing > 0 || partial > 0) && (
-          <div style={{ marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "#1a1a2e", color: "#e2e8f0" }}>
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 6 }}>
-              To reach "Ready" status
+          <div style={{
+            marginTop: 14, padding: "14px 16px", borderRadius: 12,
+            background: "linear-gradient(135deg, #1a1a2e, #0f172a)",
+            border: "1px solid #2d2d44",
+          }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
+              color: "#00E5A0", marginBottom: 8, display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00E5A0" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              Next Steps
             </div>
             {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
-              <div key={i} style={{ fontSize: 11, padding: "2px 0", display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ color: c.status === "missing" ? "#f87171" : "#fbbf24" }}>→</span>
-                <span>{c.status === "missing" ? `Add: ${c.check}` : `Improve: ${c.check}`}</span>
-                {c.detail && <span style={{ color: "#64748b", fontSize: 9 }}>({c.detail})</span>}
+              <div key={i} style={{
+                fontSize: 12, padding: "4px 0", display: "flex", alignItems: "flex-start", gap: 8,
+                color: "#e2e8f0",
+              }}>
+                <span style={{
+                  color: c.status === "missing" ? "#f87171" : "#fbbf24",
+                  fontSize: 14, lineHeight: 1, marginTop: 1,
+                }}>→</span>
+                <div>
+                  <span style={{ fontWeight: 600 }}>{c.status === "missing" ? "Add" : "Improve"}:</span>{" "}
+                  <span style={{ color: "#cbd5e1" }}>{c.check}</span>
+                  {c.detail && <span style={{ color: "#64748b", fontSize: 10 }}> ({c.detail})</span>}
+                </div>
               </div>
             ))}
           </div>
