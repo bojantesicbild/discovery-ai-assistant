@@ -166,8 +166,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
             </div>
           </div>
-          <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-            View details →
+          <div style={{
+            fontSize: 10, fontWeight: 600, color: "var(--gray-500)", display: "flex", alignItems: "center", gap: 4,
+            padding: "4px 10px", borderRadius: 6, border: "1px solid var(--gray-200)",
+            background: "var(--white)", transition: "all 0.15s",
+          }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            Info
           </div>
         </div>
       </div>
