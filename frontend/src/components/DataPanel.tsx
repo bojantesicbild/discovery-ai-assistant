@@ -5,7 +5,7 @@ import {
   getDashboard, listRequirements, listContradictions, listDocuments,
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
-  getDocumentContent,
+  getDocumentContent, getReadiness,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
@@ -48,6 +48,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [statusFilter, setStatusFilter] = useState("all");
   const [contraFilter, setContraFilter] = useState("all");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [showReadiness, setShowReadiness] = useState(false);
+  const [readinessChecks, setReadinessChecks] = useState<any[]>([]);
 
   // React to external tab/highlight changes
   useEffect(() => {
@@ -124,9 +126,17 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   return (
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Header with readiness ring */}
+      {/* Header with readiness ring — clickable */}
       <div className="dp-header">
-        <div className="dp-readiness">
+        <div className="dp-readiness" style={{ cursor: "pointer" }} onClick={async () => {
+          if (!showReadiness) {
+            try {
+              const data = await getReadiness(projectId);
+              setReadinessChecks(data.breakdown?.checks || []);
+            } catch {}
+          }
+          setShowReadiness(!showReadiness);
+        }}>
           <div className="dp-rb-ring">
             <svg viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15" className="bg" />
@@ -134,14 +144,55 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </svg>
             <div className="dp-rb-val">{Math.round(score)}%</div>
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div className="dp-rb-label">Discovery Readiness</div>
             <div className="dp-rb-sub">
               {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
               {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
             </div>
           </div>
+          <div style={{ fontSize: 10, color: "var(--gray-400)", display: "flex", alignItems: "center", gap: 4 }}>
+            {showReadiness ? "▲" : "▼"} Details
+          </div>
         </div>
+
+        {/* Readiness checklist panel */}
+        {showReadiness && readinessChecks.length > 0 && (
+          <div style={{
+            padding: "8px 16px 12px", borderTop: "1px solid var(--gray-100)",
+            background: "#fafbfc",
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Readiness Checklist ({readinessChecks.filter((c: any) => c.status === "covered").length}/{readinessChecks.length} passed)
+            </div>
+            {readinessChecks.map((c: any, i: number) => (
+              <div key={i} style={{
+                display: "flex", alignItems: "flex-start", gap: 8, padding: "4px 0",
+                borderBottom: i < readinessChecks.length - 1 ? "1px solid var(--gray-100)" : "none",
+              }}>
+                <span style={{
+                  fontSize: 12, flexShrink: 0, marginTop: 1,
+                  color: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
+                }}>
+                  {c.status === "covered" ? "✓" : c.status === "partial" ? "◐" : "✗"}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "var(--dark)" }}>{c.check}</div>
+                  {c.detail && (
+                    <div style={{ fontSize: 10, color: "var(--gray-500)", marginTop: 1 }}>{c.detail}</div>
+                  )}
+                </div>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, flexShrink: 0,
+                  background: c.status === "covered" ? "#d1fae5" : c.status === "partial" ? "#fef3c7" : "#fee2e2",
+                  color: c.status === "covered" ? "#059669" : c.status === "partial" ? "#d97706" : "#ef4444",
+                }}>
+                  {c.status === "covered" ? "PASSED" : c.status === "partial" ? "PARTIAL" : "MISSING"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -518,6 +569,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               contradictions={openContras}
               gaps={gaps}
               requirements={requirements}
+              constraints={constraints}
+              dashboard={dashboard}
             />
           </div>
         )}
@@ -1172,8 +1225,101 @@ function _inl(t: string): string {
 }
 
 
-function MeetingPrepTab({ contradictions, gaps, requirements }: {
-  contradictions: any[]; gaps: any[]; requirements: any[];
+function ReadinessChecklist({ requirements, constraints, contradictions, dashboard }: {
+  requirements: any[]; constraints: any[]; contradictions: any[]; dashboard: any;
+}) {
+  const [open, setOpen] = useState(true);
+
+  const reqCount = dashboard?.requirements_count ?? requirements.length;
+  const reqConfirmed = dashboard?.requirements_confirmed ?? requirements.filter((r: any) => r.status === "confirmed").length;
+  const mustReqs = requirements.filter((r: any) => r.priority === "must").length;
+  const decCount = dashboard?.decisions_count ?? 0;
+  const stkCount = dashboard?.stakeholders_count ?? 0;
+  const scopeIn = dashboard?.scope_in ?? 0;
+  const scopeOut = dashboard?.scope_out ?? 0;
+  const asmCount = dashboard?.assumptions_count ?? 0;
+  const asmValidated = dashboard?.assumptions_validated ?? 0;
+  const openContras = dashboard?.contradictions_unresolved ?? contradictions.length;
+  const hasBudget = constraints.some((c: any) => c.type === "budget");
+  const hasTimeline = constraints.some((c: any) => c.type === "timeline");
+  const hasDecisionMaker = stkCount > 0; // simplified — at least one stakeholder
+
+  const checks = [
+    { label: "Decision-maker identified", pass: hasDecisionMaker, detail: hasDecisionMaker ? `${stkCount} stakeholder${stkCount !== 1 ? "s" : ""}` : "No stakeholders" },
+    { label: "People identified (≥2)", pass: stkCount >= 2, detail: `${stkCount} people` },
+    { label: "Requirements defined (≥5)", pass: reqCount >= 5, detail: `${reqCount} defined` },
+    { label: "Requirements confirmed", pass: reqConfirmed / Math.max(reqCount, 1) >= 0.8, detail: `${reqConfirmed}/${reqCount} (${reqCount > 0 ? Math.round(reqConfirmed / reqCount * 100) : 0}%)`, partial: reqConfirmed > 0 && reqConfirmed / Math.max(reqCount, 1) < 0.8 },
+    { label: "MUST requirements (≥3)", pass: mustReqs >= 3, detail: `${mustReqs} MUST` },
+    { label: "Decisions documented (≥2)", pass: decCount >= 2, detail: `${decCount} decisions` },
+    { label: "Scope defined (in + out)", pass: scopeIn > 0 && scopeOut > 0, detail: `${scopeIn} in, ${scopeOut} out` },
+    { label: "No unresolved contradictions", pass: openContras === 0, detail: openContras > 0 ? `${openContras} open` : "All resolved" },
+    { label: "Budget constraint defined", pass: hasBudget, detail: hasBudget ? "Defined" : "Missing" },
+    { label: "Timeline constraint defined", pass: hasTimeline, detail: hasTimeline ? "Defined" : "Missing" },
+    { label: "Assumptions validated", pass: asmValidated / Math.max(asmCount, 1) >= 0.5, detail: `${asmValidated}/${asmCount}`, partial: asmCount > 0 && asmValidated > 0 && asmValidated / Math.max(asmCount, 1) < 0.5 },
+  ];
+
+  const passed = checks.filter((c) => c.pass).length;
+
+  return (
+    <div style={{ margin: "0 0 12px", border: "1px solid var(--gray-200)", borderRadius: 10, overflow: "hidden" }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+          background: "var(--gray-50)", cursor: "pointer", userSelect: "none",
+        }}
+      >
+        <div style={{
+          width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 10, fontWeight: 700, color: "white",
+          background: passed === checks.length ? "#059669" : passed >= 8 ? "#F59E0B" : "#EF4444",
+        }}>
+          {passed}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--dark)" }}>Readiness Checklist</div>
+          <div style={{ fontSize: 10, color: "var(--gray-500)" }}>{passed}/{checks.length} checks passed</div>
+        </div>
+        <svg viewBox="0 0 24 24" style={{
+          width: 14, height: 14, stroke: "var(--gray-400)", fill: "none", strokeWidth: 2,
+          transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s",
+        }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+
+      {open && (
+        <div style={{ padding: "6px 14px 10px" }}>
+          {checks.map((c, i) => (
+            <div key={i} style={{
+              display: "flex", alignItems: "center", gap: 8, padding: "5px 0",
+              borderBottom: i < checks.length - 1 ? "1px solid var(--gray-100)" : "none",
+            }}>
+              <span style={{
+                width: 16, height: 16, borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, flexShrink: 0,
+                background: c.pass ? "#d1fae5" : c.partial ? "#FEF3C7" : "#fee2e2",
+                color: c.pass ? "#059669" : c.partial ? "#D97706" : "#EF4444",
+              }}>
+                {c.pass ? "✓" : c.partial ? "◐" : "✗"}
+              </span>
+              <span style={{ flex: 1, fontSize: 11, color: "var(--dark)" }}>{c.label}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 600,
+                color: c.pass ? "#059669" : c.partial ? "#D97706" : "#EF4444",
+              }}>
+                {c.detail}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeetingPrepTab({ contradictions, gaps, requirements, constraints, dashboard }: {
+  contradictions: any[]; gaps: any[]; requirements: any[]; constraints: any[]; dashboard: any;
 }) {
   const unconfirmed = requirements.filter((r: any) => r.status === "assumed" || r.status === "pending");
 
@@ -1257,6 +1403,14 @@ function MeetingPrepTab({ contradictions, gaps, requirements }: {
           {approvedCount > 0 && <span style={{ color: "#059669", marginLeft: 6 }}>· {approvedCount} approved</span>}
         </div>
       </div>
+
+      {/* Readiness Checklist */}
+      <ReadinessChecklist
+        requirements={requirements}
+        constraints={constraints}
+        contradictions={contradictions}
+        dashboard={dashboard}
+      />
 
       {/* Contradictions */}
       {contradictions.length > 0 && (
