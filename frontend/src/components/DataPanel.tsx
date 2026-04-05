@@ -868,41 +868,71 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
                   )}
                 </div>
               </div>
-              <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 80 }}>
-                {/* 85% threshold line */}
-                <line x1={pad} y1={line85y} x2={w - pad} y2={line85y} stroke="#059669" strokeWidth="1" strokeDasharray="4 3" opacity="0.4" />
-                <text x={w - pad - 2} y={line85y - 3} textAnchor="end" fontSize="7" fill="#059669" opacity="0.6">85%</text>
-                {/* Area fill */}
-                <polygon
-                  points={`${pad},${h - pad} ${points.join(" ")} ${w - 2 * pad + pad},${h - pad}`}
-                  fill="url(#trajectoryGrad)" opacity="0.3"
-                />
-                {/* Line */}
-                <polyline points={points.join(" ")} fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                {/* Dots with hover */}
-                {pts.map((p: any, i: number) => {
-                  const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
-                  const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
-                  const date = p.created_at ? new Date(p.created_at).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-                  const isLast = i === pts.length - 1;
-                  return (
-                    <g key={i} style={{ cursor: "pointer" }}>
-                      {/* Larger invisible hit area */}
-                      <circle cx={x} cy={y} r={10} fill="transparent">
-                        <title>{`${p.score}% — ${date}`}</title>
-                      </circle>
-                      {/* Visible dot */}
-                      <circle cx={x} cy={y} r={isLast ? 4 : 2.5} fill={isLast ? "#00E5A0" : "#059669"} stroke="#fff" strokeWidth={isLast ? 2 : 0} />
-                    </g>
-                  );
-                })}
-                <defs>
-                  <linearGradient id="trajectoryGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00E5A0" />
-                    <stop offset="100%" stopColor="#00E5A0" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-              </svg>
+              <div style={{ position: "relative" }}
+                onMouseLeave={() => {
+                  const tip = document.getElementById("traj-tip");
+                  if (tip) tip.style.display = "none";
+                }}
+              >
+                <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 80, display: "block" }}>
+                  {/* 85% threshold line */}
+                  <line x1={pad} y1={line85y} x2={w - pad} y2={line85y} stroke="#059669" strokeWidth="1" strokeDasharray="4 3" opacity="0.4" />
+                  <text x={w - pad - 2} y={line85y - 3} textAnchor="end" fontSize="7" fill="#059669" opacity="0.6">85%</text>
+                  {/* Area fill */}
+                  <polygon
+                    points={`${pad},${h - pad} ${points.join(" ")} ${w - 2 * pad + pad},${h - pad}`}
+                    fill="url(#trajectoryGrad)" opacity="0.3"
+                  />
+                  {/* Line */}
+                  <polyline points={points.join(" ")} fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  {/* Dots with hover */}
+                  {pts.map((p: any, i: number) => {
+                    const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
+                    const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
+                    const isLast = i === pts.length - 1;
+                    return (
+                      <g key={i}
+                        onMouseEnter={(e) => {
+                          const tip = document.getElementById("traj-tip");
+                          if (!tip) return;
+                          const date = p.created_at ? new Date(p.created_at).toLocaleDateString([], { month: "short", day: "numeric" }) : "";
+                          const time = p.created_at ? new Date(p.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+                          tip.textContent = `${p.score}% · ${date} ${time}`;
+                          tip.style.display = "block";
+                          const svg = (e.target as SVGElement).closest("svg");
+                          if (!svg) return;
+                          const rect = svg.getBoundingClientRect();
+                          const pctX = x / w;
+                          const pctY = y / h;
+                          tip.style.left = `${pctX * rect.width}px`;
+                          tip.style.top = `${pctY * rect.height - 28}px`;
+                        }}
+                        onMouseLeave={() => {
+                          const tip = document.getElementById("traj-tip");
+                          if (tip) tip.style.display = "none";
+                        }}
+                        style={{ cursor: "default" }}
+                      >
+                        <circle cx={x} cy={y} r={12} fill="transparent" />
+                        <circle cx={x} cy={y} r={isLast ? 4 : 2.5} fill={isLast ? "#00E5A0" : "#059669"} stroke="#fff" strokeWidth={isLast ? 2 : 0} />
+                      </g>
+                    );
+                  })}
+                  <defs>
+                    <linearGradient id="trajectoryGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#00E5A0" />
+                      <stop offset="100%" stopColor="#00E5A0" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                {/* Tooltip */}
+                <div id="traj-tip" style={{
+                  display: "none", position: "absolute", pointerEvents: "none",
+                  background: "#1a1a2e", color: "#fff", fontSize: 10, fontWeight: 600,
+                  padding: "3px 8px", borderRadius: 5, whiteSpace: "nowrap",
+                  transform: "translateX(-50%)", boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                }} />
+              </div>
             </div>
           );
         })()}
