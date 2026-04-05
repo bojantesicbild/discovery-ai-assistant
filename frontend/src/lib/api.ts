@@ -39,6 +39,7 @@ export async function createProject(data: {
   name: string;
   client_name: string;
   project_type: string;
+  repo_url?: string;
 }) {
   return fetchAPI("/api/projects", { method: "POST", body: JSON.stringify(data) });
 }
@@ -146,6 +147,18 @@ export async function getDashboard(projectId: string) {
 
 export async function getReadiness(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/readiness`);
+}
+
+export async function getReadinessTrajectory(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/readiness/trajectory`);
+}
+
+export async function getLatestDigest(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/digests/latest`);
+}
+
+export async function generateDigest(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/digests/generate`, { method: "POST" });
 }
 
 // Chat (SSE streaming)
@@ -271,4 +284,25 @@ export function generateHandoffStream(
       }
     }
   }).catch((err) => onError?.(err.message));
+}
+
+// Repos
+export async function addRepo(projectId: string, data: { name: string; url: string; provider?: string; access_token?: string; default_branch?: string }) {
+  return fetchAPI(`/api/projects/${projectId}/repos`, { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function listRepos(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/repos`);
+}
+
+export async function removeRepo(projectId: string, repoId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  await fetch(`${API_URL}/api/projects/${projectId}/repos/${repoId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+}
+
+export async function getRepoPulls(projectId: string, repoId: string, state: string = "all") {
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/pulls?state=${state}`);
 }

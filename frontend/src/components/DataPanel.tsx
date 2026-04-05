@@ -5,7 +5,7 @@ import {
   getDashboard, listRequirements, listContradictions, listDocuments,
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
-  getDocumentContent, getReadiness,
+  getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 
@@ -50,6 +50,19 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [showReadiness, setShowReadiness] = useState(false);
   const [readinessChecks, setReadinessChecks] = useState<any[]>([]);
+  const [trajectory, setTrajectory] = useState<any>(null);
+
+  async function openReadinessPanel() {
+    try {
+      const [rData, tData] = await Promise.all([
+        getReadiness(projectId),
+        getReadinessTrajectory(projectId).catch(() => null),
+      ]);
+      setReadinessChecks(rData.breakdown?.checks || []);
+      setTrajectory(tData);
+    } catch {}
+    setShowReadiness(true);
+  }
 
   // React to external tab/highlight changes
   useEffect(() => {
@@ -132,6 +145,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           onClose={() => setShowReadiness(false)}
           score={score}
           checks={readinessChecks}
+          trajectory={trajectory}
           requirements={requirements}
           gaps={gaps}
           contradictions={contradictions}
@@ -145,13 +159,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
       {/* Header with readiness ring */}
       <div className="dp-header" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="dp-readiness" style={{ flex: 1, cursor: "pointer" }} onClick={async () => {
-          try {
-            const data = await getReadiness(projectId);
-            setReadinessChecks(data.breakdown?.checks || []);
-          } catch {}
-          setShowReadiness(true);
-        }}>
+        <div className="dp-readiness" style={{ flex: 1, cursor: "pointer" }} onClick={openReadinessPanel}>
           <div className="dp-rb-ring">
             <svg viewBox="0 0 36 36">
               <circle cx="18" cy="18" r="15" className="bg" />
@@ -167,13 +175,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </div>
           </div>
         </div>
-        <button onClick={async () => {
-          try {
-            const data = await getReadiness(projectId);
-            setReadinessChecks(data.breakdown?.checks || []);
-          } catch {}
-          setShowReadiness(true);
-        }} style={{
+        <button onClick={openReadinessPanel} style={{
           fontSize: 10, fontWeight: 600, color: "var(--gray-500)", display: "flex", alignItems: "center", gap: 4,
           padding: "4px 10px", borderRadius: 6, border: "1px solid var(--gray-200)",
           background: "var(--white)", cursor: "pointer", fontFamily: "var(--font)", flexShrink: 0,
@@ -699,8 +701,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
 /* ── Readiness Panel ── */
 
-function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradictions, constraints }: {
-  onClose: () => void; score: number; checks: any[];
+function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps, contradictions, constraints }: {
+  onClose: () => void; score: number; checks: any[]; trajectory: any;
   requirements: any[]; gaps: any[]; contradictions: any[]; constraints: any[];
 }) {
   const passed = checks.filter((c: any) => c.status === "covered").length;
@@ -824,6 +826,75 @@ function ReadinessPanel({ onClose, score, checks, requirements, gaps, contradict
             </div>
           ))}
         </div>
+
+        {/* Trajectory chart */}
+        {trajectory && trajectory.history && trajectory.history.length >= 2 && (() => {
+          const pts = trajectory.history;
+          const scores = pts.map((p: any) => p.score);
+          const minS = Math.min(...scores, 0);
+          const maxS = Math.max(...scores, 100);
+          const range = maxS - minS || 1;
+          const w = 320, h = 80, pad = 4;
+          const points = pts.map((p: any, i: number) => {
+            const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
+            const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
+            return `${x},${y}`;
+          });
+          const line85y = h - pad - ((85 - minS) / range) * (h - 2 * pad);
+
+          return (
+            <div style={{
+              marginBottom: 16, padding: "12px 14px", borderRadius: 12,
+              background: "#fff", border: "1px solid var(--gray-100)",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Readiness Trajectory
+                </div>
+                <div style={{ display: "flex", gap: 10, fontSize: 10 }}>
+                  {trajectory.velocity_per_day !== null && (
+                    <span style={{ color: trajectory.velocity_per_day > 0 ? "#059669" : trajectory.velocity_per_day < 0 ? "#ef4444" : "var(--gray-500)", fontWeight: 700 }}>
+                      {trajectory.velocity_per_day > 0 ? "+" : ""}{trajectory.velocity_per_day}%/day
+                    </span>
+                  )}
+                  {trajectory.eta_days !== null && trajectory.eta_days > 0 && (
+                    <span style={{ color: "var(--gray-500)" }}>
+                      ETA: ~{trajectory.eta_days}d ({trajectory.eta_date})
+                    </span>
+                  )}
+                  {trajectory.trend === "ready" && (
+                    <span style={{ color: "#059669", fontWeight: 700 }}>Ready!</span>
+                  )}
+                </div>
+              </div>
+              <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 80 }}>
+                {/* 85% threshold line */}
+                <line x1={pad} y1={line85y} x2={w - pad} y2={line85y} stroke="#059669" strokeWidth="1" strokeDasharray="4 3" opacity="0.4" />
+                <text x={w - pad - 2} y={line85y - 3} textAnchor="end" fontSize="7" fill="#059669" opacity="0.6">85%</text>
+                {/* Area fill */}
+                <polygon
+                  points={`${pad},${h - pad} ${points.join(" ")} ${w - 2 * pad + pad},${h - pad}`}
+                  fill="url(#trajectoryGrad)" opacity="0.3"
+                />
+                {/* Line */}
+                <polyline points={points.join(" ")} fill="none" stroke="#00E5A0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                {/* Dots */}
+                {pts.map((p: any, i: number) => {
+                  const x = pad + (i / (pts.length - 1)) * (w - 2 * pad);
+                  const y = h - pad - ((p.score - minS) / range) * (h - 2 * pad);
+                  return <circle key={i} cx={x} cy={y} r={i === pts.length - 1 ? 3.5 : 2} fill={i === pts.length - 1 ? "#00E5A0" : "#059669"} />;
+                })}
+                <defs>
+                  <linearGradient id="trajectoryGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00E5A0" />
+                    <stop offset="100%" stopColor="#00E5A0" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+          );
+        })()}
 
         {/* Checklist header */}
         <div style={{

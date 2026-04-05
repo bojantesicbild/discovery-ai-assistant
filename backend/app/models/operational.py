@@ -39,6 +39,14 @@ class LLMCall(Base, IdMixin, TimestampMixin):
     retries: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class Digest(Base, IdMixin, TimestampMixin):
+    __tablename__ = "digests"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    digest_type: Mapped[str] = mapped_column(String, default="morning")
+    data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
 class PipelineCheckpoint(Base, IdMixin, TimestampMixin):
     __tablename__ = "pipeline_checkpoints"
 

@@ -150,6 +150,79 @@ async def get_readiness_history(
     }
 
 
+@router.get("/readiness/trajectory")
+async def get_readiness_trajectory(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get readiness trajectory — velocity, ETA to 85%, trend."""
+    from app.services.evaluator import compute_trajectory
+
+    result = await db.execute(
+        select(ReadinessHistory)
+        .where(ReadinessHistory.project_id == project_id)
+        .order_by(ReadinessHistory.created_at.asc())
+    )
+    rows = result.scalars().all()
+    history = [
+        {"score": r.score, "created_at": r.created_at.isoformat() if r.created_at else None}
+        for r in rows
+    ]
+    return compute_trajectory(history)
+
+
+@router.get("/digests")
+async def list_digests(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get recent digests."""
+    from app.models.operational import Digest
+    result = await db.execute(
+        select(Digest)
+        .where(Digest.project_id == project_id)
+        .order_by(Digest.created_at.desc())
+        .limit(7)
+    )
+    return {"digests": [
+        {"id": str(d.id), "type": d.digest_type, "data": d.data, "created_at": d.created_at.isoformat()}
+        for d in result.scalars().all()
+    ]}
+
+
+@router.get("/digests/latest")
+async def get_latest_digest(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get the most recent digest."""
+    from app.models.operational import Digest
+    result = await db.execute(
+        select(Digest)
+        .where(Digest.project_id == project_id)
+        .order_by(Digest.created_at.desc())
+        .limit(1)
+    )
+    d = result.scalar_one_or_none()
+    if not d:
+        return {"digest": None}
+    return {"digest": {"id": str(d.id), "type": d.digest_type, "data": d.data, "created_at": d.created_at.isoformat()}}
+
+
+@router.post("/digests/generate")
+async def trigger_digest(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Manually generate a digest."""
+    from app.pipeline.digest import generate_digest
+    data = await generate_digest(project_id)
+    return {"status": "generated", "data": data}
+
+
 @router.post("/gaps")
 async def trigger_gap_analysis(
     project_id: uuid.UUID,

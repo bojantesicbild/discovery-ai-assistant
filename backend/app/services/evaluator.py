@@ -212,3 +212,73 @@ class ControlPointEvaluator:
 
 
 evaluator = ControlPointEvaluator()
+
+
+def compute_trajectory(history: list[dict]) -> dict:
+    """Compute readiness velocity and ETA from history points.
+
+    Args:
+        history: list of {"score": float, "created_at": str (ISO)} sorted by time ASC
+
+    Returns:
+        {velocity_per_day, eta_days, eta_date, trend, history}
+    """
+    from datetime import datetime, timedelta
+
+    if len(history) < 2:
+        return {
+            "current_score": history[-1]["score"] if history else 0,
+            "velocity_per_day": None,
+            "eta_days": None,
+            "eta_date": None,
+            "trend": "insufficient_data",
+            "history": history,
+        }
+
+    current = history[-1]["score"]
+
+    # Simple least-squares slope over all points
+    # x = days since first point, y = score
+    t0 = datetime.fromisoformat(history[0]["created_at"].replace("Z", "+00:00"))
+    xs = []
+    ys = []
+    for h in history:
+        t = datetime.fromisoformat(h["created_at"].replace("Z", "+00:00"))
+        xs.append((t - t0).total_seconds() / 86400)  # days
+        ys.append(h["score"])
+
+    n = len(xs)
+    sum_x = sum(xs)
+    sum_y = sum(ys)
+    sum_xy = sum(x * y for x, y in zip(xs, ys))
+    sum_xx = sum(x * x for x in xs)
+
+    denom = n * sum_xx - sum_x * sum_x
+    if denom == 0:
+        slope = 0
+    else:
+        slope = (n * sum_xy - sum_x * sum_y) / denom
+
+    velocity = round(slope, 2)
+
+    if current >= 85:
+        eta_days = 0
+        eta_date = datetime.now().strftime("%Y-%m-%d")
+        trend = "ready"
+    elif velocity <= 0.1:
+        eta_days = None
+        eta_date = None
+        trend = "stalled" if velocity >= -0.1 else "declining"
+    else:
+        eta_days = int((85 - current) / velocity) + 1
+        eta_date = (datetime.now() + timedelta(days=eta_days)).strftime("%Y-%m-%d")
+        trend = "improving"
+
+    return {
+        "current_score": current,
+        "velocity_per_day": velocity,
+        "eta_days": eta_days,
+        "eta_date": eta_date,
+        "trend": trend,
+        "history": history,
+    }
