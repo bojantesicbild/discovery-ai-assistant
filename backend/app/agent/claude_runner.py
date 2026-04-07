@@ -31,11 +31,55 @@ MCP_SERVER_PATH = ROOT_DIR / "mcp-server" / "db_server.py"
 MCP_VENV_PYTHON = ROOT_DIR / "mcp-server" / ".venv" / "bin" / "python"
 
 
+def _resolve_env_template(
+    template: dict[str, str],
+    *,
+    config: dict,
+    account: dict,
+    env: dict,
+) -> dict[str, str]:
+    """Resolve {{config.X}}, {{account.X}}, {{env.X}} placeholders in env_template values."""
+    import re
+    resolved: dict[str, str] = {}
+    pattern = re.compile(r"\{\{(config|account|env)\.([a-zA-Z0-9_]+)\}\}")
+
+    def repl(match: "re.Match") -> str:
+        scope, key = match.group(1), match.group(2)
+        if scope == "config":
+            return str(config.get(key, ""))
+        if scope == "account":
+            return str(account.get(key, ""))
+        if scope == "env":
+            return str(env.get(key, ""))
+        return ""
+
+    for k, v in template.items():
+        resolved_value = pattern.sub(repl, v)
+        # Only include if non-empty (MCP servers break on empty required env vars)
+        if resolved_value:
+            resolved[k] = resolved_value
+    return resolved
+
+
 class ClaudeCodeRunner:
     """Runs Claude Code per-project with full assistants context and native sessions."""
 
     def __init__(self):
         self._sessions: dict[str, str] = {}  # "project:user" -> session_id
+        # Per-project lock — prevents concurrent --resume runs against the same
+        # shared session (web user typing while Slack inbound is processing).
+        self._project_locks: dict[uuid.UUID, asyncio.Lock] = {}
+
+    def get_project_lock(self, project_id: uuid.UUID) -> asyncio.Lock:
+        lock = self._project_locks.get(project_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._project_locks[project_id] = lock
+        return lock
+
+    def is_project_busy(self, project_id: uuid.UUID) -> bool:
+        lock = self._project_locks.get(project_id)
+        return lock.locked() if lock else False
 
     def _session_key(self, project_id: uuid.UUID, user_id: uuid.UUID) -> str:
         return f"{project_id}:{user_id}"
@@ -198,6 +242,99 @@ class ClaudeCodeRunner:
         mcp_path = project_dir / ".mcp.json"
         mcp_path.write_text(json.dumps(config, indent=2))
 
+    async def refresh_mcp_config(self, project_id: uuid.UUID):
+        """Rewrite .mcp.json merging the base discovery server with any enabled
+        project integrations (Gmail, Drive, Slack, …). Called before each run."""
+        from sqlalchemy import select
+        from app.db.session import async_session
+        from app.models.operational import ProjectIntegration
+        from app.services.connector_catalog import get_connector
+        from app.services.secrets import decrypt_config
+        from app.config import settings as app_settings
+
+        project_dir = self.get_project_dir(project_id)
+        python_cmd = str(MCP_VENV_PYTHON) if MCP_VENV_PYTHON.exists() else "python3"
+
+        servers: dict = {
+            "discovery": {
+                "command": python_cmd,
+                "args": [str(MCP_SERVER_PATH)],
+                "env": {
+                    "DATABASE_URL": os.environ.get(
+                        "DATABASE_URL",
+                        "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db",
+                    ),
+                    "DISCOVERY_PROJECT_ID": str(project_id),
+                },
+            }
+        }
+
+        # Load enabled integrations for this project
+        try:
+            async with async_session() as db:
+                result = await db.execute(
+                    select(ProjectIntegration).where(
+                        ProjectIntegration.project_id == project_id,
+                        ProjectIntegration.status == "active",
+                    )
+                )
+                integrations = result.scalars().all()
+        except Exception as e:
+            log.warning("Could not load integrations for MCP config", error=str(e))
+            integrations = []
+
+        # Shared account cache: {"google": {"refresh_token": "..."}}
+        shared_accounts: dict[str, dict] = {}
+        for row in integrations:
+            try:
+                cfg = decrypt_config(row.config_encrypted)
+            except Exception:
+                log.error("Failed to decrypt integration", connector=row.connector_id)
+                continue
+            connector = get_connector(row.connector_id)
+            if not connector:
+                continue
+            shared_key = connector["auth"].get("shared_account_key")
+            if shared_key and shared_key not in shared_accounts:
+                shared_accounts[shared_key] = cfg
+
+        # Build one MCP entry per integration
+        for row in integrations:
+            connector = get_connector(row.connector_id)
+            if not connector:
+                continue
+            try:
+                cfg = decrypt_config(row.config_encrypted)
+            except Exception:
+                continue
+
+            shared_key = connector["auth"].get("shared_account_key")
+            account = shared_accounts.get(shared_key, {}) if shared_key else {}
+
+            env = _resolve_env_template(
+                connector["mcp"]["env_template"],
+                config=cfg,
+                account=account,
+                env={
+                    "GOOGLE_OAUTH_CLIENT_ID": app_settings.google_oauth_client_id,
+                    "GOOGLE_OAUTH_CLIENT_SECRET": app_settings.google_oauth_client_secret,
+                },
+            )
+
+            servers[row.connector_id] = {
+                "command": connector["mcp"]["command"],
+                "args": list(connector["mcp"]["args"]),
+                "env": env,
+            }
+
+        mcp_path = project_dir / ".mcp.json"
+        mcp_path.write_text(json.dumps({"mcpServers": servers}, indent=2))
+        log.info(
+            "MCP config refreshed",
+            project=str(project_id)[:8],
+            servers=list(servers.keys()),
+        )
+
     async def run_stream(
         self,
         project_id: uuid.UUID,
@@ -211,6 +348,12 @@ class ClaudeCodeRunner:
         """Stream Claude Code response. Resumes session if one exists."""
 
         project_dir = self.get_project_dir(project_id)
+        # Refresh .mcp.json with enabled integrations (Gmail, Slack, ...)
+        try:
+            await self.refresh_mcp_config(project_id)
+        except Exception as e:
+            log.warning("refresh_mcp_config failed, continuing with existing config", error=str(e))
+
         session_key = self._session_key(project_id, user_id)
         session_id = self._sessions.get(session_key)
 
@@ -331,14 +474,33 @@ class ClaudeCodeRunner:
                     }
                     continue
 
-                # Rate limit warning
+                # Rate limit telemetry from Claude Code.
+                # `allowed` and `allowed_warning` are INFORMATIONAL — Claude Code
+                # emits one for every API call as telemetry, NOT as an error.
+                # Only `warning` and `exceeded` indicate a real problem the user
+                # needs to know about.
                 if event_type == "rate_limit_event":
                     info = event.get("rate_limit_info", {})
-                    if info.get("status") != "allowed_warning":
+                    status = info.get("status")
+                    if status in ("allowed", "allowed_warning"):
+                        # Informational only — log at debug, don't surface
+                        log.debug(
+                            "rate_limit telemetry",
+                            status=status,
+                            resets_at=info.get("resetsAt"),
+                        )
+                    elif status in ("warning", "exceeded"):
                         yield {
                             "type": "error",
-                            "content": f"Rate limit: {info.get('status')}. Resets at {info.get('resetsAt')}",
+                            "content": f"Rate limit: {status}. Resets at {info.get('resetsAt')}",
                         }
+                    else:
+                        # Unknown status — log it but don't fail the run
+                        log.warning(
+                            "Unknown rate_limit_event status",
+                            status=status,
+                            info=info,
+                        )
                     continue
 
             await process.wait()

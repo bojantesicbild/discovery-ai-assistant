@@ -10,6 +10,7 @@ from app.models.operational import (
     Conversation, ActivityLog, LLMCall,
     PipelineCheckpoint, Learning, PipelineSync,
 )
+from app.models.slack import SlackChannelLink, SlackThreadSession
 
 __all__ = [
     "User", "Project", "ProjectMember", "Document",
@@ -18,4 +19,5 @@ __all__ = [
     "ControlPointTemplate", "ReadinessHistory",
     "Conversation", "ActivityLog", "LLMCall",
     "PipelineCheckpoint", "Learning", "PipelineSync",
+    "SlackChannelLink", "SlackThreadSession",
 ]

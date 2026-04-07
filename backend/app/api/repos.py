@@ -73,6 +73,7 @@ async def get_repo_pulls(
     project_id: uuid.UUID,
     repo_id: uuid.UUID,
     state: str = "all",
+    base: str | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -92,11 +93,90 @@ async def get_repo_pulls(
 
     owner, repo_name = parsed
     try:
-        pulls = await github.get_pulls(owner, repo_name, token=repo.access_token, state=state)
+        pulls = await github.get_pulls(owner, repo_name, token=repo.access_token, state=state, base=base)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"GitHub API error: {str(e)}")
 
     return {"pulls": pulls, "repo_name": f"{owner}/{repo_name}"}
+
+
+@router.get("/{repo_id}/commits")
+async def get_repo_commits(
+    project_id: uuid.UUID,
+    repo_id: uuid.UUID,
+    sha: str | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ProjectRepo).where(
+            ProjectRepo.id == repo_id,
+            ProjectRepo.project_id == project_id,
+        )
+    )
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+
+    parsed = github.parse_github_url(repo.url)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Could not parse GitHub URL")
+
+    owner, repo_name = parsed
+    try:
+        commits = await github.get_commits(owner, repo_name, token=repo.access_token, sha=sha)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {str(e)}")
+
+    return {"commits": commits}
+
+
+@router.get("/{repo_id}/info")
+async def get_repo_info_endpoint(
+    project_id: uuid.UUID,
+    repo_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ProjectRepo).where(ProjectRepo.id == repo_id, ProjectRepo.project_id == project_id)
+    )
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    parsed = github.parse_github_url(repo.url)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Could not parse GitHub URL")
+    owner, repo_name = parsed
+    try:
+        info = await github.get_repo_info(owner, repo_name, token=repo.access_token)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {str(e)}")
+    return info
+
+
+@router.get("/{repo_id}/workflows")
+async def get_repo_workflows(
+    project_id: uuid.UUID,
+    repo_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(ProjectRepo).where(ProjectRepo.id == repo_id, ProjectRepo.project_id == project_id)
+    )
+    repo = result.scalar_one_or_none()
+    if not repo:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    parsed = github.parse_github_url(repo.url)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="Could not parse GitHub URL")
+    owner, repo_name = parsed
+    try:
+        runs = await github.get_workflow_runs(owner, repo_name, token=repo.access_token)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"GitHub API error: {str(e)}")
+    return {"runs": runs}
 
 
 @router.get("/{repo_id}/branches")

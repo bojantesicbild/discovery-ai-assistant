@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, Integer, Text, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import String, Integer, Text, Boolean, ForeignKey, UniqueConstraint, LargeBinary, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -8,10 +9,12 @@ from app.db.base import Base, IdMixin, TimestampMixin
 
 class Conversation(Base, IdMixin, TimestampMixin):
     __tablename__ = "conversations"
-    __table_args__ = (UniqueConstraint("project_id", "user_id"),)
+    # user_id is nullable: rows with user_id IS NULL are project-shared
+    # conversations (one per project) used by both web chat and Slack inbound.
+    # Uniqueness is enforced via a partial index in migration 006.
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     messages: Mapped[list] = mapped_column(JSONB, default=list)
 
 
@@ -78,6 +81,22 @@ class Notification(Base, IdMixin, TimestampMixin):
     body: Mapped[str] = mapped_column(Text, nullable=False)
     read: Mapped[bool] = mapped_column(Boolean, default=False)
     data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class ProjectIntegration(Base, IdMixin, TimestampMixin):
+    """An enabled connector (MCP server) for a project. Secrets are Fernet-encrypted."""
+    __tablename__ = "project_integrations"
+    __table_args__ = (UniqueConstraint("project_id", "connector_id"),)
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    connector_id: Mapped[str] = mapped_column(String, nullable=False)  # "gmail", "google_drive", "slack", ...
+    # Encrypted config blob (Fernet). Contains tokens, refresh_tokens, api_keys, etc.
+    config_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # Non-secret metadata shown in UI (team_id, email, workspace_name, scopes, ...)
+    metadata_public: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String, default="active")  # active | error | pending_auth
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PipelineSync(Base, IdMixin, TimestampMixin):

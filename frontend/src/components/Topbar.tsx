@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { uploadDocument, listProjects, searchProject, getNotifications, getNotificationCount, markNotificationRead } from "@/lib/api";
+import DirectoryModal from "./DirectoryModal";
 
 interface Project {
   id: string;
@@ -62,6 +63,16 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+
+  // Auto-open directory when returning from OAuth callback
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("integration_connected") || url.searchParams.get("integration_error")) {
+      setDirectoryOpen(true);
+    }
+  }, []);
 
   // Poll notification count
   useEffect(() => {
@@ -363,6 +374,19 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
           )}
         </div>
 
+        <button
+          className="icon-btn"
+          title="Directory — Connectors, Skills, Plugins"
+          onClick={() => setDirectoryOpen(true)}
+        >
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+          </svg>
+        </button>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -385,6 +409,12 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
           {uploading ? "Uploading..." : "Upload Document"}
         </button>
       </div>
+
+      <DirectoryModal
+        projectId={projectId}
+        open={directoryOpen}
+        onClose={() => setDirectoryOpen(false)}
+      />
     </header>
   );
 }

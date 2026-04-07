@@ -6,8 +6,11 @@ import {
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
+  listIntegrations,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
+import GmailImportPanel from "./GmailImportPanel";
+import DriveImportPanel from "./DriveImportPanel";
 
 interface DataPanelProps {
   projectId: string;
@@ -41,6 +44,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [requirements, setRequirements] = useState<any[]>([]);
   const [contradictions, setContradictions] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
+  const [gmailOpen, setGmailOpen] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
   const [gaps, setGaps] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
@@ -93,6 +100,16 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, [projectId, refreshKey]);
+
+  useEffect(() => {
+    listIntegrations(projectId)
+      .then((d) => {
+        const ints = d.integrations || [];
+        setGmailConnected(ints.some((i) => i.connector_id === "gmail" && i.status === "active"));
+        setDriveConnected(ints.some((i) => i.connector_id === "google_drive" && i.status === "active"));
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   async function loadData() {
     try {
@@ -577,6 +594,54 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── DOCUMENTS ── */}
         {activeTab === "docs" && (
           <div className="dp-tab-content active">
+            {(gmailConnected || driveConnected) && (
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+                {gmailConnected && (
+                  <button
+                    onClick={() => setGmailOpen(true)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "6px 12px", borderRadius: 8,
+                      border: "1px solid var(--gray-200)", background: "#fff",
+                      color: "var(--dark)", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "var(--font)",
+                    }}
+                  >
+                    <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>G</span>
+                    Import from Gmail
+                  </button>
+                )}
+                {driveConnected && (
+                  <button
+                    onClick={() => setDriveOpen(true)}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "6px 12px", borderRadius: 8,
+                      border: "1px solid var(--gray-200)", background: "#fff",
+                      color: "var(--dark)", fontSize: 12, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "var(--font)",
+                    }}
+                  >
+                    <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>D</span>
+                    Import from Drive
+                  </button>
+                )}
+              </div>
+            )}
+            {gmailOpen && (
+              <GmailImportPanel
+                projectId={projectId}
+                onClose={() => setGmailOpen(false)}
+                onImported={() => loadData()}
+              />
+            )}
+            {driveOpen && (
+              <DriveImportPanel
+                projectId={projectId}
+                onClose={() => setDriveOpen(false)}
+                onImported={() => loadData()}
+              />
+            )}
             {documents.length === 0 ? (
               <EmptyState icon="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" text='No documents uploaded yet. Click "Upload Document" to get started.' />
             ) : (
@@ -594,7 +659,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 <tbody>
                   {documents.map((doc: any) => (
                     <tr key={doc.id} onClick={() => openDocument(doc)} className="clickable-row">
-                      <td style={{ fontWeight: 600 }}>{doc.filename}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                          {doc.filename}
+                          <SourceBadge source={doc.classification?.source} autoSynced={doc.classification?.auto_synced} />
+                        </span>
+                      </td>
                       <td><span className="type-badge">{doc.file_type?.toUpperCase()}</span></td>
                       <td><StatusPill status={doc.pipeline_stage === "completed" ? "confirmed" : doc.pipeline_stage === "failed" ? "dropped" : "pending"} label={doc.pipeline_stage} /></td>
                       <td>
@@ -1914,5 +1984,34 @@ function MeetingPrepTab({ contradictions, gaps, requirements, constraints, dashb
         )}
       </div>
     </div>
+  );
+}
+
+function SourceBadge({ source, autoSynced }: { source?: string; autoSynced?: boolean }) {
+  if (!source || source === "upload") return null;
+  const meta: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    gmail: { label: "Gmail", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+    google_drive: { label: "Drive", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+    slack: { label: "Slack", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+  };
+  const m = meta[source] || { label: source, color: "#64748b", bg: "#f1f5f9", border: "#e2e8f0" };
+  return (
+    <span
+      title={autoSynced ? `Auto-synced from ${m.label}` : `Imported from ${m.label}`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
+        background: m.bg, color: m.color, border: `1px solid ${m.border}`,
+        textTransform: "uppercase", letterSpacing: 0.4,
+      }}
+    >
+      {autoSynced && (
+        <svg viewBox="0 0 24 24" style={{ width: 9, height: 9, fill: "none", stroke: "currentColor", strokeWidth: 3 }}>
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M3.51 9a9 9 0 0114.85-3.36L23 10" />
+        </svg>
+      )}
+      {m.label}
+    </span>
   );
 }

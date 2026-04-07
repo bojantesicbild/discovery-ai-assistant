@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { listDocuments, uploadDocument } from "@/lib/api";
+import { listDocuments, uploadDocument, listIntegrations } from "@/lib/api";
+import GmailImportPanel from "@/components/GmailImportPanel";
 
 interface Document {
   id: string;
@@ -22,11 +23,19 @@ export default function DocumentsPage() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [gmailOpen, setGmailOpen] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
 
   useEffect(() => {
     loadDocuments();
     const interval = setInterval(loadDocuments, 10000); // Poll for pipeline status
     return () => clearInterval(interval);
+  }, [projectId]);
+
+  useEffect(() => {
+    listIntegrations(projectId)
+      .then((d) => setGmailConnected((d.integrations || []).some((i) => i.connector_id === "gmail" && i.status === "active")))
+      .catch(() => {});
   }, [projectId]);
 
   async function loadDocuments() {
@@ -91,7 +100,26 @@ export default function DocumentsPage() {
     <div className="p-6 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Documents</h1>
-        <div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {gmailConnected && (
+            <button
+              onClick={() => setGmailOpen(true)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 8,
+                border: "1px solid var(--gray-200)", background: "#fff",
+                color: "var(--dark)", fontSize: 13, fontWeight: 600,
+                cursor: "pointer", fontFamily: "var(--font)",
+              }}
+            >
+              <span style={{
+                width: 18, height: 18, borderRadius: 5, background: "var(--green)",
+                color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 800,
+              }}>G</span>
+              Import from Gmail
+            </button>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -111,6 +139,14 @@ export default function DocumentsPage() {
           </label>
         </div>
       </div>
+
+      {gmailOpen && (
+        <GmailImportPanel
+          projectId={projectId}
+          onClose={() => setGmailOpen(false)}
+          onImported={() => loadDocuments()}
+        />
+      )}
 
       {loading ? (
         <div className="text-gray-400 py-10 text-center">Loading documents...</div>

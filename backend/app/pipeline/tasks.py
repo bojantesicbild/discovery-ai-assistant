@@ -123,6 +123,13 @@ async def process_document(ctx, document_id: str):
             await db.commit()
             log.info("Pipeline completed", document_id=str(doc.id), items=counts["total"], readiness=readiness["score"])
 
+            # Post a system notice in the project chat + notify members.
+            # Wrapped so a chat/notification failure can never break the pipeline.
+            try:
+                await _post_completion_notice(project_id, doc, counts, readiness)
+            except Exception as e:
+                log.warning("Failed to post completion notice", error=str(e))
+
         except Exception as e:
             doc.pipeline_stage = "failed"
             doc.pipeline_error = str(e)
@@ -999,3 +1006,86 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
              project_id=str(project_id),
              requirements=len(reqs_rows),
              path=str(discovery_dir))
+
+
+async def _post_completion_notice(project_id, doc: Document, counts: dict, readiness: dict):
+    """Post a structured system message in chat + create notifications when
+    a document finishes processing. The agent picks this up via context
+    injection on the user's next chat turn (chat.py)."""
+    from app.db.session import async_session
+    from app.services.conversation_store import append_system_message
+    from app.models.operational import Notification
+    from app.models.project import ProjectMember
+    from sqlalchemy import select
+
+    classification = doc.classification or {}
+    source = classification.get("source") or "upload"
+    auto_synced = classification.get("auto_synced", False)
+    source_label = {
+        "gmail": "Gmail",
+        "google_drive": "Drive",
+        "slack": "Slack",
+        "upload": "upload",
+    }.get(source, source)
+
+    total = counts.get("total", 0)
+    reqs = counts.get("requirements", 0)
+    gaps = counts.get("gaps", 0)
+    cons = counts.get("constraints", 0)
+    contradictions = counts.get("contradictions", 0)
+    score = readiness.get("score", 0)
+
+    # Compose the chat notice (visible to user + agent context)
+    parts = [f"**{doc.filename}** processed"]
+    if source != "upload":
+        parts.append(f"({source_label}{' · auto-sync' if auto_synced else ''})")
+    parts.append("—")
+    bits: list[str] = []
+    if reqs:
+        bits.append(f"{reqs} requirement{'s' if reqs != 1 else ''}")
+    if gaps:
+        bits.append(f"{gaps} gap{'s' if gaps != 1 else ''}")
+    if cons:
+        bits.append(f"{cons} constraint{'s' if cons != 1 else ''}")
+    if contradictions:
+        bits.append(f"{contradictions} contradiction{'s' if contradictions != 1 else ''}")
+    if not bits:
+        bits.append(f"{total} item{'s' if total != 1 else ''}")
+    parts.append(", ".join(bits))
+    parts.append(f"· readiness {score}%")
+    notice_text = " ".join(parts)
+
+    async with async_session() as db:
+        await append_system_message(
+            db, project_id, notice_text,
+            kind="document_ingested",
+            data={
+                "document_id": str(doc.id),
+                "filename": doc.filename,
+                "source": source,
+                "auto_synced": auto_synced,
+                "counts": counts,
+                "readiness": score,
+            },
+        )
+
+        # Notifications fan-out
+        result = await db.execute(
+            select(ProjectMember.user_id).where(ProjectMember.project_id == project_id)
+        )
+        for (uid,) in result.fetchall():
+            db.add(Notification(
+                project_id=project_id,
+                user_id=uid,
+                type="document_processed",
+                title=f"{doc.filename} processed",
+                body=notice_text,
+                data={
+                    "document_id": str(doc.id),
+                    "source": source,
+                    "auto_synced": auto_synced,
+                    "counts": counts,
+                    "readiness": score,
+                },
+            ))
+        await db.commit()

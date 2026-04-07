@@ -3,14 +3,37 @@
 import { useEffect, useRef, useState } from "react";
 import { chatStream, getConversation, clearConversation } from "@/lib/api";
 
+interface Segment {
+  type: "text" | "activity";
+  content?: string;
+  tools?: string[];
+  thinkingCount?: number;
+}
+
 interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   time?: string;
   toolCalls?: string[];
   thinkingCount?: number;
   activityLog?: { type: string; content?: string; tool?: string }[];
   stats?: { numTurns?: number; durationMs?: number };
+  segments?: Segment[];
+  // Source attribution — "web" or "slack" or "pipeline"
+  source?: "web" | "slack" | "pipeline";
+  slack_user_name?: string;
+  slack_user_id?: string;
+  slack_channel_id?: string;
+  slack_channel_name?: string;
+  slack_thread_ts?: string;
+  // System message metadata (pipeline notices)
+  kind?: string;
+  data?: Record<string, any>;
+  // Stable server id (uuid hex). Used for reconcile-by-id during polling.
+  // Falls back to `${role}:${timestamp}` for legacy server messages.
+  _key?: string;
+  // True while a Slack-triggered run is still in progress.
+  _processing?: boolean;
 }
 
 interface ActiveStatus {
@@ -21,6 +44,48 @@ interface ActiveStatus {
   thinkingCount: number;
   toolCount: number;
   startTime: number;
+}
+
+/** Reconstruct segments from activityLog for historical messages */
+function rebuildSegments(activityLog?: { type: string; content?: string; tool?: string }[]): Segment[] | undefined {
+  if (!activityLog || activityLog.length === 0) return undefined;
+
+  const segments: Segment[] = [];
+  let currentTools: string[] = [];
+  let currentThinking = 0;
+  let currentText = "";
+
+  const flushActivity = () => {
+    if (currentTools.length > 0 || currentThinking > 0) {
+      segments.push({ type: "activity", tools: [...currentTools], thinkingCount: currentThinking });
+      currentTools = [];
+      currentThinking = 0;
+    }
+  };
+
+  const flushText = () => {
+    if (currentText) {
+      segments.push({ type: "text", content: currentText });
+      currentText = "";
+    }
+  };
+
+  for (const entry of activityLog) {
+    if (entry.type === "tool") {
+      flushText();
+      currentTools.push(entry.tool || "unknown");
+    } else if (entry.type === "thinking") {
+      flushText();
+      currentThinking++;
+    } else if (entry.type === "text") {
+      flushActivity();
+      currentText += (currentText ? "\n" : "") + (entry.content || "");
+    }
+  }
+  flushActivity();
+  flushText();
+
+  return segments.length > 0 ? segments : undefined;
 }
 
 const WORKFLOWS = [
@@ -67,27 +132,147 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Map a raw server message into our local Message shape
+  const mapMessage = (m: any): Message => ({
+    role: m.role,
+    content: m.content,
+    toolCalls: m.toolCalls || [],
+    thinkingCount: m.thinkingCount || 0,
+    activityLog: m.activityLog || [],
+    stats: m.stats,
+    time: m.timestamp ? formatTimestamp(m.timestamp) : undefined,
+    segments: m.segments || rebuildSegments(m.activityLog),
+    source: m.source,
+    slack_user_name: m.slack_user_name,
+    slack_user_id: m.slack_user_id,
+    slack_channel_id: m.slack_channel_id,
+    slack_channel_name: m.slack_channel_name,
+    slack_thread_ts: m.slack_thread_ts,
+    kind: m.kind,
+    data: m.data,
+    // Prefer the stable server id (uuid hex). Fall back to timestamp-based
+    // key for legacy messages persisted before stable ids were introduced.
+    _key: m.id || (m.timestamp ? `${m.role}:${m.timestamp}` : undefined),
+    _processing: m._processing || false,
+  });
+
   // Load conversation history on mount
   useEffect(() => {
     getConversation(projectId)
       .then((data) => {
         if (data.messages?.length > 0) {
-          setMessages(data.messages.map((m: any) => ({
-            role: m.role,
-            content: m.content,
-            toolCalls: m.toolCalls || [],
-            thinkingCount: m.thinkingCount || 0,
-            activityLog: m.activityLog || [],
-            stats: m.stats,
-            time: m.timestamp ? formatTimestamp(m.timestamp) : undefined,
-          })));
-          // Load last stats from most recent assistant message
+          setMessages(data.messages.map(mapMessage));
           const lastAssistant = [...data.messages].reverse().find((m: any) => m.role === "assistant");
           if (lastAssistant?.stats) setLastStats(lastAssistant.stats);
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
+
+  // Poll for new messages from the shared conversation (Slack inbound).
+  // Only runs while the page is visible and we're NOT actively streaming
+  // a web-initiated turn (the SSE stream owns updates during that window).
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled || isStreaming || document.hidden) return;
+      try {
+        const data = await getConversation(projectId);
+        if (cancelled) return;
+        const incoming: Message[] = (data.messages || []).map(mapMessage);
+        setMessages((prev) => {
+          // Reconcile incoming server messages with local state.
+          // Two paths:
+          // 1. Existing message with same _key → UPDATE in place (this is
+          //    how progressive Slack updates grow on screen).
+          // 2. New message with unrecognized _key → try to upgrade a
+          //    keyless local message (from web SSE streaming), else append.
+          const next = [...prev];
+          const indexByKey = new Map<string, number>();
+          next.forEach((m, i) => { if (m._key) indexByKey.set(m._key, i); });
+          let mutated = false;
+
+          for (const msg of incoming) {
+            if (!msg._key) continue;
+
+            const existingIdx = indexByKey.get(msg._key);
+            if (existingIdx !== undefined) {
+              // Update existing entry — useful for progressive Slack runs
+              // where the server keeps writing fresh content/segments to
+              // the same id. Always replace so _processing flips and
+              // segments/tool_calls grow.
+              const local = next[existingIdx];
+              const updated: Message = {
+                ...local,
+                content: msg.content || local.content,
+                segments: msg.segments || local.segments,
+                toolCalls: msg.toolCalls?.length ? msg.toolCalls : local.toolCalls,
+                thinkingCount: msg.thinkingCount ?? local.thinkingCount,
+                activityLog: msg.activityLog || local.activityLog,
+                stats: msg.stats ?? local.stats,
+                _processing: msg._processing,
+              };
+              // Only mark mutated if something actually changed.
+              if (
+                updated.content !== local.content ||
+                updated._processing !== local._processing ||
+                (updated.segments?.length || 0) !== (local.segments?.length || 0) ||
+                (updated.toolCalls?.length || 0) !== (local.toolCalls?.length || 0)
+              ) {
+                next[existingIdx] = updated;
+                mutated = true;
+              }
+              continue;
+            }
+
+            // Try to upgrade a local keyless entry (web SSE stream) by
+            // matching on role + content overlap.
+            const localIdx = next.findIndex((m) => {
+              if (m._key) return false;
+              if (m.role !== msg.role) return false;
+              if (!m.content || !msg.content) return m.role === msg.role;
+              return (
+                m.content === msg.content ||
+                (m.content.length > 5 && msg.content.startsWith(m.content.slice(0, Math.min(40, m.content.length)))) ||
+                (msg.content.length > 5 && m.content.startsWith(msg.content.slice(0, Math.min(40, msg.content.length))))
+              );
+            });
+            if (localIdx >= 0) {
+              const local = next[localIdx];
+              next[localIdx] = {
+                ...local,
+                _key: msg._key,
+                source: msg.source ?? local.source,
+                slack_user_name: msg.slack_user_name ?? local.slack_user_name,
+                slack_user_id: msg.slack_user_id ?? local.slack_user_id,
+                slack_channel_id: msg.slack_channel_id ?? local.slack_channel_id,
+                slack_channel_name: msg.slack_channel_name ?? local.slack_channel_name,
+                slack_thread_ts: msg.slack_thread_ts ?? local.slack_thread_ts,
+                content: (msg.content && msg.content.length > (local.content?.length || 0)) ? msg.content : local.content,
+                _processing: msg._processing ?? local._processing,
+              };
+              indexByKey.set(msg._key, localIdx);
+              mutated = true;
+            } else {
+              indexByKey.set(msg._key, next.length);
+              next.push(msg);
+              mutated = true;
+            }
+          }
+          return mutated ? next : prev;
+        });
+      } catch {
+        /* ignore polling errors */
+      }
+    };
+    const interval = setInterval(tick, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, isStreaming]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -110,27 +295,71 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     let assistantContent = "";
     let toolCalls: string[] = [];
     let thinkingCount = 0;
-    setMessages((prev) => [...prev, { role: "assistant", content: "", time, toolCalls: [] }]);
+    // Segments track interleaved text/activity blocks
+    let segments: Segment[] = [];
+    let lastPhase: "text" | "activity" = "activity"; // start expecting activity (thinking)
+    let currentActivityTools: string[] = [];
+    let currentActivityThinking = 0;
+
+    const flushActivity = () => {
+      if (currentActivityTools.length > 0 || currentActivityThinking > 0) {
+        segments.push({ type: "activity", tools: [...currentActivityTools], thinkingCount: currentActivityThinking });
+        currentActivityTools = [];
+        currentActivityThinking = 0;
+      }
+    };
+
+    const updateMsg = () => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          role: "assistant", content: assistantContent, time,
+          toolCalls: [...toolCalls], thinkingCount,
+          segments: [...segments],
+        };
+        return updated;
+      });
+    };
+
+    setMessages((prev) => [...prev, { role: "assistant", content: "", time, toolCalls: [], segments: [] }]);
 
     chatStream(
       projectId,
       text,
       // onText
       (chunk) => {
+        // If we were in activity phase, flush activity segment before starting text
+        if (lastPhase === "activity") {
+          flushActivity();
+          // Start new text segment
+          segments.push({ type: "text", content: "" });
+        }
+        lastPhase = "text";
         assistantContent += chunk;
+        // Update current text segment
+        const lastSeg = segments[segments.length - 1];
+        if (lastSeg && lastSeg.type === "text") {
+          lastSeg.content = (lastSeg.content || "") + chunk;
+        }
         setStatus((s) => ({ ...s, phase: "writing", detail: undefined }));
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls, thinkingCount };
-          return updated;
-        });
+        updateMsg();
       },
       // onDone
       (stats) => {
+        // Flush any remaining activity
+        flushActivity();
         setIsStreaming(false);
         setStatus({ phase: "idle", thinkingCount: 0, toolCount: 0, startTime: 0 });
         if (stats) setLastStats(stats);
-        // Refresh data panel if write tools were called
+        // Final update with stats
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            ...updated[updated.length - 1],
+            stats, segments: [...segments],
+          };
+          return updated;
+        });
         if (toolCalls.some(t => t.includes("update") || t.includes("validate") || t.includes("resolve") || t.includes("Edit") || t.includes("Write"))) {
           onDataChanged?.();
         }
@@ -139,17 +368,20 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       (error) => {
         if (error.includes("Rate limit")) return;
         assistantContent += `\n\n[Error: ${error}]`;
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls, thinkingCount };
-          return updated;
-        });
+        flushActivity();
+        updateMsg();
         setIsStreaming(false);
         setStatus({ phase: "idle", thinkingCount: 0, toolCount: 0, startTime: 0 });
       },
       // onTool
       (tool, toolType) => {
+        // If we were in text phase, start new activity segment
+        if (lastPhase === "text") {
+          // text segment is already in segments array
+        }
+        lastPhase = "activity";
         toolCalls.push(tool);
+        currentActivityTools.push(tool);
         setStatus((s) => ({
           ...s,
           phase: "tool",
@@ -157,15 +389,16 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           toolType: toolType || "other",
           toolCount: s.toolCount + 1,
         }));
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: assistantContent, time, toolCalls: [...toolCalls], thinkingCount };
-          return updated;
-        });
+        updateMsg();
       },
       // onThinking
       () => {
+        if (lastPhase === "text") {
+          // switching from text to activity
+        }
+        lastPhase = "activity";
         thinkingCount++;
+        currentActivityThinking++;
         setStatus((s) => ({
           ...s,
           phase: "thinking",
@@ -248,14 +481,21 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           </div>
         )}
 
-        {messages.map((msg, i) => (
+        {messages.map((msg, i) => {
+          if (msg.role === "system") {
+            return <SystemNotice key={i} msg={msg} />;
+          }
+          return (
           <div key={i} className={`chat-msg ${msg.role === "user" ? "user" : "ai"}`}>
             <div className={`msg-avatar ${msg.role === "user" ? "user-avatar" : "ai-avatar"}`}>
               {msg.role === "user" ? "BT" : "AI"}
             </div>
             <div className="msg-body">
               <div className="msg-sender">
-                {msg.role === "user" ? "You" : "Discovery Assistant"}
+                {msg.role === "user"
+                  ? (msg.source === "slack" ? (msg.slack_user_name || "Slack user") : "You")
+                  : "Discovery Assistant"}
+                {msg.source === "slack" && <SlackBadge msg={msg} />}
                 {msg.role === "assistant" && msg.thinkingCount ? (
                   <span style={{
                     fontSize: 9, fontWeight: 600, padding: "1px 7px",
@@ -267,37 +507,72 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                 ) : null}
               </div>
               <div className="msg-bubble">
-                {/* Tool activity panel */}
-                {msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0 && (
-                  <ActivityPanel
-                    tools={msg.toolCalls}
-                    isLive={isStreaming && i === messages.length - 1}
-                    currentTool={isStreaming && i === messages.length - 1 ? status.detail : undefined}
-                    thinkingCount={msg.thinkingCount}
-                    activityLog={msg.activityLog}
-                  />
-                )}
-                {/* Message content */}
-                {msg.content ? (
-                  msg.role === "assistant" ? (
-                    <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
-                  ) : (
-                    msg.content
-                  )
-                ) : (isStreaming && i === messages.length - 1 ? (
-                  <ActiveIndicator status={status} />
-                ) : "")}
-                {/* Live status while streaming (shows under content when thinking/tool/retry) */}
-                {isStreaming && i === messages.length - 1 && msg.role === "assistant" && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
-                  <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
-                    <ActiveIndicator status={status} />
-                  </div>
+                {/* Interleaved segments: text blocks and activity blocks */}
+                {msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
+                  <>
+                    {msg.segments.map((seg, si) => (
+                      seg.type === "activity" ? (
+                        <InlineActivity
+                          key={si}
+                          tools={seg.tools || []}
+                          thinkingCount={seg.thinkingCount}
+                          isLive={false}
+                        />
+                      ) : (
+                        <div key={si} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
+                      )
+                    ))}
+                    {/* Live activity being built (not yet flushed to segments) */}
+                    {isStreaming && i === messages.length - 1 && status.phase !== "idle" && status.phase !== "writing" && (
+                      <div style={{ marginTop: 4 }}>
+                        <ActiveIndicator status={status} />
+                      </div>
+                    )}
+                    {/* Slack-triggered run still in progress (server-side) */}
+                    {msg._processing && !(isStreaming && i === messages.length - 1) && (
+                      <ProcessingIndicator source={msg.source} />
+                    )}
+                  </>
+                ) : msg.role === "assistant" ? (
+                  <>
+                    {/* Fallback for old messages without segments */}
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <ActivityPanel
+                        tools={msg.toolCalls}
+                        isLive={isStreaming && i === messages.length - 1}
+                        currentTool={isStreaming && i === messages.length - 1 ? status.detail : undefined}
+                        thinkingCount={msg.thinkingCount}
+                        activityLog={msg.activityLog}
+                      />
+                    )}
+                    {msg.content ? (
+                      <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
+                    ) : (isStreaming && i === messages.length - 1 ? (
+                      <ActiveIndicator status={status} />
+                    ) : msg._processing ? (
+                      <ProcessingIndicator source={msg.source} />
+                    ) : "")}
+                    {isStreaming && i === messages.length - 1 && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
+                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
+                        <ActiveIndicator status={status} />
+                      </div>
+                    )}
+                    {/* Slack-triggered run still in progress (server-side) */}
+                    {msg._processing && msg.content && !(isStreaming && i === messages.length - 1) && (
+                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
+                        <ProcessingIndicator source={msg.source} />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  msg.content
                 )}
               </div>
               {msg.time && <div className="msg-time">{msg.time}</div>}
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {/* Suggestions after AI response */}
         {messages.length > 0 && !isStreaming && messages[messages.length - 1]?.role === "assistant" && (
@@ -635,7 +910,192 @@ function inferToolType(tool: string): string {
 }
 
 
+/* ── Inline Activity (compact tool block between text segments) ── */
+
+function InlineActivity({ tools, thinkingCount, isLive }: {
+  tools: string[];
+  thinkingCount?: number;
+  isLive: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const groups = groupTools(tools);
+
+  return (
+    <div style={{
+      margin: "8px 0",
+      padding: "6px 10px",
+      background: "var(--gray-50, #f9fafb)",
+      borderRadius: 8,
+      borderLeft: "3px solid var(--gray-200, #e5e7eb)",
+      fontSize: 11,
+    }}>
+      {/* Summary row */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: "flex", alignItems: "center", gap: 6,
+          cursor: "pointer", userSelect: "none",
+        }}
+      >
+        <svg viewBox="0 0 24 24" style={{
+          width: 12, height: 12, stroke: "var(--gray-400)", fill: "none",
+          strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", flexShrink: 0,
+        }}>
+          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+        </svg>
+        <span style={{ color: "var(--gray-500)", fontWeight: 600 }}>
+          {tools.length} action{tools.length !== 1 ? "s" : ""}
+        </span>
+        {Object.entries(groups).map(([type, count]) => (
+          <span key={type} className={`activity-type-chip ${type}`} style={{ fontSize: 9 }}>
+            {count} {type}
+          </span>
+        ))}
+        {thinkingCount ? (
+          <span className="activity-type-chip thinking" style={{ fontSize: 9 }}>
+            {thinkingCount} thinking
+          </span>
+        ) : null}
+        <svg viewBox="0 0 24 24" style={{
+          width: 10, height: 10, stroke: "var(--gray-400)", fill: "none",
+          strokeWidth: 2.5, marginLeft: "auto", flexShrink: 0,
+          transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s",
+        }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+
+      {/* Expanded tool list */}
+      {expanded && (
+        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
+          {tools.map((tool, i) => {
+            const type = inferToolType(tool);
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "2px 0", fontSize: 10, color: "var(--gray-600)",
+              }}>
+                <div className={`activity-dot ${type}`} style={{ width: 5, height: 5 }} />
+                <span>{tool}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 /* ── Active Indicator (inside message bubble while streaming) ── */
+
+/* ── Processing indicator (for Slack-triggered runs in progress) ── */
+
+function ProcessingIndicator({ source }: { source?: string }) {
+  const label = source === "slack" ? "Agent thinking (via Slack)…" : "Agent thinking…";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#7c3aed", padding: "4px 0" }}>
+      <span style={{ display: "inline-flex", gap: 3 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0s" }} />
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0.3s" }} />
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0.6s" }} />
+      </span>
+      <span style={{ fontSize: 12 }}>{label}</span>
+    </div>
+  );
+}
+
+
+/* ── Slack source badge ── */
+
+function SystemNotice({ msg }: { msg: Message }) {
+  const data = msg.data || {};
+  const source = (data.source as string) || "upload";
+  const auto = data.auto_synced;
+  const sourceMeta: Record<string, { label: string; color: string; bg: string; border: string }> = {
+    gmail: { label: "Gmail", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+    google_drive: { label: "Drive", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
+    slack: { label: "Slack", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+    upload: { label: "Upload", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
+  };
+  const m = sourceMeta[source] || sourceMeta.upload;
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      margin: "10px auto", maxWidth: 560,
+      padding: "8px 14px", borderRadius: 999,
+      background: m.bg, border: `1px solid ${m.border}`,
+      fontSize: 11, color: "var(--gray-700)",
+    }}>
+      <div style={{
+        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+        background: "#fff", border: `1px solid ${m.border}`,
+        color: m.color, display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }}>
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
+      </div>
+      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ color: "var(--dark)", fontWeight: 600 }}>{data.filename || "Document"}</span>
+        <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>processed</span>
+        {data.counts && (
+          <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>
+            · {data.counts.requirements ? `${data.counts.requirements} reqs` : ""}
+            {data.counts.gaps ? `${data.counts.requirements ? ", " : ""}${data.counts.gaps} gaps` : ""}
+            {data.counts.constraints ? `, ${data.counts.constraints} constraints` : ""}
+          </span>
+        )}
+        {typeof data.readiness === "number" && (
+          <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>· readiness {data.readiness}%</span>
+        )}
+      </div>
+      <span style={{
+        fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
+        background: "#fff", color: m.color, border: `1px solid ${m.border}`,
+        textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0,
+        display: "inline-flex", alignItems: "center", gap: 4,
+      }}>
+        {auto && (
+          <svg viewBox="0 0 24 24" style={{ width: 9, height: 9, fill: "none", stroke: "currentColor", strokeWidth: 3 }}>
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10" />
+          </svg>
+        )}
+        {m.label}
+      </span>
+    </div>
+  );
+}
+
+function SlackBadge({ msg }: { msg: Message }) {
+  const channel = msg.slack_channel_name ? `#${msg.slack_channel_name}` : null;
+  const isAssistant = msg.role === "assistant";
+  return (
+    <span
+      title={
+        isAssistant
+          ? `Replied in Slack${channel ? ` (${channel})` : ""}`
+          : `Sent from Slack${channel ? ` in ${channel}` : ""}`
+      }
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 9, fontWeight: 600, padding: "2px 7px",
+        borderRadius: 8, background: "#f3e8ff", color: "#7c3aed",
+        marginLeft: 4,
+      }}
+    >
+      <svg viewBox="0 0 24 24" style={{ width: 9, height: 9, fill: "currentColor" }}>
+        <path d="M5.04 15.165a2.523 2.523 0 0 1-2.52 2.523A2.523 2.523 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.524h2.52v2.524zm1.27 0a2.527 2.527 0 0 1 2.521-2.524 2.527 2.527 0 0 1 2.522 2.524v6.31A2.527 2.527 0 0 1 8.832 24a2.527 2.527 0 0 1-2.521-2.525v-6.31zM8.832 5.042a2.523 2.523 0 0 1-2.521-2.523A2.523 2.523 0 0 1 8.832 0a2.527 2.527 0 0 1 2.522 2.522v2.523H8.832zm0 1.271a2.523 2.523 0 0 1 2.522 2.522 2.523 2.523 0 0 1-2.522 2.522H2.522A2.527 2.527 0 0 1 0 8.836a2.523 2.523 0 0 1 2.522-2.523h6.31zm10.124 2.522a2.523 2.523 0 0 1 2.522-2.522A2.523 2.523 0 0 1 24 8.836a2.523 2.523 0 0 1-2.522 2.522h-2.522V8.835zm-1.27 0a2.523 2.523 0 0 1-2.523 2.522 2.527 2.527 0 0 1-2.522-2.522v-6.31A2.527 2.527 0 0 1 15.163 0a2.523 2.523 0 0 1 2.522 2.522v6.313zm-2.523 10.122a2.523 2.523 0 0 1 2.522 2.522A2.523 2.523 0 0 1 15.163 24a2.523 2.523 0 0 1-2.522-2.522v-2.522h2.522zm0-1.27a2.523 2.523 0 0 1-2.522-2.522 2.523 2.523 0 0 1 2.522-2.523h6.31A2.527 2.527 0 0 1 24 15.165a2.523 2.523 0 0 1-2.522 2.522h-6.31z"/>
+      </svg>
+      {isAssistant ? "→ Slack" : "Slack"}
+      {channel && <span style={{ opacity: 0.7 }}>· {channel}</span>}
+    </span>
+  );
+}
+
 
 function ActiveIndicator({ status }: { status: ActiveStatus }) {
   const phases: Record<string, { label: string; color: string }> = {

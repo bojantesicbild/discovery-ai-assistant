@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels
 
 
 @asynccontextmanager
@@ -20,7 +20,22 @@ async def lifespan(app: FastAPI):
     # Re-queue stuck documents (queued or mid-processing from previous crash)
     await _requeue_stuck_documents()
 
+    # Start Slack inbound listeners (one per project with Slack + ≥1 channel link)
+    try:
+        from app.slack.manager import manager as slack_manager
+        await slack_manager.start_all()
+    except Exception as e:
+        import structlog
+        structlog.get_logger().warning("Slack listeners failed to start", error=str(e))
+
     yield
+
+    # Shutdown Slack listeners first
+    try:
+        from app.slack.manager import manager as slack_manager
+        await slack_manager.stop_all()
+    except Exception:
+        pass
 
     # Shutdown
     from app.db.session import engine
@@ -99,6 +114,8 @@ app.include_router(chat.router)
 app.include_router(generate.router)
 app.include_router(knowledge.router)
 app.include_router(repos.router)
+app.include_router(integrations.router)
+app.include_router(slack_channels.router)
 
 
 @app.get("/health")

@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Integrations / Connectors
+    # Fernet key for encrypting connector secrets at rest.
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    integration_secret_key: str = ""
+    # Google OAuth (Gmail + Drive)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    google_oauth_redirect_uri: str = "http://localhost:8000/api/integrations/google/callback"
+    # Frontend URL to redirect back to after OAuth success/failure
+    frontend_url: str = "http://localhost:3000"
+
     # File uploads
     upload_max_size_mb: int = 50
 

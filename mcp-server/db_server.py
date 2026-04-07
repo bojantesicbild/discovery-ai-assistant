@@ -157,8 +157,8 @@ async def list_tools() -> list[Tool]:
         Tool(name="validate_assumption", description="Mark an assumption as validated or unvalidated.", inputSchema={"type": "object", "properties": {"statement_fragment": {"type": "string", "description": "Part of the assumption text to find it"}, "validated": {"type": "boolean", "description": "true = validated, false = unvalidated"}}, "required": ["statement_fragment", "validated"]}),
         Tool(name="resolve_contradiction", description="Resolve a contradiction with a resolution note.", inputSchema={"type": "object", "properties": {"explanation_fragment": {"type": "string", "description": "Part of the contradiction explanation to find it"}, "resolution_note": {"type": "string", "description": "How it was resolved"}}, "required": ["explanation_fragment", "resolution_note"]}),
         Tool(name="get_control_points", description="Get readiness as a flat checklist of 12 checks. Returns overall score and each check with status (covered/partial/missing) and the actual items found. Present as a simple checklist showing what's done and what's missing — do NOT group into areas.", inputSchema={"type": "object", "properties": {}, "required": []}),
-        Tool(name="get_gaps", description="Get all identified gaps — requirements with low confidence or pending/assumed status that need attention.", inputSchema={"type": "object", "properties": {}, "required": []}),
-        Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, and scope items.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
+        Tool(name="get_gaps", description="Get all identified knowledge gaps from the gaps table — open questions to ask the client/PO that are blocking discovery completion. Each gap has gap_id (GAP-XXX), question, severity (high/medium/low), area, status (open/in-progress/resolved/dismissed), source quote, source person, and may list which requirements (BR-XXX) it blocks.", inputSchema={"type": "object", "properties": {}, "required": []}),
+        Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, scope items, gaps, and contradictions.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
         Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
     ]
 
@@ -405,9 +405,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         if name == "get_gaps":
             rows = await conn.fetch(
-                "SELECT req_id, title, confidence, status, source_quote, description "
-                "FROM requirements WHERE project_id = $1 AND (confidence = 'low' OR status IN ('pending', 'assumed', 'proposed')) "
-                "ORDER BY confidence ASC, req_id",
+                "SELECT gap_id, question, severity, area, status, "
+                "       source_quote, source_person, blocked_reqs, "
+                "       suggested_action, resolution "
+                "FROM gaps WHERE project_id = $1 "
+                "ORDER BY CASE severity WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, gap_id",
                 pid
             )
             return _json_result([dict(r) for r in rows])
@@ -440,6 +442,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             scps = await conn.fetch("SELECT description, in_scope, rationale FROM scope_items WHERE project_id = $1 AND (description ILIKE $2 OR rationale ILIKE $2) LIMIT 10", pid, pattern)
             for s in scps:
                 results.append({"type": "scope_item", "id": None, "title": (s["description"] or "")[:100], "description": f"{'In scope' if s['in_scope'] else 'Out of scope'}: {(s['rationale'] or '')[:150]}"})
+
+            gaps = await conn.fetch("SELECT gap_id, question, severity, status, suggested_action FROM gaps WHERE project_id = $1 AND (question ILIKE $2 OR suggested_action ILIKE $2) LIMIT 10", pid, pattern)
+            for g in gaps:
+                results.append({"type": "gap", "id": g["gap_id"], "title": (g["question"] or "")[:120], "description": f"[{g['severity']}] {(g['suggested_action'] or '')[:150]}", "status": g["status"]})
+
+            ctrs = await conn.fetch("SELECT item_a_type, item_b_type, explanation, resolved FROM contradictions WHERE project_id = $1 AND explanation ILIKE $2 LIMIT 10", pid, pattern)
+            for c in ctrs:
+                results.append({"type": "contradiction", "id": None, "title": f"{c['item_a_type']} vs {c['item_b_type']}", "description": (c["explanation"] or "")[:200], "status": "resolved" if c["resolved"] else "open"})
 
             return _json_result({"query": q, "results": results, "total": len(results)})
 

@@ -303,8 +303,29 @@ export async function removeRepo(projectId: string, repoId: string) {
   });
 }
 
-export async function getRepoPulls(projectId: string, repoId: string, state: string = "all") {
-  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/pulls?state=${state}`);
+export async function getRepoPulls(projectId: string, repoId: string, state: string = "all", base?: string) {
+  const qs = new URLSearchParams({ state });
+  if (base) qs.set("base", base);
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/pulls?${qs.toString()}`);
+}
+
+export async function getRepoCommits(projectId: string, repoId: string, sha?: string) {
+  const qs = new URLSearchParams();
+  if (sha) qs.set("sha", sha);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/commits${suffix}`);
+}
+
+export async function getRepoInfo(projectId: string, repoId: string) {
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/info`);
+}
+
+export async function getRepoBranches(projectId: string, repoId: string) {
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/branches`);
+}
+
+export async function getRepoWorkflows(projectId: string, repoId: string) {
+  return fetchAPI(`/api/projects/${projectId}/repos/${repoId}/workflows`);
 }
 
 // Notifications
@@ -318,6 +339,157 @@ export async function getNotificationCount(projectId: string) {
 
 export async function markNotificationRead(projectId: string, notificationId: string) {
   return fetchAPI(`/api/projects/${projectId}/notifications/${notificationId}/read`, { method: "PATCH" });
+}
+
+// Integrations / Connectors
+export interface CatalogConnector {
+  id: string;
+  name: string;
+  category: string;
+  provider: string;
+  icon: string;
+  short_description: string;
+  long_description: string;
+  auth: {
+    type: "oauth_google" | "token_paste";
+    scopes?: string[];
+    fields?: { key: string; label: string; placeholder: string; secret: boolean; required: boolean; validation?: string; help?: string }[];
+    instructions_url?: string;
+    instructions_steps?: string[];
+  };
+  permissions: string[];
+}
+
+export interface ProjectIntegrationSummary {
+  id: string;
+  connector_id: string;
+  status: "active" | "error" | "pending_auth";
+  error_message: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+  last_verified_at: string | null;
+}
+
+export async function getConnectorCatalog(): Promise<{ connectors: CatalogConnector[] }> {
+  return fetchAPI("/api/integrations/catalog");
+}
+
+export async function listIntegrations(projectId: string): Promise<{ integrations: ProjectIntegrationSummary[] }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations`);
+}
+
+export async function addIntegration(projectId: string, connectorId: string, config: Record<string, unknown>) {
+  return fetchAPI(`/api/projects/${projectId}/integrations`, {
+    method: "POST",
+    body: JSON.stringify({ connector_id: connectorId, config }),
+  });
+}
+
+export async function removeIntegration(projectId: string, connectorId: string) {
+  return fetchAPI(`/api/projects/${projectId}/integrations/${connectorId}`, { method: "DELETE" });
+}
+
+export async function startGoogleAuthorize(projectId: string, connectorId: string): Promise<{ authorize_url: string }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations/google/authorize?connector_id=${connectorId}`);
+}
+
+// Gmail — list & import messages as Documents
+export interface GmailMessage {
+  id: string;
+  thread_id: string;
+  from: string;
+  to: string;
+  subject: string;
+  date: string;
+  snippet: string;
+  label_ids: string[];
+}
+
+export async function listGmailMessages(projectId: string, query?: string, maxResults: number = 25): Promise<{ messages: GmailMessage[]; query: string | null }> {
+  const params = new URLSearchParams({ max_results: String(maxResults) });
+  if (query) params.set("q", query);
+  return fetchAPI(`/api/projects/${projectId}/integrations/gmail/messages?${params.toString()}`);
+}
+
+export async function importGmailMessages(projectId: string, messageIds: string[]): Promise<{ imported: { id: string; document_id: string; filename: string }[]; skipped: { id: string; reason: string }[] }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations/gmail/import`, {
+    method: "POST",
+    body: JSON.stringify({ message_ids: messageIds }),
+  });
+}
+
+// Google Drive — list & import files as Documents
+export interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime: string;
+  size?: string;
+  iconLink?: string;
+  webViewLink?: string;
+  owners?: { displayName: string; emailAddress: string; photoLink?: string }[];
+  supported: boolean;
+}
+
+export async function listDriveFiles(projectId: string, query?: string, maxResults: number = 50): Promise<{ files: DriveFile[]; query: string | null }> {
+  const params = new URLSearchParams({ max_results: String(maxResults) });
+  if (query) params.set("q", query);
+  return fetchAPI(`/api/projects/${projectId}/integrations/google_drive/files?${params.toString()}`);
+}
+
+export async function importDriveFiles(projectId: string, fileIds: string[]): Promise<{ imported: { id: string; document_id: string; filename: string }[]; skipped: { id: string; reason: string }[] }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations/google_drive/import`, {
+    method: "POST",
+    body: JSON.stringify({ file_ids: fileIds }),
+  });
+}
+
+// Per-connector retrieval settings (defaults for search forms)
+export async function getIntegrationSettings(projectId: string, connectorId: string): Promise<{ settings: Record<string, any> }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations/${connectorId}/settings`);
+}
+
+export async function updateIntegrationSettings(projectId: string, connectorId: string, settings: Record<string, any>): Promise<{ status: string; settings: Record<string, any> }> {
+  return fetchAPI(`/api/projects/${projectId}/integrations/${connectorId}/settings`, {
+    method: "PATCH",
+    body: JSON.stringify({ settings }),
+  });
+}
+
+// Slack channels (inbound chat)
+export interface LinkedSlackChannel {
+  id: string;
+  channel_id: string;
+  channel_name: string | null;
+  team_id: string;
+  created_at: string | null;
+}
+
+export interface AvailableSlackChannel {
+  id: string;
+  name: string;
+  is_private: boolean;
+  is_member: boolean;
+  num_members: number | null;
+}
+
+export async function listLinkedSlackChannels(projectId: string): Promise<{ channels: LinkedSlackChannel[] }> {
+  return fetchAPI(`/api/projects/${projectId}/slack/channels`);
+}
+
+export async function listAvailableSlackChannels(projectId: string): Promise<{ channels: AvailableSlackChannel[] }> {
+  return fetchAPI(`/api/projects/${projectId}/slack/channels/available`);
+}
+
+export async function linkSlackChannel(projectId: string, channelId: string, channelName?: string) {
+  return fetchAPI(`/api/projects/${projectId}/slack/channels`, {
+    method: "POST",
+    body: JSON.stringify({ channel_id: channelId, channel_name: channelName }),
+  });
+}
+
+export async function unlinkSlackChannel(projectId: string, channelId: string) {
+  return fetchAPI(`/api/projects/${projectId}/slack/channels/${channelId}`, { method: "DELETE" });
 }
 
 // Wiki

@@ -33,11 +33,18 @@ async def run_weekly_summaries(ctx):
     await generate_all_weekly_summaries()
 
 
+async def run_integration_sync(ctx):
+    """Auto-sync Gmail/Drive items for projects that have it enabled."""
+    from app.pipeline.integration_sync import run_integration_sync as _run
+    await _run()
+
+
 class WorkerSettings:
     functions = [process_document]
     cron_jobs = [
         cron(run_daily_digests, hour=7, minute=0),          # Every day at 7:00 AM
         cron(run_weekly_summaries, weekday=0, hour=7, minute=30),  # Monday 7:30 AM
+        cron(run_integration_sync, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),  # Every 5 min
     ]
     on_startup = startup
     on_shutdown = shutdown
