@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getKnowledgeGraph, getWikiFiles, getWikiFile } from "@/lib/api";
+import { usePersistedState } from "@/lib/persistedState";
 
 /* ---------- types ---------- */
 interface GraphNode {
@@ -264,12 +265,32 @@ export default function KnowledgeGraphPage() {
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [search, setSearch] = useState("");
   const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(Object.keys(TYPE_COLORS)));
+  // Persisted user preferences — survive page reloads, scoped per project.
+  const [activeFilters, setActiveFilters] = usePersistedState<Set<string>>(
+    `knowledge:filters:${projectId}`,
+    new Set(Object.keys(TYPE_COLORS)),
+    {
+      serialize: (s) => JSON.stringify([...s]),
+      deserialize: (r) => new Set(JSON.parse(r) as string[]),
+    },
+  );
   const [dragNode, setDragNode] = useState<GraphNode | null>(null);
-  const [viewMode, setViewMode] = useState<"graph" | "wiki" | "list" | "timeline">("graph");
-  const [sortCol, setSortCol] = useState<string>("type");
-  const [sortAsc, setSortAsc] = useState(true);
-  const [graphLayout, setGraphLayout] = useState<string>("force");
+  const [viewMode, setViewMode] = usePersistedState<"graph" | "wiki" | "list" | "timeline">(
+    `knowledge:viewMode:${projectId}`,
+    "graph",
+  );
+  const [sortCol, setSortCol] = usePersistedState<string>(
+    `knowledge:sortCol:${projectId}`,
+    "type",
+  );
+  const [sortAsc, setSortAsc] = usePersistedState<boolean>(
+    `knowledge:sortAsc:${projectId}`,
+    true,
+  );
+  const [graphLayout, setGraphLayout] = usePersistedState<string>(
+    `knowledge:graphLayout:${projectId}`,
+    "force",
+  );
   const [timelineStep, setTimelineStep] = useState<number>(-1); // -1 = show all
   const [timelinePlaying, setTimelinePlaying] = useState(false);
   const timelineIntervalRef = useRef<ReturnType<typeof setInterval>>(undefined);

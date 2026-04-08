@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { getProject } from "@/lib/api";
+import { usePersistedState } from "@/lib/persistedState";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -21,7 +22,8 @@ export default function ProjectShell({ children }: { children: React.ReactNode }
   const params = useParams();
   const projectId = params.projectId as string;
   const [projectName, setProjectName] = useState("Project");
-  const [collapsed, setCollapsed] = useState(false);
+  // Sidebar collapsed is a personal preference — global, not per-project.
+  const [collapsed, setCollapsed] = usePersistedState<boolean>("sidebar:collapsed", false);
   const listenersRef = useRef(new Set<DocumentUploadedCallback>());
 
   useEffect(() => {

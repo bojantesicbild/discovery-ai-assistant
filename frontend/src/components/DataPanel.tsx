@@ -11,6 +11,7 @@ import {
 import MarkdownPanel from "./MarkdownPanel";
 import GmailImportPanel from "./GmailImportPanel";
 import DriveImportPanel from "./DriveImportPanel";
+import { usePersistedState } from "@/lib/persistedState";
 
 interface DataPanelProps {
   projectId: string;
@@ -39,7 +40,12 @@ const TABS = [
 ];
 
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
-  const [activeTab, setActiveTab] = useState(initialTab || "reqs");
+  // Active tab persists per-project so each project remembers where you were.
+  // initialTab (from URL) overrides the persisted value when present.
+  const [activeTab, setActiveTab] = usePersistedState<string>(
+    `datapanel:tab:${projectId}`,
+    initialTab || "reqs",
+  );
   const [dashboard, setDashboard] = useState<any>(null);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [contradictions, setContradictions] = useState<any[]>([]);
@@ -51,9 +57,19 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [gaps, setGaps] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [contraFilter, setContraFilter] = useState("all");
+  // Filter selections persist per-project
+  const [priorityFilter, setPriorityFilter] = usePersistedState<string>(
+    `datapanel:priorityFilter:${projectId}`,
+    "all",
+  );
+  const [statusFilter, setStatusFilter] = usePersistedState<string>(
+    `datapanel:statusFilter:${projectId}`,
+    "all",
+  );
+  const [contraFilter, setContraFilter] = usePersistedState<string>(
+    `datapanel:contraFilter:${projectId}`,
+    "all",
+  );
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [showReadiness, setShowReadiness] = useState(false);
   const [readinessChecks, setReadinessChecks] = useState<any[]>([]);
@@ -92,8 +108,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     } else if (initialTab === "contradictions") {
       const ct = contradictions.find((c: any) => String(c.id).startsWith(highlightId));
       if (ct) setExpandedRow(ct.id);
+    } else if (initialTab === "docs") {
+      // highlightId may be either a document UUID or a filename. Match either.
+      const doc = documents.find((d: any) => d.id === highlightId || d.filename === highlightId);
+      if (doc) openDocument(doc);
     }
-  }, [highlightId, initialTab, requirements, gaps, constraints, contradictions]);
+  }, [highlightId, initialTab, requirements, gaps, constraints, contradictions, documents]);
 
   useEffect(() => {
     loadData();

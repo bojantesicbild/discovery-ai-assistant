@@ -590,8 +590,13 @@ body {
   gap: 18px;
 }
 
-/* Chat messages */
-.chat-msg { max-width: 740px; display: flex; gap: 12px; }
+/* Chat messages — responsive: grows with the chat panel width but capped
+   so very wide panels don't produce un-readable line lengths. */
+.chat-msg {
+  max-width: min(92%, 1100px);
+  display: flex;
+  gap: 12px;
+}
 .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
 
 .msg-avatar {

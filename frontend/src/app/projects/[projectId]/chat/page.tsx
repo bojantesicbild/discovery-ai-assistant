@@ -41,6 +41,7 @@ export default function DiscoveryChatPage() {
         />
       }
       defaultLeftPercent={45}
+      storageKey="split:chat"
     />
   );
 }

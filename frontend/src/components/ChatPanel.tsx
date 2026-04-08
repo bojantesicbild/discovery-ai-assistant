@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { chatStream, getConversation, clearConversation } from "@/lib/api";
 
 interface Segment {
@@ -483,7 +484,17 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
 
         {messages.map((msg, i) => {
           if (msg.role === "system") {
-            return <SystemNotice key={i} msg={msg} />;
+            // Render only the first of a consecutive run; subsequent
+            // system messages get folded into the same group below.
+            const prev = i > 0 ? messages[i - 1] : null;
+            if (prev && prev.role === "system") return null;
+            const run: Message[] = [];
+            let j = i;
+            while (j < messages.length && messages[j].role === "system") {
+              run.push(messages[j]);
+              j++;
+            }
+            return <SystemNoticeGroup key={`sys-${i}`} messages={run} projectId={projectId} />;
           }
           return (
           <div key={i} className={`chat-msg ${msg.role === "user" ? "user" : "ai"}`}>
@@ -1008,64 +1019,318 @@ function ProcessingIndicator({ source }: { source?: string }) {
 
 /* ── Slack source badge ── */
 
-function SystemNotice({ msg }: { msg: Message }) {
-  const data = msg.data || {};
-  const source = (data.source as string) || "upload";
-  const auto = data.auto_synced;
-  const sourceMeta: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    gmail: { label: "Gmail", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
-    google_drive: { label: "Drive", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe" },
-    slack: { label: "Slack", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-    upload: { label: "Upload", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0" },
-  };
-  const m = sourceMeta[source] || sourceMeta.upload;
+/* ── Grouped system notices (consecutive ingestion notices as one list) ── */
 
+function SystemNoticeGroup({ messages, projectId }: { messages: Message[]; projectId: string }) {
+  if (messages.length === 0) return null;
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 10,
-      margin: "10px auto", maxWidth: 560,
-      padding: "8px 14px", borderRadius: 999,
-      background: m.bg, border: `1px solid ${m.border}`,
-      fontSize: 11, color: "var(--gray-700)",
+      // Indent left to align with chat message bubbles (avatar 30px + gap 12px)
+      margin: "10px 0 10px 42px",
+      borderRadius: 10,
+      background: "#fff",
+      border: "1px solid var(--gray-200)",
+      boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
+      // Responsive: grow with the chat panel width, capped to match
+      // .chat-msg max-width (1100px) minus the 42px left indent.
+      width: "calc(100% - 42px - 16px)",
+      maxWidth: "min(calc(92% - 42px), 1058px)",
+      alignSelf: "flex-start",
+      flexShrink: 0,
+      // Clip child row backgrounds to the rounded corners so the bottom
+      // border isn't covered by the last row's flat edge.
+      overflow: "hidden",
     }}>
       <div style={{
-        width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
-        background: "#fff", border: `1px solid ${m.border}`,
-        color: m.color, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "6px 12px",
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: 0.6,
+        color: "#059669",
+        background: "var(--green-light)",
+        borderBottom: "1px solid var(--gray-100)",
+        borderTopLeftRadius: 9,
+        borderTopRightRadius: 9,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
       }}>
-        <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, fill: "none", stroke: "currentColor", strokeWidth: 2.5, strokeLinecap: "round", strokeLinejoin: "round" }}>
+        <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
           <polyline points="14 2 14 8 20 8" />
         </svg>
+        {messages.length} document{messages.length !== 1 ? "s" : ""} processed
       </div>
-      <div style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-        <span style={{ color: "var(--dark)", fontWeight: 600 }}>{data.filename || "Document"}</span>
-        <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>processed</span>
-        {data.counts && (
-          <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>
-            · {data.counts.requirements ? `${data.counts.requirements} reqs` : ""}
-            {data.counts.gaps ? `${data.counts.requirements ? ", " : ""}${data.counts.gaps} gaps` : ""}
-            {data.counts.constraints ? `, ${data.counts.constraints} constraints` : ""}
+      {messages.map((msg, i) => (
+        <SystemNotice
+          key={(msg as Message)._key || i}
+          msg={msg}
+          projectId={projectId}
+          grouped
+          isFirst={i === 0}
+          isLast={i === messages.length - 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+
+function SystemNotice({
+  msg,
+  projectId,
+  grouped = false,
+  isFirst = true,
+  isLast = true,
+}: {
+  msg: Message;
+  projectId: string;
+  grouped?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [expanded, setExpanded] = useState(false);
+  const data = (msg.data || {}) as Record<string, unknown>;
+  const source = (data.source as string) || "upload";
+  const auto = Boolean(data.auto_synced);
+  const filename = (data.filename as string) || "Document";
+  const documentId = data.document_id as string | undefined;
+  const counts = (data.counts as Record<string, number>) || {};
+  const readinessAfter = (data.readiness_after ?? data.readiness) as number | undefined;
+  const readinessBefore = data.readiness_before as number | undefined;
+  const readinessDelta = data.readiness_delta as number | undefined;
+  const gapIds = (data.gap_ids as string[] | undefined) || [];
+  const reqIds = (data.req_ids as string[] | undefined) || [];
+
+  // void unused projectId param so TS doesn't complain (we keep it in
+  // the signature for future per-project routing if needed)
+  void projectId;
+
+  const sourceMeta: Record<string, { label: string; color: string; bg: string; border: string; dot: string }> = {
+    gmail: { label: "Gmail", color: "#dc2626", bg: "#fef2f2", border: "#fecaca", dot: "#dc2626" },
+    google_drive: { label: "Drive", color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", dot: "#2563eb" },
+    slack: { label: "Slack", color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", dot: "#7c3aed" },
+    upload: { label: "Upload", color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", dot: "#059669" },
+  };
+  const m = sourceMeta[source] || sourceMeta.upload;
+
+  const navigate = (tab: string, highlight?: string) => {
+    const params = new URLSearchParams();
+    params.set("tab", tab);
+    if (highlight) params.set("highlight", highlight);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const openDoc = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (documentId) navigate("docs", documentId);
+    else navigate("docs", filename);
+  };
+
+  // Compact inline chips: short labels, tiny padding.
+  type Chip = { short: string; full: string; tab: string; color: string };
+  const chips: Chip[] = [];
+  if (counts.requirements) chips.push({ short: `+${counts.requirements} reqs`, full: `${counts.requirements} requirement${counts.requirements !== 1 ? "s" : ""}`, tab: "reqs", color: "#059669" });
+  if (counts.gaps) chips.push({ short: `+${counts.gaps} gaps`, full: `${counts.gaps} gap${counts.gaps !== 1 ? "s" : ""}`, tab: "gaps", color: "#d97706" });
+  if (counts.constraints) chips.push({ short: `+${counts.constraints} cons`, full: `${counts.constraints} constraint${counts.constraints !== 1 ? "s" : ""}`, tab: "constraints", color: "#0891b2" });
+  if (counts.contradictions) chips.push({ short: `+${counts.contradictions} ctra`, full: `${counts.contradictions} contradiction${counts.contradictions !== 1 ? "s" : ""}`, tab: "contradictions", color: "#dc2626" });
+  if (counts.decisions) chips.push({ short: `+${counts.decisions} dec`, full: `${counts.decisions} decision${counts.decisions !== 1 ? "s" : ""}`, tab: "reqs", color: "#2563eb" });
+  if (counts.stakeholders) chips.push({ short: `+${counts.stakeholders} ppl`, full: `${counts.stakeholders} ${counts.stakeholders !== 1 ? "people" : "person"}`, tab: "reqs", color: "#7c3aed" });
+
+  const hasDetails = (gapIds.length + reqIds.length) > 0 ||
+    (typeof readinessBefore === "number" && readinessBefore !== readinessAfter);
+
+  // When inside a SystemNoticeGroup, the wrapping container owns the
+  // border/background — each row is just a thin line item with a hairline
+  // divider above it (except the first row).
+  const wrapperStyle: React.CSSProperties = grouped
+    ? {
+        borderTop: isFirst ? "none" : "1px solid var(--gray-100, #f1f5f9)",
+        background: m.bg,
+        fontSize: 11,
+        color: "var(--gray-700)",
+      }
+    : {
+        margin: "4px 0",
+        borderRadius: 8,
+        background: m.bg,
+        border: `1px solid ${m.border}`,
+        fontSize: 11,
+        color: "var(--gray-700)",
+      };
+
+  void isLast; // reserved — could later add bottom rounding only on last row
+
+  return (
+    <div style={wrapperStyle}>
+      {/* Single compact row */}
+      <div
+        onClick={hasDetails ? () => setExpanded(!expanded) : undefined}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "4px 10px",
+          cursor: hasDetails ? "pointer" : "default",
+          minHeight: 22,
+        }}
+      >
+        {/* Source dot */}
+        <span style={{
+          width: 6, height: 6, borderRadius: "50%",
+          background: m.dot, flexShrink: 0,
+        }} title={m.label} />
+
+        {/* Filename — clickable, opens doc */}
+        <button
+          onClick={openDoc}
+          title={`Open ${filename}`}
+          style={{
+            background: "none", border: "none", padding: 0, cursor: "pointer",
+            fontSize: 12, fontWeight: 600, color: "var(--dark)",
+            textAlign: "left", minWidth: 0, maxWidth: 280,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontFamily: "inherit", flexShrink: 1,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = m.color)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--dark)")}
+        >
+          {filename}
+        </button>
+
+        {/* Inline chips */}
+        {chips.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+            {chips.map((chip, i) => (
+              <button
+                key={i}
+                onClick={(e) => { e.stopPropagation(); navigate(chip.tab); }}
+                title={chip.full}
+                style={{
+                  padding: "1px 6px", borderRadius: 4,
+                  background: "rgba(255,255,255,0.7)", color: chip.color,
+                  border: "none", fontSize: 10, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {chip.short}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Spacer pushes readiness to the right */}
+        <div style={{ flex: 1 }} />
+
+        {/* Readiness with delta — right aligned */}
+        {typeof readinessAfter === "number" && (
+          <span style={{ fontSize: 10, color: "var(--gray-500)", whiteSpace: "nowrap", flexShrink: 0 }}>
+            <strong style={{ color: "var(--dark)" }}>{readinessAfter}%</strong>
+            {typeof readinessDelta === "number" && readinessDelta !== 0 && (
+              <span style={{
+                marginLeft: 3,
+                color: readinessDelta > 0 ? "#16a34a" : "#dc2626",
+                fontWeight: 700,
+              }}>
+                {readinessDelta > 0 ? "+" : ""}{readinessDelta}
+              </span>
+            )}
           </span>
         )}
-        {typeof data.readiness === "number" && (
-          <span style={{ marginLeft: 6, color: "var(--gray-500)" }}>· readiness {data.readiness}%</span>
-        )}
-      </div>
-      <span style={{
-        fontSize: 9, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-        background: "#fff", color: m.color, border: `1px solid ${m.border}`,
-        textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0,
-        display: "inline-flex", alignItems: "center", gap: 4,
-      }}>
-        {auto && (
-          <svg viewBox="0 0 24 24" style={{ width: 9, height: 9, fill: "none", stroke: "currentColor", strokeWidth: 3 }}>
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10" />
+
+        {/* Tiny source badge */}
+        <span style={{
+          fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+          background: "#fff", color: m.color, border: `1px solid ${m.border}`,
+          textTransform: "uppercase", letterSpacing: 0.3, flexShrink: 0,
+          display: "inline-flex", alignItems: "center", gap: 3,
+        }}>
+          {auto && (
+            <svg viewBox="0 0 24 24" style={{ width: 7, height: 7, fill: "none", stroke: "currentColor", strokeWidth: 3 }}>
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10" />
+            </svg>
+          )}
+          {m.label}
+        </span>
+
+        {/* Expand chevron */}
+        {hasDetails && (
+          <svg viewBox="0 0 24 24" style={{
+            width: 10, height: 10, stroke: "var(--gray-400)", fill: "none",
+            strokeWidth: 2.5, flexShrink: 0,
+            transform: expanded ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s",
+          }}>
+            <polyline points="6 9 12 15 18 9" />
           </svg>
         )}
-        {m.label}
-      </span>
+      </div>
+
+      {/* Expanded details — only renders when there's something to show */}
+      {expanded && hasDetails && (
+        <div style={{
+          padding: "0 10px 8px 24px",
+          display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          {/* Readiness delta detail */}
+          {typeof readinessBefore === "number" && readinessBefore !== readinessAfter && (
+            <div style={{ fontSize: 10, color: "var(--gray-500)" }}>
+              Readiness changed: <strong>{readinessBefore}%</strong> → <strong>{readinessAfter}%</strong>
+            </div>
+          )}
+
+          {/* Item id badges */}
+          {(reqIds.length > 0 || gapIds.length > 0) && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+              {reqIds.slice(0, 8).map((id) => (
+                <button
+                  key={id}
+                  onClick={(e) => { e.stopPropagation(); navigate("reqs", id); }}
+                  title={`Open ${id}`}
+                  style={{
+                    padding: "1px 6px", borderRadius: 4,
+                    background: "#fff", color: "#059669",
+                    border: "1px solid #a7f3d0",
+                    fontSize: 9, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {id}
+                </button>
+              ))}
+              {reqIds.length > 8 && (
+                <span style={{ fontSize: 9, color: "var(--gray-400)", alignSelf: "center" }}>
+                  +{reqIds.length - 8}
+                </span>
+              )}
+              {gapIds.slice(0, 8).map((id) => (
+                <button
+                  key={id}
+                  onClick={(e) => { e.stopPropagation(); navigate("gaps", id); }}
+                  title={`Open ${id}`}
+                  style={{
+                    padding: "1px 6px", borderRadius: 4,
+                    background: "#fff", color: "#d97706",
+                    border: "1px solid #fde68a",
+                    fontSize: 9, fontWeight: 700, cursor: "pointer",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {id}
+                </button>
+              ))}
+              {gapIds.length > 8 && (
+                <span style={{ fontSize: 9, color: "var(--gray-400)", alignSelf: "center" }}>
+                  +{gapIds.length - 8}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
