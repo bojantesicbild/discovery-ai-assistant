@@ -740,52 +740,33 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         text = render_requirement_text(payload, reqs_dir=reqs_dir)
         (reqs_dir / f"{r.req_id}.md").write_text(text)
 
-    # --- decisions.md (kept as single file — decisions don't have individual IDs like BR/CON/GAP) ---
-    dec_lines = [
-        "---",
-        "category: decisions-index",
-        f"date: {today}",
-        f"total: {len(decisions)}",
-        "---",
-        "",
-        "# Decisions",
-        "",
-    ]
-    for i, d in enumerate(decisions):
-        dec_id = f"DEC-{i+1:03d}"
-        dec_lines.append(f"## {dec_id}: {d.title}")
-        dec_lines.append(f"- **Decided by**: {d.decided_by or 'unknown'}")
-        dec_lines.append(f"- **Status**: {d.status}")
-        dec_lines.append(f"- **Rationale**: {d.rationale}")
-        if d.alternatives:
-            dec_lines.append(f"- **Alternatives**: {', '.join(str(a) for a in d.alternatives)}")
-        dec_lines.append("")
-    (discovery_dir / "decisions.md").write_text("\n".join(dec_lines))
+    # --- decisions/ individual files (Phase 4d: per-row split) ---
+    decisions_dir = discovery_dir / "decisions"
+    decisions_dir.mkdir(parents=True, exist_ok=True)
+    for i, d in enumerate(decisions, 1):
+        dec_id = f"DEC-{i:03d}"
+        payload = _decision_to_payload(d, dec_id, today)
+        text = render_decision_text(payload)
+        (decisions_dir / f"{dec_id}.md").write_text(text)
 
-    # --- people.md ---
-    stk_lines = [
-        "---",
-        "category: stakeholders-index",
-        f"date: {today}",
-        f"total: {len(stakeholders)}",
-        "---",
-        "",
-        "# People",
-        "",
-    ]
+    # --- people/ individual stakeholder files (Phase 4d: per-row split) ---
+    people_dir = discovery_dir / "people"
+    people_dir.mkdir(parents=True, exist_ok=True)
     for s in stakeholders:
-        stk_lines.append(f"## [[{s.name}]]")
-        stk_lines.append(f"- **Role**: {s.role}")
-        stk_lines.append(f"- **Organization**: {s.organization}")
-        stk_lines.append(f"- **Authority**: {s.decision_authority}")
-        # Link requirements by this person
-        person_reqs = [r for r, _, _ in reqs_rows if r.source_person == s.name]
-        if person_reqs:
-            stk_lines.append("- **Requirements**:")
-            for pr in person_reqs:
-                stk_lines.append(f"  - [[{pr.req_id}]] — {pr.title}")
-        stk_lines.append("")
-    (discovery_dir / "people.md").write_text("\n".join(stk_lines))
+        # Pre-compute requirements requested by this person
+        person_reqs = [(r.req_id, r.title) for r, _, _ in reqs_rows if r.source_person == s.name]
+        payload = _stakeholder_to_payload(s, today, person_reqs)
+        text = render_stakeholder_text(payload)
+        # Filename uses the stakeholder's name (sanitized)
+        import re as _re
+        safe_name = _re.sub(r"[^\w\s-]", "_", s.name).strip().replace(" ", "_")[:80] or "unnamed"
+        (people_dir / f"{safe_name}.md").write_text(text)
+
+    # Clean up legacy single-file aggregates from earlier exports
+    for legacy in ("decisions.md", "people.md"):
+        legacy_path = discovery_dir / legacy
+        if legacy_path.exists():
+            legacy_path.unlink()
 
     # Evaluate readiness for index/log (but don't write a separate readiness.md)
     from app.services.evaluator import evaluator
@@ -1286,6 +1267,125 @@ def render_gap_text(payload: dict, *, original_text: str | None = None) -> str:
     lines.append("## Source Documents")
     lines.append(f"- [[{g_doc}]]")
     lines.append("")
+
+    return fm_block + "\n".join(lines)
+
+
+def _decision_to_payload(d, dec_id: str, today: str) -> dict:
+    """Build the writer-input payload from a Decision SQLAlchemy row."""
+    return {
+        "id": dec_id,
+        "title": d.title or "",
+        "status": d.status or "tentative",
+        "decided_by": d.decided_by or "",
+        "decided_date": d.decided_date.isoformat() if d.decided_date else "",
+        "rationale": d.rationale or "",
+        "alternatives": list(d.alternatives or []),
+        "impacts": list(d.impacts or []),
+        "date": today,
+    }
+
+
+def render_decision_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single decision note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("decision", payload)`.
+    Body sections (Rationale, Alternatives, Impacts) hand-built."""
+    from app.services import schema_lib
+
+    did = payload["id"]
+    title = payload.get("title", "")
+    rationale = payload.get("rationale") or ""
+    alternatives = payload.get("alternatives") or []
+    impacts = payload.get("impacts") or []
+    decided_by = payload.get("decided_by") or ""
+
+    fm_block = schema_lib.render_frontmatter("decision", payload)
+
+    lines: list[str] = [
+        f"# {did}: {title}",
+        "",
+        "## Rationale",
+        "",
+        rationale or "_(no rationale provided)_",
+        "",
+    ]
+    if alternatives:
+        lines.append("## Alternatives")
+        lines.append("")
+        for alt in alternatives:
+            lines.append(f"- {alt}")
+        lines.append("")
+    if impacts:
+        lines.append("## Impacts")
+        lines.append("")
+        for imp in impacts:
+            lines.append(f"- {imp}")
+        lines.append("")
+    if decided_by:
+        lines.append("## Decided By")
+        lines.append("")
+        lines.append(decided_by)
+        lines.append("")
+
+    return fm_block + "\n".join(lines)
+
+
+def _stakeholder_to_payload(
+    s,
+    today: str,
+    person_reqs: list[tuple[str, str]],
+) -> dict:
+    """Build the writer-input payload from a Stakeholder SQLAlchemy row.
+
+    `person_reqs` is a pre-computed list of (req_id, title) tuples for
+    requirements this person requested."""
+    return {
+        "name": s.name,
+        "role": s.role or "",
+        "organization": s.organization or "",
+        "decision_authority": s.decision_authority or "informed",
+        "interests": list(s.interests or []),
+        "date": today,
+        "_person_reqs": person_reqs,
+    }
+
+
+def render_stakeholder_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single stakeholder note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("stakeholder", payload)`.
+    Body sections (Role, Interests, Requirements) hand-built — the
+    Requirements list is pre-computed by the caller as cross-row context."""
+    from app.services import schema_lib
+
+    name = payload["name"]
+    role = payload.get("role", "")
+    interests = payload.get("interests") or []
+    person_reqs = payload.get("_person_reqs") or []
+
+    fm_block = schema_lib.render_frontmatter("stakeholder", payload)
+
+    lines: list[str] = [
+        f"# {name}",
+        "",
+        "## Role",
+        "",
+        role or "_(role not specified)_",
+        "",
+    ]
+    if interests:
+        lines.append("## Interests")
+        lines.append("")
+        for interest in interests:
+            lines.append(f"- {interest}")
+        lines.append("")
+    if person_reqs:
+        lines.append("## Requirements")
+        lines.append("")
+        for req_id, title in person_reqs:
+            lines.append(f"- [[{req_id}]] — {title}")
+        lines.append("")
 
     return fm_block + "\n".join(lines)
 
