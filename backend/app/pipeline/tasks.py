@@ -728,87 +728,17 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     gaps_rows = gaps_result.all()
 
     # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
-    from app.services import raw_store
     for r, doc_name, doc_class in reqs_rows:
-        source_doc_name = doc_name or "unknown"
-        person = r.source_person or "unknown"
-        desc_escaped = (r.description or "").replace('"', '\\"')
-        sources_list = r.sources or []
-
-        req_lines = [
-            "---",
-            f"id: {r.req_id}",
-            f'title: "{r.title}"',
-            f"priority: {r.priority}",
-            f"status: {r.status}",
-            f"confidence: {r.confidence}",
-            f'source_doc: "{source_doc_name}"',
-            f"source_person: {person}",
-            f"version: {r.version or 1}",
-            f"date: {today}",
-            "category: requirement",
-            f'description: "{desc_escaped}"',
+        # Pre-compute co-extracted siblings (other requirements from the
+        # same source doc) so the renderer doesn't need cross-row access.
+        co_extracted = [
+            other_r.req_id
+            for other_r, _, _ in reqs_rows
+            if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id
         ]
-
-        # source_raw — clickable backlink to the original payload in
-        # .memory-bank/.raw/{source}/. Only present when the source
-        # document was ingested through Gmail/Drive/upload (Phase 4).
-        if doc_class and doc_class.get("source_raw_path"):
-            try:
-                from pathlib import Path as _P
-                rel = raw_store.relative_source_raw(_P(doc_class["source_raw_path"]), reqs_dir)
-                req_lines.append(f'source_raw: "{rel}"')
-            except Exception:
-                pass
-        if doc_class and doc_class.get("source"):
-            req_lines.append(f'source_origin: {doc_class["source"]}')
-
-        req_lines.extend([
-            f"tags: [requirement, {r.priority}, {r.status}]",
-            f"aliases: [{r.req_id}]",
-            f"cssclasses: [requirement, node-green]",
-            "---",
-            "",
-            f"# {r.req_id}: {r.title}",
-            "",
-            r.description or "",
-            "",
-            "## Source",
-            f"> \"{r.source_quote}\"" if r.source_quote else "> (no quote)",
-            "",
-            "## People",
-        ])
-        if person and person != "unknown":
-            req_lines.append(f"- [[{person}]] — requested")
-        else:
-            req_lines.append("- (unknown)")
-
-        req_lines.append("")
-        req_lines.append("## Related")
-
-        # Link other requirements from the same source doc
-        for other_r, other_doc, _ in reqs_rows:
-            if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id:
-                req_lines.append(f"- [[{other_r.req_id}]] — co-extracted")
-
-        req_lines.append("")
-        req_lines.append("## Sources")
-        req_lines.append(f"- [[{source_doc_name}]] — original extraction")
-        for src in sources_list:
-            fname = src.get("filename", "unknown")
-            req_lines.append(f"- [[{fname}]] — v{r.version or 1} merge")
-
-        # Direct link to the raw source for in-vault navigation
-        if doc_class and doc_class.get("source_raw_path"):
-            try:
-                from pathlib import Path as _P
-                rel = raw_store.relative_source_raw(_P(doc_class["source_raw_path"]), reqs_dir)
-                req_lines.append(f"- [Original source]({rel})")
-            except Exception:
-                pass
-
-        req_lines.append("")
-        (reqs_dir / f"{r.req_id}.md").write_text("\n".join(req_lines))
+        payload = _requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
+        text = render_requirement_text(payload, reqs_dir=reqs_dir)
+        (reqs_dir / f"{r.req_id}.md").write_text(text)
 
     # --- decisions.md (kept as single file — decisions don't have individual IDs like BR/CON/GAP) ---
     dec_lines = [
@@ -1164,6 +1094,138 @@ def _write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, s
         "_Edit the schemas in `assistants/.claude/schemas/` instead of editing this file directly._",
     ]
     (vault_root / "dashboard.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _requirement_to_payload(
+    r,
+    doc_name: str | None,
+    doc_class: dict | None,
+    today: str,
+    co_extracted: list[str],
+) -> dict:
+    """Build the writer-input payload from a Requirement SQLAlchemy row.
+
+    Pure function — no DB access. Co-extracted siblings are pre-computed
+    by the caller because they require cross-row knowledge that the
+    renderer shouldn't have to query."""
+    return {
+        "id": r.req_id,
+        "title": r.title or "",
+        "priority": r.priority or "should",
+        "status": r.status or "proposed",
+        "confidence": r.confidence or "medium",
+        "source_doc": doc_name or "unknown",
+        "source_person": r.source_person or "unknown",
+        "version": r.version or 1,
+        "date": today,
+        "description": r.description or "",
+        "source_quote": r.source_quote or "",
+        "sources": list(r.sources or []),
+        "co_extracted": co_extracted,
+        # Source raw + origin only set when document was ingested via
+        # Gmail / Drive / upload / Slack (Phase 4a).
+        "_doc_class": doc_class or {},
+    }
+
+
+def render_requirement_text(
+    payload: dict,
+    *,
+    reqs_dir: "Path | None" = None,
+    original_text: str | None = None,
+) -> str:
+    """Render a single requirement note as markdown.
+
+    This is the canonical writer for `BR-NNN.md` files. It produces
+    EXACTLY the same byte sequence as the inline writer it replaced —
+    Phase 2B step 1 is a pure refactor (extract method) with zero
+    behavior change. Step 2 (separate commit) will swap the inline
+    string building for `schema_lib.render_body()`.
+
+    `reqs_dir` is the directory the file lives in (used to compute the
+    `source_raw:` relative path). When None, source_raw is omitted.
+    `original_text` is accepted but unused — it's there so the parity
+    test can pass it without a special-case."""
+    from app.services import raw_store
+    from pathlib import Path as _P
+
+    rid = payload["id"]
+    title = payload.get("title", "")
+    desc_escaped = (payload.get("description") or "").replace('"', '\\"')
+    source_doc_name = payload.get("source_doc") or "unknown"
+    person = payload.get("source_person") or "unknown"
+    sources_list = payload.get("sources") or []
+    co_extracted = payload.get("co_extracted") or []
+    doc_class = payload.get("_doc_class") or {}
+
+    lines = [
+        "---",
+        f"id: {rid}",
+        f'title: "{title}"',
+        f"priority: {payload.get('priority', 'should')}",
+        f"status: {payload.get('status', 'proposed')}",
+        f"confidence: {payload.get('confidence', 'medium')}",
+        f'source_doc: "{source_doc_name}"',
+        f"source_person: {person}",
+        f"version: {payload.get('version', 1)}",
+        f"date: {payload.get('date', '')}",
+        "category: requirement",
+        f'description: "{desc_escaped}"',
+    ]
+
+    raw_rel: str | None = None
+    if doc_class.get("source_raw_path"):
+        raw_path_str = doc_class["source_raw_path"]
+        if reqs_dir is not None and _P(raw_path_str).is_absolute():
+            try:
+                raw_rel = raw_store.relative_source_raw(_P(raw_path_str), reqs_dir)
+            except Exception:
+                raw_rel = None
+        else:
+            # Already-relative path (parity test passes pre-resolved values)
+            raw_rel = raw_path_str
+    if raw_rel:
+        lines.append(f'source_raw: "{raw_rel}"')
+    if doc_class.get("source"):
+        lines.append(f'source_origin: {doc_class["source"]}')
+
+    lines.extend([
+        f"tags: [requirement, {payload.get('priority', 'should')}, {payload.get('status', 'proposed')}]",
+        f"aliases: [{rid}]",
+        f"cssclasses: [requirement, node-green]",
+        "---",
+        "",
+        f"# {rid}: {title}",
+        "",
+        payload.get("description") or "",
+        "",
+        "## Source",
+        f"> \"{payload.get('source_quote', '')}\"" if payload.get("source_quote") else "> (no quote)",
+        "",
+        "## People",
+    ])
+    if person and person != "unknown":
+        lines.append(f"- [[{person}]] — requested")
+    else:
+        lines.append("- (unknown)")
+
+    lines.append("")
+    lines.append("## Related")
+    for other in co_extracted:
+        lines.append(f"- [[{other}]] — co-extracted")
+
+    lines.append("")
+    lines.append("## Sources")
+    lines.append(f"- [[{source_doc_name}]] — original extraction")
+    for src in sources_list:
+        fname = src.get("filename", "unknown")
+        lines.append(f"- [[{fname}]] — v{payload.get('version', 1)} merge")
+
+    if raw_rel:
+        lines.append(f"- [Original source]({raw_rel})")
+
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _write_hot(vault_root, doc: Document, reqs_rows, gaps_rows, decisions, readiness: dict):
