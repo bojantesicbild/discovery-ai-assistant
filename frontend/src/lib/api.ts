@@ -329,8 +329,31 @@ export async function getRepoWorkflows(projectId: string, repoId: string) {
 }
 
 // Notifications
-export async function getNotifications(projectId: string) {
-  return fetchAPI(`/api/projects/${projectId}/notifications`);
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  read: boolean;
+  data: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+export interface NotificationsResponse {
+  notifications: NotificationItem[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export async function getNotifications(
+  projectId: string,
+  limit: number = 6,
+  offset: number = 0,
+): Promise<NotificationsResponse> {
+  return fetchAPI(
+    `/api/projects/${projectId}/notifications?limit=${limit}&offset=${offset}`,
+  );
 }
 
 export async function getNotificationCount(projectId: string) {

@@ -14,6 +14,8 @@ import GmailImportPanel from "./GmailImportPanel";
 import DriveImportPanel from "./DriveImportPanel";
 import { usePersistedState } from "@/lib/persistedState";
 import { useUnreadCounts } from "@/lib/useUnreadCounts";
+import { useTableState, applyTableState } from "@/lib/tableState";
+import { TableSearch, SortableHeader, Pagination } from "./TableControls";
 
 interface DataPanelProps {
   projectId: string;
@@ -70,6 +72,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [detail, setDetail] = useState<DetailView | null>(null);
   // Per-user unread counts (polled every 15s)
   const { counts: unreadCounts, refresh: refreshUnread } = useUnreadCounts(projectId);
+
+  // Table state (search/sort/page) per tab — persisted per project
+  const reqsTable = useTableState(`reqs:${projectId}`, "req_id", "asc", 10);
+  const gapsTable = useTableState(`gaps:${projectId}`, "severity", "asc", 10);
+  const consTable = useTableState(`cons:${projectId}`, "type", "asc", 10);
+  const contraTable = useTableState(`contra:${projectId}`, "item_a_type", "asc", 10);
 
   // Mark a finding seen by the current user. Optimistically updates local
   // state so the unread bar/badge clears immediately, then fires the API.
@@ -323,6 +331,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {activeTab === "reqs" && (
           <div className="dp-tab-content active">
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+              <TableSearch state={reqsTable} placeholder="Search requirements…" />
               <div className="panel-filter" style={{ marginBottom: 0 }}>
                 {["all", "must", "should", "could"].map((f) => (
                   <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
@@ -355,54 +364,78 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </div>
             {requirements.length === 0 ? (
               <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
-            ) : (
-              <table className="panel-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 20 }}></th>
-                    <th>ID</th>
-                    <th>Requirement</th>
-                    <th>Type</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requirements.filter((r: any) =>
-                    (priorityFilter === "all" || r.priority === priorityFilter) &&
-                    (statusFilter === "all" || r.status === statusFilter)
-                  ).map((req: any) => (
-                    <tr
-                      key={req.id || req.req_id}
-                      onClick={() => {
-                        openRequirement(req);
-                        onNavigate?.("reqs", req.req_id);
-                        if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
-                      }}
-                      className="clickable-row"
-                      style={!req.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
-                    >
-                      <td className="chevron-cell"><Chevron /></td>
-                      <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>
-                        {req.req_id}
-                        {!req.seen_at && <span style={{ marginLeft: 4, fontSize: 8, padding: "1px 5px", background: "var(--green)", color: "#0f172a", borderRadius: 4 }}>NEW</span>}
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
-                        <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>{req.description?.slice(0, 80)}{req.description?.length > 80 ? "..." : ""}</div>
-                      </td>
-                      <td><TypeBadge type={req.type} /></td>
-                      <td><PriBadge priority={req.priority} /></td>
-                      <td><StatusPill status={req.status} /></td>
-                      <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
-                        <SourceBadges sourceDoc={req.source_doc} sources={req.sources} version={req.version} person={req.source_person} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            ) : (() => {
+              // Apply legacy filter chips first, then search/sort/paginate
+              const filtered = requirements.filter((r: any) =>
+                (priorityFilter === "all" || r.priority === priorityFilter) &&
+                (statusFilter === "all" || r.status === statusFilter)
+              );
+              const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
+                filtered,
+                reqsTable,
+                ["req_id", "title", "type", "priority", "status", "source_person"],
+              );
+              return (
+                <>
+                  <table className="panel-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 20 }}></th>
+                        <SortableHeader label="ID" columnKey="req_id" state={reqsTable} />
+                        <SortableHeader label="Requirement" columnKey="title" state={reqsTable} />
+                        <SortableHeader label="Type" columnKey="type" state={reqsTable} />
+                        <SortableHeader label="Priority" columnKey="priority" state={reqsTable} />
+                        <SortableHeader label="Status" columnKey="status" state={reqsTable} />
+                        <SortableHeader label="Ver" columnKey="version" state={reqsTable} width={50} />
+                        <SortableHeader label="Source" columnKey="source_doc" state={reqsTable} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.map((req: any) => (
+                        <tr
+                          key={req.id || req.req_id}
+                          onClick={() => {
+                            openRequirement(req);
+                            onNavigate?.("reqs", req.req_id);
+                            if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
+                          }}
+                          className="clickable-row"
+                          style={!req.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
+                        >
+                          <td
+                            className="chevron-cell"
+                            style={!req.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
+                          >
+                            <Chevron />
+                          </td>
+                          <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>
+                            {req.req_id}                          </td>
+                          <td>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
+                          </td>
+                          <td><TypeBadge type={req.type} /></td>
+                          <td><PriBadge priority={req.priority} /></td>
+                          <td><StatusPill status={req.status} /></td>
+                          <td style={{ fontSize: 10, color: "var(--gray-500)", textAlign: "center", whiteSpace: "nowrap" }}>
+                            {req.version ? `v${req.version}` : "—"}
+                          </td>
+                          <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
+                            <SourceBadges sourceDoc={req.source_doc} sources={req.sources} version={req.version} person={req.source_person} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <Pagination
+                    state={reqsTable}
+                    total={filteredCount}
+                    pageStart={pageStart}
+                    pageEnd={pageEnd}
+                    totalPages={totalPages}
+                  />
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -410,6 +443,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {activeTab === "gaps" && (
           <div className="dp-tab-content active">
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <TableSearch state={gapsTable} placeholder="Search gaps…" />
               <div className="panel-filter" style={{ marginBottom: 0 }}>
                 {["all", "open", "in-progress"].map((f) => (
                   <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
@@ -434,24 +468,40 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </div>
             {gaps.length === 0 ? (
               <EmptyState icon="M12 9v2m0 4h.01" text="No gaps detected. Run gap analysis from the chat to identify missing requirements." />
-            ) : (
-              <table className="panel-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 20 }}></th>
-                    <th>Severity</th>
-                    <th>Gap Question</th>
-                    <th>Area</th>
-                    <th>Status</th>
-                    <th style={{ width: 70 }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter).map((gap: any) => (
+            ) : (() => {
+              const filtered = gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter);
+              const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
+                filtered,
+                gapsTable,
+                ["gap_id", "question", "area", "severity", "status", "source_person"],
+                (item, key) => {
+                  // Custom severity sort: high > medium > low
+                  if (key === "severity") {
+                    const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
+                    return order[item.severity] ?? 99;
+                  }
+                  return item[key];
+                },
+              );
+              return (
+                <>
+                  <table className="panel-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 20 }}></th>
+                        <SortableHeader label="Severity" columnKey="severity" state={gapsTable} />
+                        <SortableHeader label="Gap Question" columnKey="question" state={gapsTable} />
+                        <SortableHeader label="Area" columnKey="area" state={gapsTable} />
+                        <SortableHeader label="Status" columnKey="status" state={gapsTable} />
+                        <th style={{ width: 70 }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.map((gap: any) => (
                     <Fragment key={gap.id}>
                       <tr
                         className="clickable-row"
-                        style={!gap.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                        style={!gap.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
                         onClick={() => {
                           const next = expandedRow === gap.id ? null : gap.id;
                           setExpandedRow(next);
@@ -459,12 +509,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                           if (gap.id && !gap.seen_at) markRowSeen("gap", gap.id, setGaps);
                         }}
                       >
-                        <td className="chevron-cell"><Chevron open={expandedRow === gap.id} /></td>
+                        <td
+                          className="chevron-cell"
+                          style={!gap.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
+                        >
+                          <Chevron open={expandedRow === gap.id} />
+                        </td>
                         <td><SevBadge severity={gap.severity} /></td>
                         <td style={{ fontWeight: 500 }}>
-                          {gap.question}
-                          {!gap.seen_at && <span style={{ marginLeft: 6, fontSize: 8, padding: "1px 5px", background: "var(--green)", color: "#0f172a", borderRadius: 4, fontWeight: 700 }}>NEW</span>}
-                        </td>
+                          {gap.question}                        </td>
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
                         <td><GapStatusPill status={gap.status} /></td>
                         <td>
@@ -548,20 +601,30 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   ))}
                 </tbody>
               </table>
-            )}
+              <Pagination
+                state={gapsTable}
+                total={filteredCount}
+                pageStart={pageStart}
+                pageEnd={pageEnd}
+                totalPages={totalPages}
+              />
+            </>
+            );
+            })()}
           </div>
         )}
 
         {/* ── CONSTRAINTS ── */}
         {activeTab === "constraints" && (
           <div className="dp-tab-content active">
-            {unreadCounts.constraint > 0 && (
-              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <TableSearch state={consTable} placeholder="Search constraints…" />
+              {unreadCounts.constraint > 0 && (
                 <button
                   onClick={() => markTabSeenAll("constraint", setConstraints)}
                   title="Mark all constraints as read"
                   style={{
-                    padding: "4px 10px", borderRadius: 6,
+                    marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
                     background: "var(--green-light)", color: "#059669",
                     border: "1px solid var(--green-mid)",
                     fontSize: 11, fontWeight: 600, cursor: "pointer",
@@ -569,54 +632,75 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 >
                   ✓ Mark all read ({unreadCounts.constraint})
                 </button>
-              </div>
-            )}
+              )}
+            </div>
             {constraints.length === 0 ? (
               <EmptyState icon="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4" text="No constraints extracted yet." />
-            ) : (
-              <table className="panel-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 20 }}></th>
-                    <th>Type</th>
-                    <th>Constraint</th>
-                    <th>Impact</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {constraints.map((c: any, i: number) => (
-                    <tr
-                      key={c.id || i}
-                      className="clickable-row"
-                      style={!c.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
-                      onClick={() => {
-                        setDetail({
-                          title: `${c.type} Constraint`,
-                          content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
-                          meta: { type: c.type, status: c.status },
-                        });
-                        onNavigate?.("constraints", String(c.id).slice(0, 8));
-                        if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
-                      }}
-                    >
-                      <td className="chevron-cell"><Chevron /></td>
-                      <td>
-                        <span className="sev-badge" style={{
-                          background: c.type === "budget" ? "#EF444420" : c.type === "technology" ? "#3B82F620" : "#F59E0B20",
-                          color: c.type === "budget" ? "#EF4444" : c.type === "technology" ? "#3B82F6" : "#F59E0B",
-                        }}>{c.type}</span>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 500, fontSize: 12 }}>{c.description?.slice(0, 80)}{c.description?.length > 80 ? "..." : ""}</div>
-                      </td>
-                      <td style={{ fontSize: 11, color: "var(--gray-500)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
-                      <td><StatusPill status={c.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            ) : (() => {
+              const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
+                constraints,
+                consTable,
+                ["type", "description", "impact", "status"],
+              );
+              return (
+                <>
+                  <table className="panel-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 20 }}></th>
+                        <SortableHeader label="Type" columnKey="type" state={consTable} />
+                        <SortableHeader label="Constraint" columnKey="description" state={consTable} />
+                        <SortableHeader label="Impact" columnKey="impact" state={consTable} />
+                        <SortableHeader label="Status" columnKey="status" state={consTable} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.map((c: any, i: number) => (
+                        <tr
+                          key={c.id || i}
+                          className="clickable-row"
+                          style={!c.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
+                          onClick={() => {
+                            setDetail({
+                              title: `${c.type} Constraint`,
+                              content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
+                              meta: { type: c.type, status: c.status },
+                            });
+                            onNavigate?.("constraints", String(c.id).slice(0, 8));
+                            if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
+                          }}
+                        >
+                          <td
+                            className="chevron-cell"
+                            style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
+                          >
+                            <Chevron />
+                          </td>
+                          <td>
+                            <span className="sev-badge" style={{
+                              background: c.type === "budget" ? "#EF444420" : c.type === "technology" ? "#3B82F620" : "#F59E0B20",
+                              color: c.type === "budget" ? "#EF4444" : c.type === "technology" ? "#3B82F6" : "#F59E0B",
+                            }}>{c.type}</span>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight: 500, fontSize: 12 }}>{c.description?.slice(0, 80)}{c.description?.length > 80 ? "..." : ""}</div>
+                          </td>
+                          <td style={{ fontSize: 11, color: "var(--gray-500)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
+                          <td><StatusPill status={c.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <Pagination
+                    state={consTable}
+                    total={filteredCount}
+                    pageStart={pageStart}
+                    pageEnd={pageEnd}
+                    totalPages={totalPages}
+                  />
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -624,6 +708,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {activeTab === "contradictions" && (
           <div className="dp-tab-content active">
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <TableSearch state={contraTable} placeholder="Search contradictions…" />
               <div className="panel-filter" style={{ marginBottom: 0 }}>
                 {["all", "open", "resolved"].map((f) => (
                   <button key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
@@ -648,28 +733,36 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </div>
             {contradictions.length === 0 ? (
               <EmptyState icon="M13 10V3L4 14h7v7l9-11h-7z" text="No contradictions detected between sources." />
-            ) : (
-              <table className="panel-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 20 }}></th>
-                    <th>Impact</th>
-                    <th>Contradiction</th>
-                    <th>Area</th>
-                    <th>Status</th>
-                    <th style={{ width: 70 }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {contradictions.filter((c: any) =>
-                    contraFilter === "all" ? true :
-                    contraFilter === "open" ? !c.resolved :
-                    c.resolved
-                  ).map((c: any) => (
+            ) : (() => {
+              const filtered = contradictions.filter((c: any) =>
+                contraFilter === "all" ? true :
+                contraFilter === "open" ? !c.resolved :
+                c.resolved
+              );
+              const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
+                filtered,
+                contraTable,
+                ["item_a_type", "item_a_ref", "item_b_ref", "explanation"],
+              );
+              return (
+                <>
+                  <table className="panel-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 20 }}></th>
+                        <th>Impact</th>
+                        <SortableHeader label="Contradiction" columnKey="item_a_ref" state={contraTable} />
+                        <SortableHeader label="Area" columnKey="item_a_type" state={contraTable} />
+                        <SortableHeader label="Status" columnKey="resolved" state={contraTable} />
+                        <th style={{ width: 70 }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visible.map((c: any) => (
                     <Fragment key={c.id}>
                       <tr
                         className="clickable-row"
-                        style={!c.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                        style={!c.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
                         onClick={() => {
                           const next = expandedRow === c.id ? null : c.id;
                           setExpandedRow(next);
@@ -677,7 +770,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                           if (c.id && !c.seen_at) markRowSeen("contradiction", c.id, setContradictions);
                         }}
                       >
-                        <td className="chevron-cell"><Chevron open={expandedRow === c.id} /></td>
+                        <td
+                          className="chevron-cell"
+                          style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
+                        >
+                          <Chevron open={expandedRow === c.id} />
+                        </td>
                         <td><SevBadge severity="high" /></td>
                         <td>
                           <div style={{ fontWeight: 600, fontSize: 12 }}>{c.item_a_ref?.slice(0, 50) || "Requirement conflict"}</div>
@@ -760,7 +858,16 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   ))}
                 </tbody>
               </table>
-            )}
+              <Pagination
+                state={contraTable}
+                total={filteredCount}
+                pageStart={pageStart}
+                pageEnd={pageEnd}
+                totalPages={totalPages}
+              />
+            </>
+            );
+            })()}
           </div>
         )}
 

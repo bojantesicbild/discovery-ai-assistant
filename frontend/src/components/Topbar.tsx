@@ -44,6 +44,33 @@ const TYPE_COLORS: Record<string, string> = {
   stakeholder: "#7c3aed",
 };
 
+/**
+ * Render a notification timestamp compactly:
+ *   - Today  → "14:23"
+ *   - Yesterday → "Yest 14:23"
+ *   - This year → "Apr 6, 14:23"
+ *   - Older  → "Apr 6 2025, 14:23"
+ *
+ * The full ISO is shown as a `title` tooltip for the curious.
+ */
+function formatNotificationDate(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return `Yest ${time}`;
+  const sameYear = d.getFullYear() === now.getFullYear();
+  const dateStr = sameYear
+    ? d.toLocaleDateString([], { month: "short", day: "numeric" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  return `${dateStr}, ${time}`;
+}
+
 export default function Topbar({ projectId, projectName = "Project", onDocumentUploaded }: TopbarProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +89,10 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
   const [notifCount, setNotifCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifTotal, setNotifTotal] = useState(0);
+  const [notifLoadingMore, setNotifLoadingMore] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const NOTIF_PAGE_SIZE = 6;
   const [directoryOpen, setDirectoryOpen] = useState(false);
 
   // Auto-open directory when returning from OAuth callback
@@ -82,12 +112,32 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
     return () => clearInterval(interval);
   }, [projectId]);
 
-  // Load notifications when dropdown opens
+  // Load first page of notifications when dropdown opens
   useEffect(() => {
     if (notifOpen) {
-      getNotifications(projectId).then((d) => setNotifications(d.notifications || [])).catch(() => {});
+      getNotifications(projectId, NOTIF_PAGE_SIZE, 0)
+        .then((d) => {
+          setNotifications(d.notifications || []);
+          setNotifTotal(d.total || 0);
+        })
+        .catch(() => {});
     }
   }, [notifOpen, projectId]);
+
+  async function loadMoreNotifications() {
+    if (notifLoadingMore) return;
+    setNotifLoadingMore(true);
+    try {
+      const d = await getNotifications(projectId, NOTIF_PAGE_SIZE, notifications.length);
+      // Append rather than replace
+      setNotifications((prev) => [...prev, ...(d.notifications || [])]);
+      setNotifTotal(d.total || 0);
+    } catch {
+      /* ignore */
+    } finally {
+      setNotifLoadingMore(false);
+    }
+  }
 
   // Close notification dropdown on outside click
   useEffect(() => {
@@ -327,48 +377,77 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
           {notifOpen && (
             <div style={{
               position: "absolute", top: "calc(100% + 8px)", right: 0,
-              width: 360, maxHeight: 400, overflow: "auto",
+              width: 360, maxHeight: 480, overflow: "auto",
               background: "#fff", border: "1px solid var(--gray-200)",
               borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
               zIndex: 200,
             }}>
-              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--gray-100)", fontSize: 13, fontWeight: 700 }}>
-                Notifications
+              <div style={{
+                padding: "12px 16px", borderBottom: "1px solid var(--gray-100)",
+                fontSize: 13, fontWeight: 700, display: "flex",
+                alignItems: "center", justifyContent: "space-between",
+              }}>
+                <span>Notifications</span>
+                {notifTotal > 0 && (
+                  <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>
+                    {notifications.length} of {notifTotal}
+                  </span>
+                )}
               </div>
               {notifications.length === 0 ? (
                 <div style={{ padding: "24px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
                   No notifications yet
                 </div>
               ) : (
-                notifications.map((n: any) => (
-                  <div
-                    key={n.id}
-                    onClick={async () => {
-                      if (!n.read) {
-                        await markNotificationRead(projectId, n.id);
-                        setNotifCount((c) => Math.max(0, c - 1));
-                        setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
-                      }
-                    }}
-                    style={{
-                      padding: "10px 16px", borderBottom: "1px solid var(--gray-50)",
-                      cursor: "pointer", background: n.read ? "#fff" : "#f0fdf8",
-                      transition: "background 0.1s",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{
-                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                        background: n.read ? "#e2e8f0" : "#00E5A0",
-                      }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", flex: 1 }}>{n.title}</span>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>
-                        {n.created_at ? new Date(n.created_at).toLocaleDateString() : ""}
-                      </span>
+                <>
+                  {notifications.map((n: any) => (
+                    <div
+                      key={n.id}
+                      onClick={async () => {
+                        if (!n.read) {
+                          await markNotificationRead(projectId, n.id);
+                          setNotifCount((c) => Math.max(0, c - 1));
+                          setNotifications((prev) => prev.map((x) => x.id === n.id ? { ...x, read: true } : x));
+                        }
+                      }}
+                      style={{
+                        padding: "10px 16px", borderBottom: "1px solid var(--gray-50)",
+                        cursor: "pointer", background: n.read ? "#fff" : "#f0fdf8",
+                        transition: "background 0.1s",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{
+                          width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
+                          background: n.read ? "#e2e8f0" : "#00E5A0",
+                        }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", flex: 1 }}>{n.title}</span>
+                        <span style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }} title={n.created_at ? new Date(n.created_at).toLocaleString() : ""}>
+                          {formatNotificationDate(n.created_at)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: "#64748b", marginTop: 3, paddingLeft: 16 }}>{n.body}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3, paddingLeft: 16 }}>{n.body}</div>
-                  </div>
-                ))
+                  ))}
+                  {notifications.length < notifTotal && (
+                    <button
+                      onClick={loadMoreNotifications}
+                      disabled={notifLoadingMore}
+                      style={{
+                        width: "100%", padding: "10px 16px",
+                        background: "#f8fafc", border: "none",
+                        borderTop: "1px solid var(--gray-100)",
+                        fontSize: 12, fontWeight: 600, color: "#059669",
+                        cursor: notifLoadingMore ? "wait" : "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {notifLoadingMore
+                        ? "Loading…"
+                        : `Load more (${notifTotal - notifications.length} remaining)`}
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}

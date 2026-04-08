@@ -226,23 +226,51 @@ async def trigger_digest(
 @router.get("/notifications")
 async def list_notifications(
     project_id: uuid.UUID,
+    limit: int = 6,
+    offset: int = 0,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get notifications for current user."""
+    """Get notifications for current user — paginated.
+
+    Defaults to 6 most recent for the dropdown's collapsed view; the UI
+    fetches more on demand via the "Load more" button by bumping `offset`.
+    """
     from app.models.operational import Notification
+
+    # Total count for "load more" UI logic (so the button hides when
+    # we've fetched everything).
+    total_result = await db.execute(
+        select(func.count()).select_from(Notification).where(
+            Notification.project_id == project_id,
+            Notification.user_id == user.id,
+        )
+    )
+    total = total_result.scalar() or 0
+
+    # Cap limit so a malicious caller can't ask for everything at once.
+    capped_limit = max(1, min(limit, 100))
+
     result = await db.execute(
         select(Notification)
         .where(Notification.project_id == project_id, Notification.user_id == user.id)
         .order_by(Notification.created_at.desc())
-        .limit(20)
+        .offset(max(0, offset))
+        .limit(capped_limit)
     )
-    return {"notifications": [
-        {"id": str(n.id), "type": n.type, "title": n.title, "body": n.body,
-         "read": n.read, "data": n.data,
-         "created_at": n.created_at.isoformat() if n.created_at else None}
-        for n in result.scalars().all()
-    ]}
+    return {
+        "notifications": [
+            {
+                "id": str(n.id), "type": n.type, "title": n.title, "body": n.body,
+                "read": n.read, "data": n.data,
+                "created_at": n.created_at.isoformat() if n.created_at else None,
+            }
+            for n in result.scalars().all()
+        ],
+        "total": total,
+        "offset": offset,
+        "limit": capped_limit,
+    }
 
 
 @router.get("/notifications/count")
