@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getMe } from "@/lib/api";
+import { useUnreadCounts } from "@/lib/useUnreadCounts";
 import NewProjectModal from "./NewProjectModal";
 
 const NAV_ITEMS = [
@@ -50,6 +51,11 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
   // Extract projectId from pathname for project-scoped links
   const projectIdMatch = pathname?.match(/\/projects\/([^/]+)/);
   const projectId = projectIdMatch ? projectIdMatch[1] : null;
+
+  // Per-user unread counts for the active project. The hook handles the
+  // empty-projectId case gracefully (returns zeros without polling).
+  const { counts: unreadCounts } = useUnreadCounts(projectId || "");
+  const discoveryUnread = projectId ? unreadCounts.total : 0;
 
   return (
     <>
@@ -99,6 +105,16 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
                     ? pathname?.includes("/code")
                     : pathname === item.href;
 
+              // Dynamic badge: Discovery shows the live unread count for
+              // the current project (overriding the static placeholder).
+              // Hidden when zero so the icon stays clean.
+              let badge: string | null = null;
+              if (item.href === "/discovery" && discoveryUnread > 0) {
+                badge = String(discoveryUnread);
+              } else if (item.badge && item.href !== "/discovery") {
+                badge = item.badge;
+              }
+
               return (
                 <Link
                   key={item.href}
@@ -110,7 +126,7 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
                     <svg viewBox="0 0 24 24">{item.icon}</svg>
                   </div>
                   {!collapsed && item.label}
-                  {!collapsed && item.badge && <span className="nav-badge">{item.badge}</span>}
+                  {!collapsed && badge && <span className="nav-badge">{badge}</span>}
                 </Link>
               );
             })}

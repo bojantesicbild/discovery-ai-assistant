@@ -7,11 +7,13 @@ import {
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
   listIntegrations,
+  markFindingSeen, markFindingsTypeSeenAll, type FindingType,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 import GmailImportPanel from "./GmailImportPanel";
 import DriveImportPanel from "./DriveImportPanel";
 import { usePersistedState } from "@/lib/persistedState";
+import { useUnreadCounts } from "@/lib/useUnreadCounts";
 
 interface DataPanelProps {
   projectId: string;
@@ -39,6 +41,15 @@ const TABS = [
   { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
 ];
 
+// Maps DataPanel tab id → backend finding type. Tabs that don't have an
+// underlying finding type (meeting, handoff, docs) are absent.
+const TAB_TO_FINDING_TYPE: Record<string, FindingType | undefined> = {
+  reqs: "requirement",
+  gaps: "gap",
+  constraints: "constraint",
+  contradictions: "contradiction",
+};
+
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
   // Active tab persists per-project so each project remembers where you were.
   // initialTab (from URL) overrides the persisted value when present.
@@ -57,6 +68,39 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [gaps, setGaps] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
   const [detail, setDetail] = useState<DetailView | null>(null);
+  // Per-user unread counts (polled every 15s)
+  const { counts: unreadCounts, refresh: refreshUnread } = useUnreadCounts(projectId);
+
+  // Mark a finding seen by the current user. Optimistically updates local
+  // state so the unread bar/badge clears immediately, then fires the API.
+  // Used by every row's onClick handler.
+  const markRowSeen = async (findingType: FindingType, findingId: string, setter?: (updater: (prev: any[]) => any[]) => void) => {
+    if (setter) {
+      setter((prev) => prev.map((row) => (row.id === findingId ? { ...row, seen_at: new Date().toISOString() } : row)));
+    }
+    try {
+      await markFindingSeen(projectId, findingType, findingId);
+      refreshUnread();
+    } catch {
+      /* best-effort */
+    }
+  };
+
+  // "Mark all read" button per-tab. Bumps every finding of `findingType`
+  // and refreshes the badge counts.
+  const markTabSeenAll = async (findingType: FindingType, setter?: (updater: (prev: any[]) => any[]) => void) => {
+    if (setter) {
+      const now = new Date().toISOString();
+      setter((prev) => prev.map((row) => ({ ...row, seen_at: row.seen_at || now })));
+    }
+    try {
+      await markFindingsTypeSeenAll(projectId, findingType);
+      refreshUnread();
+    } catch {
+      /* best-effort */
+    }
+  };
+
   // Filter selections persist per-project
   const [priorityFilter, setPriorityFilter] = usePersistedState<string>(
     `datapanel:priorityFilter:${projectId}`,
@@ -234,6 +278,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           if (tab.id === "contradictions") count = contradictions.length;
           if (tab.id === "docs") count = documents.length;
 
+          // Per-tab unread count (mapped from tab id → finding type)
+          const findingType = TAB_TO_FINDING_TYPE[tab.id];
+          const unread = findingType ? (unreadCounts[findingType] || 0) : 0;
+
           return (
             <div
               key={tab.id}
@@ -242,6 +290,27 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             >
               {tab.label}
               {count !== null && count > 0 && <span className="tab-count">{count}</span>}
+              {unread > 0 && (
+                <span
+                  title={`${unread} unread`}
+                  style={{
+                    marginLeft: 4,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: 16,
+                    height: 16,
+                    padding: "0 5px",
+                    borderRadius: 8,
+                    background: "var(--green)",
+                    color: "#0f172a",
+                    fontSize: 9,
+                    fontWeight: 700,
+                  }}
+                >
+                  {unread}
+                </span>
+              )}
             </div>
           );
         })}
@@ -269,6 +338,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   </button>
                 ))}
               </div>
+              {unreadCounts.requirement > 0 && (
+                <button
+                  onClick={() => markTabSeenAll("requirement", setRequirements)}
+                  title="Mark all requirements as read"
+                  style={{
+                    marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+                    background: "var(--green-light)", color: "#059669",
+                    border: "1px solid var(--green-mid)",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  ✓ Mark all read ({unreadCounts.requirement})
+                </button>
+              )}
             </div>
             {requirements.length === 0 ? (
               <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
@@ -290,9 +373,21 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     (priorityFilter === "all" || r.priority === priorityFilter) &&
                     (statusFilter === "all" || r.status === statusFilter)
                   ).map((req: any) => (
-                    <tr key={req.id || req.req_id} onClick={() => { openRequirement(req); onNavigate?.("reqs", req.req_id); }} className="clickable-row">
+                    <tr
+                      key={req.id || req.req_id}
+                      onClick={() => {
+                        openRequirement(req);
+                        onNavigate?.("reqs", req.req_id);
+                        if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
+                      }}
+                      className="clickable-row"
+                      style={!req.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                    >
                       <td className="chevron-cell"><Chevron /></td>
-                      <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>{req.req_id}</td>
+                      <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>
+                        {req.req_id}
+                        {!req.seen_at && <span style={{ marginLeft: 4, fontSize: 8, padding: "1px 5px", background: "var(--green)", color: "#0f172a", borderRadius: 4 }}>NEW</span>}
+                      </td>
                       <td>
                         <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
                         <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>{req.description?.slice(0, 80)}{req.description?.length > 80 ? "..." : ""}</div>
@@ -314,12 +409,28 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── GAPS ── */}
         {activeTab === "gaps" && (
           <div className="dp-tab-content active">
-            <div className="panel-filter">
-              {["all", "open", "in-progress"].map((f) => (
-                <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
-                  {f === "all" ? "All" : f.replace("-", " ")}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <div className="panel-filter" style={{ marginBottom: 0 }}>
+                {["all", "open", "in-progress"].map((f) => (
+                  <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
+                    {f === "all" ? "All" : f.replace("-", " ")}
+                  </button>
+                ))}
+              </div>
+              {unreadCounts.gap > 0 && (
+                <button
+                  onClick={() => markTabSeenAll("gap", setGaps)}
+                  title="Mark all gaps as read"
+                  style={{
+                    marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+                    background: "var(--green-light)", color: "#059669",
+                    border: "1px solid var(--green-mid)",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  ✓ Mark all read ({unreadCounts.gap})
                 </button>
-              ))}
+              )}
             </div>
             {gaps.length === 0 ? (
               <EmptyState icon="M12 9v2m0 4h.01" text="No gaps detected. Run gap analysis from the chat to identify missing requirements." />
@@ -338,10 +449,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 <tbody>
                   {gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter).map((gap: any) => (
                     <Fragment key={gap.id}>
-                      <tr className="clickable-row" onClick={() => { const next = expandedRow === gap.id ? null : gap.id; setExpandedRow(next); onNavigate?.("gaps", next ? gap.gap_id : undefined); }}>
+                      <tr
+                        className="clickable-row"
+                        style={!gap.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                        onClick={() => {
+                          const next = expandedRow === gap.id ? null : gap.id;
+                          setExpandedRow(next);
+                          onNavigate?.("gaps", next ? gap.gap_id : undefined);
+                          if (gap.id && !gap.seen_at) markRowSeen("gap", gap.id, setGaps);
+                        }}
+                      >
                         <td className="chevron-cell"><Chevron open={expandedRow === gap.id} /></td>
                         <td><SevBadge severity={gap.severity} /></td>
-                        <td style={{ fontWeight: 500 }}>{gap.question}</td>
+                        <td style={{ fontWeight: 500 }}>
+                          {gap.question}
+                          {!gap.seen_at && <span style={{ marginLeft: 6, fontSize: 8, padding: "1px 5px", background: "var(--green)", color: "#0f172a", borderRadius: 4, fontWeight: 700 }}>NEW</span>}
+                        </td>
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
                         <td><GapStatusPill status={gap.status} /></td>
                         <td>
@@ -432,6 +555,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── CONSTRAINTS ── */}
         {activeTab === "constraints" && (
           <div className="dp-tab-content active">
+            {unreadCounts.constraint > 0 && (
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                <button
+                  onClick={() => markTabSeenAll("constraint", setConstraints)}
+                  title="Mark all constraints as read"
+                  style={{
+                    padding: "4px 10px", borderRadius: 6,
+                    background: "var(--green-light)", color: "#059669",
+                    border: "1px solid var(--green-mid)",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  ✓ Mark all read ({unreadCounts.constraint})
+                </button>
+              </div>
+            )}
             {constraints.length === 0 ? (
               <EmptyState icon="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4" text="No constraints extracted yet." />
             ) : (
@@ -447,11 +586,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 </thead>
                 <tbody>
                   {constraints.map((c: any, i: number) => (
-                    <tr key={c.id || i} className="clickable-row" onClick={() => { setDetail({
-                      title: `${c.type} Constraint`,
-                      content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
-                      meta: { type: c.type, status: c.status },
-                    }); onNavigate?.("constraints", String(c.id).slice(0, 8)); }}>
+                    <tr
+                      key={c.id || i}
+                      className="clickable-row"
+                      style={!c.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                      onClick={() => {
+                        setDetail({
+                          title: `${c.type} Constraint`,
+                          content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
+                          meta: { type: c.type, status: c.status },
+                        });
+                        onNavigate?.("constraints", String(c.id).slice(0, 8));
+                        if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
+                      }}
+                    >
                       <td className="chevron-cell"><Chevron /></td>
                       <td>
                         <span className="sev-badge" style={{
@@ -475,12 +623,28 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── CONTRADICTIONS ── */}
         {activeTab === "contradictions" && (
           <div className="dp-tab-content active">
-            <div className="panel-filter">
-              {["all", "open", "resolved"].map((f) => (
-                <button key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
-                  {f}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+              <div className="panel-filter" style={{ marginBottom: 0 }}>
+                {["all", "open", "resolved"].map((f) => (
+                  <button key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              {unreadCounts.contradiction > 0 && (
+                <button
+                  onClick={() => markTabSeenAll("contradiction", setContradictions)}
+                  title="Mark all contradictions as read"
+                  style={{
+                    marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
+                    background: "var(--green-light)", color: "#059669",
+                    border: "1px solid var(--green-mid)",
+                    fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  ✓ Mark all read ({unreadCounts.contradiction})
                 </button>
-              ))}
+              )}
             </div>
             {contradictions.length === 0 ? (
               <EmptyState icon="M13 10V3L4 14h7v7l9-11h-7z" text="No contradictions detected between sources." />
@@ -503,7 +667,16 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     c.resolved
                   ).map((c: any) => (
                     <Fragment key={c.id}>
-                      <tr className="clickable-row" onClick={() => { const next = expandedRow === c.id ? null : c.id; setExpandedRow(next); onNavigate?.("contradictions", next ? String(c.id).slice(0, 8) : undefined); }}>
+                      <tr
+                        className="clickable-row"
+                        style={!c.seen_at ? { boxShadow: "inset 3px 0 0 var(--green)" } : undefined}
+                        onClick={() => {
+                          const next = expandedRow === c.id ? null : c.id;
+                          setExpandedRow(next);
+                          onNavigate?.("contradictions", next ? String(c.id).slice(0, 8) : undefined);
+                          if (c.id && !c.seen_at) markRowSeen("contradiction", c.id, setContradictions);
+                        }}
+                      >
                         <td className="chevron-cell"><Chevron open={expandedRow === c.id} /></td>
                         <td><SevBadge severity="high" /></td>
                         <td>

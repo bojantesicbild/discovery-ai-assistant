@@ -14,11 +14,40 @@ from app.models.extraction import (
     Assumption, ScopeItem, Contradiction, Gap,
 )
 from app.models.document import Document
+from app.services.finding_views import get_seen_map
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["extracted-items"])
 
 import structlog
 log = structlog.get_logger()
+
+
+async def _attach_seen(
+    items: list[dict],
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    project_id: uuid.UUID,
+    finding_type: str,
+) -> list[dict]:
+    """Enrich each item dict with a `seen_at` field from the user's
+    finding_views map. Items whose `id` isn't in the map get `seen_at: None`
+    (i.e. unread). Mutates and returns the list."""
+    if not items:
+        return items
+    seen_map = await get_seen_map(db, user_id, project_id, finding_type)
+    for item in items:
+        item_id = item.get("id")
+        if not item_id:
+            item["seen_at"] = None
+            continue
+        try:
+            uid = uuid.UUID(item_id)
+        except (ValueError, TypeError):
+            item["seen_at"] = None
+            continue
+        seen = seen_map.get(uid)
+        item["seen_at"] = seen.isoformat() if seen else None
+    return items
 
 async def _sync_markdown(project_id: uuid.UUID, db):
     """Re-export all data to markdown files after any write operation."""
@@ -63,7 +92,9 @@ async def list_requirements(
     query = query.order_by(Requirement.req_id)
     result = await db.execute(query)
     rows = result.all()
-    return {"items": [_req_dict(r, doc_name) for r, doc_name in rows], "total": len(rows)}
+    items = [_req_dict(r, doc_name) for r, doc_name in rows]
+    await _attach_seen(items, db, user.id, project_id, "requirement")
+    return {"items": items, "total": len(rows)}
 
 
 @router.get("/requirements/{req_id}")
@@ -179,7 +210,7 @@ async def list_gaps(
     query = query.order_by(Gap.gap_id)
     result = await db.execute(query)
     rows = result.all()
-    return {"items": [{
+    items = [{
         "id": str(g.id),
         "gap_id": g.gap_id,
         "question": g.question,
@@ -193,7 +224,9 @@ async def list_gaps(
         "status": g.status,
         "resolution": g.resolution,
         "created_at": g.created_at.isoformat() if g.created_at else None,
-    } for g, doc_name in rows], "total": len(rows)}
+    } for g, doc_name in rows]
+    await _attach_seen(items, db, user.id, project_id, "gap")
+    return {"items": items, "total": len(rows)}
 
 
 @router.patch("/gaps/{gap_id}/resolve")
@@ -280,9 +313,11 @@ async def list_constraints(
         query = query.where(Constraint.type == type)
     result = await db.execute(query)
     items = result.scalars().all()
-    return {"items": [{"id": str(c.id), "type": c.type, "description": c.description,
-                        "impact": c.impact, "status": c.status, "source_quote": c.source_quote}
-                       for c in items], "total": len(items)}
+    out = [{"id": str(c.id), "type": c.type, "description": c.description,
+             "impact": c.impact, "status": c.status, "source_quote": c.source_quote}
+            for c in items]
+    await _attach_seen(out, db, user.id, project_id, "constraint")
+    return {"items": out, "total": len(items)}
 
 
 # ── Decisions ─────────────────────────────────────────
@@ -297,11 +332,13 @@ async def list_decisions(
         select(Decision).where(Decision.project_id == project_id).order_by(Decision.created_at.desc())
     )
     items = result.scalars().all()
-    return {"items": [{"id": str(d.id), "title": d.title, "decided_by": d.decided_by,
-                        "date": str(d.decided_date) if d.decided_date else None,
-                        "rationale": d.rationale, "alternatives": d.alternatives,
-                        "impacts": d.impacts, "status": d.status}
-                       for d in items], "total": len(items)}
+    out = [{"id": str(d.id), "title": d.title, "decided_by": d.decided_by,
+             "date": str(d.decided_date) if d.decided_date else None,
+             "rationale": d.rationale, "alternatives": d.alternatives,
+             "impacts": d.impacts, "status": d.status}
+            for d in items]
+    await _attach_seen(out, db, user.id, project_id, "decision")
+    return {"items": out, "total": len(items)}
 
 
 # ── Stakeholders ──────────────────────────────────────
@@ -316,11 +353,13 @@ async def list_stakeholders(
         select(Stakeholder).where(Stakeholder.project_id == project_id)
     )
     items = result.scalars().all()
-    return {"items": [{"id": str(s.id), "name": s.name, "role": s.role,
-                        "organization": s.organization,
-                        "decision_authority": s.decision_authority,
-                        "interests": s.interests}
-                       for s in items], "total": len(items)}
+    out = [{"id": str(s.id), "name": s.name, "role": s.role,
+             "organization": s.organization,
+             "decision_authority": s.decision_authority,
+             "interests": s.interests}
+            for s in items]
+    await _attach_seen(out, db, user.id, project_id, "stakeholder")
+    return {"items": out, "total": len(items)}
 
 
 # ── Assumptions ───────────────────────────────────────
@@ -337,11 +376,13 @@ async def list_assumptions(
         query = query.where(Assumption.validated == validated)
     result = await db.execute(query)
     items = result.scalars().all()
-    return {"items": [{"id": str(a.id), "statement": a.statement, "basis": a.basis,
-                        "risk_if_wrong": a.risk_if_wrong,
-                        "needs_validation_by": a.needs_validation_by,
-                        "validated": a.validated}
-                       for a in items], "total": len(items)}
+    out = [{"id": str(a.id), "statement": a.statement, "basis": a.basis,
+             "risk_if_wrong": a.risk_if_wrong,
+             "needs_validation_by": a.needs_validation_by,
+             "validated": a.validated}
+            for a in items]
+    await _attach_seen(out, db, user.id, project_id, "assumption")
+    return {"items": out, "total": len(items)}
 
 
 # ── Scope Items ───────────────────────────────────────
@@ -358,9 +399,11 @@ async def list_scope_items(
         query = query.where(ScopeItem.in_scope == in_scope)
     result = await db.execute(query)
     items = result.scalars().all()
-    return {"items": [{"id": str(s.id), "description": s.description,
-                        "in_scope": s.in_scope, "rationale": s.rationale}
-                       for s in items], "total": len(items)}
+    out = [{"id": str(s.id), "description": s.description,
+             "in_scope": s.in_scope, "rationale": s.rationale}
+            for s in items]
+    await _attach_seen(out, db, user.id, project_id, "scope")
+    return {"items": out, "total": len(items)}
 
 
 # ── Contradictions ────────────────────────────────────
@@ -418,6 +461,7 @@ async def list_contradictions(
             "resolution_note": c.resolution_note,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
+    await _attach_seen(contra_list, db, user.id, project_id, "contradiction")
     return {"items": contra_list, "total": len(contra_list)}
 
 

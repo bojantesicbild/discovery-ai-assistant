@@ -11,6 +11,7 @@ from app.models.operational import (
     PipelineCheckpoint, Learning, PipelineSync,
 )
 from app.models.slack import SlackChannelLink, SlackThreadSession
+from app.models.finding_view import FindingView
 
 __all__ = [
     "User", "Project", "ProjectMember", "Document",
@@ -20,4 +21,5 @@ __all__ = [
     "Conversation", "ActivityLog", "LLMCall",
     "PipelineCheckpoint", "Learning", "PipelineSync",
     "SlackChannelLink", "SlackThreadSession",
+    "FindingView",
 ]

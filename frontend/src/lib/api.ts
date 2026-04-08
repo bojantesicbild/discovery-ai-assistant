@@ -492,6 +492,51 @@ export async function unlinkSlackChannel(projectId: string, channelId: string) {
   return fetchAPI(`/api/projects/${projectId}/slack/channels/${channelId}`, { method: "DELETE" });
 }
 
+// Finding read-state (per-user unread tracking)
+export type FindingType =
+  | "requirement"
+  | "gap"
+  | "constraint"
+  | "decision"
+  | "contradiction"
+  | "assumption"
+  | "scope"
+  | "stakeholder";
+
+export interface UnreadCounts {
+  requirement: number;
+  gap: number;
+  constraint: number;
+  decision: number;
+  contradiction: number;
+  assumption: number;
+  scope: number;
+  stakeholder: number;
+  total: number;
+}
+
+export async function getUnreadCounts(projectId: string): Promise<UnreadCounts> {
+  return fetchAPI(`/api/projects/${projectId}/findings/unread`);
+}
+
+export async function markFindingSeen(projectId: string, findingType: FindingType, findingId: string) {
+  return fetchAPI(`/api/projects/${projectId}/findings/${findingType}/${findingId}/seen`, {
+    method: "POST",
+  });
+}
+
+export async function markFindingsTypeSeenAll(projectId: string, findingType: FindingType) {
+  return fetchAPI(`/api/projects/${projectId}/findings/${findingType}/seen-all`, {
+    method: "POST",
+  });
+}
+
+export async function markFindingsProjectSeenAll(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/findings/seen-all`, {
+    method: "POST",
+  });
+}
+
 // Wiki
 export async function getWikiFiles(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/files`);
