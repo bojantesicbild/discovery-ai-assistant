@@ -143,6 +143,26 @@ def fixture_to_payload(kind: str, fm: dict, body: str) -> dict:
     if src_match:
         payload["source_quote"] = src_match.group(1)
 
+    # Constraint-specific: `impact` lives in `## Impact` paragraph
+    if kind == "constraint":
+        imp_match = re.search(r"##\s+Impact\s*\n+([^\n]+)", body)
+        if imp_match:
+            payload["impact"] = imp_match.group(1).strip()
+        # `affected_reqs` reconstructed from "## Affected Requirements" body
+        affected: list[str] = []
+        in_affected = False
+        for line in body.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("## "):
+                in_affected = stripped == "## Affected Requirements"
+                continue
+            if not in_affected:
+                continue
+            m = re.match(r"-\s+\[\[([^\]]+)\]\]\s+—\s+constrained", stripped)
+            if m:
+                affected.append(m.group(1).strip())
+        payload["affected_reqs"] = affected
+
     # `co_extracted` is derived from `## Related` body lines like
     # `- [[BR-002]] — co-extracted`. Reconstruct it so the renderer
     # produces the same wikilinks.
@@ -180,41 +200,57 @@ def fixture_to_payload(kind: str, fm: dict, body: str) -> dict:
     return payload
 
 
-def run_requirement_parity(report: FailReport, render_fn: Callable | None) -> None:
-    """For each req_*.md fixture, run the writer and compare.
-
-    `render_fn` is the new writer being tested. If None, just validates
-    that fixtures parse cleanly (sanity check before any refactor)."""
-    fixtures = sorted(FIXTURES.glob("req_*.md"))
-    print(f"\n{INFO} Requirement fixtures: {len(fixtures)}")
+def run_kind_parity(
+    report: FailReport,
+    kind: str,
+    glob: str,
+    render_fn: Callable | None,
+) -> None:
+    """For each fixture matching `glob`, run the writer and compare."""
+    fixtures = sorted(FIXTURES.glob(glob))
+    print(f"\n{INFO} {kind.title()} fixtures: {len(fixtures)}")
     for fx in fixtures:
         original = fx.read_text(encoding="utf-8")
         if render_fn is None:
-            # Sanity: just parse + report fields
             fm, body = parse_note(original)
             print(f"  {INFO} {fx.name}: {len(fm)} fm fields, {len(extract_wikilinks(body))} wikilinks")
             continue
 
         fm, body = parse_note(original)
-        payload = fixture_to_payload("requirement", fm, body)
+        payload = fixture_to_payload(kind, fm, body)
         new_text = render_fn(payload, original_text=original)
         assert_parity(report, fx.name, original, new_text)
+
+
+# Backwards-compatible alias
+def run_requirement_parity(report: FailReport, render_fn: Callable | None) -> None:
+    run_kind_parity(report, "requirement", "req_*.md", render_fn)
+
+
+def run_constraint_parity(report: FailReport, render_fn: Callable | None) -> None:
+    run_kind_parity(report, "constraint", "con_*.md", render_fn)
 
 
 def main() -> int:
     report = FailReport()
 
-    # Try to import the new render function. If it doesn't exist yet,
-    # do a sanity-only run that just parses the fixtures.
-    render_fn = None
+    # Requirement
+    req_fn = None
     try:
         from app.pipeline.tasks import render_requirement_text  # type: ignore
-        render_fn = render_requirement_text
-        print(f"{INFO} Found render_requirement_text — running parity")
+        req_fn = render_requirement_text
     except ImportError:
-        print(f"{INFO} render_requirement_text not yet defined — sanity only")
+        pass
+    run_requirement_parity(report, req_fn)
 
-    run_requirement_parity(report, render_fn)
+    # Constraint
+    con_fn = None
+    try:
+        from app.pipeline.tasks import render_constraint_text  # type: ignore
+        con_fn = render_constraint_text
+    except ImportError:
+        pass
+    run_constraint_parity(report, con_fn)
 
     print()
     if report.failures:

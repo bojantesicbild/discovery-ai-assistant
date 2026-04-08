@@ -158,11 +158,12 @@ def lint_file(path: Path, vault_dir: Path, all_md_files: set[str], report: LintR
 
     report.kind_counts[kind] += 1
 
-    # 1. Schema validation
+    # 1. Schema validation. We only have the frontmatter dict here, so
+    # use frontmatter_only mode — body-only required fields (description,
+    # impact, source_quote on some kinds) shouldn't surface as missing.
     schema = schema_lib.get(kind)
-    # Strip schema-specific synthesized fields that aren't in the schema
     payload = {k: v for k, v in fm.items() if schema.field(k) is not None}
-    result = schema_lib.validate(kind, payload)
+    result = schema_lib.validate(kind, payload, frontmatter_only=True)
     if not result.ok:
         for err in result.errors:
             # Demote "missing required field" warnings for legacy notes that

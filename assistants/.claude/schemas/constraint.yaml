@@ -12,6 +12,12 @@ fields:
     db_column: null
     description: "CON-NNN — assigned by writer, not stored in DB"
 
+  - key: title
+    type: string
+    required: false
+    db_column: null
+    description: "Auto-derived from type + description prefix by the writer"
+
   - key: type
     type: enum
     values: [budget, timeline, technology, regulatory, organizational]

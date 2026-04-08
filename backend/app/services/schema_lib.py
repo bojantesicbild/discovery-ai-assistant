@@ -187,12 +187,23 @@ class ValidationResult(BaseModel):
     coerced: dict[str, Any] = Field(default_factory=dict)
 
 
-def validate(kind: str, payload: dict[str, Any]) -> ValidationResult:
+def validate(
+    kind: str,
+    payload: dict[str, Any],
+    *,
+    frontmatter_only: bool = False,
+) -> ValidationResult:
     """Validate a finding payload against its schema.
 
     Returns a ValidationResult with `ok`, any errors, and a `coerced` dict
     that has defaults filled in and types coerced where possible. Does NOT
-    write anything — purely a check."""
+    write anything — purely a check.
+
+    `frontmatter_only=True` restricts validation to fields with
+    `frontmatter: true`. Used by `lint_vault.py` when the only context
+    available is the parsed YAML frontmatter — required body-only fields
+    (description, impact, source_quote) shouldn't be flagged as missing
+    just because the lint script can't see them."""
     schema = get(kind)
     errors: list[str] = []
     coerced: dict[str, Any] = {}
@@ -201,6 +212,8 @@ def validate(kind: str, payload: dict[str, Any]) -> ValidationResult:
 
     # Required fields present?
     for f in schema.fields:
+        if frontmatter_only and (not f.frontmatter or f.secret):
+            continue
         present = f.key in payload and payload[f.key] not in (None, "")
         if f.required and not present:
             if f.default is not None:

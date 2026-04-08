@@ -805,38 +805,14 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     constraints_dir.mkdir(parents=True, exist_ok=True)
     for i, con in enumerate(constraints, 1):
         con_id = f"CON-{i:03d}"
-        con_lines = [
-            "---",
-            f"id: {con_id}",
-            f'title: "{con.type}: {con.description[:50]}"',
-            f"type: {con.type}",
-            f"status: {con.status}",
-            f"date: {today}",
-            "category: constraint",
-            f"tags: [constraint, {con.type}, {con.status}]",
-            f"aliases: [{con_id}]",
-            "cssclasses: [constraint, node-cyan]",
-            "---",
-            "",
-            f"# {con_id}: {con.type} constraint",
-            "",
-            con.description,
-            "",
-            "## Impact",
-            con.impact or "Not specified",
-            "",
+        # Pre-compute affected requirements (other rows from same source doc)
+        affected_reqs = [
+            r.req_id for r, _, _ in reqs_rows
+            if r.source_doc_id == con.source_doc_id
         ]
-        if con.source_quote:
-            con_lines.append("## Source")
-            con_lines.append(f'> "{con.source_quote}"')
-            con_lines.append("")
-        # Link to requirements that this constraint affects
-        con_lines.append("## Affected Requirements")
-        for r, _, _ in reqs_rows:
-            if r.source_doc_id == con.source_doc_id:
-                con_lines.append(f"- [[{r.req_id}]] — constrained")
-        con_lines.append("")
-        (constraints_dir / f"{con_id}.md").write_text("\n".join(con_lines))
+        payload = _constraint_to_payload(con, con_id, today, affected_reqs)
+        text = render_constraint_text(payload)
+        (constraints_dir / f"{con_id}.md").write_text(text)
 
     # --- gaps/ individual files ---
     gaps_dir = discovery_dir / "gaps"
@@ -1218,6 +1194,72 @@ def render_requirement_text(
         lines.append(f"- [Original source]({raw_rel})")
 
     lines.append("")
+    return fm_block + "\n".join(lines)
+
+
+def _constraint_to_payload(
+    con,
+    con_id: str,
+    today: str,
+    affected_reqs: list[str],
+) -> dict:
+    """Build the writer-input payload from a Constraint SQLAlchemy row."""
+    return {
+        "id": con_id,
+        "title": f"{con.type}: {(con.description or '')[:50]}",
+        "type": con.type,
+        "description": con.description or "",
+        "impact": con.impact or "",
+        "status": con.status or "assumed",
+        "source_quote": con.source_quote or "",
+        "date": today,
+        "affected_reqs": affected_reqs,
+    }
+
+
+def render_constraint_text(
+    payload: dict,
+    *,
+    original_text: str | None = None,
+) -> str:
+    """Render a single constraint note as markdown.
+
+    Frontmatter comes from `schema_lib.render_frontmatter("constraint",
+    payload)` so any schema edit propagates automatically. Body sections
+    (## Impact, ## Source, ## Affected Requirements) are hand-built —
+    they have per-row formatting that doesn't fit schema_lib's section
+    primitives yet.
+
+    `original_text` is unused — kept for parity-test API compatibility."""
+    from app.services import schema_lib
+
+    cid = payload["id"]
+    con_type = payload.get("type", "")
+    description = payload.get("description") or ""
+    impact = payload.get("impact") or "Not specified"
+    source_quote = payload.get("source_quote") or ""
+    affected = payload.get("affected_reqs") or []
+
+    fm_block = schema_lib.render_frontmatter("constraint", payload)
+
+    lines: list[str] = [
+        f"# {cid}: {con_type} constraint",
+        "",
+        description,
+        "",
+        "## Impact",
+        impact,
+        "",
+    ]
+    if source_quote:
+        lines.append("## Source")
+        lines.append(f'> "{source_quote}"')
+        lines.append("")
+    lines.append("## Affected Requirements")
+    for rid in affected:
+        lines.append(f"- [[{rid}]] — constrained")
+    lines.append("")
+
     return fm_block + "\n".join(lines)
 
 
