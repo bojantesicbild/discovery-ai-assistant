@@ -24,13 +24,117 @@ import os
 import sys
 import json
 import asyncio
+from pathlib import Path
+
 import asyncpg
+import yaml
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db")
 PROJECT_ID = os.environ.get("DISCOVERY_PROJECT_ID", "")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Schema-aware enum validation
+# ─────────────────────────────────────────────────────────────────────
+# We load the same canonical YAML schemas the backend uses
+# (assistants/.claude/schemas/*.yaml). This lets us validate enum
+# values for type/status/priority/etc. before INSERT, falling back
+# to safe defaults when an agent passes garbage. Catches the kind of
+# drift Phase 2C-1 fixed before it can sneak back in.
+#
+# We deliberately do NOT import schema_lib from the backend — mcp-server
+# is a standalone process with its own venv. Instead we read the YAML
+# files directly, which is the same source of truth.
+
+_SCHEMAS_CACHE: dict | None = None
+
+
+def _find_schemas_dir() -> Path | None:
+    """Locate assistants/.claude/schemas/ relative to this file.
+
+    The mcp-server lives at <repo>/mcp-server/db_server.py and the
+    schemas live at <repo>/assistants/.claude/schemas/. Walk up from
+    this file until we find one. Returns None if missing (so the
+    server still starts in environments where schemas aren't shipped)."""
+    here = Path(__file__).resolve()
+    for parent in [here.parent, *here.parents]:
+        candidate = parent / "assistants" / ".claude" / "schemas"
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+    return None
+
+
+def _load_schemas() -> dict:
+    """Lazy-load the YAML schemas into a {kind: {field: dict, ...}} map.
+
+    Output shape per kind:
+        {
+            "fields": {key: {"type", "values", "required", "default"}},
+            "enums": {key: [v1, v2, ...]},   # convenience subset
+        }
+    """
+    global _SCHEMAS_CACHE
+    if _SCHEMAS_CACHE is not None:
+        return _SCHEMAS_CACHE
+
+    schemas_dir = _find_schemas_dir()
+    if not schemas_dir:
+        _SCHEMAS_CACHE = {}
+        return _SCHEMAS_CACHE
+
+    out: dict = {}
+    for path in sorted(schemas_dir.glob("*.yaml")):
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(data, dict) or "kind" not in data:
+            continue
+        kind = data["kind"]
+        fields: dict[str, dict] = {}
+        enums: dict[str, list] = {}
+        for f in data.get("fields", []):
+            key = f.get("key")
+            if not key:
+                continue
+            fields[key] = {
+                "type": f.get("type"),
+                "values": f.get("values"),
+                "required": f.get("required", False),
+                "default": f.get("default"),
+            }
+            if f.get("type") == "enum" and f.get("values"):
+                enums[key] = f["values"]
+        out[kind] = {"fields": fields, "enums": enums}
+    _SCHEMAS_CACHE = out
+    return _SCHEMAS_CACHE
+
+
+def coerce_enum(kind: str, field: str, value: str | None, fallback: str) -> str:
+    """Validate `value` against the enum declared in the schema for
+    `kind.field`. If invalid (or None), return `fallback`. The fallback
+    must itself be valid — if not, returns the first declared enum value.
+
+    Used to harden the per-kind INSERTs against agent typos and against
+    schema drift. Logs to stderr (not the MCP protocol channel) when a
+    coercion happens so debugging is possible."""
+    schemas = _load_schemas()
+    enum_values = schemas.get(kind, {}).get("enums", {}).get(field)
+    if not enum_values:
+        # Schema unavailable or field isn't an enum — accept as-is
+        return value if value else fallback
+    if value and value in enum_values:
+        return value
+    if fallback in enum_values:
+        if value:
+            print(f"[mcp] coerce {kind}.{field}={value!r} -> {fallback!r}", file=sys.stderr)
+        return fallback
+    # Last resort: first valid value
+    print(f"[mcp] coerce {kind}.{field}={value!r} -> {enum_values[0]!r} (fallback {fallback!r} also invalid)", file=sys.stderr)
+    return enum_values[0]
 
 server = Server("discovery-db")
 _pool = None
@@ -474,14 +578,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     num = 1
                 new_req_id = f"BR-{num:03d}"
 
-                # type defaults to 'functional' (the schema enum is
-                # functional / non_functional — 'business' was wrong).
-                # source_quote uses description since the tool input
-                # doesn't accept a separate quote arg yet.
+                # type / priority / status / confidence are all enums
+                # in the schema — coerce against it so agent typos
+                # don't poison the data.
+                req_priority = coerce_enum("requirement", "priority", priority, "should")
                 await conn.execute(
                     "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote, source_person) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', $6, $7)",
-                    pid, new_req_id, title, description, priority, description, source_person
+                    pid, new_req_id, title, description, req_priority, description, source_person
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -491,14 +595,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "requirement", "req_id": new_req_id, "title": title, "readiness": new_score})
 
             elif finding_type == "constraint":
-                # type defaults to 'technology' (was 'general' which is
-                # not in the schema enum). status defaults to 'assumed'
-                # (was 'proposed' which is not in the constraint enum).
-                # The agent can pass `priority` to override type when
-                # they know which kind of constraint it is.
-                con_type = priority if priority in (
-                    "budget", "timeline", "technology", "regulatory", "organizational"
-                ) else "technology"
+                # type / status are enums — coerce against the schema.
+                # The agent can pass `priority` to override type (we
+                # piggyback on the existing tool arg until 2C-2 adds
+                # a proper kind_subtype field).
+                con_type = coerce_enum("constraint", "type", priority, "technology")
                 await conn.execute(
                     "INSERT INTO constraints (id, project_id, type, description, impact, source_quote, status) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'assumed')",
