@@ -1136,43 +1136,37 @@ def render_requirement_text(
 ) -> str:
     """Render a single requirement note as markdown.
 
-    This is the canonical writer for `BR-NNN.md` files. It produces
-    EXACTLY the same byte sequence as the inline writer it replaced —
-    Phase 2B step 1 is a pure refactor (extract method) with zero
-    behavior change. Step 2 (separate commit) will swap the inline
-    string building for `schema_lib.render_body()`.
+    Phase 2B step 2: the YAML frontmatter is now produced by
+    `schema_lib.render_frontmatter("requirement", payload)` so any
+    schema edit (new field, renamed field, dropped field) automatically
+    propagates to the on-disk output. Body sections (Source, People,
+    Related, Sources) stay hand-built for now — they have per-row
+    formatting (wikilinks, custom labels, raw backlinks) that doesn't
+    fit cleanly into the simple schema_lib section primitives. Phase
+    2B step 3 can refactor those if/when we extend schema_lib's body
+    renderer.
 
     `reqs_dir` is the directory the file lives in (used to compute the
-    `source_raw:` relative path). When None, source_raw is omitted.
-    `original_text` is accepted but unused — it's there so the parity
-    test can pass it without a special-case."""
-    from app.services import raw_store
+    `source_raw:` relative path). When None, source_raw is left as
+    whatever's already in the payload (allows pre-resolved paths from
+    the parity test).
+    `original_text` is accepted but unused — kept so the parity test
+    can pass it without a special-case."""
+    from app.services import raw_store, schema_lib
     from pathlib import Path as _P
 
     rid = payload["id"]
     title = payload.get("title", "")
-    desc_escaped = (payload.get("description") or "").replace('"', '\\"')
     source_doc_name = payload.get("source_doc") or "unknown"
     person = payload.get("source_person") or "unknown"
     sources_list = payload.get("sources") or []
     co_extracted = payload.get("co_extracted") or []
     doc_class = payload.get("_doc_class") or {}
 
-    lines = [
-        "---",
-        f"id: {rid}",
-        f'title: "{title}"',
-        f"priority: {payload.get('priority', 'should')}",
-        f"status: {payload.get('status', 'proposed')}",
-        f"confidence: {payload.get('confidence', 'medium')}",
-        f'source_doc: "{source_doc_name}"',
-        f"source_person: {person}",
-        f"version: {payload.get('version', 1)}",
-        f"date: {payload.get('date', '')}",
-        "category: requirement",
-        f'description: "{desc_escaped}"',
-    ]
-
+    # Resolve source_raw to a relative path (or accept a pre-resolved one
+    # from the parity test). The schema declares source_raw and
+    # source_origin as frontmatter fields, so we set them in the payload
+    # and let render_frontmatter pick them up.
     raw_rel: str | None = None
     if doc_class.get("source_raw_path"):
         raw_path_str = doc_class["source_raw_path"]
@@ -1182,19 +1176,18 @@ def render_requirement_text(
             except Exception:
                 raw_rel = None
         else:
-            # Already-relative path (parity test passes pre-resolved values)
             raw_rel = raw_path_str
     if raw_rel:
-        lines.append(f'source_raw: "{raw_rel}"')
+        payload["source_raw"] = raw_rel
     if doc_class.get("source"):
-        lines.append(f'source_origin: {doc_class["source"]}')
+        payload["source_origin"] = doc_class["source"]
 
-    lines.extend([
-        f"tags: [requirement, {payload.get('priority', 'should')}, {payload.get('status', 'proposed')}]",
-        f"aliases: [{rid}]",
-        f"cssclasses: [requirement, node-green]",
-        "---",
-        "",
+    # Frontmatter from schema — single source of truth for fields,
+    # types, defaults, tags, aliases, cssclasses, category.
+    fm_block = schema_lib.render_frontmatter("requirement", payload)
+
+    # Body sections — hand-built for now (Phase 2B step 3 territory)
+    lines: list[str] = [
         f"# {rid}: {title}",
         "",
         payload.get("description") or "",
@@ -1203,7 +1196,7 @@ def render_requirement_text(
         f"> \"{payload.get('source_quote', '')}\"" if payload.get("source_quote") else "> (no quote)",
         "",
         "## People",
-    ])
+    ]
     if person and person != "unknown":
         lines.append(f"- [[{person}]] — requested")
     else:
@@ -1225,7 +1218,7 @@ def render_requirement_text(
         lines.append(f"- [Original source]({raw_rel})")
 
     lines.append("")
-    return "\n".join(lines)
+    return fm_block + "\n".join(lines)
 
 
 def _write_hot(vault_root, doc: Document, reqs_rows, gaps_rows, decisions, readiness: dict):

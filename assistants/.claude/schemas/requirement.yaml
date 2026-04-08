@@ -44,7 +44,7 @@ fields:
   - key: description
     type: text
     required: true
-    frontmatter: false
+    description: "Body of the requirement — also rendered as the H1 paragraph"
 
   - key: user_perspective
     type: text
@@ -96,6 +96,12 @@ fields:
     required: false
     db_column: null
     description: "Web URL when source has one (Gmail, Drive)"
+
+  - key: source_origin
+    type: string
+    required: false
+    db_column: null
+    description: "Connector that ingested the source (gmail, google_drive, upload, slack)"
 
   - key: version
     type: int
