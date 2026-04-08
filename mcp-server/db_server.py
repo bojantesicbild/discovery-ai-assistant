@@ -474,10 +474,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     num = 1
                 new_req_id = f"BR-{num:03d}"
 
+                # type defaults to 'functional' (the schema enum is
+                # functional / non_functional — 'business' was wrong).
+                # source_quote uses description since the tool input
+                # doesn't accept a separate quote arg yet.
                 await conn.execute(
-                    "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'business', $5, 'proposed', 'medium', $6)",
-                    pid, new_req_id, title, description, priority, f"[{source}] {source_person}"
+                    "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote, source_person) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', $6, $7)",
+                    pid, new_req_id, title, description, priority, description, source_person
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -487,10 +491,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "requirement", "req_id": new_req_id, "title": title, "readiness": new_score})
 
             elif finding_type == "constraint":
+                # type defaults to 'technology' (was 'general' which is
+                # not in the schema enum). status defaults to 'assumed'
+                # (was 'proposed' which is not in the constraint enum).
+                # The agent can pass `priority` to override type when
+                # they know which kind of constraint it is.
+                con_type = priority if priority in (
+                    "budget", "timeline", "technology", "regulatory", "organizational"
+                ) else "technology"
                 await conn.execute(
                     "INSERT INTO constraints (id, project_id, type, description, impact, source_quote, status) "
-                    "VALUES (gen_random_uuid(), $1, 'general', $2, $3, $4, 'proposed')",
-                    pid, title, description, f"[{source}] {source_person}"
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'assumed')",
+                    pid, con_type, title, description or "", description or ""
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -500,10 +512,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "constraint", "title": title, "readiness": new_score})
 
             elif finding_type == "decision":
+                # alternatives is JSONB so an empty string fails to
+                # parse — use a real JSON array. status defaults to
+                # 'tentative' (the schema enum is tentative/confirmed/
+                # reversed; 'proposed' was wrong).
                 await conn.execute(
-                    "INSERT INTO decisions (id, project_id, title, decided_by, rationale, alternatives, status) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, '', 'proposed')",
-                    pid, title, source_person, description
+                    "INSERT INTO decisions (id, project_id, title, decided_by, rationale, alternatives, impacts, status) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::jsonb, $6::jsonb, 'tentative')",
+                    pid, title, source_person, description, "[]", "[]"
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -525,10 +541,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "stakeholder", "name": title})
 
             elif finding_type == "assumption":
+                # FIX: the assumptions table has no `impact` column —
+                # the previous INSERT was failing every call. The real
+                # columns are statement, basis, risk_if_wrong,
+                # needs_validation_by, validated. Tool doesn't expose
+                # all four as args; use description as the basis and
+                # leave risk_if_wrong empty for now.
                 await conn.execute(
-                    "INSERT INTO assumptions (id, project_id, statement, impact, basis, validated) "
+                    "INSERT INTO assumptions (id, project_id, statement, basis, risk_if_wrong, validated) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, false)",
-                    pid, title, description or "", source or "inferred"
+                    pid, title, description or "", ""
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -555,10 +577,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "gap", "gap_id": gap_id, "question": title, "readiness": new_score})
 
             elif finding_type == "scope":
+                # FIX: the scope_items table has no `item` or
+                # `confirmed` columns — the previous INSERT was failing
+                # every call. The real columns are description,
+                # in_scope, rationale.
                 in_scope = priority != "out"
                 await conn.execute(
-                    "INSERT INTO scope_items (id, project_id, item, in_scope, rationale, confirmed) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, false)",
+                    "INSERT INTO scope_items (id, project_id, description, in_scope, rationale) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4)",
                     pid, title, in_scope, description or ""
                 )
                 await conn.execute(
