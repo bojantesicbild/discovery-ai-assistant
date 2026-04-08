@@ -74,51 +74,34 @@ When the user provides client communication (meeting notes, email, document):
 7. Update active-tasks/discovery.md
 ```
 
-**Extraction Framework** — For each type, extract:
+**Extraction Framework** — the canonical contract for what each finding
+kind contains lives in `assistants/.claude/schemas/{kind}.yaml`. Each
+schema declares its fields, allowed enum values, required-vs-optional
+status, and the extraction prompt the agent should follow.
 
-**Requirements:**
-- ID: auto-generate FR-001, NFR-001 etc. (check existing via MCP to avoid dupes)
-- Title: short descriptive name
-- Type: functional or non_functional
-- Priority: must/should/could/wont (infer from language: "critical", "nice to have", "must", "optional")
-- Description: what the system shall do
-- User perspective: "As a [role], I want [X], so that [Y]" (generate if not explicit)
-- Business rules: specific rules mentioned
-- Edge cases: edge cases mentioned or obvious ones
-- Source quote: EXACT quote from the document (minimum 10 characters)
-- Status: proposed (default for new), discussed (if mentioned in multiple docs), confirmed (only if client EXPLICITLY confirmed)
-- Confidence: high (explicit statement), medium (implied), low (inferred)
+| Kind | Schema file | Display ID prefix |
+|---|---|---|
+| Requirement | `schemas/requirement.yaml` | BR-NNN |
+| Constraint | `schemas/constraint.yaml` | CON-NNN |
+| Decision | `schemas/decision.yaml` | DEC-NNN |
+| Stakeholder | `schemas/stakeholder.yaml` | (none — file is the name) |
+| Assumption | `schemas/assumption.yaml` | ASM-NNN |
+| Scope item | `schemas/scope.yaml` | SCO-NNN |
+| Gap | `schemas/gap.yaml` | GAP-NNN |
+| Contradiction | `schemas/contradiction.yaml` | CTR-NNN |
 
-**Constraints:**
-- Type: budget/timeline/technology/regulatory/organizational
-- Description: what the constraint is
-- Impact: how it limits the project
-- Source quote: exact quote
-- Status: confirmed/assumed/negotiable
+**Read the schema before extracting.** Each YAML has an `extraction_prompt`
+field with kind-specific guidance, plus the exact field names and allowed
+enum values you must use when calling MCP store tools. Asserting fields
+that aren't in the schema, or using enum values outside the declared list,
+will be rejected by the MCP validator.
 
-**Decisions:**
-- Title: what was decided
-- Decided by: person name + role
-- Rationale: why this was chosen
-- Alternatives considered: what else was discussed
-- Source quote: exact quote
-- Status: confirmed/tentative/reversed
-
-**Stakeholders:**
-- Name, role, organization
-- Decision authority: final/recommender/informed
-- Interests: what they care about
-
-**Assumptions:**
-- Statement: what we believe
-- Basis: why we assume this
-- Risk if wrong: what breaks
-- Needs validation by: who should confirm
-
-**Scope Items:**
-- Description: feature or capability
-- In scope: true/false
-- Rationale: why in or out
+If you ever find yourself wanting a field that's not in the schema:
+1. Stop and ask the user
+2. Add the field to the schema (it's a YAML edit)
+3. Re-run `backend/tests/check_schemas.py` to confirm the schema still
+   matches the SQLAlchemy model
+4. Then continue extraction
 
 ### Workflow B: Continuation
 

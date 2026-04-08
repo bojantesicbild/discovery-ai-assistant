@@ -1,0 +1,113 @@
+kind: decision
+display_name: Decision
+prefix: DEC
+id_field: id
+folder: docs/discovery/decisions
+model: app.models.extraction.Decision
+
+fields:
+  - key: id
+    type: string
+    required: true
+    db_column: null
+    description: "DEC-NNN — assigned by writer, not stored in DB"
+
+  - key: title
+    type: string
+    required: true
+
+  - key: status
+    type: enum
+    values: [tentative, confirmed, reversed]
+    required: true
+    default: tentative
+
+  - key: decided_by
+    type: string
+    required: false
+    description: "Person or role that made the call"
+
+  - key: decided_date
+    type: date
+    required: false
+
+  - key: rationale
+    type: text
+    required: true
+    frontmatter: false
+
+  - key: alternatives
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+
+  - key: impacts
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+
+  - key: source_doc
+    type: string
+    required: false
+
+  - key: source_doc_id
+    db_column: source_doc_id
+    type: uuid_ref
+    frontmatter: false
+
+  - key: source_raw
+    type: string
+    required: false
+    db_column: null
+
+  - key: date
+    type: date
+    required: true
+    default: today
+
+sections:
+  - name: Rationale
+    format: paragraphs
+    source_field: rationale
+    required: true
+
+  - name: Alternatives
+    format: bullets
+    generated_from: alternatives
+    required: false
+
+  - name: Impacts
+    format: bullets
+    generated_from: impacts
+    required: false
+
+  - name: Decided By
+    format: paragraphs
+    source_field: decided_by
+    required: false
+
+classification:
+  cssclasses: [decision, "node-blue"]
+  default_tags: [decision, "{{status}}"]
+
+view:
+  dataview_columns: [status, decided_by, decided_date]
+  default_sort: [decided_date desc]
+  group_by: status
+
+extraction_prompt: |
+  Extract decisions as moments where someone CHOSE one thing over alternatives.
+
+  For each decision, capture:
+  - title: what was decided (short noun phrase)
+  - status: tentative (just discussed), confirmed (client signed off),
+            reversed (later changed)
+  - decided_by: name + role of the decision maker
+  - rationale: why this option won
+  - alternatives: what else was on the table
+  - impacts: what changes as a result of this decision
+
+  A decision is different from a requirement: a requirement is a thing
+  the system shall do; a decision is a choice between ways to deliver it.

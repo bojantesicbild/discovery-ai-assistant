@@ -1,0 +1,137 @@
+kind: gap
+display_name: Gap
+prefix: GAP
+id_field: id
+folder: docs/discovery/gaps
+model: app.models.extraction.Gap
+
+fields:
+  - key: id
+    db_column: gap_id
+    type: string
+    required: true
+    description: "GAP-NNN identifier"
+
+  - key: question
+    type: text
+    required: true
+    description: "What we don't know yet"
+
+  - key: severity
+    type: enum
+    values: [low, medium, high]
+    required: true
+    default: medium
+
+  - key: area
+    type: string
+    required: true
+    default: general
+    description: "Domain area: business / functional / technical / scope / general"
+
+  - key: status
+    type: enum
+    values: [open, in-progress, resolved, dismissed]
+    required: true
+    default: open
+
+  - key: blocked_reqs
+    type: list
+    item_type: string
+    required: false
+    description: "BR-NNN ids this gap blocks"
+
+  - key: suggested_action
+    type: text
+    required: false
+    frontmatter: false
+
+  - key: resolution
+    type: text
+    required: false
+    frontmatter: false
+
+  - key: source_quote
+    type: text
+    required: false
+    frontmatter: false
+
+  - key: source_person
+    type: string
+    required: false
+
+  - key: source_doc
+    type: string
+    required: false
+
+  - key: source_doc_id
+    db_column: source_doc_id
+    type: uuid_ref
+    frontmatter: false
+
+  - key: source_raw
+    type: string
+    required: false
+    db_column: null
+
+  - key: date
+    type: date
+    required: true
+    default: today
+
+sections:
+  - name: body
+    format: paragraphs
+    source_field: question
+    required: true
+
+  - name: Suggested Action
+    format: paragraphs
+    source_field: suggested_action
+    required: false
+
+  - name: Blocked Requirements
+    format: wikilinks
+    generated_from: blocked_reqs
+    required: false
+
+  - name: Source
+    format: blockquote
+    source_field: source_quote
+    required: false
+
+  - name: Resolution
+    format: paragraphs
+    source_field: resolution
+    required: false
+
+relationships:
+  - name: blocks
+    target: requirement
+    derived: from blocked_reqs
+
+classification:
+  cssclasses: [gap, "node-amber"]
+  default_tags: [gap, "{{severity}}", "{{status}}"]
+
+view:
+  dataview_columns: [severity, area, status, blocked_reqs]
+  default_sort: [severity desc, status asc]
+  group_by: severity
+
+extraction_prompt: |
+  Extract gaps as things we don't know that we need to know.
+
+  A gap is NOT a requirement. A requirement is a known thing the system
+  shall do. A gap is a question whose answer would unlock requirements.
+
+  For each gap, capture:
+  - question: the missing information, phrased as a question
+  - severity: high (blocks major work), medium (slows work), low (cosmetic)
+  - area: which domain it lives in (business / functional / technical / scope)
+  - blocked_reqs: BR-NNN ids that can't be confirmed without this answer
+  - suggested_action: who to ask + how (e.g. "ask CTO in next meeting")
+  - source_quote: if the gap was raised by a client statement, the quote
+
+  Gaps drive readiness scoring. Resolving a gap = converting it to a
+  confirmed requirement / decision / constraint.

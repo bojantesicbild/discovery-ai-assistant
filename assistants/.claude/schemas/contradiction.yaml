@@ -1,0 +1,103 @@
+kind: contradiction
+display_name: Contradiction
+prefix: CTR
+id_field: id
+folder: docs/discovery/contradictions
+model: app.models.extraction.Contradiction
+
+fields:
+  - key: id
+    type: string
+    required: true
+    db_column: null
+    description: "CTR-NNN — assigned by writer"
+
+  - key: item_a_type
+    type: string
+    required: true
+    description: "Kind of the first item (requirement, constraint, …)"
+
+  - key: item_a_id
+    type: string
+    required: true
+    description: "Display ID of the first item (BR-001, CON-002, …)"
+
+  - key: item_b_type
+    type: string
+    required: true
+
+  - key: item_b_id
+    type: string
+    required: true
+
+  - key: explanation
+    type: text
+    required: true
+    frontmatter: false
+
+  - key: resolved
+    type: bool
+    required: true
+    default: false
+
+  - key: resolution_note
+    type: text
+    required: false
+    frontmatter: false
+
+  - key: source_doc
+    type: string
+    required: false
+
+  - key: source_doc_id
+    db_column: source_doc_id
+    type: uuid_ref
+    frontmatter: false
+
+  - key: date
+    type: date
+    required: true
+    default: today
+
+sections:
+  - name: Explanation
+    format: paragraphs
+    source_field: explanation
+    required: true
+
+  - name: Items in conflict
+    format: wikilinks
+    generated_from: relationships.conflicting
+    required: true
+
+  - name: Resolution
+    format: paragraphs
+    source_field: resolution_note
+    required: false
+
+classification:
+  cssclasses: [contradiction, "node-red"]
+  default_tags: [contradiction, "resolved:{{resolved}}"]
+
+view:
+  dataview_columns: [resolved, item_a_id, item_b_id, explanation]
+  default_sort: [resolved asc, date desc]
+  group_by: resolved
+
+relationships:
+  - name: conflicting
+    target: any
+    derived: from item_a_id and item_b_id
+
+extraction_prompt: |
+  A contradiction is when two existing items disagree. The agent does NOT
+  extract contradictions from raw text — they are produced by the dedup
+  stage of the pipeline when a new extraction conflicts with an existing
+  item.
+
+  Manual contradictions (logged by humans) capture:
+  - item_a_type / item_a_id: first item kind + display id
+  - item_b_type / item_b_id: second item kind + display id
+  - explanation: why they conflict (1-2 sentences)
+  - resolved: false until a human chooses a winner
+  - resolution_note: how it was resolved (if resolved)

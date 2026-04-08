@@ -1,0 +1,91 @@
+kind: stakeholder
+display_name: Stakeholder
+prefix: null
+id_field: name
+folder: docs/discovery/people
+model: app.models.extraction.Stakeholder
+
+fields:
+  - key: name
+    type: string
+    required: true
+    description: "Full name — used as the file name"
+
+  - key: role
+    type: string
+    required: true
+
+  - key: organization
+    type: string
+    required: true
+
+  - key: decision_authority
+    type: enum
+    values: [final, recommender, informed]
+    required: true
+    default: informed
+
+  - key: interests
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "What this person cares about"
+
+  - key: source_doc
+    type: string
+    required: false
+
+  - key: source_doc_id
+    db_column: source_doc_id
+    type: uuid_ref
+    frontmatter: false
+
+  - key: date
+    type: date
+    required: true
+    default: today
+
+sections:
+  - name: Role
+    format: paragraphs
+    source_field: role
+    required: true
+
+  - name: Interests
+    format: bullets
+    generated_from: interests
+    required: false
+
+  - name: Requirements
+    format: wikilinks
+    generated_from: relationships.requested
+    required: false
+
+classification:
+  cssclasses: [stakeholder, "node-purple"]
+  default_tags: [stakeholder, "{{decision_authority}}"]
+
+view:
+  dataview_columns: [role, organization, decision_authority]
+  default_sort: [decision_authority asc, name asc]
+  group_by: organization
+
+relationships:
+  - name: requested
+    target: requirement
+    derived: requirement.source_person == self.name
+
+extraction_prompt: |
+  Extract stakeholders as people who influence or care about the project.
+
+  For each stakeholder, capture:
+  - name: full name as it appears in the source
+  - role: job title (CTO, PM, end-user, etc.)
+  - organization: company or team
+  - decision_authority: final (signs off), recommender (advises), informed (kept in loop)
+  - interests: what they personally care about (cost, speed, security, …)
+
+  Avoid creating stakeholders for one-off mentions. Wait until someone
+  appears in two or more sources OR is the named decision-maker for at
+  least one decision.
