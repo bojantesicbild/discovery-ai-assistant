@@ -263,7 +263,7 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_control_points", description="Get readiness as a flat checklist of 12 checks. Returns overall score and each check with status (covered/partial/missing) and the actual items found. Present as a simple checklist showing what's done and what's missing — do NOT group into areas.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_gaps", description="Get all identified knowledge gaps from the gaps table — open questions to ask the client/PO that are blocking discovery completion. Each gap has gap_id (GAP-XXX), question, severity (high/medium/low), area, status (open/in-progress/resolved/dismissed), source quote, source person, and may list which requirements (BR-XXX) it blocks.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, scope items, gaps, and contradictions.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
-        Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}}, "required": ["finding_type", "title", "description"]}),
+        Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}, "source_quote": {"type": "string", "description": "Verbatim quote from the source document (≥10 chars). Falls back to description if omitted."}}, "required": ["finding_type", "title", "description"]}),
     ]
 
 
@@ -566,6 +566,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             priority = arguments.get("priority", "should")
             source = arguments.get("source", "agent")
             source_person = arguments.get("source_person", "unknown")
+            # Verbatim quote from the source. Falls back to description
+            # if the agent didn't provide one — keeps existing call sites
+            # working without forcing every agent to add a new arg.
+            source_quote = arguments.get("source_quote") or description
 
             if finding_type == "requirement":
                 # Auto-assign next BR-XXX id
@@ -585,7 +589,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 await conn.execute(
                     "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote, source_person) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', $6, $7)",
-                    pid, new_req_id, title, description, req_priority, description, source_person
+                    pid, new_req_id, title, description, req_priority, source_quote, source_person
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -603,7 +607,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 await conn.execute(
                     "INSERT INTO constraints (id, project_id, type, description, impact, source_quote, status) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'assumed')",
-                    pid, con_type, title, description or "", description or ""
+                    pid, con_type, title, description or "", source_quote or ""
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -668,7 +672,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 await conn.execute(
                     "INSERT INTO gaps (id, project_id, gap_id, question, severity, area, status, source_quote) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'open', $6)",
-                    pid, gap_id, title, priority or "medium", source or "general", description or ""
+                    pid, gap_id, title, priority or "medium", source or "general", source_quote or ""
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
