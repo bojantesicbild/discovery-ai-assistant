@@ -1,0 +1,8 @@
+{
+  "useMarkdownLinks": false,
+  "showFrontmatter": true,
+  "foldHeading": true,
+  "spellcheck": true,
+  "newFileLocation": "current",
+  "attachmentFolderPath": ".raw"
+}

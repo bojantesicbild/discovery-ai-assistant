@@ -1,0 +1,58 @@
+/*
+ * Discovery vault — type-color snippet.
+ * Activates the `cssclasses` declared on every finding note so the
+ * filename + frontmatter pane + graph view all use the same palette.
+ *
+ * Enable in Obsidian: Settings → Appearance → CSS snippets → discovery
+ *
+ * Generated from assistants/.claude/schemas/{kind}.classification.cssclasses.
+ * If you add a new finding kind, add the matching block here.
+ */
+
+/* Requirements — green */
+.markdown-source-view.mod-cm6.is-readable-line-width.requirement,
+.markdown-preview-view.requirement,
+.workspace-leaf-content[data-type="markdown"] .view-content .requirement {
+  --node-color: #00E5A0;
+}
+.requirement .inline-title { color: #047857; }
+.requirement .frontmatter-container { border-left: 3px solid #00E5A0; }
+
+/* Constraints — cyan */
+.constraint .inline-title { color: #0e7490; }
+.constraint .frontmatter-container { border-left: 3px solid #06b6d4; }
+
+/* Gaps — amber */
+.gap .inline-title { color: #b45309; }
+.gap .frontmatter-container { border-left: 3px solid #f59e0b; }
+
+/* Decisions — blue */
+.decision .inline-title { color: #1d4ed8; }
+.decision .frontmatter-container { border-left: 3px solid #2563eb; }
+
+/* Stakeholders — purple */
+.stakeholder .inline-title { color: #6d28d9; }
+.stakeholder .frontmatter-container { border-left: 3px solid #8b5cf6; }
+
+/* Assumptions — orange */
+.assumption .inline-title { color: #c2410c; }
+.assumption .frontmatter-container { border-left: 3px solid #f97316; }
+
+/* Scope — neutral by sign */
+.scope .inline-title { color: #334155; }
+.scope .frontmatter-container { border-left: 3px solid #64748b; }
+
+/* Contradictions — red */
+.contradiction .inline-title { color: #b91c1c; }
+.contradiction .frontmatter-container { border-left: 3px solid #ef4444; }
+
+/* Graph view — node color hints (Obsidian reads tag-based colors from graph.json
+   directly, but this snippet adds a subtle border so node-{color} cssclasses
+   get a visual cue in the file pane too). */
+.node-green  { border-color: #00E5A0; }
+.node-cyan   { border-color: #06b6d4; }
+.node-amber  { border-color: #f59e0b; }
+.node-blue   { border-color: #2563eb; }
+.node-purple { border-color: #8b5cf6; }
+.node-orange { border-color: #f97316; }
+.node-red    { border-color: #ef4444; }

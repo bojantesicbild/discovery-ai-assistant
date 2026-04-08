@@ -1,0 +1,31 @@
+{
+  "collapse-filter": false,
+  "search": "",
+  "showTags": true,
+  "showAttachments": false,
+  "hideUnresolved": false,
+  "showOrphans": true,
+  "collapse-color-groups": false,
+  "colorGroups": [
+    { "query": "tag:#requirement", "color": { "a": 1, "rgb": 32932 } },
+    { "query": "tag:#decision",    "color": { "a": 1, "rgb": 2523891 } },
+    { "query": "tag:#constraint",  "color": { "a": 1, "rgb": 561602 } },
+    { "query": "tag:#gap",         "color": { "a": 1, "rgb": 16097803 } },
+    { "query": "tag:#stakeholder", "color": { "a": 1, "rgb": 8142062 } },
+    { "query": "tag:#assumption",  "color": { "a": 1, "rgb": 16223024 } },
+    { "query": "tag:#scope",       "color": { "a": 1, "rgb": 6723941 } },
+    { "query": "tag:#contradiction","color": { "a": 1, "rgb": 15741749 } }
+  ],
+  "collapse-display": true,
+  "showArrow": true,
+  "textFadeMultiplier": 0,
+  "nodeSizeMultiplier": 1,
+  "lineSizeMultiplier": 1,
+  "collapse-forces": true,
+  "centerStrength": 0.518713248970312,
+  "repelStrength": 10,
+  "linkStrength": 1,
+  "linkDistance": 250,
+  "scale": 1,
+  "close": true
+}

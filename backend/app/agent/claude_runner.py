@@ -127,36 +127,19 @@ class ClaudeCodeRunner:
         # Ensure uploads dir
         (project_dir / "uploads").mkdir(exist_ok=True)
 
-        # Seed Obsidian vault config so .memory-bank is openable in Obsidian
+        # Seed Obsidian vault config from the canonical source in
+        # assistants/.obsidian/. Templates are generated from schemas (see
+        # assistants/.claude/scripts/render-templates.py); the rest of the
+        # config (app.json, graph.json, community-plugins.json, snippets,
+        # appearance.json) is hand-edited and lives in the repo so PR
+        # diffs are reviewable.
+        obsidian_seed = ASSISTANTS_DIR / ".obsidian"
         obsidian_dir = mb / ".obsidian"
-        obsidian_dir.mkdir(exist_ok=True)
-        app_json = obsidian_dir / "app.json"
-        if not app_json.exists():
-            import json
-            app_json.write_text(json.dumps({
-                "useMarkdownLinks": False,
-                "showFrontmatter": True,
-                "foldHeading": True,
-                "spellcheck": True,
-            }, indent=2))
-
-        # Seed Obsidian templates for manual note creation
-        templates_dir = obsidian_dir / "templates"
-        templates_dir.mkdir(exist_ok=True)
-        ClaudeCodeRunner._seed_obsidian_templates(templates_dir)
-
-        # Seed Obsidian graph config with type-based color groups
-        graph_json = obsidian_dir / "graph.json"
-        if not graph_json.exists():
-            graph_json.write_text(json.dumps({
-                "colorGroups": [
-                    {"query": "tag:#requirement", "color": {"a": 1, "rgb": 65765}},
-                    {"query": "tag:#decision", "color": {"a": 1, "rgb": 2523891}},
-                    {"query": "tag:#constraint", "color": {"a": 1, "rgb": 561602}},
-                    {"query": "tag:#gap", "color": {"a": 1, "rgb": 16097803}},
-                    {"query": "tag:#stakeholder", "color": {"a": 1, "rgb": 8142062}},
-                ],
-            }, indent=2))
+        if obsidian_seed.exists():
+            self._copy_obsidian_seed(obsidian_seed, obsidian_dir)
+        else:
+            log.warning("assistants/.obsidian/ not found — skipping Obsidian seed",
+                        path=str(obsidian_seed))
 
         # Seed reports directory
         (mb / "docs" / "reports").mkdir(exist_ok=True)
@@ -528,112 +511,31 @@ class ClaudeCodeRunner:
         self._sessions.pop(self._session_key(project_id, user_id), None)
 
     @staticmethod
-    def _seed_obsidian_templates(templates_dir):
-        """Create Obsidian note templates for manual note creation."""
-        from pathlib import Path
-        templates = {
-            "new-requirement.md": """---
-id: BR-XXX
-title: ""
-priority: should
-status: proposed
-confidence: medium
-source_doc: ""
-source_person: ""
-date: {{date}}
-category: requirement
-tags: [requirement, should, proposed]
-aliases: [BR-XXX]
-cssclasses: [requirement, node-green]
----
+    def _copy_obsidian_seed(seed_dir: Path, dest_dir: Path) -> None:
+        """Copy assistants/.obsidian/ into the project's .memory-bank/.obsidian/.
 
-# BR-XXX: {{title}}
+        Idempotent — only writes files that don't already exist OR whose
+        seed version is newer than the project copy. workspace.json is
+        always preserved (it's the user's pane layout, not part of the
+        seed)."""
+        import shutil
 
-Description here.
-
-## Source
-> "Quote from client or document"
-
-## People
-- [[person]] — requested
-
-## Related
-- [[BR-xxx]] — related
-""",
-            "new-decision.md": """---
-title: ""
-status: tentative
-decided_by: ""
-date: {{date}}
-category: decision
-tags: [decision, tentative]
----
-
-# Decision: {{title}}
-
-## Rationale
-
-
-## Alternatives
--
--
-
-## Impact
--
-""",
-            "new-gap.md": """---
-id: GAP-XXX
-question: ""
-severity: medium
-area: general
-status: open
-date: {{date}}
-category: gap
-tags: [gap, medium, open]
-aliases: [GAP-XXX]
-cssclasses: [gap, node-amber]
----
-
-# GAP-XXX: {{title}}
-
-## Suggested Action
-
-
-## Blocked Requirements
-- [[BR-xxx]] — blocked
-
-## Source Documents
-- [[document]]
-""",
-            "meeting-notes.md": """---
-date: {{date}}
-attendees: []
-category: meeting
-tags: [meeting]
----
-
-# Meeting Notes — {{date}}
-
-## Attendees
--
-
-## Key Decisions
--
-
-## Action Items
-- [ ]
-
-## Requirements Discussed
--
-
-## Open Questions
--
-""",
-        }
-        for name, content in templates.items():
-            path = templates_dir / name
-            if not path.exists():
-                path.write_text(content)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        for src in seed_dir.rglob("*"):
+            if src.is_dir():
+                continue
+            rel = src.relative_to(seed_dir)
+            # Never overwrite the user's workspace layout
+            if rel.name in ("workspace.json", "workspace-mobile.json"):
+                continue
+            # Skip macOS / editor cruft
+            if rel.name in (".DS_Store", "Thumbs.db") or rel.name.startswith("._"):
+                continue
+            dest = dest_dir / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            # Overwrite if seed is newer or dest doesn't exist
+            if not dest.exists() or src.stat().st_mtime > dest.stat().st_mtime:
+                shutil.copy2(src, dest)
 
     def sync_assistants(self, project_id: uuid.UUID):
         """Sync assistant files (CLAUDE.md, skills, agents, scripts, templates) from template
@@ -661,6 +563,15 @@ tags: [meeting]
                         # Only copy if source is newer or destination doesn't exist
                         if not dst_file.exists() or src_file.stat().st_mtime > dst_file.stat().st_mtime:
                             shutil.copy2(src_file, dst_file)
+
+        # Also refresh the Obsidian seed (templates, snippets, plugin lists,
+        # graph config) — but never touch workspace.json (the user's pane
+        # layout). This is how schema edits + template regenerations
+        # propagate to existing projects.
+        obsidian_seed = ASSISTANTS_DIR / ".obsidian"
+        obsidian_dest = project_dir / ".memory-bank" / ".obsidian"
+        if obsidian_seed.exists() and obsidian_dest.parent.exists():
+            self._copy_obsidian_seed(obsidian_seed, obsidian_dest)
 
         log.info("Assistants synced", project_id=str(project_id))
 
