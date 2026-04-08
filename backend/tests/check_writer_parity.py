@@ -78,8 +78,19 @@ def extract_h1(body: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-def assert_parity(report: FailReport, fixture_name: str, original_text: str, new_text: str) -> None:
-    """Compare original vs new render. Original fields must all survive."""
+def assert_parity(
+    report: FailReport,
+    fixture_name: str,
+    original_text: str,
+    new_text: str,
+    *,
+    kind: str | None = None,
+) -> None:
+    """Compare original vs new render. Original fields must all survive.
+
+    For gap fixtures, broken wikilinks pointing at source documents
+    are explicitly ALLOWED to become plain text in the new output —
+    that's the Phase-2C broken-wikilink fix, not a regression."""
     print(f"\n{INFO} {fixture_name}")
     orig_fm, orig_body = parse_note(original_text)
     new_fm, new_body = parse_note(new_text)
@@ -109,14 +120,28 @@ def assert_parity(report: FailReport, fixture_name: str, original_text: str, new
         f"orig={orig_h1!r} new={new_h1!r}",
     )
 
-    # Every wikilink in the original must survive
+    # Every wikilink target from the original must SURVIVE in the new
+    # output — but it can survive as a wikilink, as plain text, OR as
+    # a markdown link to .raw/. The broken-wikilink fixes intentionally
+    # downgrade orphan wikilinks (uploads outside the vault) to plain
+    # text or .raw/ links. We check "the target string is still in
+    # the body somewhere" — that's the no-information-loss contract.
     orig_links = extract_wikilinks(orig_body)
     new_links = extract_wikilinks(new_body)
-    missing = orig_links - new_links
+    missing_as_wikilinks = orig_links - new_links
+    truly_missing = set()
+    for target in missing_as_wikilinks:
+        if target in new_body:
+            continue  # appears as plain text or markdown link — OK
+        # Stakeholders get sanitized: "Bojan Tešić" -> "Bojan_Tešić"
+        sanitized = target.replace(" ", "_")
+        if sanitized in new_body or f"[[{sanitized}" in new_body:
+            continue
+        truly_missing.add(target)
     report.check(
         f"wikilinks preserved ({len(orig_links)} expected)",
-        not missing,
-        f"missing: {sorted(missing)[:5]}" if missing else "",
+        not truly_missing,
+        f"missing: {sorted(truly_missing)[:5]}" if truly_missing else "",
     )
 
 
@@ -245,7 +270,7 @@ def run_kind_parity(
         fm, body = parse_note(original)
         payload = fixture_to_payload(kind, fm, body)
         new_text = render_fn(payload, original_text=original)
-        assert_parity(report, fx.name, original, new_text)
+        assert_parity(report, fx.name, original, new_text, kind=kind)
 
 
 # Backwards-compatible alias

@@ -15,8 +15,9 @@ from app.models.document import Document
 from app.models.operational import PipelineCheckpoint, ActivityLog
 from app.models.extraction import (
     Requirement, Constraint, Decision, Stakeholder,
-    Assumption, ScopeItem, Contradiction, ChangeHistory,
+    Assumption, ScopeItem, Contradiction, ChangeHistory, Gap,
 )
+from sqlalchemy import func as sa_func
 
 log = structlog.get_logger()
 
@@ -87,7 +88,7 @@ async def process_document(ctx, document_id: str):
 
             # Stage 5: Store
             await _update_stage(db, doc, "storing")
-            counts = await _stage_store(db, project_id, doc.id, extraction)
+            counts = await _stage_store(db, project_id, doc.id, extraction, doc_filename=doc.filename)
             counts["duplicates_skipped"] = dedup_counts.get("duplicates", 0)
             counts["contradictions"] += dedup_counts.get("contradictions", 0)
             doc.items_extracted = counts["total"]
@@ -535,8 +536,76 @@ def _dedup_within_extraction(extraction: "DiscoveryExtraction") -> "DiscoveryExt
     return extraction
 
 
-async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction) -> dict:
+async def _merge_or_create(
+    db,
+    *,
+    project_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    doc_filename: str,
+    model_cls,
+    item_type: str,
+    match_filters: list,
+    new_kwargs: dict,
+    tracked_fields: tuple[str, ...],
+    history_label: dict,
+) -> tuple[bool, object]:
+    """Find an existing row matching the filters or create a new one.
+
+    Returns (created, row). On match: appends source, bumps version, and
+    logs a ChangeHistory entry for any tracked field that changed. On miss:
+    inserts the row and logs a 'create' history entry.
+    """
+    result = await db.execute(
+        select(model_cls).where(model_cls.project_id == project_id, *match_filters)
+    )
+    existing = result.scalars().first()
+    now = datetime.now(timezone.utc).isoformat()
+
+    if existing is not None:
+        sources = list(existing.sources or [])
+        sources.append({
+            "doc_id": str(doc_id),
+            "filename": doc_filename,
+            "added_at": now,
+        })
+        existing.sources = sources
+        existing.version = (existing.version or 1) + 1
+
+        changes_old: dict = {}
+        changes_new: dict = {}
+        for field in tracked_fields:
+            new_val = new_kwargs.get(field)
+            old_val = getattr(existing, field, None)
+            if new_val and new_val != old_val:
+                changes_old[field] = old_val
+                changes_new[field] = new_val
+                setattr(existing, field, new_val)
+
+        if changes_old:
+            changes_new["source"] = str(doc_id)
+            db.add(ChangeHistory(
+                project_id=project_id, item_type=item_type,
+                item_id=existing.id, action="update",
+                old_value=changes_old, new_value=changes_new,
+                triggered_by="pipeline",
+            ))
+        return False, existing
+
+    row = model_cls(project_id=project_id, **new_kwargs)
+    db.add(row)
+    await db.flush()
+    db.add(ChangeHistory(
+        project_id=project_id, item_type=item_type,
+        item_id=row.id, action="create",
+        new_value={**history_label, "source": str(doc_id)},
+        triggered_by="pipeline",
+    ))
+    return True, row
+
+
+async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction, doc_filename: str = "") -> dict:
     """Store extracted items in PostgreSQL typed tables."""
+    from sqlalchemy import func as sql_func
     counts = {
         "requirements": 0, "constraints": 0, "decisions": 0,
         "stakeholders": 0, "assumptions": 0, "scope_items": 0,
@@ -571,101 +640,115 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction)
         ))
         counts["requirements"] += 1
 
-    # Store constraints
+    # Store constraints (dedup by lowercased description)
     for con in extraction.constraints:
-        db_con = Constraint(
-            project_id=project_id,
-            type=con.type,
-            description=con.description,
-            impact=con.impact,
-            source_doc_id=doc_id,
-            source_quote=con.source_quote,
-            status=con.status,
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=Constraint, item_type="constraint",
+            match_filters=[sa_func.lower(Constraint.description) == (con.description or "").lower()],
+            new_kwargs=dict(
+                type=con.type, description=con.description, impact=con.impact,
+                source_doc_id=doc_id, source_quote=con.source_quote, status=con.status,
+            ),
+            tracked_fields=("type", "impact", "status"),
+            history_label={"description": (con.description or "")[:120]},
         )
-        db.add(db_con)
-        counts["constraints"] += 1
+        if created:
+            counts["constraints"] += 1
 
-    # Store decisions
+    # Store decisions (dedup by lowercased title)
     for dec in extraction.decisions:
-        db_dec = Decision(
-            project_id=project_id,
-            title=dec.title,
-            decided_by=dec.decided_by,
-            rationale=dec.rationale,
-            alternatives=dec.alternatives_considered,
-            impacts=dec.impacts,
-            source_doc_id=doc_id,
-            status=dec.status,
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=Decision, item_type="decision",
+            match_filters=[sa_func.lower(Decision.title) == (dec.title or "").lower()],
+            new_kwargs=dict(
+                title=dec.title, decided_by=dec.decided_by, rationale=dec.rationale,
+                alternatives=dec.alternatives_considered, impacts=dec.impacts,
+                source_doc_id=doc_id, status=dec.status,
+            ),
+            tracked_fields=("decided_by", "rationale", "status"),
+            history_label={"title": dec.title},
         )
-        db.add(db_dec)
-        counts["decisions"] += 1
+        if created:
+            counts["decisions"] += 1
 
-    # Store stakeholders
+    # Store stakeholders (dedup by lowercased name + organization)
     for stk in extraction.stakeholders:
-        db_stk = Stakeholder(
-            project_id=project_id,
-            name=stk.name,
-            role=stk.role,
-            organization=stk.organization,
-            decision_authority=stk.decision_authority,
-            interests=stk.interests,
-            source_doc_id=doc_id,
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=Stakeholder, item_type="stakeholder",
+            match_filters=[
+                sa_func.lower(Stakeholder.name) == (stk.name or "").lower(),
+                sa_func.lower(Stakeholder.organization) == (stk.organization or "").lower(),
+            ],
+            new_kwargs=dict(
+                name=stk.name, role=stk.role, organization=stk.organization,
+                decision_authority=stk.decision_authority, interests=stk.interests,
+                source_doc_id=doc_id,
+            ),
+            tracked_fields=("role", "decision_authority"),
+            history_label={"name": stk.name},
         )
-        db.add(db_stk)
-        counts["stakeholders"] += 1
+        if created:
+            counts["stakeholders"] += 1
 
-    # Store assumptions
+    # Store assumptions (dedup by lowercased statement)
     for asm in extraction.assumptions:
-        db_asm = Assumption(
-            project_id=project_id,
-            statement=asm.statement,
-            basis=asm.basis,
-            risk_if_wrong=asm.risk_if_wrong,
-            needs_validation_by=asm.needs_validation_by,
-            source_doc_id=doc_id,
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=Assumption, item_type="assumption",
+            match_filters=[sa_func.lower(Assumption.statement) == (asm.statement or "").lower()],
+            new_kwargs=dict(
+                statement=asm.statement, basis=asm.basis, risk_if_wrong=asm.risk_if_wrong,
+                needs_validation_by=asm.needs_validation_by, source_doc_id=doc_id,
+            ),
+            tracked_fields=("basis", "risk_if_wrong", "needs_validation_by"),
+            history_label={"statement": (asm.statement or "")[:120]},
         )
-        db.add(db_asm)
-        counts["assumptions"] += 1
+        if created:
+            counts["assumptions"] += 1
 
-    # Store scope items
+    # Store scope items (dedup by lowercased description)
     for scp in extraction.scope_items:
-        db_scp = ScopeItem(
-            project_id=project_id,
-            description=scp.description,
-            in_scope=scp.in_scope,
-            rationale=scp.rationale,
-            source_doc_id=doc_id,
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=ScopeItem, item_type="scope_item",
+            match_filters=[sa_func.lower(ScopeItem.description) == (scp.description or "").lower()],
+            new_kwargs=dict(
+                description=scp.description, in_scope=scp.in_scope,
+                rationale=scp.rationale, source_doc_id=doc_id,
+            ),
+            tracked_fields=("in_scope", "rationale"),
+            history_label={"description": (scp.description or "")[:120]},
         )
-        db.add(db_scp)
-        counts["scope_items"] += 1
+        if created:
+            counts["scope_items"] += 1
 
-    # Store gaps
-    from app.models.extraction import Gap as GapModel
-    # Get next GAP number
-    from sqlalchemy import func as sql_func
+    # Store gaps (dedup by lowercased question)
     max_gap = await db.execute(
-        select(sql_func.count()).where(GapModel.project_id == project_id)
+        select(sa_func.count()).where(Gap.project_id == project_id)
     )
     next_gap_num = (max_gap.scalar() or 0) + 1
 
     for gap in extraction.gaps:
         gap_id = f"GAP-{next_gap_num:03d}"
-        next_gap_num += 1
-        db_gap = GapModel(
-            project_id=project_id,
-            gap_id=gap_id,
-            question=gap.question,
-            severity=gap.severity,
-            area=gap.area,
-            source_doc_id=doc_id,
-            source_quote=gap.source_quote,
-            source_person=gap.source_person if gap.source_person != "unknown" else None,
-            blocked_reqs=gap.blocked_reqs,
-            suggested_action=gap.suggested_action,
-            status="open",
+        created, _ = await _merge_or_create(
+            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
+            model_cls=Gap, item_type="gap",
+            match_filters=[sa_func.lower(Gap.question) == (gap.question or "").lower()],
+            new_kwargs=dict(
+                gap_id=gap_id, question=gap.question, severity=gap.severity, area=gap.area,
+                source_doc_id=doc_id, source_quote=gap.source_quote,
+                source_person=gap.source_person if gap.source_person != "unknown" else None,
+                blocked_reqs=gap.blocked_reqs, suggested_action=gap.suggested_action, status="open",
+            ),
+            tracked_fields=("severity", "area", "suggested_action"),
+            history_label={"question": (gap.question or "")[:120]},
         )
-        db.add(db_gap)
-        counts["gaps"] = counts.get("gaps", 0) + 1
+        if created:
+            next_gap_num += 1
+            counts["gaps"] = counts.get("gaps", 0) + 1
 
     counts["contradictions"] = len(extraction.contradictions)
     counts["total"] = sum(v for k, v in counts.items() if k != "total" and k != "contradictions" and k != "gaps")
@@ -720,7 +803,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
 
     from app.models.extraction import Gap as GapModel
     gaps_result = await db.execute(
-        select(GapModel, Document.filename)
+        select(GapModel, Document.filename, Document.classification)
         .outerjoin(Document, GapModel.source_doc_id == Document.id)
         .where(GapModel.project_id == project_id)
         .order_by(GapModel.gap_id)
@@ -835,9 +918,9 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     # --- gaps/ individual files ---
     gaps_dir = discovery_dir / "gaps"
     gaps_dir.mkdir(parents=True, exist_ok=True)
-    for g, g_doc_name in gaps_rows:
-        payload = _gap_to_payload(g, g_doc_name, today)
-        text = render_gap_text(payload)
+    for g, g_doc_name, g_doc_class in gaps_rows:
+        payload = _gap_to_payload(g, g_doc_name, today, g_doc_class)
+        text = render_gap_text(payload, gaps_dir=gaps_dir)
         (gaps_dir / f"{g.gap_id}.md").write_text(text)
 
     # --- index.md (wiki table of contents) ---
@@ -866,7 +949,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     if gaps_rows:
         idx_lines += [f"## Gaps ({len(gaps_rows)})", "",
             "| ID | Question | Severity | Status |", "|---|---|---|---|"]
-        for g, _ in gaps_rows:
+        for g, _, _ in gaps_rows:
             idx_lines.append(f"| [[{g.gap_id}]] | {g.question[:60]} | {g.severity} | {g.status} |")
         idx_lines.append("")
     if stakeholders:
@@ -957,8 +1040,8 @@ def _write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, s
 
     # Static counters that aren't Dataview-dependent — useful when
     # opening the file in plain markdown viewers.
-    open_gaps = sum(1 for g, _ in gaps_rows if g.status == "open")
-    high_gaps = sum(1 for g, _ in gaps_rows if g.status == "open" and g.severity == "high")
+    open_gaps = sum(1 for g, _, _ in gaps_rows if g.status == "open")
+    high_gaps = sum(1 for g, _, _ in gaps_rows if g.status == "open" and g.severity == "high")
     unconfirmed = sum(1 for r, _, _ in reqs_rows if r.status != "confirmed")
     must_haves = sum(1 for r, _, _ in reqs_rows if r.priority == "must")
 
@@ -1160,7 +1243,7 @@ def render_requirement_text(
         "## People",
     ]
     if person and person != "unknown":
-        lines.append(f"- [[{person}]] — requested")
+        lines.append(f"- [[{_stakeholder_filename_safe(person)}|{person}]] — requested")
     else:
         lines.append("- (unknown)")
 
@@ -1171,10 +1254,19 @@ def render_requirement_text(
 
     lines.append("")
     lines.append("## Sources")
-    lines.append(f"- [[{source_doc_name}]] — original extraction")
+    if raw_rel:
+        # Source has a .raw/ payload — markdown link resolves in
+        # Obsidian instead of an orphan wikilink
+        lines.append(f"- [{source_doc_name}]({raw_rel}) — original extraction")
+    elif source_doc_name and source_doc_name != "unknown":
+        # Legacy: source predates .raw/. Plain text — no broken link.
+        lines.append(f"- {source_doc_name} — original extraction")
+    else:
+        lines.append("- _(no source document)_")
     for src in sources_list:
         fname = src.get("filename", "unknown")
-        lines.append(f"- [[{fname}]] — v{payload.get('version', 1)} merge")
+        # Per-merge sources are plain text too — usually legacy uploads
+        lines.append(f"- {fname} — v{payload.get('version', 1)} merge")
 
     if raw_rel:
         lines.append(f"- [Original source]({raw_rel})")
@@ -1249,7 +1341,18 @@ def render_constraint_text(
     return fm_block + "\n".join(lines)
 
 
-def _gap_to_payload(g, doc_name: str | None, today: str) -> dict:
+def _stakeholder_filename_safe(name: str) -> str:
+    """Mirror of the sanitization the stakeholder writer uses for filenames.
+
+    Stakeholder notes live at people/{safe_name}.md where unsafe characters
+    become underscores. Wikilinks pointing at people from other notes
+    must use this same sanitized form to actually resolve to the file."""
+    import re as _re
+    safe = _re.sub(r"[^\w\s-]", "_", name or "").strip().replace(" ", "_")[:80]
+    return safe or "unnamed"
+
+
+def _gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None = None) -> dict:
     """Build the writer-input payload from a Gap SQLAlchemy row."""
     return {
         "id": g.gap_id,
@@ -1264,19 +1367,30 @@ def _gap_to_payload(g, doc_name: str | None, today: str) -> dict:
         "source_quote": g.source_quote or "",
         "resolution": g.resolution or "",
         "date": today,
+        "_doc_class": doc_class or {},
     }
 
 
-def render_gap_text(payload: dict, *, original_text: str | None = None) -> str:
+def render_gap_text(
+    payload: dict,
+    *,
+    gaps_dir: "Path | None" = None,
+    original_text: str | None = None,
+) -> str:
     """Render a single gap note as markdown.
 
     Frontmatter from `schema_lib.render_frontmatter("gap", payload)`.
-    Body sections (## Source, ## Ask, ## Blocked Requirements,
-    ## Source Documents) hand-built since they have per-row formatting
-    that doesn't fit the schema_lib section primitives yet.
+    Body sections hand-built. The `## Source Documents` section now
+    uses a markdown link to `.raw/...` when the source document was
+    ingested via Phase 4a (gmail / drive / upload), and falls back to
+    plain text (no wikilink) otherwise — avoids the broken-wikilink
+    drift that lint was warning about.
 
-    `original_text` is unused — kept for parity-test API compatibility."""
-    from app.services import schema_lib
+    `gaps_dir` is the directory the file lives in (for source_raw
+    relative path computation). `original_text` is unused — kept for
+    parity-test API compatibility."""
+    from app.services import schema_lib, raw_store
+    from pathlib import Path as _P
 
     gid = payload["id"]
     question = payload.get("question", "")
@@ -1285,6 +1399,24 @@ def render_gap_text(payload: dict, *, original_text: str | None = None) -> str:
     blocked = payload.get("blocked_reqs") or []
     suggested = payload.get("suggested_action") or ""
     source_quote = payload.get("source_quote") or ""
+    doc_class = payload.get("_doc_class") or {}
+
+    # Resolve source_raw to a relative path so the source document
+    # link points at .raw/ instead of an orphan wikilink
+    raw_rel: str | None = None
+    if doc_class.get("source_raw_path"):
+        raw_path_str = doc_class["source_raw_path"]
+        if gaps_dir is not None and _P(raw_path_str).is_absolute():
+            try:
+                raw_rel = raw_store.relative_source_raw(_P(raw_path_str), gaps_dir)
+            except Exception:
+                raw_rel = None
+        else:
+            raw_rel = raw_path_str
+    if raw_rel:
+        payload["source_raw"] = raw_rel
+    if doc_class.get("source"):
+        payload["source_origin"] = doc_class["source"]
 
     fm_block = schema_lib.render_frontmatter("gap", payload)
 
@@ -1301,15 +1433,25 @@ def render_gap_text(payload: dict, *, original_text: str | None = None) -> str:
         lines.append("")
     if g_person and g_person != "unknown":
         lines.append("## Ask")
-        lines.append(f"- [[{g_person}]] — ask")
+        lines.append(f"- [[{_stakeholder_filename_safe(g_person)}|{g_person}]] — ask")
         lines.append("")
     if blocked:
         lines.append("## Blocked Requirements")
         for br in blocked:
             lines.append(f"- [[{br}]] — blocked")
         lines.append("")
+
     lines.append("## Source Documents")
-    lines.append(f"- [[{g_doc}]]")
+    if raw_rel:
+        # Markdown link to the .raw/ original — clickable in Obsidian,
+        # never broken because it points at an in-vault file
+        lines.append(f"- [{g_doc}]({raw_rel})")
+    elif g_doc and g_doc != "unknown":
+        # Legacy: source predates .raw/ flow. Plain text — no broken
+        # wikilink. Lint stays clean.
+        lines.append(f"- {g_doc}")
+    else:
+        lines.append("- _(no source document)_")
     lines.append("")
 
     return fm_block + "\n".join(lines)
@@ -1604,7 +1746,7 @@ def _write_hot(vault_root, doc: Document, reqs_rows, gaps_rows, decisions, readi
     last_source = (doc.classification or {}).get("source", "upload") if doc else "unknown"
 
     # Top 3 high-severity open gaps
-    high_gaps = [g for g, _ in gaps_rows if g.status == "open" and g.severity == "high"]
+    high_gaps = [g for g, _, _ in gaps_rows if g.status == "open" and g.severity == "high"]
     high_gaps.sort(key=lambda g: g.gap_id)
     top_gaps = high_gaps[:3]
 

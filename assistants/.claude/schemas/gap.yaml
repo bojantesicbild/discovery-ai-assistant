@@ -74,6 +74,12 @@ fields:
     required: false
     db_column: null
 
+  - key: source_origin
+    type: string
+    required: false
+    db_column: null
+    description: "Connector that ingested the source (gmail, google_drive, upload, slack)"
+
   - key: date
     type: date
     required: true

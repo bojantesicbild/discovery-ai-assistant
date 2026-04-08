@@ -143,8 +143,23 @@ def lint_file(path: Path, vault_dir: Path, all_md_files: set[str], report: LintR
     fm, body = parse_frontmatter(text)
 
     if fm is None:
-        # Allow notes without frontmatter (e.g. README.md, dashboard.md)
-        # but flag them for the discovery folders
+        # Allow notes without frontmatter for hand-written narrative
+        # files (handoff deliverables, README, indexes, logs). The
+        # finding kinds (requirement/gap/etc.) are caught by their
+        # parent folders below — those MUST have frontmatter.
+        narrative_files = {
+            "discovery-brief.md",
+            "functional-requirements.md",
+            "mvp-scope-freeze.md",
+            "README.md",
+            "index.md",
+            "log.md",
+            "dashboard.md",
+            "hot.md",
+            "schema.md",
+        }
+        if path.name in narrative_files:
+            return
         if "discovery" in path.parts:
             report.warn(path, "no frontmatter")
         return
