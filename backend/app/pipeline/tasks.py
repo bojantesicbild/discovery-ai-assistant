@@ -818,48 +818,9 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     gaps_dir = discovery_dir / "gaps"
     gaps_dir.mkdir(parents=True, exist_ok=True)
     for g, g_doc_name in gaps_rows:
-        g_doc = g_doc_name or "unknown"
-        g_person = g.source_person or "unknown"
-        blocked = ", ".join(g.blocked_reqs or [])
-        gap_lines = [
-            "---",
-            f"id: {g.gap_id}",
-            f'question: "{g.question}"',
-            f"severity: {g.severity}",
-            f"area: {g.area}",
-            f'source_doc: "{g_doc}"',
-            f"source_person: {g_person}",
-            f"status: {g.status}",
-            f"date: {today}",
-            "category: gap",
-            f"tags: [gap, {g.severity}, {g.status}]",
-            f"aliases: [{g.gap_id}]",
-            "cssclasses: [gap, node-amber]",
-            "---",
-            "",
-            f"# {g.gap_id}: {g.question}",
-            "",
-        ]
-        if g.suggested_action:
-            gap_lines.append(f"{g.suggested_action}")
-            gap_lines.append("")
-        if g.source_quote:
-            gap_lines.append("## Source")
-            gap_lines.append(f'> "{g.source_quote}"')
-            gap_lines.append("")
-        if g_person and g_person != "unknown":
-            gap_lines.append("## Ask")
-            gap_lines.append(f"- [[{g_person}]] — ask")
-            gap_lines.append("")
-        if blocked:
-            gap_lines.append("## Blocked Requirements")
-            for br in (g.blocked_reqs or []):
-                gap_lines.append(f"- [[{br}]] — blocked")
-            gap_lines.append("")
-        gap_lines.append("## Source Documents")
-        gap_lines.append(f"- [[{g_doc}]]")
-        gap_lines.append("")
-        (gaps_dir / f"{g.gap_id}.md").write_text("\n".join(gap_lines))
+        payload = _gap_to_payload(g, g_doc_name, today)
+        text = render_gap_text(payload)
+        (gaps_dir / f"{g.gap_id}.md").write_text(text)
 
     # --- index.md (wiki table of contents) ---
     idx_lines = [
@@ -1258,6 +1219,72 @@ def render_constraint_text(
     lines.append("## Affected Requirements")
     for rid in affected:
         lines.append(f"- [[{rid}]] — constrained")
+    lines.append("")
+
+    return fm_block + "\n".join(lines)
+
+
+def _gap_to_payload(g, doc_name: str | None, today: str) -> dict:
+    """Build the writer-input payload from a Gap SQLAlchemy row."""
+    return {
+        "id": g.gap_id,
+        "question": g.question or "",
+        "severity": g.severity or "medium",
+        "area": g.area or "general",
+        "status": g.status or "open",
+        "source_doc": doc_name or "unknown",
+        "source_person": g.source_person or "unknown",
+        "blocked_reqs": list(g.blocked_reqs or []),
+        "suggested_action": g.suggested_action or "",
+        "source_quote": g.source_quote or "",
+        "resolution": g.resolution or "",
+        "date": today,
+    }
+
+
+def render_gap_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single gap note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("gap", payload)`.
+    Body sections (## Source, ## Ask, ## Blocked Requirements,
+    ## Source Documents) hand-built since they have per-row formatting
+    that doesn't fit the schema_lib section primitives yet.
+
+    `original_text` is unused — kept for parity-test API compatibility."""
+    from app.services import schema_lib
+
+    gid = payload["id"]
+    question = payload.get("question", "")
+    g_doc = payload.get("source_doc") or "unknown"
+    g_person = payload.get("source_person") or "unknown"
+    blocked = payload.get("blocked_reqs") or []
+    suggested = payload.get("suggested_action") or ""
+    source_quote = payload.get("source_quote") or ""
+
+    fm_block = schema_lib.render_frontmatter("gap", payload)
+
+    lines: list[str] = [
+        f"# {gid}: {question}",
+        "",
+    ]
+    if suggested:
+        lines.append(suggested)
+        lines.append("")
+    if source_quote:
+        lines.append("## Source")
+        lines.append(f'> "{source_quote}"')
+        lines.append("")
+    if g_person and g_person != "unknown":
+        lines.append("## Ask")
+        lines.append(f"- [[{g_person}]] — ask")
+        lines.append("")
+    if blocked:
+        lines.append("## Blocked Requirements")
+        for br in blocked:
+            lines.append(f"- [[{br}]] — blocked")
+        lines.append("")
+    lines.append("## Source Documents")
+    lines.append(f"- [[{g_doc}]]")
     lines.append("")
 
     return fm_block + "\n".join(lines)

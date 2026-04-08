@@ -163,6 +163,32 @@ def fixture_to_payload(kind: str, fm: dict, body: str) -> dict:
                 affected.append(m.group(1).strip())
         payload["affected_reqs"] = affected
 
+    # Gap-specific: blocked_reqs from "## Blocked Requirements" body
+    if kind == "gap":
+        blocked: list[str] = []
+        in_blocked = False
+        for line in body.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("## "):
+                in_blocked = stripped == "## Blocked Requirements"
+                continue
+            if not in_blocked:
+                continue
+            m = re.match(r"-\s+\[\[([^\]]+)\]\]\s+—\s+blocked", stripped)
+            if m:
+                blocked.append(m.group(1).strip())
+        if blocked:
+            payload["blocked_reqs"] = blocked
+        # `suggested_action` is the first non-blank, non-heading line under H1
+        h1 = extract_h1(body)
+        if h1:
+            after = body.split(h1, 1)[-1]
+            for line in after.split("\n"):
+                line = line.strip()
+                if line and not line.startswith("#") and not line.startswith(">") and not line.startswith("-"):
+                    payload["suggested_action"] = line
+                    break
+
     # `co_extracted` is derived from `## Related` body lines like
     # `- [[BR-002]] — co-extracted`. Reconstruct it so the renderer
     # produces the same wikilinks.
@@ -231,6 +257,10 @@ def run_constraint_parity(report: FailReport, render_fn: Callable | None) -> Non
     run_kind_parity(report, "constraint", "con_*.md", render_fn)
 
 
+def run_gap_parity(report: FailReport, render_fn: Callable | None) -> None:
+    run_kind_parity(report, "gap", "gap_*.md", render_fn)
+
+
 def main() -> int:
     report = FailReport()
 
@@ -251,6 +281,15 @@ def main() -> int:
     except ImportError:
         pass
     run_constraint_parity(report, con_fn)
+
+    # Gap
+    gap_fn = None
+    try:
+        from app.pipeline.tasks import render_gap_text  # type: ignore
+        gap_fn = render_gap_text
+    except ImportError:
+        pass
+    run_gap_parity(report, gap_fn)
 
     print()
     if report.failures:
