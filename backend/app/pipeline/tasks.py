@@ -727,6 +727,16 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     )
     gaps_rows = gaps_result.all()
 
+    assumptions_result = await db.execute(
+        select(Assumption).where(Assumption.project_id == project_id)
+    )
+    assumptions = assumptions_result.scalars().all()
+
+    scope_items_result = await db.execute(
+        select(ScopeItem).where(ScopeItem.project_id == project_id)
+    )
+    scope_items = scope_items_result.scalars().all()
+
     # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
     for r, doc_name, doc_class in reqs_rows:
         # Pre-compute co-extracted siblings (other requirements from the
@@ -767,6 +777,33 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         legacy_path = discovery_dir / legacy
         if legacy_path.exists():
             legacy_path.unlink()
+
+    # --- assumptions/ individual files (Phase 4d) ---
+    assumptions_dir = discovery_dir / "assumptions"
+    assumptions_dir.mkdir(parents=True, exist_ok=True)
+    for i, asm in enumerate(assumptions, 1):
+        asm_id = f"ASM-{i:03d}"
+        payload = _assumption_to_payload(asm, asm_id, today)
+        text = render_assumption_text(payload)
+        (assumptions_dir / f"{asm_id}.md").write_text(text)
+
+    # --- scope/ individual files (Phase 4d) ---
+    scope_dir = discovery_dir / "scope"
+    scope_dir.mkdir(parents=True, exist_ok=True)
+    for i, sc in enumerate(scope_items, 1):
+        sc_id = f"SCO-{i:03d}"
+        payload = _scope_to_payload(sc, sc_id, today)
+        text = render_scope_text(payload)
+        (scope_dir / f"{sc_id}.md").write_text(text)
+
+    # --- contradictions/ individual files (Phase 4d) ---
+    contradictions_dir = discovery_dir / "contradictions"
+    contradictions_dir.mkdir(parents=True, exist_ok=True)
+    for i, ctr in enumerate(contras, 1):
+        ctr_id = f"CTR-{i:03d}"
+        payload = _contradiction_to_payload(ctr, ctr_id, today)
+        text = render_contradiction_text(payload)
+        (contradictions_dir / f"{ctr_id}.md").write_text(text)
 
     # Evaluate readiness for index/log (but don't write a separate readiness.md)
     from app.services.evaluator import evaluator
@@ -1385,6 +1422,158 @@ def render_stakeholder_text(payload: dict, *, original_text: str | None = None) 
         lines.append("")
         for req_id, title in person_reqs:
             lines.append(f"- [[{req_id}]] — {title}")
+        lines.append("")
+
+    return fm_block + "\n".join(lines)
+
+
+def _assumption_to_payload(asm, asm_id: str, today: str) -> dict:
+    """Build the writer-input payload from an Assumption SQLAlchemy row."""
+    return {
+        "id": asm_id,
+        "statement": asm.statement or "",
+        "basis": asm.basis or "",
+        "risk_if_wrong": asm.risk_if_wrong or "",
+        "needs_validation_by": asm.needs_validation_by or "",
+        "validated": bool(asm.validated),
+        "date": today,
+    }
+
+
+def render_assumption_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single assumption note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("assumption", payload)`.
+    Body sections (Basis, Risk if wrong, Validation) hand-built."""
+    from app.services import schema_lib
+
+    aid = payload["id"]
+    statement = payload.get("statement", "")
+    basis = payload.get("basis", "")
+    risk = payload.get("risk_if_wrong", "")
+    validation_by = payload.get("needs_validation_by", "")
+
+    fm_block = schema_lib.render_frontmatter("assumption", payload)
+
+    lines: list[str] = [
+        f"# {aid}: {statement[:80]}",
+        "",
+        statement,
+        "",
+        "## Basis",
+        "",
+        basis or "_(no basis recorded)_",
+        "",
+        "## Risk if wrong",
+        "",
+        risk or "_(risk not specified)_",
+        "",
+    ]
+    if validation_by:
+        lines.append("## Validation")
+        lines.append("")
+        lines.append(f"Needs validation by: {validation_by}")
+        lines.append("")
+
+    return fm_block + "\n".join(lines)
+
+
+def _scope_to_payload(sc, sc_id: str, today: str) -> dict:
+    """Build the writer-input payload from a ScopeItem SQLAlchemy row."""
+    return {
+        "id": sc_id,
+        "description": sc.description or "",
+        "in_scope": bool(sc.in_scope),
+        "rationale": sc.rationale or "",
+        "date": today,
+    }
+
+
+def render_scope_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single scope item note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("scope", payload)`.
+    Body sections (description paragraph + Rationale) hand-built."""
+    from app.services import schema_lib
+
+    sid = payload["id"]
+    description = payload.get("description", "")
+    rationale = payload.get("rationale", "")
+    in_scope = payload.get("in_scope", False)
+    badge = "IN SCOPE" if in_scope else "OUT OF SCOPE"
+
+    fm_block = schema_lib.render_frontmatter("scope", payload)
+
+    lines: list[str] = [
+        f"# {sid}: {description[:80]}",
+        "",
+        f"**{badge}**",
+        "",
+        description,
+        "",
+        "## Rationale",
+        "",
+        rationale or "_(no rationale provided)_",
+        "",
+    ]
+
+    return fm_block + "\n".join(lines)
+
+
+def _contradiction_to_payload(ctr, ctr_id: str, today: str) -> dict:
+    """Build the writer-input payload from a Contradiction SQLAlchemy row."""
+    return {
+        "id": ctr_id,
+        "item_a_type": ctr.item_a_type or "",
+        "item_a_id": str(ctr.item_a_id) if ctr.item_a_id else "",
+        "item_b_type": ctr.item_b_type or "",
+        "item_b_id": str(ctr.item_b_id) if ctr.item_b_id else "",
+        "explanation": ctr.explanation or "",
+        "resolved": bool(ctr.resolved),
+        "resolution_note": ctr.resolution_note or "",
+        "date": today,
+    }
+
+
+def render_contradiction_text(payload: dict, *, original_text: str | None = None) -> str:
+    """Render a single contradiction note as markdown.
+
+    Frontmatter from `schema_lib.render_frontmatter("contradiction", payload)`.
+    Body sections (Explanation, Items in conflict, Resolution) hand-built."""
+    from app.services import schema_lib
+
+    cid = payload["id"]
+    explanation = payload.get("explanation", "")
+    item_a_type = payload.get("item_a_type", "")
+    item_a_id = payload.get("item_a_id", "")
+    item_b_type = payload.get("item_b_type", "")
+    item_b_id = payload.get("item_b_id", "")
+    resolved = payload.get("resolved", False)
+    resolution = payload.get("resolution_note", "")
+
+    fm_block = schema_lib.render_frontmatter("contradiction", payload)
+
+    status_badge = "✓ RESOLVED" if resolved else "⚠ UNRESOLVED"
+
+    lines: list[str] = [
+        f"# {cid}: {explanation[:80]}",
+        "",
+        f"**{status_badge}**",
+        "",
+        "## Explanation",
+        "",
+        explanation or "_(no explanation provided)_",
+        "",
+        "## Items in conflict",
+        "",
+        f"- {item_a_type}: `{item_a_id}`",
+        f"- {item_b_type}: `{item_b_id}`",
+        "",
+    ]
+    if resolved and resolution:
+        lines.append("## Resolution")
+        lines.append("")
+        lines.append(resolution)
         lines.append("")
 
     return fm_block + "\n".join(lines)
