@@ -1038,6 +1038,13 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     except Exception as e:
         log.warning("Dashboard generation failed (non-fatal)", error=str(e))
 
+    # hot.md at vault root — short distilled "what's hot right now"
+    # carry-over for the next agent session. Cheap to load into context.
+    try:
+        _write_hot(vault_root, doc, reqs_rows, gaps_rows, decisions, readiness)
+    except Exception as e:
+        log.warning("hot.md generation failed (non-fatal)", error=str(e))
+
     log.info("Markdown export complete",
              project_id=str(project_id),
              requirements=len(reqs_rows),
@@ -1157,6 +1164,100 @@ def _write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, s
         "_Edit the schemas in `assistants/.claude/schemas/` instead of editing this file directly._",
     ]
     (vault_root / "dashboard.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_hot(vault_root, doc: Document, reqs_rows, gaps_rows, decisions, readiness: dict):
+    """Generate `.memory-bank/hot.md` — the warm-context carry-over file
+    that the next agent session loads on startup.
+
+    Distilled, short, cheap to read. Answers: "if I had 30 seconds to
+    catch up before this agent session, what should I know?"
+
+    Pulled into the agent's startup context via SKILL.md / CLAUDE.md so
+    fresh sessions don't have to re-derive what's currently in flux."""
+    from datetime import datetime as dt
+    now = dt.now().strftime("%Y-%m-%d %H:%M")
+    score = readiness.get("score", 0)
+
+    # The most recently ingested document (this run)
+    last_doc = doc.filename if doc else "unknown"
+    last_source = (doc.classification or {}).get("source", "upload") if doc else "unknown"
+
+    # Top 3 high-severity open gaps
+    high_gaps = [g for g, _ in gaps_rows if g.status == "open" and g.severity == "high"]
+    high_gaps.sort(key=lambda g: g.gap_id)
+    top_gaps = high_gaps[:3]
+
+    # Top 3 unconfirmed must-have requirements
+    must_unconfirmed = [r for r, _, _ in reqs_rows if r.priority == "must" and r.status != "confirmed"]
+    must_unconfirmed.sort(key=lambda r: r.req_id)
+    top_must = must_unconfirmed[:3]
+
+    # Top 3 most recent confirmed decisions (sorted by decided_date desc, fall back to id)
+    recent_decisions = sorted(
+        decisions,
+        key=lambda d: (d.decided_date or "", d.title),
+        reverse=True,
+    )[:3]
+
+    lines = [
+        "---",
+        "category: hot-context",
+        f"updated: {now}",
+        f"readiness: {score}",
+        "tags: [hot, context]",
+        "---",
+        "",
+        "# What's Hot",
+        "",
+        f"_Snapshot at {now} · readiness **{score}%**_",
+        "",
+        "## Just ingested",
+        "",
+        f"- **{last_doc}** ({last_source})",
+        "",
+    ]
+
+    if top_gaps:
+        lines.append("## High-severity open gaps (top 3)")
+        lines.append("")
+        for g in top_gaps:
+            q = (g.question or "")[:90]
+            lines.append(f"- [[{g.gap_id}]] — {q}")
+            if g.blocked_reqs:
+                blocked = ", ".join(f"[[{rid}]]" for rid in g.blocked_reqs[:3])
+                lines.append(f"  - blocks: {blocked}")
+        lines.append("")
+
+    if top_must:
+        lines.append("## Unconfirmed must-haves (top 3)")
+        lines.append("")
+        for r in top_must:
+            lines.append(f"- [[{r.req_id}]] — {r.title} _({r.status}, {r.confidence})_")
+        lines.append("")
+
+    if recent_decisions:
+        lines.append("## Recent decisions")
+        lines.append("")
+        for d in recent_decisions:
+            who = f" — {d.decided_by}" if d.decided_by else ""
+            when = f" ({d.decided_date})" if d.decided_date else ""
+            lines.append(f"- **{d.title}**{who}{when}")
+        lines.append("")
+
+    lines.extend([
+        "---",
+        "",
+        "## Context links",
+        "",
+        "- [[dashboard|Project dashboard]]",
+        "- [[docs/discovery/index|Discovery wiki index]]",
+        "- [[docs/discovery/log|Operation log]]",
+        "",
+        "_Auto-generated after every ingest. Read by the agent on session start._",
+    ])
+
+    (vault_root / "hot.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 async def _post_completion_notice(project_id, doc: Document, counts: dict, readiness: dict):
