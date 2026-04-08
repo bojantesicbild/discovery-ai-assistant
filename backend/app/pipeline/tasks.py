@@ -688,9 +688,10 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
 
     today = date_today.today().isoformat()
 
-    # Load all items for this project
+    # Load all items for this project. Also pull Document.classification so
+    # we can resolve `.raw/...` backlinks for each derived note's frontmatter.
     reqs_result = await db.execute(
-        select(Requirement, Document.filename)
+        select(Requirement, Document.filename, Document.classification)
         .outerjoin(Document, Requirement.source_doc_id == Document.id)
         .where(Requirement.project_id == project_id)
         .order_by(Requirement.req_id)
@@ -727,7 +728,8 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     gaps_rows = gaps_result.all()
 
     # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
-    for r, doc_name in reqs_rows:
+    from app.services import raw_store
+    for r, doc_name, doc_class in reqs_rows:
         source_doc_name = doc_name or "unknown"
         person = r.source_person or "unknown"
         desc_escaped = (r.description or "").replace('"', '\\"')
@@ -746,6 +748,22 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             f"date: {today}",
             "category: requirement",
             f'description: "{desc_escaped}"',
+        ]
+
+        # source_raw — clickable backlink to the original payload in
+        # .memory-bank/.raw/{source}/. Only present when the source
+        # document was ingested through Gmail/Drive/upload (Phase 4).
+        if doc_class and doc_class.get("source_raw_path"):
+            try:
+                from pathlib import Path as _P
+                rel = raw_store.relative_source_raw(_P(doc_class["source_raw_path"]), reqs_dir)
+                req_lines.append(f'source_raw: "{rel}"')
+            except Exception:
+                pass
+        if doc_class and doc_class.get("source"):
+            req_lines.append(f'source_origin: {doc_class["source"]}')
+
+        req_lines.extend([
             f"tags: [requirement, {r.priority}, {r.status}]",
             f"aliases: [{r.req_id}]",
             f"cssclasses: [requirement, node-green]",
@@ -759,7 +777,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             f"> \"{r.source_quote}\"" if r.source_quote else "> (no quote)",
             "",
             "## People",
-        ]
+        ])
         if person and person != "unknown":
             req_lines.append(f"- [[{person}]] — requested")
         else:
@@ -769,7 +787,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         req_lines.append("## Related")
 
         # Link other requirements from the same source doc
-        for other_r, other_doc in reqs_rows:
+        for other_r, other_doc, _ in reqs_rows:
             if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id:
                 req_lines.append(f"- [[{other_r.req_id}]] — co-extracted")
 
@@ -779,6 +797,15 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         for src in sources_list:
             fname = src.get("filename", "unknown")
             req_lines.append(f"- [[{fname}]] — v{r.version or 1} merge")
+
+        # Direct link to the raw source for in-vault navigation
+        if doc_class and doc_class.get("source_raw_path"):
+            try:
+                from pathlib import Path as _P
+                rel = raw_store.relative_source_raw(_P(doc_class["source_raw_path"]), reqs_dir)
+                req_lines.append(f"- [Original source]({rel})")
+            except Exception:
+                pass
 
         req_lines.append("")
         (reqs_dir / f"{r.req_id}.md").write_text("\n".join(req_lines))
@@ -822,7 +849,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         stk_lines.append(f"- **Organization**: {s.organization}")
         stk_lines.append(f"- **Authority**: {s.decision_authority}")
         # Link requirements by this person
-        person_reqs = [r for r, _ in reqs_rows if r.source_person == s.name]
+        person_reqs = [r for r, _, _ in reqs_rows if r.source_person == s.name]
         if person_reqs:
             stk_lines.append("- **Requirements**:")
             for pr in person_reqs:
@@ -875,7 +902,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             con_lines.append("")
         # Link to requirements that this constraint affects
         con_lines.append("## Affected Requirements")
-        for r, _ in reqs_rows:
+        for r, _, _ in reqs_rows:
             if r.source_doc_id == con.source_doc_id:
                 con_lines.append(f"- [[{r.req_id}]] — constrained")
         con_lines.append("")
@@ -936,7 +963,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     if reqs_rows:
         idx_lines += [f"## Requirements ({len(reqs_rows)})", "",
             "| ID | Title | Priority | Status |", "|---|---|---|---|"]
-        for r, _ in reqs_rows:
+        for r, _, _ in reqs_rows:
             idx_lines.append(f"| [[{r.req_id}]] | {r.title} | {r.priority} | {r.status} |")
         idx_lines.append("")
     if constraints:

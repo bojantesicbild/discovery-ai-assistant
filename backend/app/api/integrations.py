@@ -404,6 +404,8 @@ async def import_gmail_messages(
     imported: list[dict] = []
     skipped: list[dict] = []
 
+    from app.services import raw_store
+
     for mid in body.message_ids:
         try:
             message = await gmail_service.get_message_full(access_token, mid)
@@ -429,6 +431,11 @@ async def import_gmail_messages(
         file_path = upload_dir / safe_name
         file_path.write_text(markdown, encoding="utf-8")
 
+        # Save the raw email payload into .memory-bank/.raw/gmail/ so the
+        # human reading the derived requirements in Obsidian can click
+        # back to the original message.
+        raw_path = raw_store.save_gmail_raw(project_id, message, body_text)
+
         doc = Document(
             project_id=project_id,
             filename=filename,
@@ -439,6 +446,7 @@ async def import_gmail_messages(
                 "file_path": str(file_path),
                 "source": "gmail",
                 "gmail_message_id": mid,
+                "source_raw_path": str(raw_path),
             },
         )
         db.add(doc)
@@ -579,6 +587,12 @@ async def import_drive_files(
         file_path = upload_dir / safe_name
         file_path.write_bytes(content)
 
+        # Save raw payload to .raw/google_drive/ for in-vault backlinks
+        from app.services import raw_store
+        raw_path = raw_store.save_binary_raw(
+            project_id, "google_drive", filename, content, extra_id=fid,
+        )
+
         doc = Document(
             project_id=project_id,
             filename=filename,
@@ -590,6 +604,7 @@ async def import_drive_files(
                 "source": "google_drive",
                 "drive_file_id": fid,
                 "drive_url": meta.get("webViewLink"),
+                "source_raw_path": str(raw_path),
             },
         )
         db.add(doc)

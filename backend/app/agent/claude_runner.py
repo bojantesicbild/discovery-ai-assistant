@@ -127,6 +127,32 @@ class ClaudeCodeRunner:
         # Ensure uploads dir
         (project_dir / "uploads").mkdir(exist_ok=True)
 
+        # .raw/ inside the vault holds the original payload of every
+        # ingested document (Gmail message, Drive file, manual upload,
+        # Slack thread). Derived notes get a `source_raw:` frontmatter
+        # backlink that resolves here, so opening a requirement in
+        # Obsidian and clicking the source link shows the original.
+        raw_dir = mb / ".raw"
+        raw_dir.mkdir(exist_ok=True)
+        for source in ("gmail", "google_drive", "upload", "slack"):
+            (raw_dir / source).mkdir(exist_ok=True)
+        # Tell Obsidian not to index .raw/ as notes (they're sources, not
+        # finds). The README is plain markdown so users can see what's here.
+        readme = raw_dir / "README.md"
+        if not readme.exists():
+            readme.write_text(
+                "---\ncategory: raw-sources\n---\n\n"
+                "# Raw sources\n\n"
+                "Original payload of every ingested document, organized by\n"
+                "source connector. Derived notes (`docs/discovery/...`) link\n"
+                "back here via `source_raw` frontmatter so you can always see\n"
+                "the original alongside the extracted requirements/gaps/etc.\n\n"
+                "- `gmail/` — full email JSON envelope per imported message\n"
+                "- `google_drive/` — exported markdown / downloaded binaries\n"
+                "- `upload/` — copies of files uploaded through the UI\n"
+                "- `slack/` — captured thread snapshots\n"
+            )
+
         # Seed Obsidian vault config from the canonical source in
         # assistants/.obsidian/. Templates are generated from schemas (see
         # assistants/.claude/scripts/render-templates.py); the rest of the
@@ -580,6 +606,16 @@ class ClaudeCodeRunner:
         upload_dir = self.get_project_dir(project_id) / "uploads"
         upload_dir.mkdir(exist_ok=True)
         return upload_dir
+
+    def get_raw_dir(self, project_id: uuid.UUID, source: str) -> Path:
+        """Return the per-source .raw/ directory inside the vault.
+
+        `source` is one of: gmail, google_drive, upload, slack. Created on
+        demand if missing (existing projects predating .raw/ get it
+        retroactively the first time anything tries to write here)."""
+        raw_dir = self.get_project_dir(project_id) / ".memory-bank" / ".raw" / source
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        return raw_dir
 
 
 # Singleton

@@ -62,6 +62,14 @@ async def upload_document(
     file_path = upload_dir / safe_name
     file_path.write_bytes(content)
 
+    # Also stash a copy of the original inside the vault at .raw/upload/
+    # so derived requirement notes can backlink to the source file from
+    # within Obsidian (instead of pointing outside the vault).
+    from app.services import raw_store
+    raw_path = raw_store.save_binary_raw(
+        project_id, "upload", file.filename, content,
+    )
+
     # Create document record
     doc = Document(
         project_id=project_id,
@@ -69,7 +77,11 @@ async def upload_document(
         file_type=ext.lstrip("."),
         file_size_bytes=file_size,
         pipeline_stage="queued",
-        classification={"file_path": str(file_path)},
+        classification={
+            "file_path": str(file_path),
+            "source": "upload",
+            "source_raw_path": str(raw_path),
+        },
     )
     db.add(doc)
     await db.flush()

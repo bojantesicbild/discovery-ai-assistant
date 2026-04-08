@@ -127,6 +127,7 @@ async def _sync_gmail(row: ProjectIntegration, retrieval: dict) -> None:
 
     upload_dir = claude_runner.get_upload_dir(row.project_id)
     imported = 0
+    from app.services import raw_store
 
     async with async_session() as db:
         for m in messages:
@@ -151,6 +152,9 @@ async def _sync_gmail(row: ProjectIntegration, retrieval: dict) -> None:
             file_path = upload_dir / safe_name
             file_path.write_text(markdown, encoding="utf-8")
 
+            # Save raw email payload for backlink resolution
+            raw_path = raw_store.save_gmail_raw(row.project_id, full, body_text)
+
             doc = Document(
                 project_id=row.project_id,
                 filename=filename,
@@ -162,6 +166,7 @@ async def _sync_gmail(row: ProjectIntegration, retrieval: dict) -> None:
                     "source": "gmail",
                     "gmail_message_id": mid,
                     "auto_synced": True,
+                    "source_raw_path": str(raw_path),
                 },
             )
             db.add(doc)
@@ -240,6 +245,11 @@ async def _sync_drive(row: ProjectIntegration, retrieval: dict) -> None:
             file_path = upload_dir / safe_name
             file_path.write_bytes(content)
 
+            from app.services import raw_store
+            raw_path = raw_store.save_binary_raw(
+                row.project_id, "google_drive", filename, content, extra_id=f["id"],
+            )
+
             doc = Document(
                 project_id=row.project_id,
                 filename=filename,
@@ -252,6 +262,7 @@ async def _sync_drive(row: ProjectIntegration, retrieval: dict) -> None:
                     "drive_file_id": f["id"],
                     "drive_url": f.get("webViewLink"),
                     "auto_synced": True,
+                    "source_raw_path": str(raw_path),
                 },
             )
             db.add(doc)
