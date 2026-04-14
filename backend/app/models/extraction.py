@@ -39,6 +39,9 @@ class Constraint(Base, IdMixin, TimestampMixin):
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     source_quote: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String, default="assumed")
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Decision(Base, IdMixin, TimestampMixin):
@@ -53,6 +56,9 @@ class Decision(Base, IdMixin, TimestampMixin):
     impacts: Mapped[list] = mapped_column(JSONB, default=list)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     status: Mapped[str] = mapped_column(String, default="tentative")
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Stakeholder(Base, IdMixin, TimestampMixin):
@@ -65,6 +71,9 @@ class Stakeholder(Base, IdMixin, TimestampMixin):
     decision_authority: Mapped[str] = mapped_column(String, default="informed")
     interests: Mapped[list] = mapped_column(JSONB, default=list)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Assumption(Base, IdMixin, TimestampMixin):
@@ -77,6 +86,9 @@ class Assumption(Base, IdMixin, TimestampMixin):
     needs_validation_by: Mapped[str | None] = mapped_column(String, nullable=True)
     validated: Mapped[bool] = mapped_column(Boolean, default=False)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class ScopeItem(Base, IdMixin, TimestampMixin):
@@ -87,6 +99,9 @@ class ScopeItem(Base, IdMixin, TimestampMixin):
     in_scope: Mapped[bool] = mapped_column(Boolean, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Gap(Base, IdMixin, TimestampMixin):
@@ -104,6 +119,9 @@ class Gap(Base, IdMixin, TimestampMixin):
     suggested_action: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, default="open")  # open, in-progress, resolved, dismissed
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sources: Mapped[list] = mapped_column(JSONB, default=list)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class Contradiction(Base, IdMixin, TimestampMixin):

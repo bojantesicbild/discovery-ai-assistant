@@ -31,6 +31,7 @@ interface DetailView {
   meta?: Record<string, string>;
   actions?: { label: string; value: string; color: string }[];
   onAction?: (value: string) => void;
+  history?: { projectId: string; itemType: string; itemId: string };
 }
 
 const TABS = [
@@ -221,6 +222,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           onClose={() => { setDetail(null); onNavigate?.(activeTab); }}
           actions={detail.actions}
           onAction={detail.onAction}
+          history={detail.history}
         />
       </div>
     );
@@ -665,6 +667,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                               title: `${c.type} Constraint`,
                               content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
                               meta: { type: c.type, status: c.status },
+                              history: c.id ? { projectId, itemType: "constraint", itemId: c.id } : undefined,
                             });
                             onNavigate?.("constraints", String(c.id).slice(0, 8));
                             if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
@@ -1027,6 +1030,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     setDetail({
       title: `${req.req_id}: ${req.title}`, content: md,
       meta: { priority: req.priority, status: req.status, confidence: req.confidence, version: `v${req.version || 1}`, source: req.source_doc || "unknown" },
+      history: req.id ? { projectId, itemType: "requirement", itemId: req.id } : undefined,
       actions: [
         { label: "Confirm", value: "confirmed", color: "#059669" },
         { label: "Discussed", value: "discussed", color: "#3B82F6" },

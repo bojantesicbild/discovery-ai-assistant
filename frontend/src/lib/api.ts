@@ -560,6 +560,26 @@ export async function markFindingsProjectSeenAll(projectId: string) {
   });
 }
 
+// Item history
+export interface HistoryEntry {
+  id: string;
+  action: "create" | "update";
+  old_value: Record<string, any>;
+  new_value: Record<string, any>;
+  source_doc_id: string | null;
+  source_filename: string | null;
+  triggered_by: string | null;
+  created_at: string | null;
+}
+
+export async function getItemHistory(
+  projectId: string,
+  itemType: string,
+  itemId: string,
+): Promise<{ item_type: string; item_id: string; history: HistoryEntry[] }> {
+  return fetchAPI(`/api/projects/${projectId}/items/${itemType}/${itemId}/history`);
+}
+
 // Wiki
 export async function getWikiFiles(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/files`);

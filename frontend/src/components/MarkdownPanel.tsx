@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getItemHistory, type HistoryEntry } from "@/lib/api";
 
 interface MarkdownPanelProps {
   title: string;
@@ -11,6 +12,7 @@ interface MarkdownPanelProps {
   actions?: { label: string; value: string; color: string }[];
   onAction?: (value: string) => void;
   readOnly?: boolean;
+  history?: { projectId: string; itemType: string; itemId: string };
 }
 
 export default function MarkdownPanel({
@@ -22,9 +24,28 @@ export default function MarkdownPanel({
   readOnly = false,
   actions,
   onAction,
+  history,
 }: MarkdownPanelProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
+  const [activeView, setActiveView] = useState<"content" | "history">("content");
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeView !== "history" || !history || historyEntries) return;
+    setHistoryLoading(true);
+    getItemHistory(history.projectId, history.itemType, history.itemId)
+      .then((res) => setHistoryEntries(res.history))
+      .catch(() => setHistoryEntries([]))
+      .finally(() => setHistoryLoading(false));
+  }, [activeView, history, historyEntries]);
+
+  // Reset history when the item changes
+  useEffect(() => {
+    setHistoryEntries(null);
+    setActiveView("content");
+  }, [history?.itemId]);
 
   function handleSave() {
     onSave?.(editContent);
@@ -154,9 +175,92 @@ export default function MarkdownPanel({
         </div>
       )}
 
+      {/* Tabs (only when history is available) */}
+      {history && (
+        <div style={{
+          display: "flex", gap: 0, padding: "0 16px",
+          borderBottom: "1px solid var(--gray-100)",
+        }}>
+          {(["content", "history"] as const).map((view) => (
+            <button
+              key={view}
+              onClick={() => setActiveView(view)}
+              style={{
+                padding: "10px 14px", fontSize: 12, fontWeight: 600,
+                background: "none", border: "none", cursor: "pointer",
+                color: activeView === view ? "var(--green)" : "var(--gray-500)",
+                borderBottom: activeView === view ? "2px solid var(--green)" : "2px solid transparent",
+                marginBottom: -1, fontFamily: "var(--font)", textTransform: "capitalize",
+              }}
+            >
+              {view}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Content */}
       <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
-        {editing ? (
+        {activeView === "history" && history ? (
+          historyLoading ? (
+            <div style={{ fontSize: 12, color: "var(--gray-500)" }}>Loading history…</div>
+          ) : historyEntries && historyEntries.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {historyEntries.map((entry) => (
+                <div key={entry.id} style={{
+                  borderLeft: `3px solid ${entry.action === "create" ? "var(--green)" : "#3B82F6"}`,
+                  padding: "8px 12px", background: "var(--gray-50)",
+                  borderRadius: "var(--radius-xs)",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
+                      background: entry.action === "create" ? "var(--green-light)" : "#DBEAFE",
+                      color: entry.action === "create" ? "#059669" : "#1D4ED8",
+                      textTransform: "uppercase",
+                    }}>{entry.action}</span>
+                    {entry.source_filename && (
+                      <span style={{ fontSize: 11, color: "var(--gray-500)" }}>
+                        from <strong style={{ color: "var(--dark)" }}>{entry.source_filename}</strong>
+                      </span>
+                    )}
+                    <span style={{ flex: 1 }} />
+                    <span style={{ fontSize: 10, color: "var(--gray-400)" }}>
+                      {entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}
+                    </span>
+                  </div>
+                  {entry.action === "update" && Object.keys(entry.old_value || {}).length > 0 && (
+                    <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+                      {Object.keys(entry.old_value).map((field) => (
+                        <div key={field} style={{ marginTop: 2 }}>
+                          <span style={{ color: "var(--gray-500)", fontWeight: 600 }}>{field}: </span>
+                          <span style={{ textDecoration: "line-through", color: "var(--gray-400)" }}>
+                            {String(entry.old_value[field] ?? "")}
+                          </span>
+                          <span style={{ color: "var(--gray-400)" }}> → </span>
+                          <span style={{ color: "var(--dark)", fontWeight: 600 }}>
+                            {String(entry.new_value[field] ?? "")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {entry.action === "create" && (
+                    <div style={{ fontSize: 11, color: "var(--gray-600)" }}>
+                      {Object.entries(entry.new_value || {}).map(([k, v]) => (
+                        <span key={k} style={{ marginRight: 8 }}>
+                          <span style={{ color: "var(--gray-500)" }}>{k}:</span> {String(v)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--gray-500)" }}>No history yet.</div>
+          )
+        ) : editing ? (
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}

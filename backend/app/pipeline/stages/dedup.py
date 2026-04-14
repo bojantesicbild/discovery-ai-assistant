@@ -279,18 +279,34 @@ async def apply_dedup_actions(
                 existing.sources = sources
                 existing.version = (existing.version or 1) + 1
 
-                # Merge description if new one adds info
+                # Track all field changes (not just description). Description
+                # only updates if the new one adds info; other fields update
+                # whenever the new value differs.
+                changes_old: dict = {}
+                changes_new: dict = {}
+
                 if req.description and len(req.description) > len(existing.description or ""):
-                    old_desc = existing.description
+                    changes_old["description"] = existing.description
+                    changes_new["description"] = req.description
                     existing.description = req.description
-                    # Log change
+
+                for field in ("title", "priority", "type", "status", "confidence"):
+                    new_val = getattr(req, field, None)
+                    old_val = getattr(existing, field, None)
+                    if new_val and new_val != old_val:
+                        changes_old[field] = old_val
+                        changes_new[field] = new_val
+                        setattr(existing, field, new_val)
+
+                if changes_old:
+                    changes_new["source"] = str(doc_id)
                     db.add(ChangeHistory(
                         project_id=project_id,
                         item_type="requirement",
                         item_id=existing.id,
                         action="update",
-                        old_value={"description": old_desc},
-                        new_value={"description": req.description, "source": str(doc_id)},
+                        old_value=changes_old,
+                        new_value=changes_new,
                         triggered_by="pipeline",
                     ))
 
