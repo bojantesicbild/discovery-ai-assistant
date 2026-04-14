@@ -37,8 +37,6 @@ interface DetailView {
 const TABS = [
   { id: "reqs", label: "Requirements", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   { id: "gaps", label: "Gaps", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" },
-  { id: "constraints", label: "Constraints", icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4" },
-  { id: "contradictions", label: "Contradictions", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
   { id: "meeting", label: "Meeting Prep", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
   { id: "handoff", label: "Handoff", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
@@ -49,8 +47,7 @@ const TABS = [
 const TAB_TO_FINDING_TYPE: Record<string, FindingType | undefined> = {
   reqs: "requirement",
   gaps: "gap",
-  constraints: "constraint",
-  contradictions: "contradiction",
+  // constraints + contradictions are subsections of the gaps tab now
 };
 
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
@@ -118,6 +115,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [statusFilter, setStatusFilter] = usePersistedState<string>(
     `datapanel:statusFilter:${projectId}`,
     "all",
+  );
+  const [gapSection, setGapSection] = usePersistedState<"gaps" | "constraints" | "conflicts">(
+    `datapanel:gapSection:${projectId}`,
+    "gaps",
   );
   const [contraFilter, setContraFilter] = usePersistedState<string>(
     `datapanel:contraFilter:${projectId}`,
@@ -284,8 +285,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           let count: number | null = null;
           if (tab.id === "reqs") count = requirements.length;
           if (tab.id === "gaps") count = gaps.length;
-          if (tab.id === "constraints") count = constraints.length;
-          if (tab.id === "contradictions") count = contradictions.length;
+          // constraints + contradictions are subsections of the gaps tab
+          if (tab.id === "gaps") count = gaps.length + constraints.length + contradictions.length;
           if (tab.id === "docs") count = documents.length;
 
           // Per-tab unread count (mapped from tab id → finding type)
@@ -444,6 +445,43 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── GAPS ── */}
         {activeTab === "gaps" && (
           <div className="dp-tab-content active">
+            {/* Section pills: Gaps | Constraints | Conflicts */}
+            <div style={{ display: "flex", gap: 4, padding: 3, background: "var(--gray-50)", borderRadius: 10, marginBottom: 12 }}>
+              {([
+                { id: "gaps" as const, label: "Gaps", count: gaps.length, color: "#F59E0B" },
+                { id: "constraints" as const, label: "Constraints", count: constraints.length, color: "#d97706" },
+                { id: "conflicts" as const, label: "Conflicts", count: contradictions.length, color: "#EF4444" },
+              ]).map((sec) => (
+                <button
+                  key={sec.id}
+                  onClick={() => setGapSection(sec.id)}
+                  style={{
+                    flex: 1, padding: "7px 12px", borderRadius: 7, border: "none",
+                    background: gapSection === sec.id ? "#fff" : "transparent",
+                    color: gapSection === sec.id ? "var(--dark)" : "var(--gray-500)",
+                    fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    fontFamily: "var(--font)",
+                    boxShadow: gapSection === sec.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                    transition: "all 0.15s",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  }}
+                >
+                  {sec.label}
+                  {sec.count > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
+                      background: gapSection === sec.id ? `${sec.color}20` : "var(--gray-100)",
+                      color: gapSection === sec.id ? sec.color : "var(--gray-500)",
+                    }}>
+                      {sec.count}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Gaps sub-section ── */}
+            {gapSection === "gaps" && (<>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <TableSearch state={gapsTable} placeholder="Search gaps…" />
               <div className="panel-filter" style={{ marginBottom: 0 }}>
@@ -613,12 +651,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </>
             );
             })()}
-          </div>
-        )}
+            </>)}
 
-        {/* ── CONSTRAINTS ── */}
-        {activeTab === "constraints" && (
-          <div className="dp-tab-content active">
+            {/* ── Constraints sub-section ── */}
+            {gapSection === "constraints" && (
+          <div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <TableSearch state={consTable} placeholder="Search constraints…" />
               {unreadCounts.constraint > 0 && (
@@ -705,11 +742,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               );
             })()}
           </div>
-        )}
+            )}
 
-        {/* ── CONTRADICTIONS ── */}
-        {activeTab === "contradictions" && (
-          <div className="dp-tab-content active">
+            {/* ── Conflicts sub-section ── */}
+            {gapSection === "conflicts" && (
+          <div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <TableSearch state={contraTable} placeholder="Search contradictions…" />
               <div className="panel-filter" style={{ marginBottom: 0 }}>
@@ -871,6 +908,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </>
             );
             })()}
+          </div>
+            )}
+
           </div>
         )}
 
