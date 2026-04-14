@@ -246,7 +246,7 @@ async def google_authorize(
 
     params = {
         "client_id": settings.google_oauth_client_id,
-        "redirect_uri": settings.google_oauth_redirect_uri,
+        "redirect_uri": settings.effective_redirect_uri,
         "response_type": "code",
         "scope": " ".join(GOOGLE_SCOPES),
         "access_type": "offline",
@@ -283,7 +283,7 @@ async def google_callback(
                     "code": code,
                     "client_id": settings.google_oauth_client_id,
                     "client_secret": settings.google_oauth_client_secret,
-                    "redirect_uri": settings.google_oauth_redirect_uri,
+                    "redirect_uri": settings.effective_redirect_uri,
                     "grant_type": "authorization_code",
                 },
             )

@@ -3,6 +3,10 @@ from pathlib import Path
 
 
 class Settings(BaseSettings):
+    # Server
+    api_host: str = "0.0.0.0"
+    api_port: int = 8000
+
     # Database
     database_url: str = "postgresql+asyncpg://discovery_user:discovery_pass@localhost:5432/discovery_db"
 
@@ -31,7 +35,7 @@ class Settings(BaseSettings):
     # Google OAuth (Gmail + Drive)
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
-    google_oauth_redirect_uri: str = "http://localhost:8000/api/integrations/google/callback"
+    google_oauth_redirect_uri: str = ""  # Derived from api_port if not set
     # Frontend URL to redirect back to after OAuth success/failure
     frontend_url: str = "http://localhost:3000"
 
@@ -45,6 +49,12 @@ class Settings(BaseSettings):
     project_types: list[str] = [
         "Greenfield", "Add-on", "Feature Extension", "API", "Mobile", "Custom"
     ]
+
+    @property
+    def effective_redirect_uri(self) -> str:
+        if self.google_oauth_redirect_uri:
+            return self.google_oauth_redirect_uri
+        return f"http://localhost:{self.api_port}/api/integrations/google/callback"
 
     @property
     def assistants_path(self) -> Path:
