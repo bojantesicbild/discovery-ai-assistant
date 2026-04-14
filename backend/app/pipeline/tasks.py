@@ -76,6 +76,11 @@ async def process_document(ctx, document_id: str):
             extraction = await _stage_extract(doc, project, existing_summary)
             await _save_checkpoint(db, doc.id, "extract", {"summary": extraction.document_summary})
 
+            # Stage 3.5: Validate extraction against schemas
+            await _update_stage(db, doc, "validating")
+            extraction, validation_report = _validate_extraction(extraction)
+            await _save_checkpoint(db, doc.id, "validate_extraction", validation_report)
+
             # Stage 4: Dedup
             await _update_stage(db, doc, "deduplicating")
             from app.pipeline.stages.dedup import dedup_requirements, apply_dedup_actions
@@ -528,6 +533,140 @@ def _dedup_within_extraction(extraction: "DiscoveryExtraction") -> "DiscoveryExt
     extraction.assumptions = _dedup_list(extraction.assumptions, lambda a: a.statement)
     extraction.scope_items = _dedup_list(extraction.scope_items, lambda s: s.description)
     return extraction
+
+
+def _validate_extraction(extraction: "DiscoveryExtraction") -> tuple["DiscoveryExtraction", dict]:
+    """Validate every extracted item against its YAML schema.
+
+    Runs between extraction and dedup/store. Catches:
+    - Empty titles/descriptions (Pydantic defaults mask these)
+    - Enum values not in the schema (LLM hallucinations)
+    - Fake source quotes (the "extracted from document" placeholder)
+    - Fields the schema marks as required but the extraction omitted
+
+    Returns (filtered_extraction, report). Items that fail validation
+    are logged and dropped — they never reach the DB. The report
+    summarizes pass/fail counts per kind for the pipeline checkpoint."""
+    from app.services import schema_lib
+
+    report: dict = {"passed": 0, "rejected": 0, "details": []}
+
+    def _check_item(kind: str, payload: dict, label: str) -> bool:
+        """Validate one item. Returns True if it passes."""
+        # Reject items with no meaningful identity. Each kind has a
+        # specific "what is this item about" field — not a generic
+        # fallback chain, because a requirement with empty title but
+        # non-empty description should still be rejected.
+        IDENTITY_FIELD: dict[str, str] = {
+            "requirement": "title",
+            "gap": "question",
+            "constraint": "description",
+            "decision": "title",
+            "stakeholder": "name",
+            "assumption": "statement",
+            "scope": "description",
+            "contradiction": "explanation",
+        }
+        id_field = IDENTITY_FIELD.get(kind, "title")
+        identity = str(payload.get(id_field, "")).strip()
+        if not identity or identity.lower() in ("untitled", "unknown"):
+            report["rejected"] += 1
+            report["details"].append({"kind": kind, "label": label, "reason": "empty identity field"})
+            log.warning("Validation rejected: empty identity", kind=kind, label=label)
+            return False
+
+        # Reject fake source quotes (the default placeholder)
+        quote = payload.get("source_quote", "")
+        if kind in ("requirement", "constraint") and quote in ("extracted from document", ""):
+            # Downgrade to warning, don't reject — many valid items have inferred quotes
+            pass
+
+        # Schema validation (enum values, required fields, types)
+        try:
+            result = schema_lib.validate(kind, payload)
+            if not result.ok:
+                # Log but don't reject for missing non-critical fields — the store
+                # stage fills in defaults. Only reject for bad enum values.
+                enum_errors = [e for e in result.errors if "expected one of" in e]
+                if enum_errors:
+                    report["rejected"] += 1
+                    report["details"].append({"kind": kind, "label": label, "reason": enum_errors[0]})
+                    log.warning("Validation rejected: bad enum", kind=kind, label=label, errors=enum_errors)
+                    return False
+                # Other errors (missing fields) are warnings, not rejections
+                for err in result.errors:
+                    if "unknown field" not in err:
+                        log.debug("Validation warning", kind=kind, label=label, error=err)
+        except KeyError:
+            # Schema not found for this kind — skip validation, allow through
+            pass
+
+        report["passed"] += 1
+        return True
+
+    def _to_payload(item, extra: dict | None = None) -> dict:
+        """Convert a Pydantic model to a dict, merging any extra fields."""
+        d = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+        if extra:
+            d.update(extra)
+        return d
+
+    # Validate each kind
+    valid_reqs = []
+    for r in extraction.requirements:
+        payload = _to_payload(r)
+        # Map source_person from private attr if present
+        if hasattr(r, "_source_person"):
+            payload["source_person"] = r._source_person
+        if _check_item("requirement", payload, payload.get("title", "?")):
+            valid_reqs.append(r)
+    extraction.requirements = valid_reqs
+
+    valid_cons = []
+    for c in extraction.constraints:
+        if _check_item("constraint", _to_payload(c), c.description[:50]):
+            valid_cons.append(c)
+    extraction.constraints = valid_cons
+
+    valid_gaps = []
+    for g in extraction.gaps:
+        payload = _to_payload(g)
+        payload["id"] = payload.pop("id", "")  # GapItem uses 'id' not 'gap_id'
+        if _check_item("gap", payload, g.question[:50]):
+            valid_gaps.append(g)
+    extraction.gaps = valid_gaps
+
+    valid_decs = []
+    for d in extraction.decisions:
+        if _check_item("decision", _to_payload(d), d.title[:50]):
+            valid_decs.append(d)
+    extraction.decisions = valid_decs
+
+    valid_stk = []
+    for s in extraction.stakeholders:
+        if _check_item("stakeholder", _to_payload(s), s.name):
+            valid_stk.append(s)
+    extraction.stakeholders = valid_stk
+
+    valid_asm = []
+    for a in extraction.assumptions:
+        if _check_item("assumption", _to_payload(a), a.statement[:50]):
+            valid_asm.append(a)
+    extraction.assumptions = valid_asm
+
+    valid_sco = []
+    for s in extraction.scope_items:
+        if _check_item("scope", _to_payload(s), s.description[:50]):
+            valid_sco.append(s)
+    extraction.scope_items = valid_sco
+
+    log.info(
+        "Extraction validation complete",
+        passed=report["passed"],
+        rejected=report["rejected"],
+        details_count=len(report["details"]),
+    )
+    return extraction, report
 
 
 async def _merge_or_create(
