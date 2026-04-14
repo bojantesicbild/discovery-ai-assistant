@@ -1,18 +1,20 @@
 ---
 id: GAP-010
-question: "What specific client problems does the Discovery AI solve vs competitors?"
+question: What specific client problems does the Discovery AI solve vs competitors?
 severity: high
 area: competitive positioning / product differentiation
-source_doc: "Updated invitation_ Tesa __ Tarik _ Tue Apr 7_ 2026 11_30am - 12pm _GMT_2_ _Boja.md"
-source_person: Tarik Zaimovic
 status: open
+blocked_reqs: []
+source_person: Tarik Zaimovic
+source_doc: Updated invitation_ Tesa __ Tarik _ Tue Apr 7_ 2026 11_30am - 12pm _GMT_2_ _Boja.md
+source_raw: ../../../.raw/gmail/19d66f5f970ed417.md
+source_origin: gmail
 date: 2026-04-08
 category: gap
 tags: [gap, high, open]
 aliases: [GAP-010]
 cssclasses: [gap, node-amber]
 ---
-
 # GAP-010: What specific client problems does the Discovery AI solve vs competitors?
 
 Run competitive analysis workshop; document differentiation rationale in discovery brief
@@ -21,7 +23,7 @@ Run competitive analysis workshop; document differentiation rationale in discove
 > "Zasto nasa metodologija i tehnologija a ne od strane konkurencije"
 
 ## Ask
-- [[Tarik Zaimovic]] — ask
+- [[Tarik_Zaimovic|Tarik Zaimovic]] — ask
 
 ## Source Documents
-- [[Updated invitation_ Tesa __ Tarik _ Tue Apr 7_ 2026 11_30am - 12pm _GMT_2_ _Boja.md]]
+- [Updated invitation_ Tesa __ Tarik _ Tue Apr 7_ 2026 11_30am - 12pm _GMT_2_ _Boja.md](../../../.raw/gmail/19d66f5f970ed417.md)

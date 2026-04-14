@@ -289,32 +289,15 @@ def run_gap_parity(report: FailReport, render_fn: Callable | None) -> None:
 def main() -> int:
     report = FailReport()
 
-    # Requirement
-    req_fn = None
-    try:
-        from app.pipeline.tasks import render_requirement_text  # type: ignore
-        req_fn = render_requirement_text
-    except ImportError:
-        pass
-    run_requirement_parity(report, req_fn)
-
-    # Constraint
-    con_fn = None
-    try:
-        from app.pipeline.tasks import render_constraint_text  # type: ignore
-        con_fn = render_constraint_text
-    except ImportError:
-        pass
-    run_constraint_parity(report, con_fn)
-
-    # Gap
-    gap_fn = None
-    try:
-        from app.pipeline.tasks import render_gap_text  # type: ignore
-        gap_fn = render_gap_text
-    except ImportError:
-        pass
-    run_gap_parity(report, gap_fn)
+    # Import render functions from the extracted markdown_writer module
+    from app.pipeline.markdown_writer import (
+        render_requirement_text,
+        render_constraint_text,
+        render_gap_text,
+    )
+    run_requirement_parity(report, render_requirement_text)
+    run_constraint_parity(report, render_constraint_text)
+    run_gap_parity(report, render_gap_text)
 
     print()
     if report.failures:

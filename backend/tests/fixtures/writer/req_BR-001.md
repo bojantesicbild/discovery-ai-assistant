@@ -1,20 +1,19 @@
 ---
 id: BR-001
-title: "Discovery AI produces handoff documents"
+title: Discovery AI produces handoff documents
 priority: must
 status: confirmed
 confidence: high
-source_doc: "test.md"
+description: System shall include a Document Generator agent that fills Markdown templates (Discovery Brief, MVP Scope, Meeting Summary, Gap Report) using data retrieved from the project RAG.
+source_doc: test.md
 source_person: unknown
 version: 3
 date: 2026-04-08
 category: requirement
-description: "System shall include a Document Generator agent that fills Markdown templates (Discovery Brief, MVP Scope, Meeting Summary, Gap Report) using data retrieved from the project RAG."
 tags: [requirement, must, confirmed]
 aliases: [BR-001]
 cssclasses: [requirement, node-green]
 ---
-
 # BR-001: Discovery AI produces handoff documents
 
 System shall include a Document Generator agent that fills Markdown templates (Discovery Brief, MVP Scope, Meeting Summary, Gap Report) using data retrieved from the project RAG.
@@ -32,6 +31,6 @@ System shall include a Document Generator agent that fills Markdown templates (D
 - [[BR-005]] — co-extracted
 
 ## Sources
-- [[test.md]] — original extraction
-- [[test-conflict.md]] — v3 merge
-- [[Project updates.md]] — v3 merge
+- test.md — original extraction
+- test-conflict.md — v3 merge
+- Project updates.md — v3 merge

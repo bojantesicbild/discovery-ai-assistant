@@ -2,6 +2,7 @@
 id: CON-001
 title: "technology: RAGFlow v1.5 is the required ingestion platform fo"
 type: technology
+description: RAGFlow v1.5 is the required ingestion platform for crnogorchi artifact knowledge.
 status: confirmed
 date: 2026-04-08
 category: constraint
@@ -9,7 +10,6 @@ tags: [constraint, technology, confirmed]
 aliases: [CON-001]
 cssclasses: [constraint, node-cyan]
 ---
-
 # CON-001: technology constraint
 
 RAGFlow v1.5 is the required ingestion platform for crnogorchi artifact knowledge.
