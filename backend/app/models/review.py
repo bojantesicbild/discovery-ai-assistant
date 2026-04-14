@@ -1,0 +1,39 @@
+"""Review portal models — token-gated client review of discovery findings."""
+
+import uuid
+from datetime import datetime
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+from app.db.base import Base, IdMixin, TimestampMixin
+
+
+class ReviewToken(Base, IdMixin, TimestampMixin):
+    """A shareable, time-limited token that gives a client read access to
+    a project's requirements and gaps for review + confirmation."""
+    __tablename__ = "review_tokens"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
+    client_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    client_email: Mapped[str | None] = mapped_column(String, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    round_number: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class ReviewSubmission(Base, IdMixin, TimestampMixin):
+    """Immutable audit record of a client's review submission. The raw
+    payload is preserved even after requirement statuses are updated."""
+    __tablename__ = "review_submissions"
+
+    review_token_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("review_tokens.id"), nullable=False)
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    client_ip: Mapped[str | None] = mapped_column(String, nullable=True)
+    client_user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    requirement_actions: Mapped[list] = mapped_column(JSONB, default=list)
+    gap_actions: Mapped[list] = mapped_column(JSONB, default=list)
+    summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
