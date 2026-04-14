@@ -212,13 +212,29 @@ async def google_authorize(
     project_id: uuid.UUID,
     connector_id: str = Query(..., description="gmail or google_drive (triggers shared flow)"),
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Start Google OAuth flow. Returns a redirect URL the frontend opens."""
+    """Start Google OAuth flow. Returns a redirect URL the frontend opens.
+
+    If Gmail (or Drive) is already connected for this project, skip re-auth
+    and return the existing status so the user doesn't burn a single-use code.
+    """
     if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
         raise HTTPException(
             status_code=500,
             detail="Google OAuth not configured on the server. Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in backend/.env",
         )
+
+    # Already connected? Return early — no need for a new OAuth round-trip.
+    existing = await db.execute(
+        select(ProjectIntegration).where(
+            ProjectIntegration.project_id == project_id,
+            ProjectIntegration.connector_id == connector_id,
+            ProjectIntegration.status == "active",
+        )
+    )
+    if existing.scalar_one_or_none():
+        return {"already_connected": True}
 
     state = secrets.token_urlsafe(32)
     _oauth_states[state] = {
@@ -250,6 +266,9 @@ async def google_callback(
     redirects the browser back to the frontend."""
     state_data = _oauth_states.pop(state, None)
     if not state_data:
+        # State expired or callback was refreshed — redirect gracefully
+        # instead of showing a raw error page.
+        log.warning("OAuth callback with invalid/expired state", state=state[:8])
         return _frontend_redirect(error="invalid_state")
 
     project_id = uuid.UUID(state_data["project_id"])
@@ -270,8 +289,14 @@ async def google_callback(
             )
             token_resp.raise_for_status()
             tokens = token_resp.json()
+        except httpx.HTTPStatusError as e:
+            body = e.response.text if e.response else "no body"
+            log.error("Google token exchange failed",
+                      status=e.response.status_code if e.response else None,
+                      body=body, error=str(e))
+            return _frontend_redirect(error="token_exchange_failed")
         except httpx.HTTPError as e:
-            log.error("Google token exchange failed", error=str(e))
+            log.error("Google token exchange network error", error=str(e))
             return _frontend_redirect(error="token_exchange_failed")
 
         refresh_token = tokens.get("refresh_token")

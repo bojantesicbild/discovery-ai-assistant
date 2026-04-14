@@ -412,7 +412,7 @@ export async function removeIntegration(projectId: string, connectorId: string) 
   return fetchAPI(`/api/projects/${projectId}/integrations/${connectorId}`, { method: "DELETE" });
 }
 
-export async function startGoogleAuthorize(projectId: string, connectorId: string): Promise<{ authorize_url: string }> {
+export async function startGoogleAuthorize(projectId: string, connectorId: string): Promise<{ authorize_url?: string; already_connected?: boolean }> {
   return fetchAPI(`/api/projects/${projectId}/integrations/google/authorize?connector_id=${connectorId}`);
 }
 

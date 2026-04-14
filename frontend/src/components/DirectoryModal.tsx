@@ -302,8 +302,14 @@ function ConnectorSetupDrawer({ projectId, connector, onClose, onDone }: {
     setError(null);
     try {
       if (connector.auth.type === "oauth_google") {
-        const { authorize_url } = await startGoogleAuthorize(projectId, connector.id);
-        window.location.href = authorize_url;
+        const resp = await startGoogleAuthorize(projectId, connector.id);
+        if (resp.already_connected) {
+          onDone();  // Already authenticated — just close
+          return;
+        }
+        if (resp.authorize_url) {
+          window.location.href = resp.authorize_url;
+        }
         return;
       }
       await addIntegration(projectId, connector.id, formValues);
