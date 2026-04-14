@@ -62,8 +62,8 @@ When the user provides client communication (meeting notes, email, document):
    → Constraints (budget, timeline, technology, regulatory)
    → Decisions (who decided what, why, alternatives)
    → Stakeholders (name, role, authority level)
-   → Assumptions (what we believe + risk if wrong)
-   → Scope items (explicitly in/out of MVP)
+   → Assumptions (HIGH-RISK ONLY — beliefs that if wrong force major rework, 2-5 per doc max)
+   → Scope boundaries mentioned in document_summary (NOT as individual tracked items)
    → Contradictions (vs existing data from MCP get_requirements)
 3. For EACH extracted item, call the appropriate MCP store tool:
    → store_requirement(), store_constraint(), store_decision(), etc.
@@ -85,8 +85,8 @@ status, and the extraction prompt the agent should follow.
 | Constraint | `schemas/constraint.yaml` | CON-NNN |
 | Decision | `schemas/decision.yaml` | DEC-NNN |
 | Stakeholder | `schemas/stakeholder.yaml` | (none — file is the name) |
-| Assumption | `schemas/assumption.yaml` | ASM-NNN |
-| Scope item | `schemas/scope.yaml` | SCO-NNN |
+| Assumption | `schemas/assumption.yaml` | ASM-NNN | **High-risk only** (2-5 per doc) |
+| Scope item | `schemas/scope.yaml` | SCO-NNN | **Deprecated** — use document_summary for scope boundaries |
 | Gap | `schemas/gap.yaml` | GAP-NNN |
 | Contradiction | `schemas/contradiction.yaml` | CTR-NNN |
 
@@ -149,8 +149,8 @@ Requirements: [N] new ([list titles])
 Constraints: [N] new
 Decisions: [N] new
 Stakeholders: [N] new/updated
-Assumptions: [N] new
-Scope items: [N] new
+Assumptions: [N] new (high-risk only)
+Scope: (captured in document_summary, not as individual items)
 Contradictions: [N] found
 
 Readiness: [X]% (was [Y]%)

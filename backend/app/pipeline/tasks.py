@@ -245,6 +245,8 @@ RULES:
 - If it CONTRADICTS an existing requirement, still include "existing_match": "BR-XXX" and set confidence to "low".
 - Be selective: extract the most important items, not every detail.
 - Keep titles concise (under 60 chars).
+- ASSUMPTIONS: only extract HIGH-RISK assumptions that would force major rework if wrong (2-5 per document max, not every inference). Skip obvious things like "users have internet" or "standard browser support".
+- SCOPE: do NOT extract individual scope items. Include any in/out-of-scope boundaries in the document_summary field instead.
 
 Return ONLY valid JSON (no markdown, no code fences):
 {{
@@ -311,17 +313,9 @@ Return ONLY valid JSON (no markdown, no code fences):
   ],
   "assumptions": [
     {{
-      "statement": "what we assume",
-      "basis": "why",
-      "risk_if_wrong": "what breaks"
-    }}
-  ],
-  "scope_items": [
-    {{
-      "description": "feature or capability",
-      "in_scope": true,
-      "rationale": "why in or out",
-      "source_doc": "{doc.filename}"
+      "statement": "HIGH-RISK assumption only (if wrong, forces major rework)",
+      "basis": "why we believe this",
+      "risk_if_wrong": "what breaks or what rework is needed"
     }}
   ]
 }}

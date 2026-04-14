@@ -60,14 +60,14 @@ view:
   group_by: in_scope
 
 extraction_prompt: |
-  Extract scope items as things the client explicitly said are IN or OUT
-  of the MVP.
+  DO NOT extract individual scope items during document extraction.
 
-  For each scope item, capture:
-  - description: the feature or capability
-  - in_scope: true (client said "yes, in MVP") or false ("not in MVP")
-  - rationale: why it's in or out
+  Scope boundaries (what's in/out of MVP) should be captured as prose
+  in the document_summary field instead. The MVP Scope Freeze handoff
+  document is the canonical place for scope — it's a curated narrative,
+  not a list of tracked items.
 
-  Only extract scope items when there's an EXPLICIT in/out statement.
-  Don't infer scope from priority — that's what `priority` is for on
-  requirements.
+  If the pipeline receives scope items from legacy extractions they'll
+  still be stored, but new extractions should NOT produce them. Include
+  scope-relevant statements in the document_summary instead, e.g.:
+  "Client confirmed mobile is out of scope for v1, dashboard-only MVP."

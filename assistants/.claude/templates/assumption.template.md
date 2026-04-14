@@ -32,15 +32,21 @@ _(content)_
 <!--
 Extraction prompt (for the agent — strip before writing to disk):
 
-Extract assumptions as beliefs we are operating on but have NOT confirmed.
+Extract ONLY high-risk assumptions — beliefs that, if wrong, would
+force a major architectural change, scope rework, or budget overrun.
 
-For each assumption, capture:
+A typical project has 2-5 high-risk assumptions, NOT 20+. Skip:
+- Obvious assumptions ("users have internet", "standard browsers")
+- Low-impact guesses ("the client prefers blue")
+- Anything that, if wrong, is a minor adjustment not a rework
+
+For each HIGH-RISK assumption, capture:
 - statement: what we believe (1 sentence)
 - basis: why we believe it (industry norm, similar project, client hint…)
-- risk_if_wrong: what breaks if the assumption fails
+- risk_if_wrong: what breaks — be specific about the rework cost
 - needs_validation_by: who or what would resolve the assumption
 
-An assumption is different from a constraint: a constraint is a known
-limit; an assumption is a guess about a limit. Assumptions should
-eventually become either confirmed constraints or rejected.
+An assumption is a GAP in disguise — an unvalidated belief we're
+building on. Surface it so the PM can confirm or reject it before
+handoff. Don't extract trivial assumptions that nobody would question.
 -->
