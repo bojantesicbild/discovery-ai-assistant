@@ -411,6 +411,6 @@ Developer edits agents/.claude/templates/discovery-brief.template.md
 | **Easy to test** | Golden tests in agents/tests/ run against the actual prompts |
 | **Easy to update** | Change one file, both environments get it |
 | **Easy to version** | Git history shows every prompt change |
-| **Easy to install** | `install.sh` copies to any project — unchanged from current crnogorchi |
+| **Easy to install** | `install.sh` copies to any project — unchanged from current crnogochi |
 | **Easy to containerize** | Docker COPY includes agents/.claude/ in the build |
-| **Existing crnogorchi works** | Just adds discovery domain — no breaking changes |
+| **Existing crnogochi works** | Just adds discovery domain — no breaking changes |

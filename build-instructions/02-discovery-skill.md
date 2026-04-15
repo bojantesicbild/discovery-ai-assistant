@@ -7,12 +7,12 @@ discovery phase. This file tells Claude Code HOW to run a discovery session.
 
 ## Context
 
-This SKILL.md follows the same pattern as the existing crnogorchi-assistants skills:
+This SKILL.md follows the same pattern as the existing crnogochi-assistants skills:
 - `.claude/skills/coding/SKILL.md` — coding domain
 - `.claude/skills/tech-stories/SKILL.md` — tech-stories domain
 - `.claude/skills/qa/SKILL.md` — QA domain
 
-Reference these files at `/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/skills/`
+Reference these files at `/Users/bojantesic/git-tests/crnogochi-assistants/.claude/skills/`
 for the exact format, style, and patterns used. Match their structure precisely.
 
 ## Key Design Principle
@@ -296,7 +296,7 @@ template via get_control_points().
 ## File Location
 
 ```
-/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/skills/discovery/SKILL.md
+/Users/bojantesic/git-tests/crnogochi-assistants/.claude/skills/discovery/SKILL.md
 ```
 
 ## Reference Materials
@@ -312,7 +312,7 @@ Read these research documents for detailed specifications:
 
 ## Success Criteria
 
-- [ ] SKILL.md follows crnogorchi format exactly (match existing skills)
+- [ ] SKILL.md follows crnogochi format exactly (match existing skills)
 - [ ] All data flows through MCP (no .memory-bank/ file writes for discovery state)
 - [ ] Extraction produces all 6 typed categories with correct fields
 - [ ] Every extracted item has a source quote

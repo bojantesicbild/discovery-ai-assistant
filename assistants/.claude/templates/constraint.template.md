@@ -2,6 +2,7 @@
 
 ---
 id: [CON-NNN — assigned by writer, not stored in DB]
+title: [title]
 type: <budget|timeline|technology|regulatory|organizational>
 description: [description]
 status: assumed

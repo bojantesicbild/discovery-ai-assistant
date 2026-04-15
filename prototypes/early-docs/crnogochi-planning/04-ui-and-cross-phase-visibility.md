@@ -2,7 +2,7 @@
 
 ## Design Principle
 
-Crnogorchi's UI shows each user their current phase in detail, while giving
+Crnogochi's UI shows each user their current phase in detail, while giving
 them visibility into other phases that affect their work. A developer in
 Phase 3 should see the discovery context behind their stories. A PO in
 Phase 1 should see patterns from past projects' Code and QA phases.
@@ -13,7 +13,7 @@ Phase 1 should see patterns from past projects' Code and QA phases.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  CRNOGORCHI                                    [NacXwan Project ▾]  │
+│  CRNOGOCHI                                    [NacXwan Project ▾]  │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │  PROJECT HEADER                                               │  │
@@ -257,7 +257,7 @@ is in and what project they're working on.
 │  Developer: "What did the client say about timezone handling  │
 │              in meeting scheduling?"                          │
 │                                                              │
-│  Crnogorchi: "The client confirmed in Meeting 4 (Feb 10)     │
+│  Crnogochi: "The client confirmed in Meeting 4 (Feb 10)     │
 │  that meetings should be scheduled in the organizer's        │
 │  timezone. Sarah Chen (CTO) specifically mentioned that      │
 │  'all times should reflect the organizer's calendar.'        │

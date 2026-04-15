@@ -10,6 +10,7 @@ blocked_reqs: []
 source_person: [source_person]
 source_doc: [source_doc]
 source_raw: [source_raw]
+source_origin: [source_origin]
 date: YYYY-MM-DD
 category: gap
 tags: [gap, {{severity}}, {{status}}]

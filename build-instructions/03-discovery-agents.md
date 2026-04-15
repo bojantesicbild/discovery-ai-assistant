@@ -7,8 +7,8 @@ These are dispatched by the discovery SKILL.md orchestrator for complex structur
 
 ## Reference
 
-Match the exact format of existing crnogorchi agents at:
-`/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/agents/`
+Match the exact format of existing crnogochi agents at:
+`/Users/bojantesic/git-tests/crnogochi-assistants/.claude/agents/`
 
 Read several existing agents to understand the pattern: role description, tools,
 constraints, output format, max turns.
@@ -298,9 +298,9 @@ For each gap:
 ## File Locations
 
 ```
-/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/agents/discovery-gap-agent.md
-/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/agents/discovery-docs-agent.md
-/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/agents/discovery-prep-agent.md
+/Users/bojantesic/git-tests/crnogochi-assistants/.claude/agents/discovery-gap-agent.md
+/Users/bojantesic/git-tests/crnogochi-assistants/.claude/agents/discovery-docs-agent.md
+/Users/bojantesic/git-tests/crnogochi-assistants/.claude/agents/discovery-prep-agent.md
 ```
 
 ## Reference Materials
@@ -311,14 +311,14 @@ For each gap:
 - `research/04-output-templates.md` — handoff document templates
 - `research/07-readiness-and-feedback.md` — readiness scoring, thresholds
 - `research/03-discovery-agents-design.md` — control point templates
-- Existing agents at `/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/agents/`
+- Existing agents at `/Users/bojantesic/git-tests/crnogochi-assistants/.claude/agents/`
 
 ## Success Criteria
 
 - [ ] Each agent has: role, iron law, anti-rationalization table, process, output format
 - [ ] All data access via MCP tools (no file reads for discovery data)
 - [ ] Output formats are structured and parseable
-- [ ] Agents match crnogorchi format (study existing agents first)
+- [ ] Agents match crnogochi format (study existing agents first)
 - [ ] Gap agent classifies gaps as AUTO-RESOLVE / ASK-CLIENT / ASK-PO
 - [ ] Docs agent marks every claim as CONFIRMED or ASSUMED with source
 - [ ] Prep agent selects scope mode based on readiness percentage

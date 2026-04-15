@@ -5,7 +5,7 @@
 # - Claude Code CLI verification
 # - MCP server installation and configuration
 # - Full system verification
-# Usage: iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/user/crnogorchi-assistants/main/install.ps1'))
+# Usage: iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/user/crnogochi-assistants/main/install.ps1'))
 
 param(
     [switch]$Update,
@@ -406,7 +406,7 @@ function Install-AgentFiles {
     $InstallBranch = if ($env:INSTALL_BRANCH) { $env:INSTALL_BRANCH } else { "main" }
     Write-Host "Downloading latest version (branch: $InstallBranch)..."
     try {
-        git clone --quiet --branch $InstallBranch https://github.com/user/crnogorchi-assistants.git $TempDir 2>$null
+        git clone --quiet --branch $InstallBranch https://github.com/user/crnogochi-assistants.git $TempDir 2>$null
     }
     catch {
         Write-Host "[FAIL] Failed to download agent system" -ForegroundColor $Colors.Red
@@ -649,7 +649,7 @@ function Install-AgentFiles {
     }
 
     # Clean up any accidentally created repo folders
-    $UnwantedDirs = @("crnogorchi-assistants", "installer-temp")
+    $UnwantedDirs = @("crnogochi-assistants", "installer-temp")
     foreach ($Dir in $UnwantedDirs) {
         if ((Test-Path $Dir) -and (Test-Path "$Dir\.git")) {
             Write-Host ""
@@ -1336,8 +1336,8 @@ function Main {
     # Check if running from within the repo itself
     if ((Test-Path "install.ps1") -and (Test-Path ".git")) {
         $GitConfig = Get-Content ".git\config" -Raw -ErrorAction SilentlyContinue
-        if ($GitConfig -match "crnogorchi-assistants") {
-            Write-Host "Warning: You appear to be running this from within the crnogorchi-assistants repo." -ForegroundColor $Colors.Yellow
+        if ($GitConfig -match "crnogochi-assistants") {
+            Write-Host "Warning: You appear to be running this from within the crnogochi-assistants repo." -ForegroundColor $Colors.Yellow
             Write-Host "For best results, run from your target project directory."
             Write-Host ""
             $response = Read-Host "Continue anyway? (y/N)"

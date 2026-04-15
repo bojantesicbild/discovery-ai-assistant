@@ -43,7 +43,7 @@ PHASE 4: QA ASSISTANT
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           CRNOGORCHI                                     │
+│                           CRNOGOCHI                                     │
 │                                                                         │
 │  PHASE 1              PHASE 2              PHASE 3         PHASE 4      │
 │  Discovery            Story/Tech           Code            QA           │

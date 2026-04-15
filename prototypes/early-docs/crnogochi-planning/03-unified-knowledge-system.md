@@ -2,7 +2,7 @@
 
 ## The Core Idea
 
-All four phases of Crnogorchi share one knowledge system. Every phase
+All four phases of Crnogochi share one knowledge system. Every phase
 reads from it and writes to it. This means:
 
 - Discovery knowledge is available in Code

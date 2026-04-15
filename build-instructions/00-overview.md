@@ -2,7 +2,7 @@
 
 ## What We're Building
 
-Add a **discovery domain** to the existing crnogorchi-assistants system.
+Add a **discovery domain** to the existing crnogochi-assistants system.
 Discovery agents help POs extract structured business requirements from client
 communications, track gaps, prepare meetings, and generate handoff documents.
 
@@ -55,12 +55,12 @@ discovery/SKILL.md orchestrates the workflow
 3. **3 agents, not 6**: Gap analysis, document generation, meeting prep are agents.
    Web research, code analysis, deep search are tools the coordinator uses directly.
 
-4. **Same prompt format as crnogorchi**: SKILL.md, agent .md files, templates all
+4. **Same prompt format as crnogochi**: SKILL.md, agent .md files, templates all
    follow the exact same patterns as coding/stories/QA domains.
 
 ## Working Directory
 
-All files are created in: `/Users/bojantesic/git-tests/crnogorchi-assistants/`
+All files are created in: `/Users/bojantesic/git-tests/crnogochi-assistants/`
 
 ## Research Reference
 
@@ -78,7 +78,7 @@ Key research documents in `/Users/bojantesic/git-tests/discovery-ai-assistant/re
 
 1. Configure MCP server path in `.claude/settings.json`
 2. Start mock MCP server: `python mcp-server/mock_server.py`
-3. Open Claude Code in any project with crnogorchi installed
+3. Open Claude Code in any project with crnogochi installed
 4. Test: "I had a client meeting, here are the notes..."
 5. Test: "What are the gaps?"
 6. Test: "Prepare my next meeting"

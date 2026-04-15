@@ -2,12 +2,12 @@
 
 ## Overview
 
-Crnogorchi connects to multiple external systems. Each integration
+Crnogochi connects to multiple external systems. Each integration
 serves a specific purpose and syncs data into the shared knowledge system.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          CRNOGORCHI                                   │
+│                          CRNOGOCHI                                   │
 │                                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │
 │  │                  SHARED KNOWLEDGE SYSTEM                       │  │
@@ -32,7 +32,7 @@ serves a specific purpose and syncs data into the shared knowledge system.
 
 ## Atlassian (Jira + Confluence)
 
-### Role in Crnogorchi
+### Role in Crnogochi
 Primary storage for Phase 2 (Story/Tech Docs). Other phases read from it.
 
 ### Integration Details
@@ -101,7 +101,7 @@ Page updated: "Auth API Contract"
 
 ## Figma
 
-### Role in Crnogorchi
+### Role in Crnogochi
 Design context for Phase 2 (Story/Tech Docs). Read-only.
 
 ### Integration Details
@@ -139,7 +139,7 @@ which then get synced to the knowledge system.
 
 ## Git Repositories
 
-### Role in Crnogorchi
+### Role in Crnogochi
 Source of truth for code (Phase 3), documentation, and decision/learning
 artifacts (Phases 2, 3, 4).
 
@@ -216,7 +216,7 @@ Claude Code analyzes
 
 ## Report Portal
 
-### Role in Crnogorchi
+### Role in Crnogochi
 Test results and quality metrics storage for Phase 4 (QA).
 
 ### Integration Details
@@ -253,7 +253,7 @@ Report Portal webhook
                    Failed Test ──[found]──→ Bug (BUG-023)
 ```
 
-### Report Portal Dashboard in Crnogorchi UI
+### Report Portal Dashboard in Crnogochi UI
 The QA phase view embeds or links to Report Portal dashboards:
 - Overall quality metrics
 - Per-feature test coverage
@@ -264,7 +264,7 @@ The QA phase view embeds or links to Report Portal dashboards:
 
 ## Claude Code
 
-### Role in Crnogorchi
+### Role in Crnogochi
 Code understanding and AI-assisted work across all phases.
 
 ### Integration Details
@@ -292,7 +292,7 @@ for repo analysis means:
 
 ## Anthropic LLM API
 
-### Role in Crnogorchi
+### Role in Crnogochi
 AI reasoning and generation for all phases.
 
 ### Configuration

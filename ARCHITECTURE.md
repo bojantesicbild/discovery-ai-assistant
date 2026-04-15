@@ -418,7 +418,7 @@ Used for: "Who decided on SSO?" "What's related to the auth module?"
 
 ### 8.1 Git Push Hook Sync (v1.5 — .memory-bank/ → RAGFlow)
 
-Phase 2-4 developers use crnogorchi-assistants (Claude Code) which writes
+Phase 2-4 developers use crnogochi-assistants (Claude Code) which writes
 `.memory-bank/` markdown files — git-committed to the project repo.
 
 **How sync works:**
@@ -928,7 +928,7 @@ Docker rebuild (web) + `install.sh` (local). Both environments always in sync.
 | 31 | Production Reality Check | What real projects use |
 | 32 | Simplification & Requirements | Typed extraction > generic facts, 3 subagents > 6 |
 | 33 | Final Clarity | The three things that matter |
-| 34 | crnogorchi Integration | How Discovery AI connects to the Unified Assistant |
+| 34 | crnogochi Integration | How Discovery AI connects to the Unified Assistant |
 | 35 | Unified Dual-Mode | Push hook sync, MCP for Claude Code, bidirectional flow |
 | 36 | Monorepo Agent Structure | Shared assistants/ dir, install.sh, both runtimes read same prompts |
 | 32 | Simplification | Typed extraction > generic facts, 3 subagents > 6 |

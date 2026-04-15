@@ -1,4 +1,4 @@
-## 1. What crnogorchi-assistants IS
+## 1. What crnogochi-assistants IS
 
 A **working, installed, production-ready** Claude Code extension with:
 - 3 domains: Coding, Tech Stories, QA
@@ -17,12 +17,12 @@ The `.memory-bank/` files are the ACTUAL artifacts our Discovery AI needs to rea
 
 ## 2. The Integration Points
 
-### What Discovery AI WRITES (→ consumed by crnogorchi)
+### What Discovery AI WRITES (→ consumed by crnogochi)
 
 Discovery AI produces 3 handoff documents + seed files. The Unified Assistant
 picks them up automatically via its Context Loading protocol.
 
-| Discovery AI Output | Where It Goes in crnogorchi | Consumed By |
+| Discovery AI Output | Where It Goes in crnogochi | Consumed By |
 |--------------------|---------------------------|-------------|
 | **Discovery Brief** | `.memory-bank/docs/discovery/discovery-brief.md` | All domains (context loading) |
 | **MVP Scope Freeze** | `.memory-bank/docs/discovery/mvp-scope-freeze.md` | All domains (context loading) |
@@ -33,12 +33,12 @@ picks them up automatically via its Context Loading protocol.
 | **Research findings** | `.memory-bank/docs/research-sessions/` | research-agent (knowledge search) |
 | **Decisions** | `.memory-bank/docs/decisions/` | All domains (knowledge search) |
 
-### What Discovery AI READS (← produced by crnogorchi)
+### What Discovery AI READS (← produced by crnogochi)
 
 When PO syncs the project repo, Discovery AI ingests these `.memory-bank/` files
 into the `project-{id}-pipeline` RAGFlow dataset (v1.5).
 
-| crnogorchi Output | What Discovery AI Learns |
+| crnogochi Output | What Discovery AI Learns |
 |-------------------|-------------------------|
 | `docs/tech-docs/*.md` | What tech architecture was decided |
 | `docs/completed-tasks/*.md` | What was implemented, by whom, outcome |

@@ -13,7 +13,7 @@
 ## Part 1: Discovery Output Templates
 
 ### Location
-`/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/templates/`
+`/Users/bojantesic/git-tests/crnogochi-assistants/.claude/templates/`
 
 ### Template 1: discovery-brief.template.md
 
@@ -211,7 +211,7 @@
 ### Template 4: active-task-discovery.template.md
 
 Follow the pattern of existing active task templates at:
-`/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/templates/active-task-coding.template.md`
+`/Users/bojantesic/git-tests/crnogochi-assistants/.claude/templates/active-task-coding.template.md`
 
 ```markdown
 # Active Discovery Task
@@ -252,7 +252,7 @@ Follow the pattern of existing active task templates at:
 ## Part 2: CLAUDE.md Updates
 
 ### Location
-`/Users/bojantesic/git-tests/crnogorchi-assistants/CLAUDE.md`
+`/Users/bojantesic/git-tests/crnogochi-assistants/CLAUDE.md`
 
 ### Change 1: Add discovery domain to detection table
 
@@ -314,7 +314,7 @@ Also update `.claude/templates/active-task-router.template.md` to include the di
 ## Part 4: Settings.json — MCP Server Config
 
 ### Location
-`/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/settings.json`
+`/Users/bojantesic/git-tests/crnogochi-assistants/.claude/settings.json`
 
 ### Add discovery MCP server
 
@@ -355,8 +355,8 @@ Update to include:
 
 ## Reference Materials
 
-- Existing templates at `/Users/bojantesic/git-tests/crnogorchi-assistants/.claude/templates/`
-- Existing CLAUDE.md at `/Users/bojantesic/git-tests/crnogorchi-assistants/CLAUDE.md`
+- Existing templates at `/Users/bojantesic/git-tests/crnogochi-assistants/.claude/templates/`
+- Existing CLAUDE.md at `/Users/bojantesic/git-tests/crnogochi-assistants/CLAUDE.md`
 - Output template specs: `research/04-output-templates.md`
 - Readiness system: `research/07-readiness-and-feedback.md`
 - Active task patterns: study existing `active-task-coding.template.md`
@@ -364,7 +364,7 @@ Update to include:
 ## Success Criteria
 
 - [ ] 3 discovery output templates created (brief, scope, requirements)
-- [ ] Active task template matches crnogorchi pattern
+- [ ] Active task template matches crnogochi pattern
 - [ ] CLAUDE.md has discovery in domain detection (verified by testing)
 - [ ] Knowledge search includes docs/discovery/
 - [ ] Router template includes discovery row

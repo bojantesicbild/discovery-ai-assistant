@@ -7,7 +7,7 @@
 # - Claude Code CLI verification
 # - MCP server installation and configuration
 # - Full system verification
-# Usage: curl -sSL https://raw.githubusercontent.com/user/crnogorchi-assistants/main/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/user/crnogochi-assistants/main/install.sh | bash
 
 set -e
 
@@ -418,7 +418,7 @@ install_agent_files() {
     # Clone the repository
     INSTALL_BRANCH="${INSTALL_BRANCH:-main}"
     echo "Downloading latest version (branch: $INSTALL_BRANCH)..."
-    if ! git clone --quiet --branch "$INSTALL_BRANCH" https://github.com/user/crnogorchi-assistants.git "$TEMP_DIR" 2>/dev/null; then
+    if ! git clone --quiet --branch "$INSTALL_BRANCH" https://github.com/user/crnogochi-assistants.git "$TEMP_DIR" 2>/dev/null; then
         echo -e "${RED}[FAIL] Failed to download agent system${NC}"
         echo "Please check your internet connection and try again."
         exit 1
@@ -621,7 +621,7 @@ install_agent_files() {
     fi
 
     # Clean up any accidentally created repo folders
-    for unwanted_dir in "crnogorchi-assistants" "installer-temp"; do
+    for unwanted_dir in "crnogochi-assistants" "installer-temp"; do
         if [ -d "$unwanted_dir" ] && [ -d "$unwanted_dir/.git" ]; then
             echo ""
             echo -e "${YELLOW}Found '$unwanted_dir' folder (appears to be a cloned repo).${NC}"
@@ -1306,8 +1306,8 @@ main() {
     show_banner
 
     # Check if running from within the repo itself
-    if [ -f "install.sh" ] && [ -d ".git" ] && grep -q "crnogorchi-assistants" ".git/config" 2>/dev/null; then
-        echo -e "${YELLOW}Warning: You appear to be running this from within the crnogorchi-assistants repo.${NC}"
+    if [ -f "install.sh" ] && [ -d ".git" ] && grep -q "crnogochi-assistants" ".git/config" 2>/dev/null; then
+        echo -e "${YELLOW}Warning: You appear to be running this from within the crnogochi-assistants repo.${NC}"
         echo "For best results, run from your target project directory."
         echo ""
         read -p "Continue anyway? (y/N): " -n 1 -r

@@ -2,7 +2,7 @@
 id: CON-001
 title: "technology: RAGFlow v1.5 is the required ingestion platform fo"
 type: technology
-description: RAGFlow v1.5 is the required ingestion platform for crnogorchi artifact knowledge.
+description: RAGFlow v1.5 is the required ingestion platform for crnogochi artifact knowledge.
 status: confirmed
 date: 2026-04-08
 category: constraint
@@ -12,7 +12,7 @@ cssclasses: [constraint, node-cyan]
 ---
 # CON-001: technology constraint
 
-RAGFlow v1.5 is the required ingestion platform for crnogorchi artifact knowledge.
+RAGFlow v1.5 is the required ingestion platform for crnogochi artifact knowledge.
 
 ## Impact
 Discovery AI backend must be compatible with RAGFlow v1.5 dataset API; upgrades require re-validation.

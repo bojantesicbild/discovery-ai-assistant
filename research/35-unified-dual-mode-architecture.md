@@ -9,7 +9,7 @@
 
 ## 1. The Vision
 
-Instead of two separate systems (Discovery AI web app + crnogorchi-assistants),
+Instead of two separate systems (Discovery AI web app + crnogochi-assistants),
 we build ONE system with TWO interfaces:
 
 ```
@@ -45,7 +45,7 @@ we build ONE system with TWO interfaces:
 
 | Separate systems (before) | Unified system (now) |
 |--------------------------|---------------------|
-| Discovery AI = web app, crnogorchi = local CLI | One system, two interfaces |
+| Discovery AI = web app, crnogochi = local CLI | One system, two interfaces |
 | Different data stores (RAGFlow vs files) | Same data, two access patterns |
 | Manual handoff (download ZIP, place in repo) | Automatic — same backend |
 | PO can't see dev progress without sync | PO sees everything in real-time |
@@ -155,7 +155,7 @@ Two options (both work):
 
 **Option A: MCP Servers (recommended)**
 ```json
-// .claude/settings.json in crnogorchi-assistants
+// .claude/settings.json in crnogochi-assistants
 {
   "mcpServers": {
     "discovery": {
@@ -193,7 +193,7 @@ Claude: I'll check the readiness score...
 
 ---
 
-## 5. What Changes in crnogorchi-assistants
+## 5. What Changes in crnogochi-assistants
 
 ### Add Discovery Domain
 
@@ -252,7 +252,7 @@ RAGFlow + PostgreSQL. It uses the discovery MCP server.
 }
 ```
 
-### Total Changes to crnogorchi
+### Total Changes to crnogochi
 
 | Change | File | Effort |
 |--------|------|--------|
@@ -345,7 +345,7 @@ Discovery AI (web UI):
   → Generates: docs/discovery/*.md, project-brief.md, tech-context.md
   → Commits to git
 
-crnogorchi-assistants (Claude Code):
+crnogochi-assistants (Claude Code):
   → Generates: docs/tech-docs/*.md, docs/completed-tasks/*.md, etc.
   → Commits to git
 
@@ -467,7 +467,7 @@ class MemoryBankSync:
   ┌──────▼──────────────────────────────────┐
   │  .memory-bank/ (git — source of truth)   │
   │                                          │
-  │  Written by: Discovery AI + crnogorchi   │
+  │  Written by: Discovery AI + crnogochi   │
   │  Synced to: RAGFlow memory-bank dataset  │
   │  Read by: Web UI (via RAGFlow search)    │
   │           Claude Code (local files +     │
@@ -489,7 +489,7 @@ Same as before, plus:
 
 ### Developer Experience (Claude Code)
 
-Same crnogorchi-assistants as before, plus:
+Same crnogochi-assistants as before, plus:
 - New "discovery" domain in CLAUDE.md
 - Can query discovery data via MCP: "What are the client requirements for auth?"
 - Can check readiness: "Is discovery complete for this feature?"
@@ -536,7 +536,7 @@ Claude Code, without opening a web browser, without asking the PO.**
 |---------|----------|--------|
 | Backend API (REST endpoints for all data) | MVP | Already planned |
 | MCP Server (thin proxy to backend) | MVP | ~100 lines |
-| Discovery SKILL.md for crnogorchi | MVP | ~50 lines |
+| Discovery SKILL.md for crnogochi | MVP | ~50 lines |
 | Memory bank sync (git → RAGFlow) | v1.5 | ~200 lines |
 | Webhook auto-sync on git push | v2 | ~100 lines |
 | Bidirectional: dev findings → discovery | v2 | ~200 lines |
@@ -554,6 +554,6 @@ users full access to discovery data. Everything else builds on top.
 | **How many RAGFlow datasets?** | **3**: client-docs, items, memory-bank |
 | **How does Claude Code access discovery data?** | **MCP server** — ~100 lines, exposes backend APIs as tools |
 | **How do files stay updated?** | **Git is the sync mechanism.** Both sides commit. Server re-indexes on sync. |
-| **What changes in crnogorchi?** | Add discovery domain (1 line), discovery SKILL.md (50 lines), MCP config (5 lines) |
+| **What changes in crnogochi?** | Add discovery domain (1 line), discovery SKILL.md (50 lines), MCP config (5 lines) |
 | **Who is the source of truth?** | **.memory-bank/ files in git.** RAGFlow + PostgreSQL are derived indexes. |
 | **Can PO and dev see the same data?** | **Yes.** PO via web UI → RAGFlow/PostgreSQL. Dev via Claude Code → MCP → same backend. |

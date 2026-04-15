@@ -2,7 +2,7 @@
 
 ## Overview
 
-Crnogorchi has four phases. Each phase has specific users, tools, inputs,
+Crnogochi has four phases. Each phase has specific users, tools, inputs,
 outputs, and storage locations. All phases share the same knowledge system.
 
 ```

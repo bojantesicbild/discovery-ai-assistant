@@ -1,12 +1,12 @@
-# 34 — Integration with crnogorchi-assistants (Unified AI Assistant)
+# 34 — Integration with crnogochi-assistants (Unified AI Assistant)
 
 > **Date:** 2026-04-03
 > **Purpose:** Define how Discovery AI communicates with the working Unified Assistant
-> **Source:** `/Users/bojantesic/git-tests/crnogorchi-assistants/`
+> **Source:** `/Users/bojantesic/git-tests/crnogochi-assistants/`
 
 ---
 
-## 1. What crnogorchi-assistants IS
+## 1. What crnogochi-assistants IS
 
 A **working, installed, production-ready** Claude Code extension with:
 - 3 domains: Coding, Tech Stories, QA
@@ -25,12 +25,12 @@ The `.memory-bank/` files are the ACTUAL artifacts our Discovery AI needs to rea
 
 ## 2. The Integration Points
 
-### What Discovery AI WRITES (→ consumed by crnogorchi)
+### What Discovery AI WRITES (→ consumed by crnogochi)
 
 Discovery AI produces 3 handoff documents + seed files. The Unified Assistant
 picks them up automatically via its Context Loading protocol.
 
-| Discovery AI Output | Where It Goes in crnogorchi | Consumed By |
+| Discovery AI Output | Where It Goes in crnogochi | Consumed By |
 |--------------------|---------------------------|-------------|
 | **Discovery Brief** | `.memory-bank/docs/discovery/discovery-brief.md` | All domains (context loading) |
 | **MVP Scope Freeze** | `.memory-bank/docs/discovery/mvp-scope-freeze.md` | All domains (context loading) |
@@ -41,12 +41,12 @@ picks them up automatically via its Context Loading protocol.
 | **Research findings** | `.memory-bank/docs/research-sessions/` | research-agent (knowledge search) |
 | **Decisions** | `.memory-bank/docs/decisions/` | All domains (knowledge search) |
 
-### What Discovery AI READS (← produced by crnogorchi)
+### What Discovery AI READS (← produced by crnogochi)
 
 When PO syncs the project repo, Discovery AI ingests these `.memory-bank/` files
 into the `project-{id}-pipeline` RAGFlow dataset (v1.5).
 
-| crnogorchi Output | What Discovery AI Learns |
+| crnogochi Output | What Discovery AI Learns |
 |-------------------|-------------------------|
 | `docs/tech-docs/*.md` | What tech architecture was decided |
 | `docs/completed-tasks/*.md` | What was implemented, by whom, outcome |
@@ -87,7 +87,7 @@ PO downloads ZIP / Discovery AI commits to project repo
 Developer opens project in Claude Code
        │
        ▼
-crnogorchi-assistants detects .memory-bank/ exists
+crnogochi-assistants detects .memory-bank/ exists
   → Reads project-brief.md, tech-context.md, system-patterns.md
   → Reads docs/discovery/*.md
   → Ready to start Phase 2 with full context
@@ -157,7 +157,7 @@ Developer sees updated requirements
 
 ### project-brief.md
 
-crnogorchi expects this format (from setup-agent):
+crnogochi expects this format (from setup-agent):
 
 ```markdown
 # Project Brief
@@ -187,7 +187,7 @@ Discovery AI generates this by mapping:
 
 ### tech-context.md
 
-crnogorchi expects:
+crnogochi expects:
 
 ```markdown
 # Technical Context
@@ -217,7 +217,7 @@ Discovery AI generates this by mapping:
 
 ### system-patterns.md
 
-crnogorchi expects:
+crnogochi expects:
 
 ```markdown
 # System Patterns
@@ -245,7 +245,7 @@ Discovery AI generates this by mapping:
 
 ## 5. Knowledge Search Compatibility
 
-crnogorchi's Knowledge Search (CLAUDE.md line 60-72) searches these directories:
+crnogochi's Knowledge Search (CLAUDE.md line 60-72) searches these directories:
 
 ```
 docs/completed-tasks/    → Similar past work
@@ -265,8 +265,8 @@ learnings.jsonl          → Transient observations
 | `docs/decisions/` | Decisions made during discovery (CTO chose Azure, client confirmed SSO) |
 | `docs/system-architecture/` | Architecture patterns identified from client requirements |
 
-These get picked up by crnogorchi's knowledge search automatically.
-No changes to crnogorchi needed.
+These get picked up by crnogochi's knowledge search automatically.
+No changes to crnogochi needed.
 
 ---
 
@@ -356,18 +356,18 @@ async def generate_handoff_package(ctx: RunContext[Deps]) -> str:
 
 ---
 
-## 8. What Changes in crnogorchi-assistants
+## 8. What Changes in crnogochi-assistants
 
 ### Almost Nothing (v1)
 
-For MVP handoff (Option A — manual), **zero changes** to crnogorchi needed:
+For MVP handoff (Option A — manual), **zero changes** to crnogochi needed:
 - PO places discovery files in `.memory-bank/docs/discovery/`
 - PO updates `project-brief.md`, `tech-context.md`, `system-patterns.md`
-- crnogorchi reads them via existing context loading protocol
+- crnogochi reads them via existing context loading protocol
 
 ### Small Addition (v1.5)
 
-Add `docs/discovery/` to crnogorchi's knowledge search so agents find discovery docs:
+Add `docs/discovery/` to crnogochi's knowledge search so agents find discovery docs:
 
 ```markdown
 # In CLAUDE.md, Knowledge Search section, add:
@@ -394,7 +394,7 @@ With a `discovery/SKILL.md` that handles:
 ## 9. The Full Pipeline (Both Systems Working Together)
 
 ```
-CLIENT                  DISCOVERY AI               CRNOGORCHI-ASSISTANTS
+CLIENT                  DISCOVERY AI               CRNOGOCHI-ASSISTANTS
 ──────                  ────────────               ─────────────────────
 
 Meetings ──────►  PO uploads docs
@@ -449,8 +449,8 @@ Documents ─────►  data (requirements,
 |----------|--------|
 | **What does Discovery AI write?** | 3 handoff docs + `.memory-bank/` seed (project-brief, tech-context, system-patterns, research, decisions) |
 | **What does Discovery AI read?** | All `.memory-bank/docs/` files (tech-docs, completed-tasks, test-cases, defects, etc.) via pipeline sync |
-| **Changes needed in crnogorchi?** | **Zero for MVP.** One line for v1.5 (add `docs/discovery/` to knowledge search). |
-| **Format compatibility?** | Discovery AI generates files in the exact format crnogorchi expects |
+| **Changes needed in crnogochi?** | **Zero for MVP.** One line for v1.5 (add `docs/discovery/` to knowledge search). |
+| **Format compatibility?** | Discovery AI generates files in the exact format crnogochi expects |
 | **How does handoff work?** | PO downloads ZIP → places in repo (MVP). Or Discovery AI commits directly (v1.5). |
 | **How does feedback flow back?** | PO clicks "Sync" → Discovery AI ingests latest `.memory-bank/` (v1.5) |
 | **Is bidirectional?** | MVP: one-way (discovery → dev). v1.5: bidirectional (discovery ↔ dev) |

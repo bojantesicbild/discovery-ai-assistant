@@ -1,15 +1,15 @@
-# Crnogorchi — Product Vision
+# Crnogochi — Product Vision
 
-## What Is Crnogorchi
+## What Is Crnogochi
 
-Crnogorchi is an AI-assisted software development pipeline that covers the
+Crnogochi is an AI-assisted software development pipeline that covers the
 full lifecycle from client discovery to quality assurance. It is **one product
 with four phases**, connected by a shared knowledge system that grows smarter
 with every project.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          CRNOGORCHI                                   │
+│                          CRNOGOCHI                                   │
 │                                                                     │
 │  Phase 1          Phase 2            Phase 3          Phase 4       │
 │  DISCOVERY    →   STORY & TECH   →   CODE          →  QA           │
@@ -60,7 +60,7 @@ across all phases? What decisions were made, by whom, and when?"
 Moving from one phase to the next requires meetings, document sharing,
 and verbal context transfer. Information is lost at every handoff.
 
-## What Crnogorchi Does Differently
+## What Crnogochi Does Differently
 
 ### 1. One Knowledge System
 
@@ -110,7 +110,7 @@ and outcomes from past projects are available to inform future ones.
 
 ## Why One Product, Not Four Tools
 
-| Approach | Four separate tools | Crnogorchi (one product) |
+| Approach | Four separate tools | Crnogochi (one product) |
 |----------|-------------------|------------------------|
 | **Knowledge** | Each tool has its own data silo | Shared knowledge system across all phases |
 | **Context** | Lost at every handoff | Preserved and enriched at every phase |
@@ -124,7 +124,7 @@ and outcomes from past projects are available to inform future ones.
 
 ## The Name
 
-Crnogorchi — a unified AI development pipeline by Bild Studio.
+Crnogochi — a unified AI development pipeline by Bild Studio.
 
 ---
 
@@ -139,5 +139,5 @@ Crnogorchi — a unified AI development pipeline by Bild Studio.
 | Shared Knowledge System | **To build** | RAGFlow + Mem0 (extends to all phases) |
 | Unified UI | **To build** | Cross-phase dashboard |
 
-Phases 2-4 exist as individual assistants today. Crnogorchi connects them
+Phases 2-4 exist as individual assistants today. Crnogochi connects them
 into one product with a shared knowledge layer and unified interface.

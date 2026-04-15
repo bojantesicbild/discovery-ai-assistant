@@ -2,6 +2,7 @@
 
 ---
 id: CON-XXX
+title: <% tp.file.title %>
 type: budget
 description: ""
 status: assumed

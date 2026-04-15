@@ -7,10 +7,12 @@ type: functional
 priority: should
 status: proposed
 confidence: medium
+description: [description]
 source_doc: [source_doc]
 source_person: [source_person]
 source_raw: [source_raw]
 source_url: [source_url]
+source_origin: [source_origin]
 version: 1
 date: YYYY-MM-DD
 category: requirement
@@ -21,7 +23,7 @@ cssclasses: [requirement, node-green]
 
 # BR-XXX: [Title]
 
-_(description)_
+_Body of the requirement — also rendered as the H1 paragraph_
 
 ## Source
 
