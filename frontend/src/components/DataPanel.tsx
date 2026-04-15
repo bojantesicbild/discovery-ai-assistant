@@ -561,7 +561,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
                         <td><GapStatusPill status={gap.status} /></td>
                         <td>
-                          <button className="inline-action" onClick={(e) => { e.stopPropagation(); }} title="Resolve">&#10003;</button>
+                          {(gap.status === "open" || gap.status === "in-progress") && (
+                            <button className="inline-action" onClick={(e) => { e.stopPropagation(); }} title="Resolve">&#10003;</button>
+                          )}
                         </td>
                       </tr>
                       {expandedRow === gap.id && (
@@ -621,44 +623,76 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                               </div>
 
                               {/* Resolution (shown when resolved) */}
-                              {gap.status === "resolved" && gap.resolution && (
-                                <div style={{
-                                  padding: "12px 14px", borderRadius: 10, marginTop: 8,
-                                  background: "#ecfdf5", border: "1px solid #a7f3d0",
-                                }}>
+                              {gap.status === "resolved" && gap.resolution && (() => {
+                                // Split answer from attribution ("— Answered via ...")
+                                const parts = (gap.resolution as string).split("\n\n— Answered via ");
+                                const answerText = parts[0];
+                                const attribution = parts.length > 1 ? parts[1] : null;
+                                return (
                                   <div style={{
-                                    fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                                    letterSpacing: 0.5, color: "#059669", marginBottom: 6,
-                                    display: "flex", alignItems: "center", gap: 6,
+                                    padding: "14px 16px", borderRadius: 10, marginTop: 10,
+                                    background: "#ecfdf5", border: "1px solid #a7f3d0",
                                   }}>
-                                    <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
-                                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-                                    </svg>
-                                    Resolution
-                                    {gap.resolved_by && (
-                                      <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "#047857" }}>
-                                        — answered by {gap.resolved_by}
-                                      </span>
+                                    <div style={{
+                                      fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                                      letterSpacing: 0.5, color: "#059669", marginBottom: 8,
+                                      display: "flex", alignItems: "center", gap: 6,
+                                    }}>
+                                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+                                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                                      </svg>
+                                      Resolution
+                                    </div>
+                                    <div style={{
+                                      fontSize: 13, color: "#065f46", lineHeight: 1.6,
+                                      padding: "10px 12px", background: "#fff",
+                                      borderRadius: 8, border: "1px solid #a7f3d0",
+                                    }}>
+                                      {answerText}
+                                    </div>
+                                    {attribution && (
+                                      <div style={{
+                                        display: "flex", alignItems: "center", gap: 6,
+                                        marginTop: 8, fontSize: 11, color: "#047857",
+                                      }}>
+                                        <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+                                          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                                          <circle cx="12" cy="7" r="4" />
+                                        </svg>
+                                        <span style={{ fontWeight: 600 }}>{attribution}</span>
+                                      </div>
                                     )}
                                   </div>
-                                  <div style={{ fontSize: 13, color: "#065f46", lineHeight: 1.6 }}>
-                                    {gap.resolution}
-                                  </div>
-                                </div>
-                              )}
+                                );
+                              })()}
 
-                              {/* Actions */}
+                              {/* Actions — context-aware based on status */}
                               <div className="gap-detail-actions">
-                                <button className="gap-action-btn resolve" onClick={(e) => {
-                                  e.stopPropagation();
-                                  const answer = prompt("Resolution — what was the answer?");
-                                  if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
-                                }}>Resolve</button>
-                                <button className="gap-action-btn meeting" onClick={(e) => { e.stopPropagation(); }}>Add to Meeting</button>
-                                <button className="gap-action-btn dismiss" onClick={(e) => {
-                                  e.stopPropagation();
-                                  resolveGap(projectId, gap.gap_id, "Dismissed").then(() => loadData());
-                                }}>Dismiss</button>
+                                {gap.status === "open" || gap.status === "in-progress" ? (
+                                  <>
+                                    <button className="gap-action-btn resolve" onClick={(e) => {
+                                      e.stopPropagation();
+                                      const answer = prompt("Resolution — what was the answer?");
+                                      if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
+                                    }}>Resolve</button>
+                                    <button className="gap-action-btn meeting" onClick={(e) => { e.stopPropagation(); }}>Add to Meeting</button>
+                                    <button className="gap-action-btn dismiss" onClick={(e) => {
+                                      e.stopPropagation();
+                                      resolveGap(projectId, gap.gap_id, "Dismissed").then(() => loadData());
+                                    }}>Dismiss</button>
+                                  </>
+                                ) : (
+                                  <button
+                                    className="gap-action-btn"
+                                    style={{ background: "var(--gray-50)", color: "var(--gray-600)", border: "1px solid var(--gray-200)" }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (confirm("Reopen this gap? The current resolution will be kept in history.")) {
+                                        resolveGap(projectId, gap.gap_id, "").then(() => loadData());
+                                      }
+                                    }}
+                                  >Reopen</button>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1098,11 +1132,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       title: `${req.req_id}: ${req.title}`, content: md,
       meta: { priority: req.priority, status: req.status, confidence: req.confidence, version: `v${req.version || 1}`, source: req.source_doc || "unknown" },
       history: req.id ? { projectId, itemType: "requirement", itemId: req.id } : undefined,
-      actions: [
-        { label: "Confirm", value: "confirmed", color: "#059669" },
-        { label: "Discussed", value: "discussed", color: "#3B82F6" },
-        { label: "Drop", value: "dropped", color: "#EF4444" },
-      ],
+      actions: _reqActionsForStatus(req.status),
       onAction: async (action: string) => {
         await updateRequirement(projectId, req.req_id, { status: action });
         loadData(); setDetail(null);
@@ -1600,6 +1630,32 @@ function _extractConflictDetail(explanation: string): string {
   if (m4) return m4[1].trim().replace(/\.$/, "");
   return explanation.slice(0, 120);
 }
+
+function _reqActionsForStatus(status: string): { label: string; value: string; color: string }[] {
+  switch (status) {
+    case "confirmed":
+      return [
+        { label: "Revert to Proposed", value: "proposed", color: "#6B7280" },
+        { label: "Drop", value: "dropped", color: "#EF4444" },
+      ];
+    case "dropped":
+      return [
+        { label: "Reopen", value: "proposed", color: "#3B82F6" },
+      ];
+    case "discussed":
+      return [
+        { label: "Confirm", value: "confirmed", color: "#059669" },
+        { label: "Drop", value: "dropped", color: "#EF4444" },
+      ];
+    default: // proposed, draft
+      return [
+        { label: "Confirm", value: "confirmed", color: "#059669" },
+        { label: "Mark as Discussed", value: "discussed", color: "#3B82F6" },
+        { label: "Drop", value: "dropped", color: "#EF4444" },
+      ];
+  }
+}
+
 
 function _generateGapQuestion(gap: any): string {
   const title = gap.question || "";
