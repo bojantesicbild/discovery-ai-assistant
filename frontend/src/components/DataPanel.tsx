@@ -2150,14 +2150,46 @@ function ReadinessChecklist({ requirements, constraints, contradictions, dashboa
 function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constraints, dashboard }: {
   projectId: string; contradictions: any[]; gaps: any[]; requirements: any[]; constraints: any[]; dashboard: any;
 }) {
+  const [phase, setPhase] = useState<"pick" | "agenda">("pick");
   const [agenda, setAgenda] = useState("");
   const [editMode, setEditMode] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [roundNumber, setRoundNumber] = useState(0);
   const [copied, setCopied] = useState(false);
-  const [lastEdited, setLastEdited] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [customTopic, setCustomTopic] = useState("");
+  const [customTopics, setCustomTopics] = useState<string[]>([]);
+
+  // Item selection state
+  const [statuses, setStatuses] = useState<Record<string, "approved" | "dismissed">>({});
+  function approve(id: string) {
+    setStatuses((s) => ({ ...s, [id]: s[id] === "approved" ? undefined as any : "approved" }));
+  }
+  function dismiss(id: string) {
+    setStatuses((s) => ({ ...s, [id]: s[id] === "dismissed" ? undefined as any : "dismissed" }));
+  }
+  const getStatus = (id: string) => statuses[id];
+
+  // Derived data
+  const openGaps = gaps.filter((g: any) => g.status === "open");
+  const highGaps = openGaps.filter((g: any) => g.severity === "high");
+  const unconfirmedMust = requirements.filter((r: any) => r.status !== "confirmed" && (r.priority === "must" || r.priority === "should"));
+
+  const approvedItems = [
+    ...openGaps.filter((g: any) => getStatus(g.id) === "approved"),
+    ...unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "approved"),
+    ...contradictions.filter((c: any) => getStatus(c.id) === "approved"),
+  ];
+  const approvedCount = approvedItems.length + customTopics.length;
+
+  // Time estimation
+  const estimatedMin =
+    contradictions.filter((c: any) => getStatus(c.id) === "approved").length * 10
+    + openGaps.filter((g: any) => getStatus(g.id) === "approved" && g.severity === "high").length * 5
+    + openGaps.filter((g: any) => getStatus(g.id) === "approved" && g.severity !== "high").length * 3
+    + unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "approved").length * 2
+    + customTopics.length * 5;
 
   // Load saved agenda on mount
   useEffect(() => {
@@ -2165,61 +2197,74 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
       if (d.content_md) {
         setAgenda(d.content_md);
         setRoundNumber(d.round_number || 0);
-        setLastEdited(d.edited_at || d.created_at || null);
+        setPhase("agenda");
       }
     }).catch(() => {});
   }, [projectId]);
 
-  async function handleGenerate() {
-    setGenerating(true);
-    const unconfirmedReqs = requirements.filter((r: any) => r.status !== "confirmed" && r.priority === "must");
-    const openGaps = gaps.filter((g: any) => g.status === "open");
+  // Listen for chat response completion to auto-capture the agenda
+  useEffect(() => {
+    if (!generating) return;
+    function handleChatDone(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.text && generating) {
+        setAgenda(detail.text);
+        setGenerating(false);
+        setPhase("agenda");
+        // Save to DB
+        createNewAgenda(projectId, detail.text).then(() => {
+          setRoundNumber((r) => r + 1);
+        }).catch(() => {});
+      }
+    }
+    window.addEventListener("chat-response-done", handleChatDone);
+    return () => window.removeEventListener("chat-response-done", handleChatDone);
+  }, [generating, projectId]);
+
+  function handleGenerate() {
+    // Build a clean, readable chat message from selected items
+    const selectedGaps = openGaps.filter((g: any) => getStatus(g.id) === "approved");
+    const selectedReqs = unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "approved");
+    const selectedContras = contradictions.filter((c: any) => getStatus(c.id) === "approved");
+    const dismissedItems = [
+      ...openGaps.filter((g: any) => getStatus(g.id) === "dismissed").map((g: any) => g.question?.slice(0, 60)),
+      ...unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "dismissed").map((r: any) => r.title?.slice(0, 60)),
+    ].filter(Boolean);
+
     const readiness = dashboard?.readiness?.score || 0;
 
-    const prompt = `Generate a structured meeting agenda for the next client discovery meeting.
+    let message = `Prepare a professional meeting agenda for our next client discovery session.\n\n`;
+    message += `**Project readiness:** ${readiness}%\n`;
+    message += `**Selected items:** ${approvedCount} items, estimated ${estimatedMin} minutes\n\n`;
 
-Current project state:
-- Readiness: ${readiness}%
-- ${requirements.length} requirements total, ${unconfirmedReqs.length} must-haves still unconfirmed
-- ${openGaps.length} open gaps (${openGaps.filter((g: any) => g.severity === "high").length} high severity)
-- ${contradictions.length} unresolved contradictions
-- ${constraints.length} active constraints
+    if (selectedContras.length > 0) {
+      message += `**Decisions needed (${selectedContras.length}):**\n`;
+      selectedContras.forEach((c: any) => { message += `- ${c.explanation?.slice(0, 80)}\n`; });
+      message += `\n`;
+    }
+    if (selectedReqs.length > 0) {
+      message += `**Requirements to confirm (${selectedReqs.length}):**\n`;
+      selectedReqs.forEach((r: any) => { message += `- ${r.title}\n`; });
+      message += `\n`;
+    }
+    if (selectedGaps.length > 0) {
+      message += `**Questions to ask (${selectedGaps.length}):**\n`;
+      selectedGaps.forEach((g: any) => { message += `- ${g.question?.slice(0, 80)}\n`; });
+      message += `\n`;
+    }
+    if (customTopics.length > 0) {
+      message += `**Custom topics:**\n`;
+      customTopics.forEach((t) => { message += `- ${t}\n`; });
+      message += `\n`;
+    }
+    if (dismissedItems.length > 0) {
+      message += `**Parking lot** (mention if time permits): ${dismissedItems.slice(0, 5).join(", ")}\n\n`;
+    }
+    message += `Format as a clean, client-facing agenda with sections, time estimates per section, and for each item: why it matters, what we know, what to ask the client, and the desired outcome. No internal IDs.`;
 
-Unconfirmed MUST requirements to discuss:
-${unconfirmedReqs.slice(0, 8).map((r: any) => `- ${r.req_id}: ${r.title}`).join("\n") || "None"}
-
-High-severity open gaps:
-${openGaps.filter((g: any) => g.severity === "high").slice(0, 8).map((g: any) => `- ${g.gap_id}: ${g.question} (blocks: ${(g.blocked_reqs || []).join(", ") || "none"})`).join("\n") || "None"}
-
-Open contradictions:
-${contradictions.slice(0, 5).map((c: any) => `- ${c.explanation?.slice(0, 100)}`).join("\n") || "None"}
-
-Format as a clean markdown agenda with:
-1. A brief summary of where the project stands
-2. Requirements to confirm (prioritized — most important first)
-3. Questions to ask the client (from open gaps — rephrase as polished client-facing questions)
-4. Contradictions to resolve (if any)
-5. Next steps / action items placeholder
-
-Keep it concise — this will be printed or shared with the client. Use markdown headers, bullet points, and bold for emphasis. Do NOT include internal IDs like BR-001 or GAP-003 — the client doesn't need to see those.`;
-
-    let result = "";
-    chatStream(
-      projectId,
-      prompt,
-      (text) => { result += text; setAgenda(result); },
-      async () => {
-        setGenerating(false);
-        // Save to DB as a new round
-        try {
-          await createNewAgenda(projectId, result);
-          setRoundNumber((r) => r + 1);
-          setSaved(true);
-          setTimeout(() => setSaved(false), 2000);
-        } catch {}
-      },
-      () => { setGenerating(false); },
-    );
+    setGenerating(true);
+    // Dispatch to ChatPanel
+    window.dispatchEvent(new CustomEvent("send-chat", { detail: { text: message } }));
   }
 
   async function handleSave() {
@@ -2227,7 +2272,6 @@ Keep it concise — this will be printed or shared with the client. Use markdown
     try {
       await saveMeetingAgenda(projectId, agenda);
       setSaved(true);
-      setLastEdited(new Date().toISOString());
       setTimeout(() => setSaved(false), 2000);
     } catch {}
     setSaving(false);
@@ -2249,124 +2293,218 @@ Keep it concise — this will be printed or shared with the client. Use markdown
     URL.revokeObjectURL(url);
   }
 
-  // Summary stats for the header
-  const unconfirmedMust = requirements.filter((r: any) => r.status !== "confirmed" && r.priority === "must").length;
-  const openGapCount = gaps.filter((g: any) => g.status === "open").length;
-  const highGaps = gaps.filter((g: any) => g.status === "open" && g.severity === "high").length;
+  function addCustomTopic() {
+    if (customTopic.trim()) {
+      setCustomTopics((prev) => [...prev, customTopic.trim()]);
+      setCustomTopic("");
+    }
+  }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Header with stats + actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)" }}>
-            Meeting Agenda {roundNumber > 0 && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--gray-500)" }}>· Round {roundNumber}</span>}
+  function ItemActions({ id }: { id: string }) {
+    const st = getStatus(id);
+    return (
+      <div style={{ display: "flex", gap: 4, marginLeft: "auto", flexShrink: 0 }}>
+        <button title={st === "approved" ? "Remove from agenda" : "Add to agenda"} onClick={(e) => { e.stopPropagation(); approve(id); }}
+          style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: st === "approved" ? "#d1fae5" : "var(--gray-100)", color: st === "approved" ? "#059669" : "var(--gray-400)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
+          ✓
+        </button>
+        <button title={st === "dismissed" ? "Restore" : "Dismiss"} onClick={(e) => { e.stopPropagation(); dismiss(id); }}
+          style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: st === "dismissed" ? "#fee2e2" : "var(--gray-100)", color: st === "dismissed" ? "#EF4444" : "var(--gray-400)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  // ── PHASE 2: Agenda viewer/editor ──
+  if (phase === "agenda" && agenda) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)" }}>
+              Meeting Agenda {roundNumber > 0 && <span style={{ fontSize: 11, color: "var(--gray-500)" }}>· Round {roundNumber}</span>}
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>
-            {unconfirmedMust} must-haves to confirm · {openGapCount} open gaps ({highGaps} high) · {contradictions.length} conflicts
-            {lastEdited && <span> · Last edited {new Date(lastEdited).toLocaleDateString()}</span>}
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          {agenda && !editMode && (
+          <button onClick={() => { setPhase("pick"); }} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
+            ← Back to items
+          </button>
+          {!editMode && (
             <>
               <button onClick={handleCopy} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
-                {copied ? "\u2713 Copied!" : "Copy"}
+                {copied ? "✓ Copied!" : "Copy"}
               </button>
               <button onClick={handleDownload} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
                 Download
               </button>
             </>
           )}
-          {agenda && (
-            <button
-              onClick={() => { if (editMode) handleSave(); setEditMode(!editMode); }}
-              style={{
-                padding: "6px 14px", borderRadius: 8,
-                border: editMode ? "1px solid var(--green)" : "1px solid var(--gray-200)",
-                background: editMode ? "var(--green-light)" : "#fff",
-                fontSize: 11, fontWeight: 600, cursor: "pointer",
-                fontFamily: "var(--font)",
-                color: editMode ? "var(--green-hover)" : "var(--gray-600)",
-              }}
-            >
-              {editMode ? (saving ? "Saving..." : saved ? "\u2713 Saved" : "Save & Preview") : "Edit"}
-            </button>
-          )}
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              padding: "6px 16px", borderRadius: 8, border: "none",
-              background: "var(--green)", color: "var(--dark)",
-              fontSize: 12, fontWeight: 700, cursor: generating ? "default" : "pointer",
-              fontFamily: "var(--font)", opacity: generating ? 0.7 : 1,
-              boxShadow: "0 1px 3px rgba(0,229,160,0.25)",
-            }}
-          >
-            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            {generating ? "Generating..." : agenda ? "Regenerate" : "Generate Agenda"}
+          <button onClick={() => { if (editMode) handleSave(); setEditMode(!editMode); }}
+            style={{ padding: "6px 14px", borderRadius: 8, border: editMode ? "1px solid var(--green)" : "1px solid var(--gray-200)", background: editMode ? "var(--green-light)" : "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: editMode ? "var(--green-hover)" : "var(--gray-600)" }}>
+            {editMode ? (saving ? "Saving..." : saved ? "✓ Saved" : "Save & Preview") : "Edit"}
           </button>
         </div>
+        {editMode ? (
+          <textarea value={agenda} onChange={(e) => setAgenda(e.target.value)}
+            style={{ width: "100%", minHeight: 500, padding: "16px 18px", borderRadius: 10, border: "1px solid var(--green-mid)", background: "#fff", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", resize: "vertical", outline: "none" }} />
+        ) : (
+          <div style={{ padding: "20px 24px", borderRadius: 10, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 13, lineHeight: 1.7 }}
+            dangerouslySetInnerHTML={{ __html: _renderMeetingMd(agenda) }} />
+        )}
       </div>
+    );
+  }
 
-      {/* Content: markdown editor or preview */}
-      {!agenda && !generating ? (
-        <div style={{
-          padding: "60px 20px", textAlign: "center", borderRadius: 12,
-          border: "2px dashed var(--gray-200)", background: "var(--gray-50)",
-        }}>
-          <svg viewBox="0 0 24 24" style={{ width: 40, height: 40, stroke: "var(--gray-300)", fill: "none", strokeWidth: 1.5, margin: "0 auto 12px" }}>
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gray-600)", marginBottom: 4 }}>
-            No agenda yet
-          </div>
-          <div style={{ fontSize: 12, color: "var(--gray-400)", lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
-            Click <strong>Generate Agenda</strong> to have the AI create a structured meeting agenda
-            based on your open gaps, unconfirmed requirements, and contradictions.
+  // ── PHASE 1: Item picker ──
+  const allItems = openGaps.length + unconfirmedMust.length + contradictions.length;
+
+  return (
+    <div className="mp-container">
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)" }}>Prepare Meeting Agenda</div>
+          <div style={{ fontSize: 11, color: "var(--gray-500)" }}>
+            Select items to discuss · {approvedCount} selected · est. {estimatedMin} min
           </div>
         </div>
-      ) : editMode ? (
-        <textarea
-          value={agenda}
-          onChange={(e) => setAgenda(e.target.value)}
-          style={{
-            width: "100%", minHeight: 500, padding: "16px 18px",
-            borderRadius: 10, border: "1px solid var(--green-mid)",
-            background: "#fff", fontSize: 13, lineHeight: 1.7,
-            fontFamily: "monospace", resize: "vertical", outline: "none",
-          }}
-        />
+        {agenda && (
+          <button onClick={() => setPhase("agenda")} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
+            View Last Agenda →
+          </button>
+        )}
+        <button onClick={handleGenerate} disabled={generating || approvedCount === 0}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 18px", borderRadius: 8, border: "none", background: approvedCount === 0 ? "var(--gray-100)" : "var(--green)", color: approvedCount === 0 ? "var(--gray-400)" : "var(--dark)", fontSize: 12, fontWeight: 700, cursor: approvedCount === 0 ? "default" : "pointer", fontFamily: "var(--font)", boxShadow: approvedCount > 0 ? "0 1px 3px rgba(0,229,160,0.25)" : "none" }}>
+          <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          {generating ? "Generating in chat..." : `Generate Agenda (${approvedCount})`}
+        </button>
+      </div>
+
+      {generating && (
+        <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", border: "1px solid var(--green)", marginBottom: 12, fontSize: 12, color: "var(--dark)" }}>
+          ✨ The agent is generating your agenda in the <strong>chat panel</strong> (left side). You can watch it work in real time. The agenda will appear here when it's done.
+        </div>
+      )}
+
+      {allItems === 0 ? (
+        <EmptyState icon="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" text="No items for the agenda. All requirements confirmed, no gaps or contradictions." />
       ) : (
-        <div
-          style={{
-            padding: "20px 24px", borderRadius: 10,
-            border: "1px solid var(--gray-200)", background: "#fff",
-            fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
-          }}
-          dangerouslySetInnerHTML={{ __html: _renderMeetingMd(agenda) }}
-        />
+        <>
+          {/* Contradictions / Decisions */}
+          {contradictions.length > 0 && (
+            <div className="mp-section">
+              <div className="mp-section-head">
+                <div className="mp-section-icon" style={{ background: "#EF444420", color: "#EF4444" }}>!</div>
+                <div className="mp-section-title">Decisions Needed ({contradictions.filter((c: any) => getStatus(c.id) !== "dismissed").length})</div>
+              </div>
+              {contradictions.map((c: any) => {
+                const st = getStatus(c.id);
+                if (st === "dismissed") return null;
+                return (
+                  <div key={c.id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
+                    <div className="mp-item-content">
+                      <div className="mp-item-title">{c.explanation?.slice(0, 80)}</div>
+                      <div className="mp-item-meta">~10 min · affects {c.item_a_type || "requirement"}</div>
+                    </div>
+                    <ItemActions id={c.id} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Unconfirmed requirements */}
+          {unconfirmedMust.length > 0 && (
+            <div className="mp-section">
+              <div className="mp-section-head">
+                <div className="mp-section-icon" style={{ background: "#3B82F620", color: "#3B82F6" }}>✓</div>
+                <div className="mp-section-title">Requirements to Confirm ({unconfirmedMust.filter((r: any) => getStatus(r.req_id) !== "dismissed").length})</div>
+              </div>
+              {unconfirmedMust.map((r: any) => {
+                const st = getStatus(r.req_id);
+                if (st === "dismissed") return null;
+                return (
+                  <div key={r.req_id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
+                    <div className="mp-item-content">
+                      <div className="mp-item-title">{r.req_id}: {r.title}</div>
+                      <div className="mp-item-meta">~2 min · {r.priority} priority · {r.status}</div>
+                    </div>
+                    <ItemActions id={r.req_id} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Open gaps */}
+          {openGaps.length > 0 && (
+            <div className="mp-section">
+              <div className="mp-section-head">
+                <div className="mp-section-icon" style={{ background: "#F59E0B20", color: "#F59E0B" }}>?</div>
+                <div className="mp-section-title">Open Questions ({openGaps.filter((g: any) => getStatus(g.id) !== "dismissed").length})</div>
+              </div>
+              {openGaps.map((g: any) => {
+                const st = getStatus(g.id);
+                if (st === "dismissed") return null;
+                return (
+                  <div key={g.id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
+                    <div className="mp-item-content">
+                      <div className="mp-item-title">{g.question?.slice(0, 80)}</div>
+                      <div className="mp-item-meta">~{g.severity === "high" ? 5 : 3} min · {g.severity} severity{g.blocked_reqs?.length ? ` · blocks ${g.blocked_reqs.join(", ")}` : ""}</div>
+                    </div>
+                    <ItemActions id={g.id} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Custom topics */}
+          <div className="mp-section">
+            <div className="mp-section-head">
+              <div className="mp-section-icon" style={{ background: "#8B5CF620", color: "#8B5CF6" }}>+</div>
+              <div className="mp-section-title">Custom Topics ({customTopics.length})</div>
+            </div>
+            {customTopics.map((t, i) => (
+              <div key={i} className="mp-item" style={{ borderLeft: "3px solid #8B5CF6" }}>
+                <div className="mp-item-content">
+                  <div className="mp-item-title">{t}</div>
+                  <div className="mp-item-meta">~5 min</div>
+                </div>
+                <button onClick={() => setCustomTopics((prev) => prev.filter((_, j) => j !== i))}
+                  style={{ width: 26, height: 26, borderRadius: 6, border: "none", background: "var(--gray-100)", color: "var(--gray-400)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                  ✕
+                </button>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input value={customTopic} onChange={(e) => setCustomTopic(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addCustomTopic(); }}
+                placeholder="Add a topic..."
+                style={{ flex: 1, padding: "7px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", fontSize: 12, fontFamily: "var(--font)", outline: "none" }} />
+              <button onClick={addCustomTopic} disabled={!customTopic.trim()}
+                style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: customTopic.trim() ? "var(--purple-light, #f3e8ff)" : "var(--gray-100)", color: customTopic.trim() ? "#7c3aed" : "var(--gray-400)", fontSize: 11, fontWeight: 600, cursor: customTopic.trim() ? "pointer" : "default", fontFamily: "var(--font)" }}>
+                Add
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
 }
 
+
 function _renderMeetingMd(md: string): string {
-  // Simple markdown → HTML for the agenda preview
   let html = md
-    .replace(/^### (.+)$/gm, "<h3 style=\"font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--dark)\">$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2 style=\"font-size:16px;font-weight:800;margin:20px 0 8px;color:var(--dark);border-bottom:1px solid var(--gray-100);padding-bottom:6px\">$1</h2>")
-    .replace(/^# (.+)$/gm, "<h1 style=\"font-size:20px;font-weight:800;margin:0 0 12px;color:var(--dark)\">$1</h1>")
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--dark)">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:800;margin:20px 0 8px;color:var(--dark);border-bottom:1px solid var(--gray-100);padding-bottom:6px">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;font-weight:800;margin:0 0 12px;color:var(--dark)">$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^- (.+)$/gm, "<li style=\"margin:3px 0;padding-left:4px\">$1</li>")
-    .replace(/^\d+\. (.+)$/gm, "<li style=\"margin:3px 0;padding-left:4px;list-style:decimal\">$1</li>")
-    .replace(/(<li.*<\/li>)/g, "<ul style=\"margin:4px 0 8px 16px;padding:0\">$1</ul>")
-    .replace(/<\/ul>\s*<ul[^>]*>/g, "")
+    .replace(/^- (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li style="margin:3px 0;padding-left:4px;list-style:decimal">$1</li>')
     .replace(/\n\n/g, "<br><br>")
     .replace(/\n/g, "<br>");
   return html;

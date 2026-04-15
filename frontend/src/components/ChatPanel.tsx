@@ -285,6 +285,18 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     sendMessage(input.trim());
   }
 
+  // Listen for cross-component "send-chat" events (e.g. from Meeting Prep's Generate button)
+  useEffect(() => {
+    function handleSendChat(e: Event) {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.text) {
+        sendMessage(detail.text);
+      }
+    }
+    window.addEventListener("send-chat", handleSendChat);
+    return () => window.removeEventListener("send-chat", handleSendChat);
+  });
+
   function sendMessage(text: string) {
     setInput("");
     const now = new Date();
@@ -364,6 +376,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         if (toolCalls.some(t => t.includes("update") || t.includes("validate") || t.includes("resolve") || t.includes("Edit") || t.includes("Write"))) {
           onDataChanged?.();
         }
+        // Notify other components (e.g. MeetingPrepTab) that a chat response completed
+        window.dispatchEvent(new CustomEvent("chat-response-done", {
+          detail: { text: assistantContent },
+        }));
       },
       // onError
       (error) => {
