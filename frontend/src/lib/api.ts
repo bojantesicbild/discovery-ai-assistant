@@ -585,6 +585,18 @@ export async function getMeetingAgenda(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/meeting-agenda`);
 }
 
+export async function getMeetingAgendaFromVault(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/from-vault`);
+}
+
+export async function listMeetingAgendas(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/history`);
+}
+
+export async function getMeetingAgendaByRound(projectId: string, round: number) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/round/${round}`);
+}
+
 export async function saveMeetingAgenda(projectId: string, contentMd: string) {
   return fetchAPI(`/api/projects/${projectId}/meeting-agenda`, {
     method: "PUT",

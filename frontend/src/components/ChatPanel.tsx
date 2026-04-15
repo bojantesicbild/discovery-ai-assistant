@@ -591,6 +591,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                       </div>
                     )}
                   </>
+                ) : msg.role === "user" ? (
+                  <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
                 ) : (
                   msg.content
                 )}

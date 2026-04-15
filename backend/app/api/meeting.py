@@ -14,6 +14,9 @@ from app.deps import get_current_user
 from app.models.auth import User
 from app.models.meeting import MeetingAgenda
 
+from pathlib import Path
+from app.agent.claude_runner import claude_runner
+
 log = structlog.get_logger()
 
 router = APIRouter(prefix="/api/projects/{project_id}/meeting-agenda", tags=["meeting"])
@@ -29,6 +32,84 @@ class AgendaResponse(BaseModel):
 
 class AgendaSaveRequest(BaseModel):
     content_md: str
+
+
+@router.get("/from-vault")
+async def get_agenda_from_vault(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Read the latest meeting agenda .md file from the vault's
+    docs/meeting-prep/ directory. This is where the discovery-prep-agent
+    writes the agenda."""
+    project_dir = claude_runner.get_project_dir(project_id)
+    prep_dir = project_dir / ".memory-bank" / "docs" / "meeting-prep"
+    if not prep_dir.exists():
+        return {"content": "", "filename": None}
+
+    files = sorted(prep_dir.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not files:
+        return {"content": "", "filename": None}
+
+    latest = files[0]
+    return {
+        "content": latest.read_text(encoding="utf-8"),
+        "filename": latest.name,
+        "modified": datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).isoformat(),
+    }
+
+
+@router.get("/history")
+async def list_agendas(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all meeting agendas for this project, newest first."""
+    result = await db.execute(
+        select(MeetingAgenda)
+        .where(MeetingAgenda.project_id == project_id)
+        .order_by(MeetingAgenda.created_at.desc())
+    )
+    agendas = result.scalars().all()
+    return {
+        "agendas": [
+            {
+                "id": str(a.id),
+                "round_number": a.round_number,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "edited_at": a.edited_at.isoformat() if a.edited_at else None,
+                "preview": (a.content_md or "")[:120].replace("\n", " "),
+            }
+            for a in agendas
+        ]
+    }
+
+
+@router.get("/round/{round_number}")
+async def get_agenda_by_round(
+    project_id: uuid.UUID,
+    round_number: int,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a specific agenda by round number."""
+    result = await db.execute(
+        select(MeetingAgenda).where(
+            MeetingAgenda.project_id == project_id,
+            MeetingAgenda.round_number == round_number,
+        )
+    )
+    agenda = result.scalar_one_or_none()
+    if not agenda:
+        return AgendaResponse(content_md="", round_number=0)
+    return AgendaResponse(
+        id=str(agenda.id),
+        content_md=agenda.content_md,
+        round_number=agenda.round_number,
+        created_at=agenda.created_at.isoformat() if agenda.created_at else None,
+        edited_at=agenda.edited_at.isoformat() if agenda.edited_at else None,
+    )
 
 
 @router.get("", response_model=AgendaResponse)

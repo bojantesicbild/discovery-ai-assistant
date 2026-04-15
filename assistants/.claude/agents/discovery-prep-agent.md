@@ -201,13 +201,17 @@ NO internal IDs. NO agent commentary. This gets printed and emailed to clients.
 
 ## Chat Response (separate from the file)
 
-After writing the file, respond in chat with a SUMMARY:
+After writing the file, respond in chat with a BRIEF SUMMARY only:
 - What mode was selected and why
 - How many items in each section
 - Key insight or risk the PM should know
 - "The agenda has been saved to docs/meeting-prep/"
 
-Do NOT repeat the full agenda in chat — the PM reads it in the Meeting Prep tab.
+CRITICAL RULES for the chat response:
+- Do NOT repeat the full agenda in chat — the PM reads it in the Meeting Prep tab
+- Do NOT include follow-up option menus like "(a) Draft email (b) Create tracker (c) Something else?" — those actions are buttons in the UI, not chat prompts
+- Do NOT include emoji-heavy "deliverable summaries" or checklists in chat — keep it to 3-5 sentences max
+- The chat response should feel like a brief status update, not a presentation
 
 ---
 

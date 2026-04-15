@@ -8,6 +8,7 @@ import {
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
   listIntegrations, getMeetingAgenda, saveMeetingAgenda, createNewAgenda,
   chatStream, getWikiFiles, getWikiFile,
+  listMeetingAgendas, getMeetingAgendaByRound,
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
@@ -2157,9 +2158,12 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
   const [saved, setSaved] = useState(false);
   const [roundNumber, setRoundNumber] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [customTopic, setCustomTopic] = useState("");
   const [customTopics, setCustomTopics] = useState<string[]>([]);
+  const [agendaHistory, setAgendaHistory] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Item selection state
   const [statuses, setStatuses] = useState<Record<string, "approved" | "dismissed">>({});
@@ -2168,6 +2172,14 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
   }
   function dismiss(id: string) {
     setStatuses((s) => ({ ...s, [id]: s[id] === "dismissed" ? undefined as any : "dismissed" }));
+  }
+  function selectAllInSection(ids: string[]) {
+    const allApproved = ids.every((id) => statuses[id] === "approved");
+    setStatuses((s) => {
+      const next = { ...s };
+      ids.forEach((id) => { next[id] = allApproved ? undefined as any : "approved"; });
+      return next;
+    });
   }
   const getStatus = (id: string) => statuses[id];
 
@@ -2191,43 +2203,57 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
     + unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "approved").length * 2
     + customTopics.length * 5;
 
-  // Load saved agenda on mount
+  // Load saved agenda + history on mount
   useEffect(() => {
-    getMeetingAgenda(projectId).then((d) => {
-      if (d.content_md) {
-        setAgenda(d.content_md);
-        setRoundNumber(d.round_number || 0);
-        setPhase("agenda");
-      }
-    }).catch(() => {});
+    (async () => {
+      // Load history
+      try {
+        const { listMeetingAgendas } = await import("@/lib/api");
+        const hist = await listMeetingAgendas(projectId);
+        setAgendaHistory(hist.agendas || []);
+      } catch {}
+      // Load latest agenda — vault file first, then DB
+      try {
+        const { getMeetingAgendaFromVault } = await import("@/lib/api");
+        const vault = await getMeetingAgendaFromVault(projectId);
+        if (vault.content) {
+          setAgenda(vault.content);
+          setPhase("agenda");
+          return;
+        }
+      } catch {}
+      try {
+        const db = await getMeetingAgenda(projectId);
+        if (db.content_md) {
+          setAgenda(db.content_md);
+          setRoundNumber(db.round_number || 0);
+          setPhase("agenda");
+        }
+      } catch {}
+    })();
   }, [projectId]);
 
   // Listen for chat response completion — the agent writes the agenda
-  // to a .md file in the vault. We poll for it after chat finishes.
+  // to a .md file in the vault. Read it via the dedicated endpoint.
   useEffect(() => {
     if (!generating) return;
     function handleChatDone() {
-      // The agent should have written the file. Wait briefly for
-      // file writes to flush, then try loading from the vault.
+      // Wait briefly for file writes to flush, then read the file
       setTimeout(async () => {
         try {
-          const files = await getWikiFiles(projectId);
-          const agendaFiles = (files.files || [])
-            .filter((f: any) => f.path?.includes("meeting-prep"))
-            .sort((a: any, b: any) => (b.modified || "").localeCompare(a.modified || ""));
-          if (agendaFiles.length > 0) {
-            const content = await getWikiFile(projectId, agendaFiles[0].path);
-            if (content.content) {
-              setAgenda(content.content);
-              setPhase("agenda");
-              createNewAgenda(projectId, content.content).then(() => {
-                setRoundNumber((r) => r + 1);
-              }).catch(() => {});
-            }
+          const { getMeetingAgendaFromVault } = await import("@/lib/api");
+          const vault = await getMeetingAgendaFromVault(projectId);
+          if (vault.content) {
+            setAgenda(vault.content);
+            setPhase("agenda");
+            // Also persist to DB
+            createNewAgenda(projectId, vault.content).then(() => {
+              setRoundNumber((r) => r + 1);
+            }).catch(() => {});
           }
         } catch {}
         setGenerating(false);
-      }, 3000);
+      }, 2000);
     }
     window.addEventListener("chat-response-done", handleChatDone);
     return () => window.removeEventListener("chat-response-done", handleChatDone);
@@ -2245,34 +2271,31 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
 
     const readiness = dashboard?.readiness?.score || 0;
 
-    let message = `Prepare a professional meeting agenda for our next client discovery session.\n\n`;
-    message += `**Project readiness:** ${readiness}%\n`;
-    message += `**Selected items:** ${approvedCount} items, estimated ${estimatedMin} minutes\n\n`;
+    let message = `Prepare meeting agenda · **${approvedCount} items** · est. ${estimatedMin} min · readiness ${readiness}%\n\n`;
 
     if (selectedContras.length > 0) {
-      message += `**Decisions needed (${selectedContras.length}):**\n`;
+      message += `**Decisions (${selectedContras.length})**\n`;
       selectedContras.forEach((c: any) => { message += `- ${c.explanation?.slice(0, 80)}\n`; });
       message += `\n`;
     }
     if (selectedReqs.length > 0) {
-      message += `**Requirements to confirm (${selectedReqs.length}):**\n`;
+      message += `**Confirm (${selectedReqs.length})**\n`;
       selectedReqs.forEach((r: any) => { message += `- ${r.title}\n`; });
       message += `\n`;
     }
     if (selectedGaps.length > 0) {
-      message += `**Questions to ask (${selectedGaps.length}):**\n`;
+      message += `**Questions (${selectedGaps.length})**\n`;
       selectedGaps.forEach((g: any) => { message += `- ${g.question?.slice(0, 80)}\n`; });
       message += `\n`;
     }
     if (customTopics.length > 0) {
-      message += `**Custom topics:**\n`;
+      message += `**Custom**\n`;
       customTopics.forEach((t) => { message += `- ${t}\n`; });
       message += `\n`;
     }
     if (dismissedItems.length > 0) {
-      message += `**Parking lot** (mention if time permits): ${dismissedItems.slice(0, 5).join(", ")}\n\n`;
+      message += `**Parking lot:** ${dismissedItems.slice(0, 5).join(", ")}\n`;
     }
-    message += `Format as a clean, client-facing agenda with sections, time estimates per section, and for each item: why it matters, what we know, what to ask the client, and the desired outcome. No internal IDs.`;
 
     setGenerating(true);
     // Dispatch to ChatPanel
@@ -2293,6 +2316,26 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
     navigator.clipboard.writeText(agenda);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleCopyAsEmail() {
+    // Wrap the agenda in a professional email template
+    const projectName = dashboard?.project_name || "the project";
+    const emailBody = `Hi team,
+
+Please find below the agenda for our upcoming discovery meeting. I'd appreciate if you could review it before our session so we can make the most of our time together.
+
+${agenda}
+
+Please let me know if you'd like to add any topics or if any of the items above need clarification before we meet.
+
+Looking forward to a productive session.
+
+Best regards`;
+
+    navigator.clipboard.writeText(emailBody);
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2000);
   }
 
   function handleDownload() {
@@ -2343,6 +2386,9 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
           </button>
           {!editMode && (
             <>
+              <button onClick={handleCopyAsEmail} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
+                {copiedEmail ? "✓ Email copied!" : "Copy as Email"}
+              </button>
               <button onClick={handleCopy} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
                 {copied ? "✓ Copied!" : "Copy"}
               </button>
@@ -2361,6 +2407,7 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
             style={{ width: "100%", minHeight: 500, padding: "16px 18px", borderRadius: 10, border: "1px solid var(--green-mid)", background: "#fff", fontSize: 13, lineHeight: 1.7, fontFamily: "monospace", resize: "vertical", outline: "none" }} />
         ) : (
           <div style={{ padding: "20px 24px", borderRadius: 10, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 13, lineHeight: 1.7 }}
+            className="chat-markdown-body"
             dangerouslySetInnerHTML={{ __html: _renderMeetingMd(agenda) }} />
         )}
       </div>
@@ -2389,13 +2436,82 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
           <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
           </svg>
-          {generating ? "Generating in chat..." : `Generate Agenda (${approvedCount})`}
+          {generating ? "Generating in chat..." : approvedCount > 0 ? `Generate Agenda · ${approvedCount} items` : "Select items first"}
         </button>
       </div>
 
       {generating && (
         <div style={{ padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", border: "1px solid var(--green)", marginBottom: 12, fontSize: 12, color: "var(--dark)" }}>
           ✨ The agent is generating your agenda in the <strong>chat panel</strong> (left side). You can watch it work in real time. The agenda will appear here when it's done.
+        </div>
+      )}
+
+      {/* Agenda history */}
+      {agendaHistory.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6, width: "100%",
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid var(--gray-100)", background: "var(--gray-50)",
+              fontSize: 12, fontWeight: 600, color: "var(--gray-600)",
+              cursor: "pointer", fontFamily: "var(--font)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+            Past Agendas ({agendaHistory.length})
+            <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2, marginLeft: "auto", transform: showHistory ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {showHistory && (
+            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+              {agendaHistory.map((a: any) => (
+                <button
+                  key={a.id}
+                  onClick={async () => {
+                    try {
+                      const { getMeetingAgendaByRound } = await import("@/lib/api");
+                      const data = await getMeetingAgendaByRound(projectId, a.round_number);
+                      if (data.content_md) {
+                        setAgenda(data.content_md);
+                        setRoundNumber(a.round_number);
+                        setPhase("agenda");
+                      }
+                    } catch {}
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 12px", borderRadius: 8,
+                    border: "1px solid var(--gray-100)", background: "#fff",
+                    cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
+                    width: "100%",
+                  }}
+                >
+                  <span style={{
+                    width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+                    background: "var(--green-light)", color: "var(--green-hover)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 11, fontWeight: 800,
+                  }}>
+                    {a.round_number}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      Round {a.round_number} {a.edited_at ? "(edited)" : ""}
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--gray-500)" }}>
+                      {a.created_at ? new Date(a.created_at).toLocaleDateString() : ""}
+                      {a.preview ? ` · ${a.preview.slice(0, 60)}...` : ""}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -2406,18 +2522,21 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
           {/* Contradictions / Decisions */}
           {contradictions.length > 0 && (
             <div className="mp-section">
-              <div className="mp-section-head">
+              <div className="mp-section-head" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div className="mp-section-icon" style={{ background: "#EF444420", color: "#EF4444" }}>!</div>
-                <div className="mp-section-title">Decisions Needed ({contradictions.filter((c: any) => getStatus(c.id) !== "dismissed").length})</div>
+                <div className="mp-section-title" style={{ flex: 1 }}>Decisions Needed ({contradictions.filter((c: any) => getStatus(c.id) !== "dismissed").length})</div>
+                <button onClick={() => selectAllInSection(contradictions.map((c: any) => c.id))} style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", padding: "2px 6px" }}>
+                  {contradictions.every((c: any) => getStatus(c.id) === "approved") ? "Deselect all" : "Select all"}
+                </button>
               </div>
               {contradictions.map((c: any) => {
                 const st = getStatus(c.id);
                 if (st === "dismissed") return null;
                 return (
-                  <div key={c.id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
-                    <div className="mp-item-content">
-                      <div className="mp-item-title">{c.explanation?.slice(0, 80)}</div>
-                      <div className="mp-item-meta">~10 min · affects {c.item_a_type || "requirement"}</div>
+                  <div key={c.id} className="mp-item" style={{ border: "1px solid var(--gray-100)", borderLeftWidth: 3, borderLeftColor: st === "approved" ? "#059669" : "transparent", padding: "10px 12px", borderRadius: 8, marginBottom: 6, display: "flex", alignItems: "center", gap: 10, background: st === "approved" ? "#f0fdf4" : "#fff" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{c.explanation?.slice(0, 80)}</div>
+                      <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>~10 min · affects {c.item_a_type || "requirement"}</div>
                     </div>
                     <ItemActions id={c.id} />
                   </div>
@@ -2429,18 +2548,21 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
           {/* Unconfirmed requirements */}
           {unconfirmedMust.length > 0 && (
             <div className="mp-section">
-              <div className="mp-section-head">
+              <div className="mp-section-head" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div className="mp-section-icon" style={{ background: "#3B82F620", color: "#3B82F6" }}>✓</div>
-                <div className="mp-section-title">Requirements to Confirm ({unconfirmedMust.filter((r: any) => getStatus(r.req_id) !== "dismissed").length})</div>
+                <div className="mp-section-title" style={{ flex: 1 }}>Requirements to Confirm ({unconfirmedMust.filter((r: any) => getStatus(r.req_id) !== "dismissed").length})</div>
+                <button onClick={() => selectAllInSection(unconfirmedMust.map((r: any) => r.req_id))} style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", padding: "2px 6px" }}>
+                  {unconfirmedMust.every((r: any) => getStatus(r.req_id) === "approved") ? "Deselect all" : "Select all"}
+                </button>
               </div>
               {unconfirmedMust.map((r: any) => {
                 const st = getStatus(r.req_id);
                 if (st === "dismissed") return null;
                 return (
-                  <div key={r.req_id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
-                    <div className="mp-item-content">
-                      <div className="mp-item-title">{r.req_id}: {r.title}</div>
-                      <div className="mp-item-meta">~2 min · {r.priority} priority · {r.status}</div>
+                  <div key={r.req_id} className="mp-item" style={{ border: "1px solid var(--gray-100)", borderLeftWidth: 3, borderLeftColor: st === "approved" ? "#059669" : "transparent", padding: "10px 12px", borderRadius: 8, marginBottom: 6, display: "flex", alignItems: "center", gap: 10, background: st === "approved" ? "#f0fdf4" : "#fff" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{r.req_id}: {r.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>~2 min · {r.priority} priority · {r.status}</div>
                     </div>
                     <ItemActions id={r.req_id} />
                   </div>
@@ -2452,18 +2574,21 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
           {/* Open gaps */}
           {openGaps.length > 0 && (
             <div className="mp-section">
-              <div className="mp-section-head">
+              <div className="mp-section-head" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div className="mp-section-icon" style={{ background: "#F59E0B20", color: "#F59E0B" }}>?</div>
-                <div className="mp-section-title">Open Questions ({openGaps.filter((g: any) => getStatus(g.id) !== "dismissed").length})</div>
+                <div className="mp-section-title" style={{ flex: 1 }}>Open Questions ({openGaps.filter((g: any) => getStatus(g.id) !== "dismissed").length})</div>
+                <button onClick={() => selectAllInSection(openGaps.map((g: any) => g.id))} style={{ fontSize: 10, fontWeight: 600, color: "var(--gray-500)", background: "none", border: "none", cursor: "pointer", fontFamily: "var(--font)", padding: "2px 6px" }}>
+                  {openGaps.every((g: any) => getStatus(g.id) === "approved") ? "Deselect all" : "Select all"}
+                </button>
               </div>
               {openGaps.map((g: any) => {
                 const st = getStatus(g.id);
                 if (st === "dismissed") return null;
                 return (
-                  <div key={g.id} className="mp-item" style={st === "approved" ? { borderLeft: "3px solid #059669" } : undefined}>
-                    <div className="mp-item-content">
-                      <div className="mp-item-title">{g.question?.slice(0, 80)}</div>
-                      <div className="mp-item-meta">~{g.severity === "high" ? 5 : 3} min · {g.severity} severity{g.blocked_reqs?.length ? ` · blocks ${g.blocked_reqs.join(", ")}` : ""}</div>
+                  <div key={g.id} className="mp-item" style={{ border: "1px solid var(--gray-100)", borderLeftWidth: 3, borderLeftColor: st === "approved" ? "#059669" : "transparent", padding: "10px 12px", borderRadius: 8, marginBottom: 6, display: "flex", alignItems: "center", gap: 10, background: st === "approved" ? "#f0fdf4" : "#fff" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{g.question?.slice(0, 80)}</div>
+                      <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>~{g.severity === "high" ? 5 : 3} min · {g.severity} severity{g.blocked_reqs?.length ? ` · blocks ${g.blocked_reqs.join(", ")}` : ""}</div>
                     </div>
                     <ItemActions id={g.id} />
                   </div>
@@ -2509,16 +2634,46 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
 
 
 function _renderMeetingMd(md: string): string {
-  let html = md
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--dark)">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:800;margin:20px 0 8px;color:var(--dark);border-bottom:1px solid var(--gray-100);padding-bottom:6px">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:20px;font-weight:800;margin:0 0 12px;color:var(--dark)">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^- (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li style="margin:3px 0;padding-left:4px;list-style:decimal">$1</li>')
-    .replace(/\n\n/g, "<br><br>")
-    .replace(/\n/g, "<br>");
+  // Use the same CSS classes as renderChatMarkdown in ChatPanel
+  // so the agenda preview matches the chat's typography exactly.
+  let html = md;
+
+  // Headings — chat classes + slightly larger h1 for agenda title
+  html = html.replace(/^### (.+)$/gm, '<h4 class="chat-h4">$1</h4>');
+  html = html.replace(/^## (.+)$/gm, '<h3 class="chat-h3" style="margin-top:14px">$1</h3>');
+  html = html.replace(/^# (.+)$/gm, '<h2 class="chat-h2" style="font-size:17px;margin-bottom:6px">$1</h2>');
+
+  // Horizontal rules
+  html = html.replace(/^---$/gm, '<hr class="chat-hr">');
+
+  // Bold + italic
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Checkboxes — collect consecutive, use chat-ul with checkbox prefix
+  html = html.replace(/((?:^- \[ \] .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map((l: string) => l.replace(/^- \[ \] /, ""));
+    return '<ul class="chat-ul" style="list-style:none;padding-left:12px">' +
+      items.map((i: string) => `<li class="chat-li" style="display:flex;gap:6px;align-items:flex-start"><span style="color:var(--gray-300);flex-shrink:0">☐</span><span>${i}</span></li>`).join("") +
+      "</ul>";
+  });
+
+  // Unordered lists — collect consecutive lines
+  html = html.replace(/((?:^- .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map((l: string) => l.replace(/^- /, ""));
+    return '<ul class="chat-ul">' + items.map((i: string) => `<li class="chat-li">${i}</li>`).join("") + "</ul>";
+  });
+
+  // Ordered lists — collect consecutive lines
+  html = html.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split("\n").map((l: string) => l.replace(/^\d+\. /, ""));
+    return '<ol class="chat-ol">' + items.map((i: string) => `<li class="chat-oli">${i}</li>`).join("") + "</ol>";
+  });
+
+  // Paragraphs + line breaks
+  html = html.replace(/\n\n/g, '<div class="chat-paragraph-break"></div>');
+  html = html.replace(/\n/g, "<br>");
+
   return html;
 }
 
