@@ -620,6 +620,33 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                                 )}
                               </div>
 
+                              {/* Resolution (shown when resolved) */}
+                              {gap.status === "resolved" && gap.resolution && (
+                                <div style={{
+                                  padding: "12px 14px", borderRadius: 10, marginTop: 8,
+                                  background: "#ecfdf5", border: "1px solid #a7f3d0",
+                                }}>
+                                  <div style={{
+                                    fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                                    letterSpacing: 0.5, color: "#059669", marginBottom: 6,
+                                    display: "flex", alignItems: "center", gap: 6,
+                                  }}>
+                                    <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+                                      <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
+                                    </svg>
+                                    Resolution
+                                    {gap.resolved_by && (
+                                      <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "#047857" }}>
+                                        — answered by {gap.resolved_by}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 13, color: "#065f46", lineHeight: 1.6 }}>
+                                    {gap.resolution}
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Actions */}
                               <div className="gap-detail-actions">
                                 <button className="gap-action-btn resolve" onClick={(e) => {

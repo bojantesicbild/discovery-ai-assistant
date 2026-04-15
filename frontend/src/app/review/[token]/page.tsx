@@ -122,6 +122,16 @@ export default function ClientReviewPage() {
   const actedOn = Object.values(reqActions).filter((a) => a !== "skip").length
     + Object.values(gapActions).filter((a) => a !== "skip").length;
 
+  // Override the app-wide body overflow:hidden for this standalone page
+  useEffect(() => {
+    document.body.style.overflow = "auto";
+    document.body.style.height = "auto";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.height = "";
+    };
+  }, []);
+
   // ── Loading / Error / Submitted states ──
   if (loading) {
     return (

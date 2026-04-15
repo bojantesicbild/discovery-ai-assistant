@@ -335,6 +335,7 @@ async def submit_review(
         if action.action == "confirm":
             req.status = "confirmed"
             req.confidence = "high"
+            req.source_person = rt.client_name or req.source_person or "client"
             confirmed += 1
         elif action.action == "discuss":
             req.status = "discussed"
@@ -355,7 +356,10 @@ async def submit_review(
             continue
 
         gap.status = "resolved"
-        gap.resolution = action.answer
+        attribution = f"Client review round {rt.round_number}"
+        if rt.client_name:
+            attribution += f" ({rt.client_name})"
+        gap.resolution = f"{action.answer}\n\n— Answered via {attribution}"
         gaps_answered += 1
 
     # Record the submission
