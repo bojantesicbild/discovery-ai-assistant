@@ -7,7 +7,7 @@ import {
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
   listIntegrations, getMeetingAgenda, saveMeetingAgenda, createNewAgenda,
-  chatStream,
+  chatStream, getWikiFiles, getWikiFile,
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
@@ -2202,20 +2202,32 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
     }).catch(() => {});
   }, [projectId]);
 
-  // Listen for chat response completion to auto-capture the agenda
+  // Listen for chat response completion — the agent writes the agenda
+  // to a .md file in the vault. We poll for it after chat finishes.
   useEffect(() => {
     if (!generating) return;
-    function handleChatDone(e: Event) {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.text && generating) {
-        setAgenda(detail.text);
+    function handleChatDone() {
+      // The agent should have written the file. Wait briefly for
+      // file writes to flush, then try loading from the vault.
+      setTimeout(async () => {
+        try {
+          const files = await getWikiFiles(projectId);
+          const agendaFiles = (files.files || [])
+            .filter((f: any) => f.path?.includes("meeting-prep"))
+            .sort((a: any, b: any) => (b.modified || "").localeCompare(a.modified || ""));
+          if (agendaFiles.length > 0) {
+            const content = await getWikiFile(projectId, agendaFiles[0].path);
+            if (content.content) {
+              setAgenda(content.content);
+              setPhase("agenda");
+              createNewAgenda(projectId, content.content).then(() => {
+                setRoundNumber((r) => r + 1);
+              }).catch(() => {});
+            }
+          }
+        } catch {}
         setGenerating(false);
-        setPhase("agenda");
-        // Save to DB
-        createNewAgenda(projectId, detail.text).then(() => {
-          setRoundNumber((r) => r + 1);
-        }).catch(() => {});
-      }
+      }, 3000);
     }
     window.addEventListener("chat-response-done", handleChatDone);
     return () => window.removeEventListener("chat-response-done", handleChatDone);

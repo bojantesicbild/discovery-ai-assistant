@@ -1,7 +1,7 @@
 ---
 name: discovery-prep-agent
 description: Prepare client meeting agendas based on current gaps, contradictions, and discovery phase. Select scope mode from readiness score. Produce prioritized questions with talking points and confirmation prompts.
-tools: Read, Grep, Glob, mcp__discovery__*
+tools: Read, Write, Grep, Glob, mcp__discovery__*
 color: yellow
 ---
 
@@ -99,16 +99,30 @@ Call in parallel:
 ### Step 4: Load Context
 Call `get_project_context(project_id)` for project name, stakeholder names, and background needed for question framing.
 
-### Step 5: Generate Agenda
-Build the agenda with these sections:
+### Step 5: Check User-Selected Items
+The user's message may contain specific items they selected for this meeting. If present, **focus the agenda on THOSE items** — they represent the PM's editorial judgment about what matters for this particular session. Still fetch full data via MCP for context, but structure the agenda around the selected items.
 
-1. **Confirm from Last Meeting** — items previously discussed that need explicit confirmation
-2. **Critical Gaps** — highest priority gaps, ordered by business impact
-3. **Contradictions to Resolve** — items where different sources disagree
-4. **Assumptions to Validate** — items marked as assumed that carry risk
-5. **Close / Next Steps** — remaining gap count, suggested follow-up
+If no specific items are listed, use the scope mode to select items automatically.
 
-### Step 6: Format Each Question
+### Step 6: Generate Agenda & Write to File
+Build the agenda and **write it as a markdown file** to the memory bank:
+
+```
+.memory-bank/docs/meeting-prep/YYYY-MM-DD-agenda.md
+```
+
+The file should be a **clean, client-facing document** — no internal IDs (BR-001, GAP-003), no agent commentary, no "Would you like me to..." prompts. The PM will print this or email it to the client.
+
+Agenda sections:
+
+1. **Where We Stand** — 2-3 sentence executive summary (readiness %, key progress, what we need today)
+2. **Decisions Needed** — contradictions/choices requiring client input (time-boxed)
+3. **Requirements to Confirm** — unconfirmed items the client should sign off on
+4. **Questions to Discuss** — open gaps rephrased as polished client-facing questions
+5. **Parking Lot** — lower-priority items to mention if time permits (from user's dismissed items)
+6. **Next Steps** — action items template with owner/deadline placeholders
+
+### Step 7: Format Each Question
 For EVERY question in the agenda, provide all 5 elements:
 - **Why**: business impact if not resolved
 - **We know**: current state from MCP data
@@ -116,7 +130,7 @@ For EVERY question in the agenda, provide all 5 elements:
 - **Ask who**: stakeholder name + role
 - **Confirm**: interpretation confirmation prompt ("So when you say X, you mean Y?")
 
-### Step 7: Estimate Duration
+### Step 8: Estimate Duration
 Based on gap count and scope mode:
 - EXPANSION: 60-90 minutes (broad exploration)
 - SELECTIVE: 45-60 minutes (targeted questions)
@@ -125,41 +139,75 @@ Based on gap count and scope mode:
 
 ---
 
-## Output Format
+## Output Format (the .md file — client-facing)
+
+The file you write to `.memory-bank/docs/meeting-prep/` must follow this format.
+NO internal IDs. NO agent commentary. This gets printed and emailed to clients.
 
 ```markdown
-## Meeting Agenda — [Project Name]
-### Mode: [EXPANSION/SELECTIVE/HOLD/REDUCTION]
-### Recommended Duration: [X] minutes
+# Discovery Meeting Agenda
+**Project:** [Project Name]
+**Date:** _______________
+**Attendees:** _______________
+**Estimated duration:** [X] minutes
 
 ---
 
-### 1. Confirm from Last Meeting
-- [Item]: [What to confirm] — "Can you confirm that [X]?"
+## Where we stand
+[2-3 sentences: readiness %, what changed since last meeting, what we need today]
 
-### 2. Critical Gaps (MUST address)
-For each gap:
-- **[Topic]** — Priority: [CRITICAL/HIGH]
-  - Why: [business impact if not resolved]
-  - We know: [current state from MCP data]
-  - Ask: "[specific question]"
-  - Ask who: [stakeholder name + role]
-  - Confirm: "So when you say [X], you mean [Y]?"
+---
 
-### 3. Contradictions to Resolve
-- **[Item A] vs [Item B]**
-  - Context: [what was said, when, by whom]
-  - Ask: "In Meeting 1 you mentioned X, but the email says Y. Which is correct?"
+## 1. Decisions needed ([X] min)
 
-### 4. Assumptions to Validate
-- **[Assumption]** — Risk if wrong: [impact]
-  - Ask: "We're assuming [X]. Is this correct?"
+### [Topic — stated as a question]
+**Why it matters:** [business impact in 1 sentence]
+**What we know:** [current state from MCP data — no IDs]
+**Ask the client:** "[polished question — conversational, not technical]"
+**Desired outcome:** [what "done" looks like for this item]
 
-### 5. Close / Next Steps
-- Remaining gaps after this meeting: ~[N]
-- Suggested next meeting: [when, focus]
-- Documents to request: [list]
+---
+
+## 2. Requirements to confirm ([X] min)
+
+### [Requirement title — client-facing language]
+**Current understanding:** [what we extracted — rephrase, no quotes]
+**Ask:** "Can you confirm [specific aspect]?"
+
+---
+
+## 3. Open questions ([X] min)
+
+### [Question — rephrased for a client conversation]
+**Why it matters:** [what it blocks or enables]
+**Suggested framing:** "[how to ask it in the meeting — conversational]"
+
+---
+
+## 4. Parking lot
+- [Item 1 — if time permits]
+- [Item 2]
+
+---
+
+## Next steps
+- [ ] _______ to confirm _______ by _______
+- [ ] _______ to provide _______ by _______
+- [ ] Follow-up meeting: _______
+
+---
+*Prepared by Discovery AI · Readiness: [X]%*
 ```
+
+## Chat Response (separate from the file)
+
+After writing the file, respond in chat with a SUMMARY:
+- What mode was selected and why
+- How many items in each section
+- Key insight or risk the PM should know
+- "The agenda has been saved to docs/meeting-prep/"
+
+Do NOT repeat the full agenda in chat — the PM reads it in the Meeting Prep tab.
 
 ---
 
