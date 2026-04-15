@@ -434,6 +434,13 @@ export async function listGmailMessages(projectId: string, query?: string, maxRe
   return fetchAPI(`/api/projects/${projectId}/integrations/gmail/messages?${params.toString()}`);
 }
 
+export async function createGmailDraft(projectId: string, subject: string, body: string, to: string = "") {
+  return fetchAPI(`/api/projects/${projectId}/integrations/gmail/draft`, {
+    method: "POST",
+    body: JSON.stringify({ subject, body, to }),
+  });
+}
+
 export async function importGmailMessages(projectId: string, messageIds: string[]): Promise<{ imported: { id: string; document_id: string; filename: string }[]; skipped: { id: string; reason: string }[] }> {
   return fetchAPI(`/api/projects/${projectId}/integrations/gmail/import`, {
     method: "POST",

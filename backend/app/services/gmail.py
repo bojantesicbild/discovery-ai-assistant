@@ -149,6 +149,73 @@ def _strip_html(html: str) -> str:
     return text.strip()
 
 
+def _md_to_html(md: str) -> str:
+    """Convert markdown to styled HTML for email. Produces clean,
+    email-client-compatible HTML with inline styles (no external CSS)."""
+    import re
+    html = md
+    # Headings
+    html = re.sub(r'^### (.+)$', r'<h3 style="font-size:15px;font-weight:700;margin:14px 0 4px;color:#1a1a1a">\1</h3>', html, flags=re.M)
+    html = re.sub(r'^## (.+)$', r'<h2 style="font-size:17px;font-weight:700;margin:18px 0 6px;color:#1a1a1a;border-bottom:1px solid #e5e7eb;padding-bottom:4px">\1</h2>', html, flags=re.M)
+    html = re.sub(r'^# (.+)$', r'<h1 style="font-size:20px;font-weight:800;margin:0 0 10px;color:#1a1a1a">\1</h1>', html, flags=re.M)
+    # HR
+    html = re.sub(r'^---$', '<hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0">', html, flags=re.M)
+    # Bold + italic
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+    # Checkboxes
+    html = re.sub(r'^- \[ \] (.+)$', r'<div style="display:flex;gap:6px;margin:3px 0;padding:4px 8px;background:#f9fafb;border-radius:4px;border:1px solid #e5e7eb;font-size:14px">☐ \1</div>', html, flags=re.M)
+    # Bullets
+    html = re.sub(r'^- (.+)$', r'<li style="margin:2px 0;font-size:14px">\1</li>', html, flags=re.M)
+    # Numbered lists
+    html = re.sub(r'^\d+\. (.+)$', r'<li style="margin:2px 0;font-size:14px;list-style:decimal">\1</li>', html, flags=re.M)
+    # Paragraphs
+    html = html.replace('\n\n', '<br><br>')
+    html = html.replace('\n', '<br>')
+    # Wrap
+    html = f'<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#374151;max-width:640px">{html}</div>'
+    return html
+
+
+async def create_draft(
+    access_token: str,
+    to: str = "",
+    subject: str = "",
+    body: str = "",
+    sender_email: str = "",
+) -> dict:
+    """Create a Gmail draft with HTML-formatted body from markdown."""
+    import base64
+    from email.mime.text import MIMEText
+
+    html_body = _md_to_html(body)
+    mime = MIMEText(html_body, "html", "utf-8")
+    if to:
+        mime["to"] = to
+    mime["subject"] = subject
+
+    raw = base64.urlsafe_b64encode(mime.as_bytes()).decode("ascii")
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.post(
+            f"{GMAIL_API}/users/me/drafts",
+            headers=headers,
+            json={"message": {"raw": raw}},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        msg_id = data.get("message", {}).get("id", "")
+        # Use authuser=email so the link opens in the correct Gmail
+        # account when multiple accounts are logged in
+        auth_param = f"authuser={sender_email}&" if sender_email else ""
+        return {
+            "draft_id": data.get("id"),
+            "message_id": msg_id,
+            "gmail_url": f"https://mail.google.com/mail/u/?{auth_param}#drafts?compose={msg_id}" if msg_id else None,
+        }
+
+
 def format_as_document(message: dict, body: str) -> tuple[str, str]:
     """Build a (filename, markdown_content) tuple suitable for ingestion as
     a Document in the existing pipeline."""

@@ -398,6 +398,53 @@ async def list_gmail_messages(
     return {"messages": messages, "query": q}
 
 
+class GmailDraftRequest(BaseModel):
+    subject: str
+    body: str
+    to: str = ""
+
+
+@router.post("/api/projects/{project_id}/integrations/gmail/draft")
+async def create_gmail_draft(
+    project_id: uuid.UUID,
+    body: GmailDraftRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a Gmail draft email (e.g. for sending the meeting agenda)."""
+    from app.services import gmail as gmail_service
+
+    # Get the connected Gmail email for the account-aware URL
+    result_row = await db.execute(
+        select(ProjectIntegration).where(
+            ProjectIntegration.project_id == project_id,
+            ProjectIntegration.connector_id == "gmail",
+        )
+    )
+    integration = result_row.scalar_one_or_none()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Gmail not connected")
+    config = decrypt_config(integration.config_encrypted)
+    refresh_token = config.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=400, detail="Gmail has no refresh token")
+    sender_email = (integration.metadata_public or {}).get("email", "")
+    try:
+        access_token = await gmail_service.get_access_token(refresh_token)
+        result = await gmail_service.create_draft(
+            access_token,
+            to=body.to,
+            subject=body.subject,
+            body=body.body,
+            sender_email=sender_email,
+        )
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"Gmail API error: {e}")
+
+    log.info("Gmail draft created", project=str(project_id)[:8], subject=body.subject[:50])
+    return {"status": "draft_created", **result}
+
+
 class GmailImportRequest(BaseModel):
     message_ids: list[str]
 

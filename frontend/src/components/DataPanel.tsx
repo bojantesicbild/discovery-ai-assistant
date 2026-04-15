@@ -2159,6 +2159,10 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
   const [roundNumber, setRoundNumber] = useState(0);
   const [copied, setCopied] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [draftingEmail, setDraftingEmail] = useState(false);
+  const [draftSent, setDraftSent] = useState(false);
+  const [draftUrl, setDraftUrl] = useState<string | null>(null);
+  const [gmailConnected, setGmailConnected] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [customTopic, setCustomTopic] = useState("");
   const [customTopics, setCustomTopics] = useState<string[]>([]);
@@ -2202,6 +2206,13 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
     + openGaps.filter((g: any) => getStatus(g.id) === "approved" && g.severity !== "high").length * 3
     + unconfirmedMust.filter((r: any) => getStatus(r.req_id) === "approved").length * 2
     + customTopics.length * 5;
+
+  // Check Gmail connection for "Draft in Gmail" button
+  useEffect(() => {
+    listIntegrations(projectId)
+      .then((d) => setGmailConnected((d.integrations || []).some((i: any) => i.connector_id === "gmail" && i.status === "active")))
+      .catch(() => {});
+  }, [projectId]);
 
   // Load saved agenda + history on mount
   useEffect(() => {
@@ -2312,6 +2323,27 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
     setSaving(false);
   }
 
+  async function handleDraftInGmail() {
+    setDraftingEmail(true);
+    try {
+      const { createGmailDraft } = await import("@/lib/api");
+      const projectName = dashboard?.project_name || "Discovery";
+      const subject = `Discovery Meeting Agenda — ${projectName}`;
+      const body = `Hi team,\n\nPlease find below the agenda for our upcoming discovery meeting. I'd appreciate if you could review it before our session.\n\n${agenda}\n\nPlease let me know if you'd like to add any topics.\n\nBest regards`;
+      const result = await createGmailDraft(projectId, subject, body);
+      setDraftSent(true);
+      if (result.gmail_url) {
+        setDraftUrl(result.gmail_url);
+        // Keep the link visible — don't auto-hide when we have a URL
+      } else {
+        setTimeout(() => setDraftSent(false), 3000);
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to create Gmail draft");
+    }
+    setDraftingEmail(false);
+  }
+
   function handleCopy() {
     navigator.clipboard.writeText(agenda);
     setCopied(true);
@@ -2387,11 +2419,19 @@ Best regards`;
           {!editMode && (
             <>
               <button onClick={handleCopyAsEmail} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
-                {copiedEmail ? "✓ Email copied!" : "Copy as Email"}
+                {copiedEmail ? "✓ Copied!" : "Copy as Email"}
               </button>
-              <button onClick={handleCopy} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
-                {copied ? "✓ Copied!" : "Copy"}
-              </button>
+              {gmailConnected && (
+                draftSent && draftUrl ? (
+                  <a href={draftUrl} target="_blank" rel="noopener noreferrer" style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #059669", background: "#ecfdf5", fontSize: 11, fontWeight: 600, fontFamily: "var(--font)", color: "#059669", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    ✓ Open draft in Gmail →
+                  </a>
+                ) : (
+                  <button onClick={handleDraftInGmail} disabled={draftingEmail} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: draftingEmail ? "default" : "pointer", fontFamily: "var(--font)", color: "var(--gray-600)", opacity: draftingEmail ? 0.6 : 1 }}>
+                    {draftingEmail ? "Creating..." : "Draft in Gmail"}
+                  </button>
+                )
+              )}
               <button onClick={handleDownload} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
                 Download
               </button>
