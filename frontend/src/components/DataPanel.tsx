@@ -6,7 +6,8 @@ import {
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
-  listIntegrations,
+  listIntegrations, getMeetingAgenda, saveMeetingAgenda, createNewAgenda,
+  chatStream,
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
@@ -979,6 +980,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {activeTab === "meeting" && (
           <div className="dp-tab-content active">
             <MeetingPrepTab
+              projectId={projectId}
               contradictions={openContras}
               gaps={gaps}
               requirements={requirements}
@@ -2145,274 +2147,231 @@ function ReadinessChecklist({ requirements, constraints, contradictions, dashboa
   );
 }
 
-function MeetingPrepTab({ contradictions, gaps, requirements, constraints, dashboard }: {
-  contradictions: any[]; gaps: any[]; requirements: any[]; constraints: any[]; dashboard: any;
+function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constraints, dashboard }: {
+  projectId: string; contradictions: any[]; gaps: any[]; requirements: any[]; constraints: any[]; dashboard: any;
 }) {
-  const unconfirmed = requirements.filter((r: any) => r.status === "assumed" || r.status === "pending");
+  const [agenda, setAgenda] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [roundNumber, setRoundNumber] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [lastEdited, setLastEdited] = useState<string | null>(null);
 
-  // Track approved/dismissed state per item
-  const [statuses, setStatuses] = useState<Record<string, "approved" | "dismissed">>({});
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Load saved agenda on mount
+  useEffect(() => {
+    getMeetingAgenda(projectId).then((d) => {
+      if (d.content_md) {
+        setAgenda(d.content_md);
+        setRoundNumber(d.round_number || 0);
+        setLastEdited(d.edited_at || d.created_at || null);
+      }
+    }).catch(() => {});
+  }, [projectId]);
 
-  function approve(id: string) {
-    setStatuses((s) => ({ ...s, [id]: s[id] === "approved" ? undefined as any : "approved" }));
-  }
-  function dismiss(id: string) {
-    setStatuses((s) => ({ ...s, [id]: s[id] === "dismissed" ? undefined as any : "dismissed" }));
-  }
+  async function handleGenerate() {
+    setGenerating(true);
+    const unconfirmedReqs = requirements.filter((r: any) => r.status !== "confirmed" && r.priority === "must");
+    const openGaps = gaps.filter((g: any) => g.status === "open");
+    const readiness = dashboard?.readiness?.score || 0;
 
-  const getStatus = (id: string) => statuses[id];
+    const prompt = `Generate a structured meeting agenda for the next client discovery meeting.
 
-  // Filter out dismissed items for counts
-  const activeContras = contradictions.filter((c) => getStatus(c.id) !== "dismissed");
-  const activeGaps = gaps.filter((g) => getStatus(g.id) !== "dismissed");
-  const activeUnconfirmed = unconfirmed.filter((r) => getStatus(r.req_id) !== "dismissed");
+Current project state:
+- Readiness: ${readiness}%
+- ${requirements.length} requirements total, ${unconfirmedReqs.length} must-haves still unconfirmed
+- ${openGaps.length} open gaps (${openGaps.filter((g: any) => g.severity === "high").length} high severity)
+- ${contradictions.length} unresolved contradictions
+- ${constraints.length} active constraints
 
-  const approvedCount = Object.values(statuses).filter((s) => s === "approved").length;
-  const totalItems = activeContras.length + activeGaps.length + activeUnconfirmed.length;
+Unconfirmed MUST requirements to discuss:
+${unconfirmedReqs.slice(0, 8).map((r: any) => `- ${r.req_id}: ${r.title}`).join("\n") || "None"}
 
-  // Calculate time per item based on status
-  function itemTime(id: string, baseMin: number) {
-    const st = getStatus(id);
-    if (st === "dismissed") return 0;
-    return baseMin;
-  }
+High-severity open gaps:
+${openGaps.filter((g: any) => g.severity === "high").slice(0, 8).map((g: any) => `- ${g.gap_id}: ${g.question} (blocks: ${(g.blocked_reqs || []).join(", ") || "none"})`).join("\n") || "None"}
 
-  const approvedMin =
-    contradictions.filter((c) => getStatus(c.id) === "approved").length * 10
-    + gaps.filter((g) => getStatus(g.id) === "approved" && g.severity === "high").length * 5
-    + gaps.filter((g) => getStatus(g.id) === "approved" && g.severity !== "high").length * 3
-    + unconfirmed.filter((r) => getStatus(r.req_id) === "approved").length * 2;
+Open contradictions:
+${contradictions.slice(0, 5).map((c: any) => `- ${c.explanation?.slice(0, 100)}`).join("\n") || "None"}
 
-  const pendingMin =
-    contradictions.filter((c) => !getStatus(c.id)).length * 10
-    + gaps.filter((g) => !getStatus(g.id) && g.severity === "high").length * 5
-    + gaps.filter((g) => !getStatus(g.id) && g.severity !== "high").length * 3
-    + unconfirmed.filter((r) => !getStatus(r.req_id)).length * 2;
+Format as a clean markdown agenda with:
+1. A brief summary of where the project stands
+2. Requirements to confirm (prioritized — most important first)
+3. Questions to ask the client (from open gaps — rephrase as polished client-facing questions)
+4. Contradictions to resolve (if any)
+5. Next steps / action items placeholder
 
-  const estimatedMin = approvedMin + pendingMin;
+Keep it concise — this will be printed or shared with the client. Use markdown headers, bullet points, and bold for emphasis. Do NOT include internal IDs like BR-001 or GAP-003 — the client doesn't need to see those.`;
 
-  const allItems = contradictions.length + gaps.length + unconfirmed.length;
-
-  if (allItems === 0) {
-    return (
-      <EmptyState
-        icon="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
-        text="No items for the agenda. All requirements confirmed, no gaps or contradictions."
-      />
+    let result = "";
+    chatStream(
+      projectId,
+      prompt,
+      (text) => { result += text; setAgenda(result); },
+      async () => {
+        setGenerating(false);
+        // Save to DB as a new round
+        try {
+          await createNewAgenda(projectId, result);
+          setRoundNumber((r) => r + 1);
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        } catch {}
+      },
+      () => { setGenerating(false); },
     );
   }
 
-  function ItemActions({ id }: { id: string }) {
-    const st = getStatus(id);
-    return (
-      <div style={{ display: "flex", gap: 4, marginLeft: "auto", flexShrink: 0 }}>
-        <button
-          title={st === "approved" ? "Remove from agenda" : "Approve for meeting"}
-          onClick={(e) => { e.stopPropagation(); approve(id); }}
-          style={{
-            width: 26, height: 26, borderRadius: 6, border: "none",
-            background: st === "approved" ? "#d1fae5" : "var(--gray-100)",
-            color: st === "approved" ? "#059669" : "var(--gray-400)",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 14, transition: "all 0.15s",
-          }}
-        >
-          ✓
-        </button>
-        <button
-          title={st === "dismissed" ? "Restore to agenda" : "Dismiss from agenda"}
-          onClick={(e) => { e.stopPropagation(); dismiss(id); }}
-          style={{
-            width: 26, height: 26, borderRadius: 6, border: "none",
-            background: st === "dismissed" ? "#fee2e2" : "var(--gray-100)",
-            color: st === "dismissed" ? "#EF4444" : "var(--gray-400)",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, transition: "all 0.15s",
-          }}
-        >
-          ✕
-        </button>
-      </div>
-    );
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveMeetingAgenda(projectId, agenda);
+      setSaved(true);
+      setLastEdited(new Date().toISOString());
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+    setSaving(false);
   }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(agenda);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleDownload() {
+    const blob = new Blob([agenda], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `meeting-agenda-round-${roundNumber || "draft"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Summary stats for the header
+  const unconfirmedMust = requirements.filter((r: any) => r.status !== "confirmed" && r.priority === "must").length;
+  const openGapCount = gaps.filter((g: any) => g.status === "open").length;
+  const highGaps = gaps.filter((g: any) => g.status === "open" && g.severity === "high").length;
 
   return (
-    <div className="mp-container">
-      <div className="mp-header">
-        <div className="mp-badge">AI-Generated Agenda</div>
-        <div className="mp-title">Next Meeting — Agenda</div>
-        <div className="mp-date">
-          {totalItems} item{totalItems !== 1 ? "s" : ""} to discuss
-          {approvedCount > 0 && <span style={{ color: "#059669", marginLeft: 6 }}>· {approvedCount} approved</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Header with stats + actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)" }}>
+            Meeting Agenda {roundNumber > 0 && <span style={{ fontSize: 11, fontWeight: 500, color: "var(--gray-500)" }}>· Round {roundNumber}</span>}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>
+            {unconfirmedMust} must-haves to confirm · {openGapCount} open gaps ({highGaps} high) · {contradictions.length} conflicts
+            {lastEdited && <span> · Last edited {new Date(lastEdited).toLocaleDateString()}</span>}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {agenda && !editMode && (
+            <>
+              <button onClick={handleCopy} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
+                {copied ? "\u2713 Copied!" : "Copy"}
+              </button>
+              <button onClick={handleDownload} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--gray-200)", background: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)", color: "var(--gray-600)" }}>
+                Download
+              </button>
+            </>
+          )}
+          {agenda && (
+            <button
+              onClick={() => { if (editMode) handleSave(); setEditMode(!editMode); }}
+              style={{
+                padding: "6px 14px", borderRadius: 8,
+                border: editMode ? "1px solid var(--green)" : "1px solid var(--gray-200)",
+                background: editMode ? "var(--green-light)" : "#fff",
+                fontSize: 11, fontWeight: 600, cursor: "pointer",
+                fontFamily: "var(--font)",
+                color: editMode ? "var(--green-hover)" : "var(--gray-600)",
+              }}
+            >
+              {editMode ? (saving ? "Saving..." : saved ? "\u2713 Saved" : "Save & Preview") : "Edit"}
+            </button>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "6px 16px", borderRadius: 8, border: "none",
+              background: "var(--green)", color: "var(--dark)",
+              fontSize: 12, fontWeight: 700, cursor: generating ? "default" : "pointer",
+              fontFamily: "var(--font)", opacity: generating ? 0.7 : 1,
+              boxShadow: "0 1px 3px rgba(0,229,160,0.25)",
+            }}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 13, height: 13, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            {generating ? "Generating..." : agenda ? "Regenerate" : "Generate Agenda"}
+          </button>
         </div>
       </div>
 
-      {/* Readiness Checklist */}
-      <ReadinessChecklist
-        requirements={requirements}
-        constraints={constraints}
-        contradictions={contradictions}
-        dashboard={dashboard}
-      />
-
-      {/* Contradictions */}
-      {contradictions.length > 0 && (
-        <div className="mp-section">
-          <div className="mp-section-head">
-            <div className="mp-section-icon" style={{ background: "#EF444420", color: "#EF4444" }}>!</div>
-            <div className="mp-section-title">Resolve Contradictions ({activeContras.length})</div>
+      {/* Content: markdown editor or preview */}
+      {!agenda && !generating ? (
+        <div style={{
+          padding: "60px 20px", textAlign: "center", borderRadius: 12,
+          border: "2px dashed var(--gray-200)", background: "var(--gray-50)",
+        }}>
+          <svg viewBox="0 0 24 24" style={{ width: 40, height: 40, stroke: "var(--gray-300)", fill: "none", strokeWidth: 1.5, margin: "0 auto 12px" }}>
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "var(--gray-600)", marginBottom: 4 }}>
+            No agenda yet
           </div>
-          {contradictions.map((c: any) => {
-            const st = getStatus(c.id);
-            const isOpen = expandedId === c.id;
-            return (
-              <div key={c.id}>
-                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : c.id)} style={{
-                  opacity: st === "dismissed" ? 0.4 : 1,
-                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
-                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
-                  cursor: "pointer", transition: "all 0.2s",
-                }}>
-                  <div className="mp-item-priority high">Critical</div>
-                  <div className="mp-item-body">
-                    <div className="mp-item-question">{c.explanation?.slice(0, 80)}</div>
-                    <div className="mp-item-context">{c.item_a_type} vs {c.item_b_type}</div>
-                  </div>
-                  <ItemActions id={c.id} />
-                  <div className="mp-time-est">~10 min</div>
-                </div>
-                {isOpen && (
-                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
-                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Contradiction Details</div>
-                    <div>{c.explanation}</div>
-                    {c.item_a_ref && <div style={{ marginTop: 6 }}><strong>Item A:</strong> {c.item_a_ref}</div>}
-                    {c.item_b_ref && <div><strong>Item B:</strong> {c.item_b_ref}</div>}
-                    {c.resolution_note && <div style={{ marginTop: 6, padding: "6px 10px", background: "#d1fae5", borderRadius: 6, color: "#059669" }}><strong>Resolution:</strong> {c.resolution_note}</div>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          <div style={{ fontSize: 12, color: "var(--gray-400)", lineHeight: 1.6, maxWidth: 400, margin: "0 auto" }}>
+            Click <strong>Generate Agenda</strong> to have the AI create a structured meeting agenda
+            based on your open gaps, unconfirmed requirements, and contradictions.
+          </div>
         </div>
+      ) : editMode ? (
+        <textarea
+          value={agenda}
+          onChange={(e) => setAgenda(e.target.value)}
+          style={{
+            width: "100%", minHeight: 500, padding: "16px 18px",
+            borderRadius: 10, border: "1px solid var(--green-mid)",
+            background: "#fff", fontSize: 13, lineHeight: 1.7,
+            fontFamily: "monospace", resize: "vertical", outline: "none",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            padding: "20px 24px", borderRadius: 10,
+            border: "1px solid var(--gray-200)", background: "#fff",
+            fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
+          }}
+          dangerouslySetInnerHTML={{ __html: _renderMeetingMd(agenda) }}
+        />
       )}
-
-      {/* Gaps */}
-      {gaps.length > 0 && (
-        <div className="mp-section">
-          <div className="mp-section-head">
-            <div className="mp-section-icon" style={{ background: "#F59E0B20", color: "#F59E0B" }}>?</div>
-            <div className="mp-section-title">Close Gaps ({activeGaps.length})</div>
-          </div>
-          {gaps.sort((a: any, b: any) => a.severity === "high" ? -1 : b.severity === "high" ? 1 : 0).map((g: any) => {
-            const st = getStatus(g.id);
-            const isOpen = expandedId === g.id;
-            return (
-              <div key={g.id}>
-                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : g.id)} style={{
-                  opacity: st === "dismissed" ? 0.4 : 1,
-                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
-                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
-                  cursor: "pointer", transition: "all 0.2s",
-                }}>
-                  <div className={`mp-item-priority ${g.severity}`}>{g.severity === "high" ? "High" : g.severity === "medium" ? "Med" : "Low"}</div>
-                  <div className="mp-item-body">
-                    <div className="mp-item-question">{g.question}</div>
-                    <div className="mp-item-context">Area: {g.area}</div>
-                  </div>
-                  <ItemActions id={g.id} />
-                  <div className="mp-time-est">~{g.severity === "high" ? 5 : 3} min</div>
-                </div>
-                {isOpen && (
-                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
-                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Gap Details</div>
-                    <div><strong>ID:</strong> {g.gap_id}</div>
-                    <div><strong>Question:</strong> {g.question}</div>
-                    <div><strong>Severity:</strong> {g.severity} · <strong>Area:</strong> {g.area}</div>
-                    {g.source_quote && <div style={{ marginTop: 6, padding: "6px 10px", borderLeft: "3px solid var(--green)", background: "#f0fdf8", borderRadius: "0 6px 6px 0", fontStyle: "italic" }}>"{g.source_quote}"</div>}
-                    {g.source_person && <div style={{ marginTop: 4 }}><strong>Raised by:</strong> {g.source_person}</div>}
-                    {g.suggested_action && <div style={{ marginTop: 6 }}><strong>Suggested action:</strong> {g.suggested_action}</div>}
-                    {g.blocked_reqs?.length > 0 && <div style={{ marginTop: 4 }}><strong>Blocks:</strong> {g.blocked_reqs.join(", ")}</div>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Unconfirmed requirements */}
-      {unconfirmed.length > 0 && (
-        <div className="mp-section">
-          <div className="mp-section-head">
-            <div className="mp-section-icon" style={{ background: "#3B82F620", color: "#3B82F6" }}>?</div>
-            <div className="mp-section-title">Confirm Requirements ({activeUnconfirmed.length})</div>
-          </div>
-          {unconfirmed.map((r: any) => {
-            const st = getStatus(r.req_id);
-            const isOpen = expandedId === r.req_id;
-            return (
-              <div key={r.req_id}>
-                <div className="mp-item" onClick={() => setExpandedId(isOpen ? null : r.req_id)} style={{
-                  opacity: st === "dismissed" ? 0.4 : 1,
-                  background: st === "approved" ? "#f0fdf8" : isOpen ? "var(--gray-50)" : undefined,
-                  borderColor: st === "approved" ? "#059669" : isOpen ? "var(--green)" : undefined,
-                  cursor: "pointer", transition: "all 0.2s",
-                }}>
-                  <div className={`mp-item-priority ${r.priority === "must" ? "high" : "medium"}`}>{r.priority === "must" ? "Must" : "Should"}</div>
-                  <div className="mp-item-body">
-                    <div className="mp-item-question">{r.title}</div>
-                    <div className="mp-item-context">{r.req_id} · Status: {r.status}</div>
-                  </div>
-                  <ItemActions id={r.req_id} />
-                  <div className="mp-time-est">~2 min</div>
-                </div>
-                {isOpen && (
-                  <div style={{ padding: "10px 16px 14px", marginTop: -1, border: "1px solid var(--gray-200)", borderTop: "none", borderRadius: "0 0 8px 8px", background: "var(--gray-50)", fontSize: 12, lineHeight: 1.6, color: "var(--gray-600)" }}>
-                    <div style={{ fontWeight: 600, color: "var(--dark)", marginBottom: 6 }}>Requirement Details</div>
-                    <div><strong>ID:</strong> {r.req_id} · <strong>Priority:</strong> {r.priority} · <strong>Confidence:</strong> {r.confidence}</div>
-                    <div style={{ marginTop: 6 }}>{r.description}</div>
-                    {r.user_perspective && <div style={{ marginTop: 6 }}><strong>User perspective:</strong> {r.user_perspective}</div>}
-                    {r.business_rules?.length > 0 && (
-                      <div style={{ marginTop: 6 }}>
-                        <strong>Business rules:</strong>
-                        <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-                          {r.business_rules.map((rule: string, i: number) => <li key={i}>{rule}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                    {r.source_quote && <div style={{ marginTop: 6, padding: "6px 10px", borderLeft: "3px solid var(--green)", background: "#f0fdf8", borderRadius: "0 6px 6px 0", fontStyle: "italic" }}>"{r.source_quote}"</div>}
-                    {r.source_doc && <div style={{ marginTop: 4 }}><strong>Source:</strong> {r.source_doc}</div>}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Total */}
-      <div className="mp-total">
-        <div className="mp-total-label">Estimated meeting duration</div>
-        <div className="mp-total-val">{estimatedMin} min</div>
-        {(approvedMin > 0 || pendingMin > 0) && (
-          <div style={{ display: "flex", gap: 12, marginTop: 6, fontSize: 11 }}>
-            {approvedMin > 0 && (
-              <span style={{ color: "#059669", fontWeight: 600 }}>
-                {approvedMin} min approved
-              </span>
-            )}
-            {pendingMin > 0 && (
-              <span style={{ color: "var(--gray-400)", fontWeight: 500 }}>
-                {pendingMin} min pending
-              </span>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
+
+function _renderMeetingMd(md: string): string {
+  // Simple markdown → HTML for the agenda preview
+  let html = md
+    .replace(/^### (.+)$/gm, "<h3 style=\"font-size:14px;font-weight:700;margin:16px 0 6px;color:var(--dark)\">$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2 style=\"font-size:16px;font-weight:800;margin:20px 0 8px;color:var(--dark);border-bottom:1px solid var(--gray-100);padding-bottom:6px\">$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1 style=\"font-size:20px;font-weight:800;margin:0 0 12px;color:var(--dark)\">$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/^- (.+)$/gm, "<li style=\"margin:3px 0;padding-left:4px\">$1</li>")
+    .replace(/^\d+\. (.+)$/gm, "<li style=\"margin:3px 0;padding-left:4px;list-style:decimal\">$1</li>")
+    .replace(/(<li.*<\/li>)/g, "<ul style=\"margin:4px 0 8px 16px;padding:0\">$1</ul>")
+    .replace(/<\/ul>\s*<ul[^>]*>/g, "")
+    .replace(/\n\n/g, "<br><br>")
+    .replace(/\n/g, "<br>");
+  return html;
+}
+
 
 function SourceBadge({ source, autoSynced }: { source?: string; autoSynced?: boolean }) {
   if (!source || source === "upload") return null;

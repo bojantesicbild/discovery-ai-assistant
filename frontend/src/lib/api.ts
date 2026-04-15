@@ -580,6 +580,25 @@ export async function getItemHistory(
   return fetchAPI(`/api/projects/${projectId}/items/${itemType}/${itemId}/history`);
 }
 
+// Meeting Agenda
+export async function getMeetingAgenda(projectId: string) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda`);
+}
+
+export async function saveMeetingAgenda(projectId: string, contentMd: string) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda`, {
+    method: "PUT",
+    body: JSON.stringify({ content_md: contentMd }),
+  });
+}
+
+export async function createNewAgenda(projectId: string, contentMd: string) {
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/new`, {
+    method: "POST",
+    body: JSON.stringify({ content_md: contentMd }),
+  });
+}
+
 // Wiki
 export async function getWikiFiles(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/files`);
