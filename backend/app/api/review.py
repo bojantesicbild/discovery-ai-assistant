@@ -422,6 +422,32 @@ async def submit_review(
     except Exception as e:
         log.warning("Readiness re-evaluation failed after review", error=str(e))
 
+    # Post system message in the chat (same pattern as document_ingested)
+    try:
+        from app.services.conversation_store import append_system_message
+        client_label = rt.client_name or "Client"
+        notice = (
+            f"{client_label} submitted review round {rt.round_number}: "
+            f"{confirmed} confirmed, {discussed} flagged, {gaps_answered} gaps answered"
+        )
+        if readiness_score is not None:
+            notice += f" — readiness now {readiness_score}%"
+        await append_system_message(
+            db, rt.project_id, notice,
+            kind="client_review_submitted",
+            data={
+                "round": rt.round_number,
+                "client_name": rt.client_name,
+                "confirmed": confirmed,
+                "discussed": discussed,
+                "gaps_answered": gaps_answered,
+                "readiness": readiness_score,
+                "submission_id": str(submission.id),
+            },
+        )
+    except Exception as e:
+        log.warning("Failed to post review chat message", error=str(e))
+
     log.info(
         "Client review submitted",
         project=str(rt.project_id)[:8],

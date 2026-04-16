@@ -500,13 +500,15 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
 
         {messages.map((msg, i) => {
           if (msg.role === "system") {
-            // Render only the first of a consecutive run; subsequent
-            // system messages get folded into the same group below.
+            // Group only consecutive system messages of the same kind.
+            // This keeps document ingestions and review submissions in
+            // separate, distinctly styled groups.
             const prev = i > 0 ? messages[i - 1] : null;
-            if (prev && prev.role === "system") return null;
+            if (prev && prev.role === "system" && (prev.kind || "system") === (msg.kind || "system")) return null;
             const run: Message[] = [];
             let j = i;
-            while (j < messages.length && messages[j].role === "system") {
+            const thisKind = msg.kind || "system";
+            while (j < messages.length && messages[j].role === "system" && (messages[j].kind || "system") === thisKind) {
               run.push(messages[j]);
               j++;
             }
@@ -1041,6 +1043,31 @@ function ProcessingIndicator({ source }: { source?: string }) {
 
 function SystemNoticeGroup({ messages, projectId }: { messages: Message[]; projectId: string }) {
   if (messages.length === 0) return null;
+  const kind = messages[0].kind || "system";
+  const isClientReview = kind === "client_review_submitted";
+
+  // Header theming by kind
+  const headerStyle = isClientReview
+    ? { color: "#7c3aed", background: "#f5f3ff" }
+    : { color: "#059669", background: "var(--green-light)" };
+
+  const headerIcon = isClientReview ? (
+    <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+      <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+      <circle cx="8.5" cy="7" r="4" />
+      <path d="M20 8v6M23 11h-6" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+
+  const headerLabel = isClientReview
+    ? `${messages.length} client review${messages.length !== 1 ? "s" : ""} submitted`
+    : `${messages.length} document${messages.length !== 1 ? "s" : ""} processed`;
+
   return (
     <div style={{
       // Indent left to align with chat message bubbles (avatar 30px + gap 12px)
@@ -1065,8 +1092,8 @@ function SystemNoticeGroup({ messages, projectId }: { messages: Message[]; proje
         fontWeight: 700,
         textTransform: "uppercase",
         letterSpacing: 0.6,
-        color: "#059669",
-        background: "var(--green-light)",
+        color: headerStyle.color,
+        background: headerStyle.background,
         borderBottom: "1px solid var(--gray-100)",
         borderTopLeftRadius: 9,
         borderTopRightRadius: 9,
@@ -1074,11 +1101,8 @@ function SystemNoticeGroup({ messages, projectId }: { messages: Message[]; proje
         alignItems: "center",
         gap: 6,
       }}>
-        <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-        {messages.length} document{messages.length !== 1 ? "s" : ""} processed
+        {headerIcon}
+        {headerLabel}
       </div>
       {messages.map((msg, i) => (
         <SystemNotice
@@ -1112,6 +1136,20 @@ function SystemNotice({
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(false);
   const data = (msg.data || {}) as Record<string, unknown>;
+
+  // Client review submission has a distinct shape — render a separate row.
+  if (msg.kind === "client_review_submitted") {
+    return (
+      <ClientReviewNotice
+        msg={msg}
+        projectId={projectId}
+        grouped={grouped}
+        isFirst={isFirst}
+        isLast={isLast}
+      />
+    );
+  }
+
   const source = (data.source as string) || "upload";
   const auto = Boolean(data.auto_synced);
   const filename = (data.filename as string) || "Document";
@@ -1352,6 +1390,211 @@ function SystemNotice({
     </div>
   );
 }
+
+/* ── Client review submission notice ── */
+
+function ClientReviewNotice({
+  msg,
+  projectId,
+  grouped = false,
+  isFirst = true,
+  isLast = true,
+}: {
+  msg: Message;
+  projectId: string;
+  grouped?: boolean;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const data = (msg.data || {}) as Record<string, unknown>;
+  const round = (data.round as number) ?? 1;
+  const clientName = (data.client_name as string) || "Client";
+  const confirmed = (data.confirmed as number) || 0;
+  const discussed = (data.discussed as number) || 0;
+  const gapsAnswered = (data.gaps_answered as number) || 0;
+  const readiness = data.readiness as number | undefined;
+  const totalDecisions = confirmed + discussed;
+  const confirmRate = totalDecisions > 0 ? Math.round((confirmed / totalDecisions) * 100) : 0;
+
+  const theme = { bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed", chipBg: "#ede9fe" };
+
+  const openReview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/projects/${projectId}/review`);
+  };
+
+  const hasDetails = totalDecisions > 0 || gapsAnswered > 0 || typeof readiness === "number";
+
+  const wrapperStyle: React.CSSProperties = grouped
+    ? {
+        borderTop: isFirst ? "none" : "1px solid var(--gray-100, #f1f5f9)",
+        background: theme.bg,
+        fontSize: 11, color: "var(--gray-700)",
+      }
+    : {
+        margin: "4px 0", borderRadius: 8,
+        background: theme.bg, border: `1px solid ${theme.border}`,
+        fontSize: 11, color: "var(--gray-700)",
+      };
+
+  void isLast;
+
+  return (
+    <div style={wrapperStyle}>
+      {/* Row */}
+      <div
+        onClick={hasDetails ? () => setExpanded(!expanded) : undefined}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 10px",
+          cursor: hasDetails ? "pointer" : "default",
+          minHeight: 22,
+        }}
+      >
+        {/* Round badge */}
+        <span style={{
+          fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 4,
+          background: "#fff", color: theme.color, border: `1px solid ${theme.border}`,
+          flexShrink: 0, letterSpacing: 0.3,
+        }}>
+          R{round}
+        </span>
+
+        {/* Client name + action */}
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)", whiteSpace: "nowrap" }}>
+          {clientName}
+        </span>
+        <span style={{ fontSize: 11, color: "var(--gray-500)" }}>submitted review</span>
+
+        {/* Stat chips */}
+        <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+          {confirmed > 0 && (
+            <span style={{
+              padding: "1px 6px", borderRadius: 4,
+              background: "#d1fae5", color: "#059669",
+              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+            }}>
+              ✓ {confirmed} confirmed
+            </span>
+          )}
+          {discussed > 0 && (
+            <span style={{
+              padding: "1px 6px", borderRadius: 4,
+              background: "#fef3c7", color: "#d97706",
+              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+            }}>
+              ⚑ {discussed} flagged
+            </span>
+          )}
+          {gapsAnswered > 0 && (
+            <span style={{
+              padding: "1px 6px", borderRadius: 4,
+              background: theme.chipBg, color: theme.color,
+              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+            }}>
+              ? {gapsAnswered} gaps answered
+            </span>
+          )}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Readiness */}
+        {typeof readiness === "number" && (
+          <span style={{ fontSize: 10, color: "var(--gray-500)", whiteSpace: "nowrap", flexShrink: 0 }}>
+            <strong style={{ color: "var(--dark)" }}>{readiness}%</strong>
+          </span>
+        )}
+
+        {/* Open review page button */}
+        <button
+          onClick={openReview}
+          title="Open Client Review page"
+          style={{
+            padding: "3px 9px", borderRadius: 5,
+            background: "#fff", color: theme.color,
+            border: `1px solid ${theme.border}`,
+            fontSize: 10, fontWeight: 700, cursor: "pointer",
+            fontFamily: "inherit", flexShrink: 0,
+            display: "inline-flex", alignItems: "center", gap: 3,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = theme.chipBg; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
+        >
+          View
+          <svg viewBox="0 0 24 24" style={{ width: 8, height: 8, stroke: "currentColor", fill: "none", strokeWidth: 3 }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+
+        {/* Expand chevron */}
+        {hasDetails && (
+          <svg viewBox="0 0 24 24" style={{
+            width: 10, height: 10, stroke: "var(--gray-400)", fill: "none",
+            strokeWidth: 2.5, flexShrink: 0,
+            transform: expanded ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s",
+          }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        )}
+      </div>
+
+      {/* Expanded details */}
+      {expanded && hasDetails && (
+        <div style={{
+          padding: "0 10px 10px 24px",
+          display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          {/* Confirmation progress bar */}
+          {totalDecisions > 0 && (
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+                <span style={{ fontSize: 9, fontWeight: 600, color: "var(--gray-500)" }}>
+                  Confirmation rate ({confirmed}/{totalDecisions})
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: confirmRate >= 80 ? "#059669" : confirmRate >= 50 ? "#d97706" : "#dc2626",
+                }}>
+                  {confirmRate}%
+                </span>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)", overflow: "hidden" }}>
+                <div style={{
+                  height: "100%", borderRadius: 2,
+                  width: `${confirmRate}%`,
+                  background: confirmRate >= 80 ? "#059669" : confirmRate >= 50 ? "#d97706" : "#dc2626",
+                  transition: "width 0.5s ease",
+                }} />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={openReview}
+            style={{
+              padding: "6px 10px", borderRadius: 6,
+              background: "#fff", color: theme.color,
+              border: `1px solid ${theme.border}`,
+              fontSize: 10, fontWeight: 700, cursor: "pointer",
+              fontFamily: "inherit", alignSelf: "flex-start",
+              display: "inline-flex", alignItems: "center", gap: 5,
+            }}
+          >
+            <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
+              <path d="M15 3h6v6M14 10l7-7M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+            </svg>
+            View full response in Client Review
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function SlackBadge({ msg }: { msg: Message }) {
   const channel = msg.slack_channel_name ? `#${msg.slack_channel_name}` : null;
