@@ -58,7 +58,7 @@ Cross-cutting
 
 ---
 
-## The three contracts
+## The four contracts
 
 Every agent and the orchestrator inherit these. Agents may extend; they must not weaken.
 
@@ -114,6 +114,34 @@ I need one thing before I start: [the specific ambiguity].
 ```
 
 Three options, concrete verbs, one question. This is the only place `(a)/(b)/(c)` is allowed — because it's a *question*, not a conclusion.
+
+### 4. Artifact Ownership Contract
+
+Vault files fall into two categories. Agents must know which they are touching.
+
+**Pipeline-owned — derived from the DB, regenerated on every ingest.** Never edit directly. To change one, go through the MCP (`store_finding`, `update_requirement_status`) or the web UI; the next pipeline run writes the new content.
+
+- `.memory-bank/dashboard.md` · `hot.md` · `schema.md` · `docs/discovery/index.md` · `docs/discovery/log.md`
+- Per-item files:
+  - `docs/discovery/requirements/BR-NNN.md`
+  - `docs/discovery/gaps/GAP-NNN.md`
+  - `docs/discovery/constraints/CON-NNN.md`
+  - `docs/discovery/decisions/DEC-NNN.md`
+  - `docs/discovery/people/<name>.md`
+  - `docs/discovery/assumptions/ASM-NNN.md`
+  - `docs/discovery/scope/SCO-NNN.md`
+  - `docs/discovery/contradictions/CTR-NNN.md`
+
+Per-item files end with an `<!-- END-GENERATED — hand-edits below this line are preserved across pipeline re-renders -->` marker. Everything above it is rewritten by the pipeline; everything below is carried forward verbatim. PM notes, meeting captures, and follow-up context go below the marker and are safe across ingests.
+
+**Agent-owned — authored by an agent, only rewritten when the agent is explicitly re-invoked.** Edit freely. The pipeline never touches these.
+
+- Discovery deliverables: `docs/discovery/discovery-brief.md` · `docs/discovery/mvp-scope-freeze.md` · `docs/discovery/functional-requirements.md`
+- Chain outputs: `docs/meeting-prep/*` · `docs/research-sessions/*` · `docs/tech-docs/*` · `docs/test-cases/*` · `docs/defects/*` · `docs/reports/*` · `docs/completed-tasks/*`
+- Core context: `project-brief.md` · `system-patterns.md` · `tech-context.md` · `gotchas.md`
+- State: `active-task.md` · `active-tasks/[domain].md` · `learnings.jsonl`
+
+**Rule of thumb:** if the filename matches a DB row (BR-NNN, GAP-NNN, CON-NNN, DEC-NNN, ASM-NNN, SCO-NNN, CTR-NNN, or a stakeholder name), it is pipeline-owned — mutate through the MCP, not the file. Everything else is agent-owned and safe to write directly.
 
 ---
 
