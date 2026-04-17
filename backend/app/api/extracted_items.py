@@ -225,6 +225,8 @@ async def list_gaps(
         "suggested_action": g.suggested_action,
         "status": g.status,
         "resolution": g.resolution,
+        "closed_at": g.closed_at.isoformat() if g.closed_at else None,
+        "closed_by": g.closed_by,
         "created_at": g.created_at.isoformat() if g.created_at else None,
     } for g, doc_name in rows]
     await _attach_seen(items, db, user.id, project_id, "gap")
@@ -236,20 +238,33 @@ async def resolve_gap(
     project_id: uuid.UUID,
     gap_id: str,
     resolution: str = Query(...),
+    status: str = Query("resolved"),  # "resolved" | "dismissed" | "open" (for reopen)
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    from datetime import datetime, timezone
     result = await db.execute(
         select(Gap).where(Gap.project_id == project_id, Gap.gap_id == gap_id)
     )
     gap = result.scalar_one_or_none()
     if not gap:
         return {"error": "Not found"}
-    gap.status = "resolved"
+    # Validate status — the enum allows open/in-progress/resolved/dismissed.
+    # We treat empty resolution (via reopen flow) as a signal to clear closure.
+    if status not in ("resolved", "dismissed", "open", "in-progress"):
+        status = "resolved"
+    gap.status = status
     gap.resolution = resolution
+    if status in ("resolved", "dismissed"):
+        gap.closed_at = datetime.now(timezone.utc)
+        gap.closed_by = user.email
+    else:
+        # Reopen: clear the closure stamp.
+        gap.closed_at = None
+        gap.closed_by = None
     await db.flush()
     await _sync_markdown(project_id, db)
-    return {"id": str(gap.id), "status": gap.status}
+    return {"id": str(gap.id), "status": gap.status, "closed_at": gap.closed_at.isoformat() if gap.closed_at else None}
 
 
 @router.patch("/contradictions/{contradiction_id}/resolve")

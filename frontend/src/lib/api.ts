@@ -89,6 +89,28 @@ export async function getDocumentContent(projectId: string, documentId: string) 
   return fetchAPI(`/api/projects/${projectId}/documents/${documentId}/content`);
 }
 
+// Client review feedback (aggregated per item across all submissions)
+export interface ReqClientFeedback {
+  action: "confirm" | "discuss";
+  note: string | null;
+  round: number;
+  submitted_at: string | null;
+  client_name: string | null;
+}
+export interface GapClientFeedback {
+  action: "answer";
+  answer: string | null;
+  round: number;
+  submitted_at: string | null;
+  client_name: string | null;
+}
+export async function getClientFeedback(projectId: string): Promise<{
+  requirements: Record<string, ReqClientFeedback>;
+  gaps: Record<string, GapClientFeedback>;
+}> {
+  return fetchAPI(`/api/projects/${projectId}/client-feedback`);
+}
+
 // Extracted items
 export async function listRequirements(projectId: string, params?: Record<string, string>) {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -136,8 +158,14 @@ export async function listGaps(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/gaps`);
 }
 
-export async function resolveGap(projectId: string, gapId: string, resolution: string) {
-  return fetchAPI(`/api/projects/${projectId}/gaps/${gapId}/resolve?resolution=${encodeURIComponent(resolution)}`, { method: "PATCH" });
+export async function resolveGap(
+  projectId: string,
+  gapId: string,
+  resolution: string,
+  status: "resolved" | "dismissed" | "open" = "resolved",
+) {
+  const q = `resolution=${encodeURIComponent(resolution)}&status=${status}`;
+  return fetchAPI(`/api/projects/${projectId}/gaps/${gapId}/resolve?${q}`, { method: "PATCH" });
 }
 
 // Dashboard

@@ -6,6 +6,8 @@ question: [question]
 severity: medium
 area: general
 status: open
+closed_at: YYYY-MM-DDTHH:MM:SSZ
+closed_by: [closed_by]
 blocked_reqs: []
 source_person: [source_person]
 source_doc: [source_doc]

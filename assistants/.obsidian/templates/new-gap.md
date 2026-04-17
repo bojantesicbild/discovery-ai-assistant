@@ -6,6 +6,8 @@ question: ""
 severity: medium
 area: general
 status: open
+closed_at: <% tp.date.now("YYYY-MM-DDTHH:mm:ssZ") %>
+closed_by: ""
 blocked_reqs: []
 source_person: ""
 source_doc: ""

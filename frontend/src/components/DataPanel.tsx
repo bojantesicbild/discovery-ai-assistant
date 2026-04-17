@@ -10,6 +10,7 @@ import {
   chatStream, getWikiFiles, getWikiFile,
   listMeetingAgendas, getMeetingAgendaByRound,
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
+  getClientFeedback, type ReqClientFeedback, type GapClientFeedback,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 import GmailImportPanel from "./GmailImportPanel";
@@ -69,6 +70,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [driveConnected, setDriveConnected] = useState(false);
   const [gaps, setGaps] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
+  const [clientFeedback, setClientFeedback] = useState<{
+    requirements: Record<string, ReqClientFeedback>;
+    gaps: Record<string, GapClientFeedback>;
+  }>({ requirements: {}, gaps: {} });
   // Detail view is a stack so nested navigation (e.g., BR → click source
   // link → opens that document) can pop back to the parent on close
   // instead of dropping the user all the way back to the table view.
@@ -205,13 +210,14 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   async function loadData() {
     try {
-      const [dash, reqs, contras, docs, gapsData, consData] = await Promise.all([
+      const [dash, reqs, contras, docs, gapsData, consData, feedback] = await Promise.all([
         getDashboard(projectId),
         listRequirements(projectId),
         listContradictions(projectId),
         listDocuments(projectId),
         listGaps(projectId),
         listConstraints(projectId),
+        getClientFeedback(projectId).catch(() => ({ requirements: {}, gaps: {} })),
       ]);
       setDashboard(dash);
       setRequirements(reqs.items || []);
@@ -219,6 +225,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       setDocuments(docs.documents || []);
       setGaps(gapsData.items || []);
       setConstraints(consData.items || []);
+      setClientFeedback(feedback);
     } catch {}
   }
 
@@ -250,17 +257,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           onAction={detail.onAction}
           history={detail.history}
           onLinkClick={(href: string) => {
-            // In-app `doc://<uuid>` links push the source doc onto the
-            // detail stack so the close button returns to the caller's
-            // view (e.g., the BR that linked here) instead of the table.
+            // In-app links push onto the detail stack so the close
+            // button returns to the caller's view (e.g., the gap that
+            // linked to a BR) instead of the table.
             if (href.startsWith("doc://")) {
               const docId = href.slice("doc://".length);
               const doc = documents.find((d: any) => d.id === docId);
-              if (doc) {
-                openDocument(doc, "push");
-              } else {
-                openDocument({ id: docId, filename: "document" }, "push");
-              }
+              if (doc) openDocument(doc, "push");
+              else openDocument({ id: docId, filename: "document" }, "push");
+              return true;
+            }
+            if (href.startsWith("br://")) {
+              const key = href.slice("br://".length);
+              const req = requirements.find((r: any) => r.id === key || r.req_id === key);
+              if (req) openRequirement(req, "push");
               return true;
             }
             return false;
@@ -430,6 +440,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         <SortableHeader label="Type" columnKey="type" state={reqsTable} />
                         <SortableHeader label="Priority" columnKey="priority" state={reqsTable} />
                         <SortableHeader label="Status" columnKey="status" state={reqsTable} />
+                        <th style={{ width: 80 }}>Client</th>
                         <SortableHeader label="Ver" columnKey="version" state={reqsTable} width={50} />
                         <SortableHeader label="Source" columnKey="source_doc" state={reqsTable} />
                       </tr>
@@ -460,6 +471,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                           <td><TypeBadge type={req.type} /></td>
                           <td><PriBadge priority={req.priority} /></td>
                           <td><StatusPill status={req.status} /></td>
+                          <td>
+                            <ReqClientBadge fb={clientFeedback.requirements[req.req_id]} />
+                          </td>
                           <td style={{ fontSize: 10, color: "var(--gray-500)", textAlign: "center", whiteSpace: "nowrap" }}>
                             {req.version ? `v${req.version}` : "—"}
                           </td>
@@ -575,6 +589,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         <SortableHeader label="Gap Question" columnKey="question" state={gapsTable} />
                         <SortableHeader label="Area" columnKey="area" state={gapsTable} />
                         <SortableHeader label="Status" columnKey="status" state={gapsTable} />
+                        <th style={{ width: 80 }}>Client</th>
                         <th style={{ width: 70 }}>Action</th>
                       </tr>
                     </thead>
@@ -603,6 +618,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         </td>
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
                         <td><GapStatusPill status={gap.status} /></td>
+                        <td>
+                          <GapClientBadge fb={clientFeedback.gaps[gap.gap_id]} />
+                        </td>
                         <td>
                           {(gap.status === "open" || gap.status === "in-progress") && (
                             <button
@@ -1032,7 +1050,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     </div>
   );
 
-  function openRequirement(req: any) {
+  function openRequirement(req: any, mode: "replace" | "push" = "replace") {
     // Build the Sources section: one clickable link per source document.
     // Format: "- [filename.md](doc://<uuid>)". Links are intercepted by
     // the MarkdownPanel (see onLinkClick below) and resolve to the
@@ -1050,10 +1068,21 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       else sourceLines.push(`- ${name}`);
     });
 
+    const fb = clientFeedback.requirements[req.req_id];
+    let clientBlock = "";
+    if (fb) {
+      const verb = fb.action === "confirm" ? "**Confirmed**" : "**Flagged for discussion**";
+      const when = fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : "";
+      const who = fb.client_name || "client";
+      clientBlock = `\n## Client Feedback\n${verb} by ${who} · review round ${fb.round}${when ? ` · ${when}` : ""}`;
+      if (fb.note) clientBlock += `\n\n> ${fb.note.replace(/\n/g, "\n> ")}`;
+    }
+
     const md = [
       `# ${req.req_id}: ${req.title}`,
       "", `**Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
       req.source_person ? `**Requested by:** ${req.source_person}` : "",
+      clientBlock,
       "", "## Description", req.description || "No description",
       req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
       `\n## Business Rules\n${req.business_rules?.length
@@ -1069,7 +1098,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       req.version > 1 ? `\n*Version ${req.version} — merged from ${1 + (req.sources?.length || 0)} documents*` : "",
     ].filter(Boolean).join("\n");
 
-    setDetail({
+    const view = {
       title: `${req.req_id}: ${req.title}`, content: md,
       meta: { priority: req.priority, status: req.status, confidence: req.confidence, version: `v${req.version || 1}`, source: req.source_doc || "unknown" },
       history: req.id ? { projectId, itemType: "requirement", itemId: req.id } : undefined,
@@ -1078,15 +1107,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         await updateRequirement(projectId, req.req_id, { status: action });
         loadData(); setDetail(null);
       },
-    });
+    };
+    if (mode === "push") pushDetail(view);
+    else setDetail(view);
   }
 
   function openGap(gap: any) {
-    const meta = [
-      `**Severity:** ${gap.severity}`,
-      `**Status:** ${gap.status}`,
-      `**Area:** ${gap.area || "general"}`,
-    ].join(" | ");
+    // Resolve each blocked BR id to its uuid (if we have it in state) so
+    // the "Blocks" line renders as clickable links into the BR detail.
+    const blocksLine = (gap.blocked_reqs || []).length
+      ? "**Blocks:** " + gap.blocked_reqs.map((brId: string) => {
+          const req = requirements.find((r: any) => r.req_id === brId);
+          return req ? `[${brId}](br://${req.id})` : brId;
+        }).join(", ")
+      : "";
 
     const sourceLines: string[] = [];
     if (gap.source_doc && gap.source_doc_id) {
@@ -1101,24 +1135,38 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     });
 
     let resolutionBlock = "";
-    if (gap.status === "resolved" && gap.resolution) {
+    if ((gap.status === "resolved" || gap.status === "dismissed") && gap.resolution) {
       const parts = (gap.resolution as string).split("\n\n— Answered via ");
       const answer = parts[0];
       const attribution = parts.length > 1 ? parts[1] : null;
-      resolutionBlock = `\n## Resolution\n${answer}`;
+      const heading = gap.status === "dismissed" ? "Dismissal" : "Resolution";
+      resolutionBlock = `\n## ${heading}\n${answer}`;
       if (attribution) resolutionBlock += `\n\n*— ${attribution}*`;
+      if (gap.closed_at) {
+        const when = new Date(gap.closed_at).toLocaleString();
+        const who = gap.closed_by || "unknown";
+        resolutionBlock += `\n\n*Closed ${when} by ${who}*`;
+      }
+    }
+
+    const fb = clientFeedback.gaps[gap.gap_id];
+    let clientBlock = "";
+    if (fb && fb.answer) {
+      const when = fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : "";
+      const who = fb.client_name || "client";
+      clientBlock = `\n## Client Answer\n${who} · review round ${fb.round}${when ? ` · ${when}` : ""}\n\n> ${fb.answer.replace(/\n/g, "\n> ")}`;
     }
 
     const md = [
       `# ${gap.gap_id}: ${gap.question}`,
-      "", meta,
-      gap.source_person ? `**Ask:** ${gap.source_person}` : "",
-      gap.blocked_reqs?.length ? `**Blocks:** ${gap.blocked_reqs.join(", ")}` : "",
+      gap.source_person ? `\n**Ask:** ${gap.source_person}` : "",
+      blocksLine ? `\n${blocksLine}` : "",
+      clientBlock,
       `\n## Suggested Action\n${gap.suggested_action || "*Not specified.*"}`,
       gap.source_quote && gap.source_quote !== "extracted from document"
         ? `\n## Source Quote\n> ${gap.source_quote}`
         : "",
-      `\n## Suggested Question for Next Meeting\n${_generateGapQuestion(gap)}`,
+      `\n## Suggested Question for Next Meeting *(auto-generated draft)*\n${_generateGapQuestion(gap)}`,
       sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
       resolutionBlock,
     ].filter(Boolean).join("\n");
@@ -1127,6 +1175,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     const actions = isOpen
       ? [
           { label: "Resolve", value: "resolve", color: "#10b981" },
+          { label: "Add to Meeting", value: "meeting", color: "#6366f1" },
           { label: "Dismiss", value: "dismiss", color: "#ef4444" },
         ]
       : [{ label: "Reopen", value: "reopen", color: "#6b7280" }];
@@ -1141,17 +1190,25 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         if (action === "resolve") {
           const answer = prompt("Resolution — what was the answer?");
           if (answer) {
-            await resolveGap(projectId, gap.gap_id, answer);
+            await resolveGap(projectId, gap.gap_id, answer, "resolved");
             loadData();
             setDetail(null);
           }
         } else if (action === "dismiss") {
-          await resolveGap(projectId, gap.gap_id, "Dismissed");
+          const reason = prompt("Why dismiss this gap? (e.g., duplicate, out of scope, obsolete)") || "Dismissed";
+          await resolveGap(projectId, gap.gap_id, reason, "dismissed");
           loadData();
+          setDetail(null);
+        } else if (action === "meeting") {
+          // Mark the gap as selected for the next meeting and jump the
+          // user to the Meeting Prep tab. MeetingPrepTab listens for
+          // this event and auto-approves the item in its picker.
+          window.dispatchEvent(new CustomEvent("add-to-meeting", { detail: { type: "gap", id: gap.id } }));
+          onNavigate?.("meeting");
           setDetail(null);
         } else if (action === "reopen") {
           if (confirm("Reopen this gap? The current resolution will be kept in history.")) {
-            await resolveGap(projectId, gap.gap_id, "");
+            await resolveGap(projectId, gap.gap_id, "", "open");
             loadData();
             setDetail(null);
           }
@@ -1586,6 +1643,55 @@ function StatusPill({ status, label }: { status: string; label?: string }) {
 
 function GapStatusPill({ status }: { status: string }) {
   return <span className={`gap-status-pill ${status}`}>{status.replace("-", " ")}</span>;
+}
+
+function ReqClientBadge({ fb }: { fb: ReqClientFeedback | undefined }) {
+  if (!fb) return <span style={{ color: "var(--gray-300)", fontSize: 11 }}>—</span>;
+  const meta = fb.action === "confirm"
+    ? { icon: "✓", label: "Confirmed", color: "#059669", bg: "#d1fae5", border: "#a7f3d0" }
+    : { icon: "◐", label: "Discuss", color: "#b45309", bg: "#fef3c7", border: "#fde68a" };
+  const tip = [
+    `${meta.label} by ${fb.client_name || "client"} · round ${fb.round}`,
+    fb.note ? `"${fb.note}"` : null,
+    fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : null,
+  ].filter(Boolean).join("\n");
+  return (
+    <span
+      title={tip}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
+        background: meta.bg, color: meta.color, border: `1px solid ${meta.border}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {meta.icon} {meta.label}
+      <span style={{ fontWeight: 600, opacity: 0.7 }}>r{fb.round}</span>
+    </span>
+  );
+}
+
+function GapClientBadge({ fb }: { fb: GapClientFeedback | undefined }) {
+  if (!fb) return <span style={{ color: "var(--gray-300)", fontSize: 11 }}>—</span>;
+  const tip = [
+    `Answered by ${fb.client_name || "client"} · round ${fb.round}`,
+    fb.answer ? `"${fb.answer}"` : null,
+    fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : null,
+  ].filter(Boolean).join("\n");
+  return (
+    <span
+      title={tip}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10,
+        background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe",
+        whiteSpace: "nowrap",
+      }}
+    >
+      ✎ Answered
+      <span style={{ fontWeight: 600, opacity: 0.7 }}>r{fb.round}</span>
+    </span>
+  );
 }
 
 function SourceBadges({ sourceDoc, sources, version, person }: { sourceDoc?: string; sources?: any[]; version?: number; person?: string }) {
@@ -2200,6 +2306,21 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
   function dismiss(id: string) {
     setStatuses((s) => ({ ...s, [id]: s[id] === "dismissed" ? undefined as any : "dismissed" }));
   }
+
+  // Cross-component event: when a user clicks "Add to Meeting" from a
+  // gap (or other) detail elsewhere in the app, auto-approve the item
+  // here so they land on the picker with it already selected.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ type: string; id: string }>;
+      const id = ce.detail?.id;
+      if (!id) return;
+      setStatuses((s) => ({ ...s, [id]: "approved" }));
+      setPhase("pick"); // make sure we're on the picker, not the agenda
+    };
+    window.addEventListener("add-to-meeting", handler);
+    return () => window.removeEventListener("add-to-meeting", handler);
+  }, []);
   function selectAllInSection(ids: string[]) {
     const allApproved = ids.every((id) => statuses[id] === "approved");
     setStatuses((s) => {

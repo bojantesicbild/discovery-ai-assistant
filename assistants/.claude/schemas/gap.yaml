@@ -35,6 +35,16 @@ fields:
     required: true
     default: open
 
+  - key: closed_at
+    type: datetime
+    required: false
+    description: "When the gap was moved to resolved or dismissed. Null while open/in-progress."
+
+  - key: closed_by
+    type: string
+    required: false
+    description: "Email or identifier of the person who closed the gap."
+
   - key: blocked_reqs
     type: list
     item_type: string
