@@ -16,6 +16,10 @@ class Requirement(BaseModel):
     user_perspective: Optional[str] = Field(None, description="As a [role], I want [X], so that [Y]")
     business_rules: list[str] = Field(default_factory=list)
     edge_cases: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(
+        default_factory=list,
+        description="Testable AC blocks in GIVEN/WHEN/THEN form, one string per AC. Extract when the source describes observable behavior clear enough to write a test for; skip when the source is too abstract.",
+    )
     source_doc: str = Field(description="Source document name")
     source_quote: str = Field(description="Exact quote from source, minimum 10 chars")
     status: Literal["proposed", "discussed", "confirmed", "changed", "dropped"] = "proposed"

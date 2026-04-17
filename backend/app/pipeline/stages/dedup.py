@@ -298,6 +298,19 @@ async def apply_dedup_actions(
                         changes_new[field] = new_val
                         setattr(existing, field, new_val)
 
+                # Merge list-of-string fields (business_rules, edge_cases,
+                # acceptance_criteria): only replace when the new extraction
+                # has items AND the existing list is empty. Avoids losing
+                # curated ACs when a later document mentions the same BR
+                # without restating the ACs.
+                for field in ("business_rules", "edge_cases", "acceptance_criteria"):
+                    new_list = getattr(req, field, None) or []
+                    old_list = getattr(existing, field, None) or []
+                    if new_list and not old_list:
+                        changes_old[field] = old_list
+                        changes_new[field] = new_list
+                        setattr(existing, field, new_list)
+
                 if changes_old:
                     changes_new["source"] = str(doc_id)
                     db.add(ChangeHistory(

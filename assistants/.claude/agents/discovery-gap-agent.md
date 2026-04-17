@@ -49,7 +49,10 @@ For each PARTIAL or MISSING, classify the gap:
 3. **Evaluate each control point** — assign coverage + gap classification per the rules above.
 4. **Pull contradictions** — `get_contradictions(project_id)`. Every unresolved contradiction is a gap regardless of other coverage.
 5. **Calculate readiness** — `get_readiness(project_id)`. Per-area scores: business, functional, technical, scope.
-6. **Write the report** — `.memory-bank/docs/discovery/gap-analysis-YYYY-MM-DD.md` using the template below.
+6. **Store any newly discovered gaps** via `store_finding(finding_type="gap", ...)`. When you call `store_finding` with a gap, **always include `resolution_type`** (`auto_resolve`, `ask_client`, or `ask_po`) — this is the column that lets the vault filter "all gaps waiting on the client" later. If you're unsure of the classification, default to `ask_client`.
+7. **Write the report** — `.memory-bank/docs/discovery/gap-analysis-YYYY-MM-DD.md` using the template below.
+
+*Note:* gaps that pre-date this agent may have `resolution_type = NULL` in the DB. Until a `classify_gap` MCP tool exists, classification for those gaps lives in the report file. Don't block on it — surface it in the report as usual.
 
 ## Output — the report file
 

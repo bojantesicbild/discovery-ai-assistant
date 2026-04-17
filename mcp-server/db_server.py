@@ -263,7 +263,7 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_control_points", description="Get readiness as a flat checklist of 12 checks. Returns overall score and each check with status (covered/partial/missing) and the actual items found. Present as a simple checklist showing what's done and what's missing — do NOT group into areas.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="get_gaps", description="Get all identified knowledge gaps from the gaps table — open questions to ask the client/PO that are blocking discovery completion. Each gap has gap_id (GAP-XXX), question, severity (high/medium/low), area, status (open/in-progress/resolved/dismissed), source quote, source person, and may list which requirements (BR-XXX) it blocks.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, scope items, gaps, and contradictions.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
-        Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}, "source_quote": {"type": "string", "description": "Verbatim quote from the source document (≥10 chars). Falls back to description if omitted."}}, "required": ["finding_type", "title", "description"]}),
+        Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}, "source_quote": {"type": "string", "description": "Verbatim quote from the source document (≥10 chars). Falls back to description if omitted."}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "description": "Requirement-only. List of AC blocks in GIVEN/WHEN/THEN form, one string per AC."}, "resolution_type": {"type": "string", "enum": ["auto_resolve", "ask_client", "ask_po"], "description": "Gap-only. Classification from discovery-gap-agent: auto_resolve (fillable from existing data), ask_client (needs client input), ask_po (needs internal decision)."}}, "required": ["finding_type", "title", "description"]}),
     ]
 
 
@@ -294,7 +294,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             })
 
         if name == "get_requirements":
-            query = "SELECT req_id, title, type, priority, description, user_perspective, business_rules, edge_cases, source_quote, status, confidence FROM requirements WHERE project_id = $1"
+            query = "SELECT req_id, title, type, priority, description, user_perspective, business_rules, edge_cases, acceptance_criteria, source_quote, status, confidence FROM requirements WHERE project_id = $1"
             params = [pid]
             if p := arguments.get("priority"):
                 query += " AND priority = $2"
@@ -509,7 +509,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
         if name == "get_gaps":
             rows = await conn.fetch(
-                "SELECT gap_id, question, severity, area, status, "
+                "SELECT gap_id, question, severity, area, status, resolution_type, "
                 "       source_quote, source_person, blocked_reqs, "
                 "       suggested_action, resolution "
                 "FROM gaps WHERE project_id = $1 "
@@ -586,10 +586,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 # in the schema — coerce against it so agent typos
                 # don't poison the data.
                 req_priority = coerce_enum("requirement", "priority", priority, "should")
+                # acceptance_criteria is optional — agents that extract ACs pass
+                # a list of strings (each one a GIVEN/WHEN/THEN block). Falls
+                # back to an empty array so the NOT NULL column has a value.
+                acs = arguments.get("acceptance_criteria") or []
                 await conn.execute(
-                    "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote, source_person) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', $6, $7)",
-                    pid, new_req_id, title, description, req_priority, source_quote, source_person
+                    "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, source_quote, source_person, acceptance_criteria) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', $6, $7, $8::jsonb)",
+                    pid, new_req_id, title, description, req_priority, source_quote, source_person, json.dumps(acs)
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -669,10 +673,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
                 num = int(last.split("-")[1]) + 1 if last else 1
                 gap_id = f"GAP-{num:03d}"
+                # resolution_type is discovery-gap-agent's classification
+                # (auto_resolve / ask_client / ask_po). Optional — if the
+                # gap is raw (pre-classification), leave NULL.
+                res_type = arguments.get("resolution_type")
+                if res_type and res_type not in ("auto_resolve", "ask_client", "ask_po"):
+                    res_type = None
                 await conn.execute(
-                    "INSERT INTO gaps (id, project_id, gap_id, question, severity, area, status, source_quote) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'open', $6)",
-                    pid, gap_id, title, priority or "medium", source or "general", source_quote or ""
+                    "INSERT INTO gaps (id, project_id, gap_id, question, severity, area, status, source_quote, resolution_type) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, 'open', $6, $7)",
+                    pid, gap_id, title, priority or "medium", source or "general", source_quote or "", res_type
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",

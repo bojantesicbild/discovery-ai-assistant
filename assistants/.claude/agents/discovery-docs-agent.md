@@ -43,8 +43,9 @@ You are in **DELEGATED MODE**: the orchestrator has already approved this work. 
 
    Each document follows its template exactly — same section order, same headings, same table columns. Fill every cell / bullet / placeholder with project-specific content pulled from MCP. If a template has a placeholder you cannot fill, write *NOT COVERED — needs discovery* in that cell (never leave blank, never delete the heading).
 
-5. **Synthesize where the schema doesn't have a direct field.** The templates ask for things the per-item schemas don't capture:
-   - **Acceptance criteria per FR** — derive from each BR's `source_quote`, `business_rules`, and `edge_cases`. Write as GIVEN/WHEN/THEN blocks.
+5. **Prefer BR.acceptance_criteria when populated; synthesize only when empty.** `get_requirements` returns an `acceptance_criteria` list for each BR. When that list is non-empty, lift the ACs verbatim into the functional-requirements deliverable — no re-synthesis, no paraphrasing, no regeneration. Only when the list is empty (legacy BRs extracted before the pipeline started capturing ACs) should you synthesize from `source_quote`, `business_rules`, and `edge_cases`. Mark synthesized ACs as [ASSUMED — synthesized from source_quote] so the dev team can distinguish.
+
+6. **Synthesize the other template fields** (these are not yet first-class in the schema):
    - **Story type per FR** — classify as UI / API / FULL-STACK / BACKEND-ONLY by scanning the BR's user_perspective and business rules for UI keywords ("clicks", "sees", "page") vs API keywords ("endpoint", "response", "/api/").
    - **Complexity per FR** — LOW / MEDIUM / HIGH based on edge-case count, business-rule count, and integration touches.
    - **Test strategy per FR** — AUTOMATED for deterministic UI/API, MANUAL for exploratory or visual-heavy, BOTH for hybrid.
@@ -52,7 +53,7 @@ You are in **DELEGATED MODE**: the orchestrator has already approved this work. 
    - **Traceability matrix** — one row per FR linking back to its BR and source document.
    - **Data model overview** — infer entities from BR titles and business rules; show relationships only where they're obvious.
 
-6. **Attribute every claim** per the rules below. No exceptions.
+7. **Attribute every claim** per the rules below. No exceptions.
 
 ## Attribution rules
 
