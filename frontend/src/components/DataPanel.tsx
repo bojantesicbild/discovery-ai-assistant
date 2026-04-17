@@ -531,6 +531,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     <thead>
                       <tr>
                         <th style={{ width: 20 }}></th>
+                        <SortableHeader label="ID" columnKey="gap_id" state={gapsTable} />
                         <SortableHeader label="Severity" columnKey="severity" state={gapsTable} />
                         <SortableHeader label="Gap Question" columnKey="question" state={gapsTable} />
                         <SortableHeader label="Area" columnKey="area" state={gapsTable} />
@@ -557,6 +558,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         >
                           <Chevron open={expandedRow === gap.id} />
                         </td>
+                        <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap" }}>
+                          {gap.gap_id}
+                        </td>
                         <td><SevBadge severity={gap.severity} /></td>
                         <td style={{ fontWeight: 500 }}>
                           {gap.question}                        </td>
@@ -570,7 +574,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                       {expandedRow === gap.id && (
                         <tr className="detail-row">
-                          <td colSpan={6}>
+                          <td colSpan={7}>
                             <div className="gap-detail">
                               {/* Suggested action */}
                               {gap.suggested_action && (
