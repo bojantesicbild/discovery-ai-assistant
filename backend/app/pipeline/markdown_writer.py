@@ -24,14 +24,30 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, stakeholders, readiness: dict):
+def write_dashboard(
+    vault_root,
+    reqs_rows,
+    constraints,
+    gaps_rows,
+    decisions,
+    stakeholders,
+    readiness: dict,
+    lint_summary: dict | None = None,
+):
     """Generate `.memory-bank/dashboard.md` — a Dataview-driven landing
     page that surfaces what needs attention. Requires the Dataview
     plugin (bundled in assistants/.obsidian/community-plugins.json).
 
     Each section uses a `dataview` code block which Obsidian's Dataview
     plugin renders as a live table. Outside Obsidian (e.g. on GitHub)
-    the blocks render as code which is harmless."""
+    the blocks render as code which is harmless.
+
+    `lint_summary` is the dict returned by
+    `app.services.vault_lint.LintReport.summary()`. When provided, the
+    dashboard renders a "Vault health" section so the PM sees drift
+    (broken wikilinks, missing source_raw, etc.) without having to run
+    the lint CLI. Optional so tests that don't care about lint can
+    still call this."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     score = readiness.get("score", 0)
 
@@ -66,6 +82,14 @@ def write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, st
         "",
         "---",
         "",
+    ]
+
+    if lint_summary is not None:
+        from app.services.vault_lint import format_dashboard_section
+        lines += format_dashboard_section(lint_summary)
+        lines += ["", "---", ""]
+
+    lines += [
         "## Open gaps (by severity)",
         "",
         "```dataview",

@@ -1112,6 +1112,18 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     ]
     (discovery_dir / "index.md").write_text("\n".join(idx_lines))
 
+    # --- lint the freshly written vault so the PM sees drift without
+    # running the CLI. Failures here are advisory — bad data in vault
+    # shouldn't block the ingest that produced the rest of it.
+    vault_root = project_dir / ".memory-bank"
+    lint_summary: dict | None = None
+    try:
+        from app.services.vault_lint import lint_vault as run_vault_lint, format_log_entry
+        lint_report = run_vault_lint(vault_root)
+        lint_summary = lint_report.summary()
+    except Exception as e:
+        log.warning("Vault lint failed (non-fatal)", error=str(e))
+
     # --- log.md (append operation log) ---
     log_path = discovery_dir / "log.md"
     from datetime import datetime as dt
@@ -1123,6 +1135,10 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         f"{len(decisions)} decisions, {len(gaps_rows)} gaps, {len(stakeholders)} stakeholders\n"
         f"Readiness: {readiness.get('score', 0)}%\n"
     )
+    if lint_summary is not None:
+        lint_line = format_log_entry(lint_summary)
+        if lint_line:
+            entry += f"{lint_line}\n"
     if log_path.exists():
         existing = log_path.read_text()
         log_path.write_text(existing + entry)
@@ -1134,9 +1150,11 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     # Dashboard at vault root — Dataview-driven landing page that's the
     # first thing a human sees when opening the vault in Obsidian. Lives
     # outside docs/discovery/ so it doesn't pollute the discovery wiki.
-    vault_root = project_dir / ".memory-bank"
     try:
-        write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, stakeholders, readiness)
+        write_dashboard(
+            vault_root, reqs_rows, constraints, gaps_rows, decisions,
+            stakeholders, readiness, lint_summary=lint_summary,
+        )
     except Exception as e:
         log.warning("Dashboard generation failed (non-fatal)", error=str(e))
 
