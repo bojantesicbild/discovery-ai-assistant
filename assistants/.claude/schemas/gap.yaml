@@ -35,12 +35,6 @@ fields:
     required: true
     default: open
 
-  - key: resolution_type
-    type: enum
-    values: [auto_resolve, ask_client, ask_po]
-    required: false
-    description: "How discovery-gap-agent classified this gap — fillable from existing data (auto_resolve), needs client input (ask_client), or needs internal PO decision (ask_po). Captured structurally so the vault can filter 'all gaps waiting on the client'."
-
   - key: blocked_reqs
     type: list
     item_type: string

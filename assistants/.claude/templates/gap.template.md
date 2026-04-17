@@ -6,7 +6,6 @@ question: [question]
 severity: medium
 area: general
 status: open
-resolution_type: <auto_resolve|ask_client|ask_po>
 blocked_reqs: []
 source_person: [source_person]
 source_doc: [source_doc]

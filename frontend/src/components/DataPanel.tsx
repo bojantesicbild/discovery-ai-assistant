@@ -69,7 +69,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [driveConnected, setDriveConnected] = useState(false);
   const [gaps, setGaps] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
-  const [detail, setDetail] = useState<DetailView | null>(null);
+  // Detail view is a stack so nested navigation (e.g., BR → click source
+  // link → opens that document) can pop back to the parent on close
+  // instead of dropping the user all the way back to the table view.
+  // setDetail() replaces the current top of stack (for first-level opens);
+  // pushDetail() adds a new layer (for nested in-content links).
+  const [detailStack, setDetailStack] = useState<DetailView[]>([]);
+  const detail = detailStack.length > 0 ? detailStack[detailStack.length - 1] : null;
+  const setDetail = (view: DetailView | null) => {
+    if (view === null) setDetailStack([]);
+    else setDetailStack((prev) => (prev.length > 0 ? [...prev.slice(0, -1), view] : [view]));
+  };
+  const pushDetail = (view: DetailView) => setDetailStack((prev) => [...prev, view]);
+  const popDetail = () => setDetailStack((prev) => prev.slice(0, -1));
+  // Top-of-stack updater — used by openDocument to swap its own
+  // placeholder for real content without clobbering a pushed parent.
+  const updateTopDetail = (view: DetailView) =>
+    setDetailStack((prev) => (prev.length > 0 ? [...prev.slice(0, -1), view] : [view]));
   // Per-user unread counts (polled every 15s)
   const { counts: unreadCounts, refresh: refreshUnread } = useUnreadCounts(projectId);
 
@@ -222,21 +238,28 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           title={detail.title}
           content={detail.content}
           meta={detail.meta}
-          onClose={() => { setDetail(null); onNavigate?.(activeTab); }}
+          onClose={() => {
+            if (detailStack.length > 1) {
+              popDetail();
+            } else {
+              setDetail(null);
+              onNavigate?.(activeTab);
+            }
+          }}
           actions={detail.actions}
           onAction={detail.onAction}
           history={detail.history}
           onLinkClick={(href: string) => {
-            // In-app `doc://<uuid>` links swap the detail view to the
-            // referenced source document (same renderer, different content).
+            // In-app `doc://<uuid>` links push the source doc onto the
+            // detail stack so the close button returns to the caller's
+            // view (e.g., the BR that linked here) instead of the table.
             if (href.startsWith("doc://")) {
               const docId = href.slice("doc://".length);
               const doc = documents.find((d: any) => d.id === docId);
               if (doc) {
-                openDocument(doc);
+                openDocument(doc, "push");
               } else {
-                // Fallback: we only have the id — fetch content and show it.
-                openDocument({ id: docId, filename: "document" });
+                openDocument({ id: docId, filename: "document" }, "push");
               }
               return true;
             }
@@ -562,177 +585,40 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                         className="clickable-row"
                         style={!gap.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
                         onClick={() => {
-                          const next = expandedRow === gap.id ? null : gap.id;
-                          setExpandedRow(next);
-                          onNavigate?.("gaps", next ? gap.gap_id : undefined);
+                          onNavigate?.("gaps", gap.gap_id);
                           if (gap.id && !gap.seen_at) markRowSeen("gap", gap.id, setGaps);
+                          openGap(gap);
                         }}
                       >
                         <td
                           className="chevron-cell"
                           style={!gap.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
-                        >
-                          <Chevron open={expandedRow === gap.id} />
-                        </td>
+                        />
                         <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap" }}>
                           {gap.gap_id}
                         </td>
                         <td><SevBadge severity={gap.severity} /></td>
                         <td style={{ fontWeight: 500 }}>
-                          {gap.question}                        </td>
+                          {gap.question}
+                        </td>
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
                         <td><GapStatusPill status={gap.status} /></td>
                         <td>
                           {(gap.status === "open" || gap.status === "in-progress") && (
-                            <button className="inline-action" onClick={(e) => { e.stopPropagation(); }} title="Resolve">&#10003;</button>
+                            <button
+                              className="inline-action"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const answer = prompt("Resolution — what was the answer?");
+                                if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
+                              }}
+                              title="Resolve"
+                            >
+                              &#10003;
+                            </button>
                           )}
                         </td>
                       </tr>
-                      {expandedRow === gap.id && (
-                        <tr className="detail-row">
-                          <td colSpan={7}>
-                            <div className="gap-detail">
-                              {/* Suggested action */}
-                              {gap.suggested_action && (
-                                <div className="gap-detail-desc">{gap.suggested_action}</div>
-                              )}
-
-                              {/* Source quote */}
-                              {gap.source_quote && gap.source_quote !== "extracted from document" && (
-                                <div className="gap-quote-box">
-                                  <div className="gap-quote-label">From document</div>
-                                  <div className="gap-quote-text">"{gap.source_quote}"</div>
-                                </div>
-                              )}
-
-                              {/* Suggested question */}
-                              <div className="gap-ai-suggestion">
-                                <div className="ai-label">
-                                  <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                                  </svg>
-                                  Suggested Question for Next Meeting
-                                </div>
-                                {_generateGapQuestion(gap)}
-                              </div>
-
-                              {/* Metadata */}
-                              <div className="gap-detail-meta">
-                                {gap.source_person && (
-                                  <span className="person-chip">
-                                    Ask: {gap.source_person}
-                                  </span>
-                                )}
-                                {gap.source_doc && (
-                                  <span className="gap-meta-chip file">
-                                    {gap.source_doc}
-                                  </span>
-                                )}
-                                <span className="gap-meta-chip linked">
-                                  {gap.gap_id}
-                                </span>
-                                <span className="gap-meta-chip" style={{
-                                  background: gap.severity === "high" ? "#EF444415" : "#F59E0B15",
-                                  color: gap.severity === "high" ? "#EF4444" : "#F59E0B",
-                                }}>
-                                  {gap.severity} severity
-                                </span>
-                                {gap.resolution_type && (() => {
-                                  const rtMap: Record<string, { label: string; bg: string; fg: string }> = {
-                                    auto_resolve: { label: "auto-resolve", bg: "#10B98115", fg: "#10B981" },
-                                    ask_client: { label: "ask client",   bg: "#F59E0B15", fg: "#F59E0B" },
-                                    ask_po:     { label: "ask PO",       bg: "#6366F115", fg: "#6366F1" },
-                                  };
-                                  const m = rtMap[gap.resolution_type] || { label: gap.resolution_type, bg: "#e5e7eb", fg: "#374151" };
-                                  return (
-                                    <span className="gap-meta-chip" style={{ background: m.bg, color: m.fg }}>
-                                      {m.label}
-                                    </span>
-                                  );
-                                })()}
-                                {gap.blocked_reqs?.length > 0 && (
-                                  <span className="gap-meta-chip">
-                                    Blocks: {gap.blocked_reqs.join(", ")}
-                                  </span>
-                                )}
-                              </div>
-
-                              {/* Resolution (shown when resolved) */}
-                              {gap.status === "resolved" && gap.resolution && (() => {
-                                // Split answer from attribution ("— Answered via ...")
-                                const parts = (gap.resolution as string).split("\n\n— Answered via ");
-                                const answerText = parts[0];
-                                const attribution = parts.length > 1 ? parts[1] : null;
-                                return (
-                                  <div style={{
-                                    padding: "14px 16px", borderRadius: 10, marginTop: 10,
-                                    background: "#ecfdf5", border: "1px solid #a7f3d0",
-                                  }}>
-                                    <div style={{
-                                      fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-                                      letterSpacing: 0.5, color: "#059669", marginBottom: 8,
-                                      display: "flex", alignItems: "center", gap: 6,
-                                    }}>
-                                      <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2.5 }}>
-                                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-                                      </svg>
-                                      Resolution
-                                    </div>
-                                    <div style={{
-                                      fontSize: 13, color: "#065f46", lineHeight: 1.6,
-                                      padding: "10px 12px", background: "#fff",
-                                      borderRadius: 8, border: "1px solid #a7f3d0",
-                                    }}>
-                                      {answerText}
-                                    </div>
-                                    {attribution && (
-                                      <div style={{
-                                        display: "flex", alignItems: "center", gap: 6,
-                                        marginTop: 8, fontSize: 11, color: "#047857",
-                                      }}>
-                                        <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-                                          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-                                          <circle cx="12" cy="7" r="4" />
-                                        </svg>
-                                        <span style={{ fontWeight: 600 }}>{attribution}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-
-                              {/* Actions — context-aware based on status */}
-                              <div className="gap-detail-actions">
-                                {gap.status === "open" || gap.status === "in-progress" ? (
-                                  <>
-                                    <button className="gap-action-btn resolve" onClick={(e) => {
-                                      e.stopPropagation();
-                                      const answer = prompt("Resolution — what was the answer?");
-                                      if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
-                                    }}>Resolve</button>
-                                    <button className="gap-action-btn meeting" onClick={(e) => { e.stopPropagation(); }}>Add to Meeting</button>
-                                    <button className="gap-action-btn dismiss" onClick={(e) => {
-                                      e.stopPropagation();
-                                      resolveGap(projectId, gap.gap_id, "Dismissed").then(() => loadData());
-                                    }}>Dismiss</button>
-                                  </>
-                                ) : (
-                                  <button
-                                    className="gap-action-btn"
-                                    style={{ background: "var(--gray-50)", color: "var(--gray-600)", border: "1px solid var(--gray-200)" }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (confirm("Reopen this gap? The current resolution will be kept in history.")) {
-                                        resolveGap(projectId, gap.gap_id, "").then(() => loadData());
-                                      }
-                                    }}
-                                  >Reopen</button>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </Fragment>
                   ))}
                 </tbody>
@@ -1170,9 +1056,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       req.source_person ? `**Requested by:** ${req.source_person}` : "",
       "", "## Description", req.description || "No description",
       req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
-      req.business_rules?.length ? `\n## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
-      req.acceptance_criteria?.length ? `\n## Acceptance Criteria\n${req.acceptance_criteria.map((ac: string) => `- ${ac}`).join("\n")}` : "",
-      req.edge_cases?.length ? `\n## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
+      `\n## Business Rules\n${req.business_rules?.length
+        ? req.business_rules.map((r: string) => `- ${r}`).join("\n")
+        : "*None captured.*"}`,
+      `\n## Acceptance Criteria\n${req.acceptance_criteria?.length
+        ? req.acceptance_criteria.map((ac: string) => `- ${ac}`).join("\n")
+        : "*None captured.*"}`,
+      `\n## Edge Cases\n${req.edge_cases?.length
+        ? req.edge_cases.map((e: string) => `- ${e}`).join("\n")
+        : "*None captured.*"}`,
       sourceLines.length ? `\n## Sources\n${sourceLines.join("\n")}` : "",
       req.version > 1 ? `\n*Version ${req.version} — merged from ${1 + (req.sources?.length || 0)} documents*` : "",
     ].filter(Boolean).join("\n");
@@ -1189,8 +1081,93 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     });
   }
 
-  async function openDocument(doc: any) {
-    // Show metadata immediately
+  function openGap(gap: any) {
+    const meta = [
+      `**Severity:** ${gap.severity}`,
+      `**Status:** ${gap.status}`,
+      `**Area:** ${gap.area || "general"}`,
+    ].join(" | ");
+
+    const sourceLines: string[] = [];
+    if (gap.source_doc && gap.source_doc_id) {
+      sourceLines.push(`- [${gap.source_doc}](doc://${gap.source_doc_id})`);
+    } else if (gap.source_doc) {
+      sourceLines.push(`- ${gap.source_doc}`);
+    }
+    (gap.sources || []).forEach((s: any) => {
+      const name = s.filename || s.doc_id?.slice(0, 8) || "document";
+      if (s.doc_id) sourceLines.push(`- [${name}](doc://${s.doc_id})`);
+      else sourceLines.push(`- ${name}`);
+    });
+
+    let resolutionBlock = "";
+    if (gap.status === "resolved" && gap.resolution) {
+      const parts = (gap.resolution as string).split("\n\n— Answered via ");
+      const answer = parts[0];
+      const attribution = parts.length > 1 ? parts[1] : null;
+      resolutionBlock = `\n## Resolution\n${answer}`;
+      if (attribution) resolutionBlock += `\n\n*— ${attribution}*`;
+    }
+
+    const md = [
+      `# ${gap.gap_id}: ${gap.question}`,
+      "", meta,
+      gap.source_person ? `**Ask:** ${gap.source_person}` : "",
+      gap.blocked_reqs?.length ? `**Blocks:** ${gap.blocked_reqs.join(", ")}` : "",
+      `\n## Suggested Action\n${gap.suggested_action || "*Not specified.*"}`,
+      gap.source_quote && gap.source_quote !== "extracted from document"
+        ? `\n## Source Quote\n> ${gap.source_quote}`
+        : "",
+      `\n## Suggested Question for Next Meeting\n${_generateGapQuestion(gap)}`,
+      sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
+      resolutionBlock,
+    ].filter(Boolean).join("\n");
+
+    const isOpen = gap.status === "open" || gap.status === "in-progress";
+    const actions = isOpen
+      ? [
+          { label: "Resolve", value: "resolve", color: "#10b981" },
+          { label: "Dismiss", value: "dismiss", color: "#ef4444" },
+        ]
+      : [{ label: "Reopen", value: "reopen", color: "#6b7280" }];
+
+    setDetail({
+      title: `${gap.gap_id}: ${gap.question}`,
+      content: md,
+      meta: { severity: gap.severity, status: gap.status, area: gap.area || "general" },
+      history: gap.id ? { projectId, itemType: "gap", itemId: gap.id } : undefined,
+      actions,
+      onAction: async (action: string) => {
+        if (action === "resolve") {
+          const answer = prompt("Resolution — what was the answer?");
+          if (answer) {
+            await resolveGap(projectId, gap.gap_id, answer);
+            loadData();
+            setDetail(null);
+          }
+        } else if (action === "dismiss") {
+          await resolveGap(projectId, gap.gap_id, "Dismissed");
+          loadData();
+          setDetail(null);
+        } else if (action === "reopen") {
+          if (confirm("Reopen this gap? The current resolution will be kept in history.")) {
+            await resolveGap(projectId, gap.gap_id, "");
+            loadData();
+            setDetail(null);
+          }
+        }
+      },
+    });
+  }
+
+  /**
+   * Open a document in the detail panel.
+   * @param doc — document record
+   * @param mode — "replace" (default; overwrites current detail) or "push"
+   *               (adds on top of the stack so the close button returns to
+   *               the caller's view, e.g. a BR that linked here).
+   */
+  async function openDocument(doc: any, mode: "replace" | "push" = "replace") {
     const metaLines = [
       `# ${doc.filename}`,
       "", `**Type:** ${doc.file_type} | **Status:** ${doc.pipeline_stage}`,
@@ -1200,18 +1177,18 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       doc.pipeline_error ? `\n## Pipeline Error\n\`\`\`\n${doc.pipeline_error}\n\`\`\`` : "",
     ].filter(Boolean).join("\n");
 
-    setDetail({ title: doc.filename, content: metaLines + "\n\n---\n\n*Loading content...*", meta: { type: doc.file_type, status: doc.pipeline_stage } });
+    const meta = { type: doc.file_type, status: doc.pipeline_stage };
+    const placeholder = { title: doc.filename, content: metaLines + "\n\n---\n\n*Loading content...*", meta };
 
-    // Fetch actual file content
+    if (mode === "push") pushDetail(placeholder);
+    else setDetail(placeholder);
+
     try {
       const data = await getDocumentContent(projectId, doc.id);
-      if (data.content) {
-        const fullMd = metaLines + "\n\n---\n\n## Content\n\n" + data.content;
-        setDetail({ title: doc.filename, content: fullMd, meta: { type: doc.file_type, status: doc.pipeline_stage } });
-      } else {
-        const fullMd = metaLines + (data.message ? `\n\n---\n\n*${data.message}*` : "");
-        setDetail({ title: doc.filename, content: fullMd, meta: { type: doc.file_type, status: doc.pipeline_stage } });
-      }
+      const body = data.content
+        ? metaLines + "\n\n---\n\n## Content\n\n" + data.content
+        : metaLines + (data.message ? `\n\n---\n\n*${data.message}*` : "");
+      updateTopDetail({ title: doc.filename, content: body, meta });
     } catch {
       // Keep showing metadata if content fetch fails
     }
