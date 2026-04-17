@@ -222,6 +222,7 @@ async def list_gaps(
         "blocked_reqs": g.blocked_reqs or [],
         "suggested_action": g.suggested_action,
         "status": g.status,
+        "resolution_type": g.resolution_type,
         "resolution": g.resolution,
         "created_at": g.created_at.isoformat() if g.created_at else None,
     } for g, doc_name in rows]
@@ -288,6 +289,7 @@ def _req_dict(r: Requirement, source_doc_name: str = None) -> dict:
         "type": r.type, "priority": r.priority, "description": r.description,
         "user_perspective": r.user_perspective, "business_rules": r.business_rules,
         "edge_cases": r.edge_cases,
+        "acceptance_criteria": r.acceptance_criteria or [],
         "source_doc": source_doc_name,
         "source_doc_id": str(r.source_doc_id) if r.source_doc_id else None,
         "source_quote": r.source_quote,
