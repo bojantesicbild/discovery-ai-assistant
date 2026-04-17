@@ -965,7 +965,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         ]
         payload = requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
         text = render_requirement_text(payload, reqs_dir=reqs_dir)
-        (reqs_dir / f"{r.req_id}.md").write_text(text)
+        write_with_hand_edits(reqs_dir / f"{r.req_id}.md", text)
 
     # --- decisions/ individual files (Phase 4d: per-row split) ---
     decisions_dir = discovery_dir / "decisions"
@@ -974,7 +974,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         dec_id = f"DEC-{i:03d}"
         payload = decision_to_payload(d, dec_id, today)
         text = render_decision_text(payload)
-        (decisions_dir / f"{dec_id}.md").write_text(text)
+        write_with_hand_edits(decisions_dir / f"{dec_id}.md", text)
 
     # --- people/ individual stakeholder files (Phase 4d: per-row split) ---
     people_dir = discovery_dir / "people"
@@ -987,7 +987,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         # Filename uses the stakeholder's name (sanitized)
         import re as _re
         safe_name = _re.sub(r"[^\w\s-]", "_", s.name).strip().replace(" ", "_")[:80] or "unnamed"
-        (people_dir / f"{safe_name}.md").write_text(text)
+        write_with_hand_edits(people_dir / f"{safe_name}.md", text)
 
     # Clean up legacy single-file aggregates from earlier exports
     for legacy in ("decisions.md", "people.md"):
@@ -1002,7 +1002,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         asm_id = f"ASM-{i:03d}"
         payload = assumption_to_payload(asm, asm_id, today)
         text = render_assumption_text(payload)
-        (assumptions_dir / f"{asm_id}.md").write_text(text)
+        write_with_hand_edits(assumptions_dir / f"{asm_id}.md", text)
 
     # --- scope/ individual files (Phase 4d) ---
     scope_dir = discovery_dir / "scope"
@@ -1011,7 +1011,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         sc_id = f"SCO-{i:03d}"
         payload = scope_to_payload(sc, sc_id, today)
         text = render_scope_text(payload)
-        (scope_dir / f"{sc_id}.md").write_text(text)
+        write_with_hand_edits(scope_dir / f"{sc_id}.md", text)
 
     # --- contradictions/ individual files (Phase 4d) ---
     contradictions_dir = discovery_dir / "contradictions"
@@ -1020,7 +1020,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         ctr_id = f"CTR-{i:03d}"
         payload = contradiction_to_payload(ctr, ctr_id, today)
         text = render_contradiction_text(payload)
-        (contradictions_dir / f"{ctr_id}.md").write_text(text)
+        write_with_hand_edits(contradictions_dir / f"{ctr_id}.md", text)
 
     # Evaluate readiness for index/log (but don't write a separate readiness.md)
     from app.services.evaluator import evaluator
@@ -1047,7 +1047,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         ]
         payload = constraint_to_payload(con, con_id, today, affected_reqs)
         text = render_constraint_text(payload)
-        (constraints_dir / f"{con_id}.md").write_text(text)
+        write_with_hand_edits(constraints_dir / f"{con_id}.md", text)
 
     # --- gaps/ individual files ---
     gaps_dir = discovery_dir / "gaps"
@@ -1055,7 +1055,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     for g, g_doc_name, g_doc_class in gaps_rows:
         payload = gap_to_payload(g, g_doc_name, today, g_doc_class)
         text = render_gap_text(payload, gaps_dir=gaps_dir)
-        (gaps_dir / f"{g.gap_id}.md").write_text(text)
+        write_with_hand_edits(gaps_dir / f"{g.gap_id}.md", text)
 
     # --- index.md (wiki table of contents) ---
     idx_lines = [
@@ -1185,6 +1185,7 @@ from app.pipeline.markdown_writer import (  # noqa: E402
     assumption_to_payload,
     scope_to_payload,
     contradiction_to_payload,
+    write_with_hand_edits,
 )
 
 

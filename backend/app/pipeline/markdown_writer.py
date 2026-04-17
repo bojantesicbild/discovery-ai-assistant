@@ -371,6 +371,54 @@ def write_schema_md(vault_root):
 
 
 # ---------------------------------------------------------------------------
+# Hand-edit preserving writer
+# ---------------------------------------------------------------------------
+
+HAND_EDIT_MARKER = (
+    "<!-- END-GENERATED — hand-edits below this line are preserved across pipeline re-renders -->"
+)
+
+
+def write_with_hand_edits(path: Path, generated_text: str) -> None:
+    """Write generated markdown to `path`, preserving any hand-edits below
+    the END-GENERATED marker.
+
+    The contract, visible in-vault:
+    - Everything ABOVE the marker is owned by the pipeline and replaced
+      on every re-render.
+    - Everything BELOW the marker is owned by the PM and carried forward
+      verbatim, byte-for-byte.
+
+    Behaviour:
+    - File missing: write `{generated}\\n\\n{MARKER}\\n` (establishes
+      the contract going forward).
+    - File exists with marker: replace everything up to and including
+      the marker, preserve the tail verbatim.
+    - File exists without marker (legacy): treat whole file as generated
+      and overwrite. The fresh write installs the marker, so future runs
+      preserve any hand-edits added after this one.
+
+    Only applied to per-item files (requirements, gaps, decisions, etc.).
+    Landing pages (dashboard.md, hot.md, schema.md) stay full-overwrite
+    because they are derived views, not capture surfaces."""
+    new_body = generated_text.rstrip("\n")
+    hand_edits = ""
+
+    if path.exists():
+        existing = path.read_text(encoding="utf-8")
+        if HAND_EDIT_MARKER in existing:
+            _, _, tail = existing.partition(HAND_EDIT_MARKER)
+            hand_edits = tail
+
+    if hand_edits:
+        out = f"{new_body}\n\n{HAND_EDIT_MARKER}{hand_edits}"
+    else:
+        out = f"{new_body}\n\n{HAND_EDIT_MARKER}\n"
+
+    path.write_text(out, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Filename helpers
 # ---------------------------------------------------------------------------
 
