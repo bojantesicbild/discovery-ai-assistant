@@ -617,6 +617,19 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                                 }}>
                                   {gap.severity} severity
                                 </span>
+                                {gap.resolution_type && (() => {
+                                  const rtMap: Record<string, { label: string; bg: string; fg: string }> = {
+                                    auto_resolve: { label: "auto-resolve", bg: "#10B98115", fg: "#10B981" },
+                                    ask_client: { label: "ask client",   bg: "#F59E0B15", fg: "#F59E0B" },
+                                    ask_po:     { label: "ask PO",       bg: "#6366F115", fg: "#6366F1" },
+                                  };
+                                  const m = rtMap[gap.resolution_type] || { label: gap.resolution_type, bg: "#e5e7eb", fg: "#374151" };
+                                  return (
+                                    <span className="gap-meta-chip" style={{ background: m.bg, color: m.fg }}>
+                                      {m.label}
+                                    </span>
+                                  );
+                                })()}
                                 {gap.blocked_reqs?.length > 0 && (
                                   <span className="gap-meta-chip">
                                     Blocks: {gap.blocked_reqs.join(", ")}
@@ -1121,6 +1134,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       "", "## Description", req.description || "No description",
       req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
       req.business_rules?.length ? `\n## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
+      req.acceptance_criteria?.length ? `\n## Acceptance Criteria\n${req.acceptance_criteria.map((ac: string) => `- ${ac}`).join("\n")}` : "",
       req.edge_cases?.length ? `\n## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
       "\n## Sources",
       req.source_doc ? `**Primary:** ${req.source_doc}` : "",
