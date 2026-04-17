@@ -29,7 +29,19 @@ _Body of the requirement — also rendered as the H1 paragraph_
 
 > "[exact quote]"
 
+## User Perspective
+
+_As a [role], I want [X], so that [Y]_
+
+## Business Rules
+
+- 
+
 ## Acceptance Criteria
+
+- 
+
+## Edge Cases
 
 - 
 

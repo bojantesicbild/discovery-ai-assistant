@@ -413,6 +413,10 @@ def requirement_to_payload(
         "version": r.version or 1,
         "date": today,
         "description": r.description or "",
+        "user_perspective": r.user_perspective or "",
+        "business_rules": list(r.business_rules or []),
+        "edge_cases": list(r.edge_cases or []),
+        "acceptance_criteria": list(r.acceptance_criteria or []),
         "source_quote": r.source_quote or "",
         "sources": list(r.sources or []),
         "co_extracted": co_extracted,
@@ -456,6 +460,11 @@ def gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None =
         "suggested_action": g.suggested_action or "",
         "source_quote": g.source_quote or "",
         "resolution": g.resolution or "",
+        # Closure accountability fields (migration 015/016). Kept as None
+        # when the gap is still open, so the frontmatter reads cleanly.
+        "closed_at": g.closed_at.isoformat() if g.closed_at else None,
+        "closed_by": g.closed_by,
+        "assignee": g.assignee,
         "date": today,
         "_doc_class": doc_class or {},
     }
@@ -595,7 +604,10 @@ def render_requirement_text(
     # types, defaults, tags, aliases, cssclasses, category.
     fm_block = schema_lib.render_frontmatter("requirement", payload)
 
-    # Body sections — hand-built for now (Phase 2B step 3 territory)
+    # Body sections — hand-built for now (Phase 2B step 3 territory).
+    # User Perspective / Business Rules / Acceptance Criteria / Edge Cases
+    # are the BR fields the downstream chain (tech-stories, QA) needs —
+    # surfacing them here keeps the Obsidian view aligned with the DB.
     lines: list[str] = [
         f"# {rid}: {title}",
         "",
@@ -603,6 +615,31 @@ def render_requirement_text(
         "",
         "## Source",
         f"> \"{payload.get('source_quote', '')}\"" if payload.get("source_quote") else "> (no quote)",
+    ]
+
+    user_perspective = payload.get("user_perspective") or ""
+    if user_perspective:
+        lines += ["", "## User Perspective", user_perspective]
+
+    business_rules = payload.get("business_rules") or []
+    if business_rules:
+        lines += ["", "## Business Rules"]
+        for rule in business_rules:
+            lines.append(f"- {rule}")
+
+    acceptance_criteria = payload.get("acceptance_criteria") or []
+    if acceptance_criteria:
+        lines += ["", "## Acceptance Criteria"]
+        for ac in acceptance_criteria:
+            lines.append(f"- {ac}")
+
+    edge_cases = payload.get("edge_cases") or []
+    if edge_cases:
+        lines += ["", "## Edge Cases"]
+        for ec in edge_cases:
+            lines.append(f"- {ec}")
+
+    lines += [
         "",
         "## People",
     ]
@@ -762,6 +799,30 @@ def render_gap_text(
     else:
         lines.append("- _(no source document)_")
     lines.append("")
+
+    # Closure section — only rendered when the gap is resolved/dismissed.
+    # Gives the Obsidian reader the same closure context the UI shows:
+    # who closed it, when, and what the answer was.
+    status = payload.get("status") or "open"
+    resolution = payload.get("resolution") or ""
+    closed_at = payload.get("closed_at")
+    closed_by = payload.get("closed_by")
+    assignee = payload.get("assignee")
+    if status in ("resolved", "dismissed"):
+        heading = "Dismissal" if status == "dismissed" else "Resolution"
+        lines.append(f"## {heading}")
+        lines.append("")
+        lines.append(resolution or "_(no resolution text)_")
+        if closed_at or closed_by:
+            when = closed_at or "unknown date"
+            who = closed_by or "unknown"
+            lines.append("")
+            lines.append(f"*Closed {when} by {who}*")
+        lines.append("")
+    if assignee:
+        lines.append("## Owner")
+        lines.append(f"- {assignee}")
+        lines.append("")
 
     return fm_block + "\n".join(lines)
 

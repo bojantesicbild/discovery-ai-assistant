@@ -968,7 +968,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             for other_r, _, _ in reqs_rows
             if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id
         ]
-        payload = _requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
+        payload = requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
         text = render_requirement_text(payload, reqs_dir=reqs_dir)
         (reqs_dir / f"{r.req_id}.md").write_text(text)
 
@@ -977,7 +977,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     decisions_dir.mkdir(parents=True, exist_ok=True)
     for i, d in enumerate(decisions, 1):
         dec_id = f"DEC-{i:03d}"
-        payload = _decision_to_payload(d, dec_id, today)
+        payload = decision_to_payload(d, dec_id, today)
         text = render_decision_text(payload)
         (decisions_dir / f"{dec_id}.md").write_text(text)
 
@@ -987,7 +987,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     for s in stakeholders:
         # Pre-compute requirements requested by this person
         person_reqs = [(r.req_id, r.title) for r, _, _ in reqs_rows if r.source_person == s.name]
-        payload = _stakeholder_to_payload(s, today, person_reqs)
+        payload = stakeholder_to_payload(s, today, person_reqs)
         text = render_stakeholder_text(payload)
         # Filename uses the stakeholder's name (sanitized)
         import re as _re
@@ -1005,7 +1005,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     assumptions_dir.mkdir(parents=True, exist_ok=True)
     for i, asm in enumerate(assumptions, 1):
         asm_id = f"ASM-{i:03d}"
-        payload = _assumption_to_payload(asm, asm_id, today)
+        payload = assumption_to_payload(asm, asm_id, today)
         text = render_assumption_text(payload)
         (assumptions_dir / f"{asm_id}.md").write_text(text)
 
@@ -1014,7 +1014,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     scope_dir.mkdir(parents=True, exist_ok=True)
     for i, sc in enumerate(scope_items, 1):
         sc_id = f"SCO-{i:03d}"
-        payload = _scope_to_payload(sc, sc_id, today)
+        payload = scope_to_payload(sc, sc_id, today)
         text = render_scope_text(payload)
         (scope_dir / f"{sc_id}.md").write_text(text)
 
@@ -1023,7 +1023,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     contradictions_dir.mkdir(parents=True, exist_ok=True)
     for i, ctr in enumerate(contras, 1):
         ctr_id = f"CTR-{i:03d}"
-        payload = _contradiction_to_payload(ctr, ctr_id, today)
+        payload = contradiction_to_payload(ctr, ctr_id, today)
         text = render_contradiction_text(payload)
         (contradictions_dir / f"{ctr_id}.md").write_text(text)
 
@@ -1050,7 +1050,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             r.req_id for r, _, _ in reqs_rows
             if r.source_doc_id == con.source_doc_id
         ]
-        payload = _constraint_to_payload(con, con_id, today, affected_reqs)
+        payload = constraint_to_payload(con, con_id, today, affected_reqs)
         text = render_constraint_text(payload)
         (constraints_dir / f"{con_id}.md").write_text(text)
 
@@ -1058,7 +1058,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     gaps_dir = discovery_dir / "gaps"
     gaps_dir.mkdir(parents=True, exist_ok=True)
     for g, g_doc_name, g_doc_class in gaps_rows:
-        payload = _gap_to_payload(g, g_doc_name, today, g_doc_class)
+        payload = gap_to_payload(g, g_doc_name, today, g_doc_class)
         text = render_gap_text(payload, gaps_dir=gaps_dir)
         (gaps_dir / f"{g.gap_id}.md").write_text(text)
 
@@ -1141,21 +1141,21 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     # outside docs/discovery/ so it doesn't pollute the discovery wiki.
     vault_root = project_dir / ".memory-bank"
     try:
-        _write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, stakeholders, readiness)
+        write_dashboard(vault_root, reqs_rows, constraints, gaps_rows, decisions, stakeholders, readiness)
     except Exception as e:
         log.warning("Dashboard generation failed (non-fatal)", error=str(e))
 
     # hot.md at vault root — short distilled "what's hot right now"
     # carry-over for the next agent session. Cheap to load into context.
     try:
-        _write_hot(vault_root, doc, reqs_rows, gaps_rows, decisions, readiness)
+        write_hot(vault_root, doc, reqs_rows, gaps_rows, decisions, readiness)
     except Exception as e:
         log.warning("hot.md generation failed (non-fatal)", error=str(e))
 
     # schema.md at vault root — developer-friendly catalog of every
     # finding kind, generated from the canonical YAML schemas.
     try:
-        _write_schema_md(vault_root)
+        write_schema_md(vault_root)
     except Exception as e:
         log.warning("schema.md generation failed (non-fatal)", error=str(e))
 

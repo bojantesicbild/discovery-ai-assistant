@@ -138,9 +138,24 @@ sections:
     source_field: source_quote
     required: false
 
+  - name: User Perspective
+    format: paragraphs
+    source_field: user_perspective
+    required: false
+
+  - name: Business Rules
+    format: bullets
+    generated_from: business_rules
+    required: false
+
   - name: Acceptance Criteria
     format: bullets
     generated_from: acceptance_criteria
+    required: false
+
+  - name: Edge Cases
+    format: bullets
+    generated_from: edge_cases
     required: false
 
   - name: People
