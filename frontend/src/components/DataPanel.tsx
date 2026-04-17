@@ -226,6 +226,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           actions={detail.actions}
           onAction={detail.onAction}
           history={detail.history}
+          onLinkClick={(href: string) => {
+            // In-app `doc://<uuid>` links swap the detail view to the
+            // referenced source document (same renderer, different content).
+            if (href.startsWith("doc://")) {
+              const docId = href.slice("doc://".length);
+              const doc = documents.find((d: any) => d.id === docId);
+              if (doc) {
+                openDocument(doc);
+              } else {
+                // Fallback: we only have the id — fetch content and show it.
+                openDocument({ id: docId, filename: "document" });
+              }
+              return true;
+            }
+            return false;
+          }}
         />
       </div>
     );
@@ -1131,6 +1147,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   );
 
   function openRequirement(req: any) {
+    // Build the Sources section: one clickable link per source document.
+    // Format: "- [filename.md](doc://<uuid>)". Links are intercepted by
+    // the MarkdownPanel (see onLinkClick below) and resolve to the
+    // document's content panel — same mechanism as clicking a row in
+    // the Documents tab.
+    const sourceLines: string[] = [];
+    if (req.source_doc && req.source_doc_id) {
+      sourceLines.push(`- [${req.source_doc}](doc://${req.source_doc_id})`);
+    } else if (req.source_doc) {
+      sourceLines.push(`- ${req.source_doc}`);
+    }
+    (req.sources || []).forEach((s: any) => {
+      const name = s.filename || s.doc_id?.slice(0, 8) || "document";
+      if (s.doc_id) sourceLines.push(`- [${name}](doc://${s.doc_id})`);
+      else sourceLines.push(`- ${name}`);
+    });
+
     const md = [
       `# ${req.req_id}: ${req.title}`,
       "", `**Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
@@ -1140,12 +1173,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       req.business_rules?.length ? `\n## Business Rules\n${req.business_rules.map((r: string) => `- ${r}`).join("\n")}` : "",
       req.acceptance_criteria?.length ? `\n## Acceptance Criteria\n${req.acceptance_criteria.map((ac: string) => `- ${ac}`).join("\n")}` : "",
       req.edge_cases?.length ? `\n## Edge Cases\n${req.edge_cases.map((e: string) => `- ${e}`).join("\n")}` : "",
-      "\n## Sources",
-      req.source_doc ? `**Primary:** ${req.source_doc}` : "",
-      req.source_quote ? `> ${req.source_quote}` : "",
-      ...(req.sources?.length ? req.sources.map((s: any, i: number) =>
-        `**Source ${i + 2}:** ${s.filename || s.doc_id?.slice(0, 8) || "document"}${s.quote ? `\n> ${s.quote}` : ""}`
-      ) : []),
+      sourceLines.length ? `\n## Sources\n${sourceLines.join("\n")}` : "",
       req.version > 1 ? `\n*Version ${req.version} — merged from ${1 + (req.sources?.length || 0)} documents*` : "",
     ].filter(Boolean).join("\n");
 

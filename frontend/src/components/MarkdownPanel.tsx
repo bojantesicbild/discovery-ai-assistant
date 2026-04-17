@@ -13,6 +13,11 @@ interface MarkdownPanelProps {
   onAction?: (value: string) => void;
   readOnly?: boolean;
   history?: { projectId: string; itemType: string; itemId: string };
+  /** Called when an in-content link is clicked. Receives the href; return
+   *  true if handled (the default anchor navigation is suppressed). Used
+   *  for app-internal protocols like `doc://<uuid>` to cross-link between
+   *  detail views without a real URL. */
+  onLinkClick?: (href: string) => boolean | void;
 }
 
 export default function MarkdownPanel({
@@ -25,6 +30,7 @@ export default function MarkdownPanel({
   actions,
   onAction,
   history,
+  onLinkClick,
 }: MarkdownPanelProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -281,6 +287,15 @@ export default function MarkdownPanel({
               fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
               fontFamily: "var(--font)",
             }}
+            onClick={(e) => {
+              if (!onLinkClick) return;
+              let el: HTMLElement | null = e.target as HTMLElement;
+              while (el && el.tagName !== "A") el = el.parentElement;
+              if (!el) return;
+              const href = (el as HTMLAnchorElement).getAttribute("href") || "";
+              const handled = onLinkClick(href);
+              if (handled !== false) e.preventDefault();
+            }}
             dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
           />
         )}
@@ -366,6 +381,7 @@ function renderMarkdown(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:12px;font-family:monospace">$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="md-link" style="color:var(--green);text-decoration:underline;cursor:pointer">$1</a>')
     .replace(/^- (.+)$/gm, '<li class="chat-li">$1</li>')
     .replace(/^\d+\. (.+)$/gm, '<li class="chat-oli">$1</li>')
     .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
