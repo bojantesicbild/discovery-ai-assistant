@@ -375,9 +375,9 @@ function renderMarkdown(text: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--dark)">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:20px 0 10px;color:var(--dark)">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:24px 0 12px;color:var(--dark)">$1</h1>')
+    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:12px 0 2px;color:var(--dark)">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:14px 0 2px;color:var(--dark)">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:16px 0 4px;color:var(--dark)">$1</h1>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:12px;font-family:monospace">$1</code>')
@@ -386,10 +386,10 @@ function renderMarkdown(text: string): string {
     .replace(/^\d+\. (.+)$/gm, '<li class="chat-oli">$1</li>')
     .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
     .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--gray-200);margin:16px 0">')
-    .replace(/\n\n/g, '</p><p style="margin:10px 0">')
+    .replace(/\n\n/g, '</p><p style="margin:6px 0">')
     .replace(/\n/g, '<br>');
 
-  html = '<p style="margin:10px 0">' + html + '</p>';
+  html = '<p style="margin:6px 0">' + html + '</p>';
 
   html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) => {
     const isOrdered = /class="chat-oli"/.test(match);
@@ -397,6 +397,14 @@ function renderMarkdown(text: string): string {
     const cls = isOrdered ? 'chat-ol' : 'chat-ul';
     return `<${tag} class="${cls}">` + match.replace(/<br>/g, '') + `</${tag}>`;
   });
+
+  // Strip stray <br> right after a heading or list — they're just noise
+  // from the newline that followed the block element in the source.
+  html = html.replace(/(<\/h[1-6]>|<\/ul>|<\/ol>)\s*<br>/g, '$1');
+  // Collapse empty paragraphs left behind when \n\n hugs a block element.
+  html = html.replace(/<p[^>]*>\s*(<br>\s*)*<\/p>/g, '');
+  html = html.replace(/<p[^>]*>\s*(<h[1-6][^>]*>)/g, '$1');
+  html = html.replace(/(<\/h[1-6]>)\s*<\/p>/g, '$1');
 
   // 3. Re-insert tables
   for (const [key, tableHtml] of Object.entries(tables)) {
