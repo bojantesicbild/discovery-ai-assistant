@@ -164,22 +164,20 @@ Before spawning any phase agent, run the checks for that phase. These are the OR
 
 After EVERY agent returns:
 
-1. **Check for completion report** — look for `AGENT COMPLETION REPORT` in output
-2. **Parse status**: SUCCESS / PARTIAL / FAILED / BLOCKED
-3. **Verify expected files**:
+1. **Read the agent's chat reply** — 1–3 sentences per Tone rule #8. The agent states what it did, where the artifact landed, and whether it succeeded or was blocked.
+2. **Verify expected files exist on disk** — don't trust the prose alone, check the artifact:
 
-| Phase | Expected Output |
-|-------|----------------|
+| Phase | Expected output |
+|---|---|
 | 1+2 | `docs/qa-analysis-reports/[DATE]_[STORY]_phase1_analysis.md` AND `docs/test-cases/[DATE]_[STORY]_test-cases.csv` |
 | 3 | `e2e/tests/[story-slug]/*.spec.ts` (at least 1 file) |
 | 4 | `docs/reports/[DATE]_[STORY]_phase4_report.md` |
 | 5 | `docs/defects/[DATE]_[STORY]_*_defect.md` OR Jira ticket confirmation |
 
-4. **Act on status**:
-   - SUCCESS → Phase Completion Prompt
-   - PARTIAL → Show warnings, ask "Proceed with partial or re-run?"
-   - FAILED → Show errors, do NOT auto-proceed
-   - BLOCKED → Show blockers with resolution options
+3. **Act on what you see:**
+   - File exists + prose confirms success → proceed to Phase Completion Prompt.
+   - File missing or agent reported *"Blocked on X. Need Y."* → show the blocker to the user, do NOT auto-proceed.
+   - Partial output (some files created, some missing) → surface to the user and ask whether to continue with partial results or re-run.
 
 ---
 

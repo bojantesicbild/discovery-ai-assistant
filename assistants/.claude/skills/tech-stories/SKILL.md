@@ -8,7 +8,6 @@ Activated when user message contains: tech doc, stories, breakdown, pipeline, da
 ## Anti-Patterns (NEVER do these)
 - "Agent asking user for approval" (Agents are autonomous — ALL user interaction is handled by the orchestrator)
 - "Skipping breakdown approval gate" (User must explicitly approve breakdown before story creation)
-- "Using swarm mode by default" (Sequential is default, swarm is opt-in)
 - "Publishing to Atlassian without asking" (Atlassian publish is always ask-first)
 - "Creating stories without tech doc" (Tech doc is prerequisite for story breakdown)
 - "Agents writing to .claude/ infrastructure" (Agents may READ .claude/ files but never CREATE, MODIFY, or DELETE them)
@@ -74,12 +73,11 @@ ORCHESTRATOR invokes story-story-agent Mode A
   │
   ▼
 [GATE: Transition 2]
-  (a) Sequential story creation (default, reliable)
-  (b) Parallel swarm creation (faster for 5+)
-  (c) Archive breakdown only
-  │ User picks (a) or (b)
+  (a) Create stories from breakdown
+  (b) Archive breakdown only
+  │ User picks (a)
   ▼
-ORCHESTRATOR invokes story-story-agent Mode B
+ORCHESTRATOR invokes story-story-agent Mode B (one story at a time)
   → Agent creates stories, returns results
   │
   ▼
@@ -117,7 +115,7 @@ ORCHESTRATOR invokes story-dashboard-agent
 
 1. **Agents are fully autonomous** — agents NEVER ask the user for approval, confirmation, or choices. They complete their work and return a handoff. All transition prompts, approval gates, and user interaction are handled exclusively by the orchestrator.
 2. **Breakdown approval gate** — user must explicitly approve the story breakdown before the orchestrator invokes Mode B. This gate is managed by the orchestrator, not the agent.
-3. **Sequential is default, swarm is opt-in** — sequential creation is recommended unless user explicitly chooses swarm; recommend swarm when 5+ stories exist.
+3. **Story creation is sequential** — individual story files are produced one at a time. Story quality is better when the agent has full focus per story, and sequential creation avoids context fragmentation.
 4. **Pipeline can exit at any transition prompt** — user can archive and stop at any stage; pipeline does not force completion.
 5. **Pipeline context persists across agents** — the orchestrator maintains `tech_doc_path`, `feature_name`, `feature_folder`, `dashboard_path`, `team_config`, `confluence_url`, `jira_keys`, and `pipeline_mode: "guided"` in context.
 6. **Backward compatible** — standalone agent invocations work identically; pipeline prompts only appear when `pipeline_mode` is active.
