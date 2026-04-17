@@ -29,6 +29,10 @@ _Body of the requirement — also rendered as the H1 paragraph_
 
 > "[exact quote]"
 
+## Acceptance Criteria
+
+- 
+
 ## People
 
 - 

@@ -29,6 +29,10 @@ _Body of the requirement — also rendered as the H1 paragraph_
 
 > "[exact quote]"
 
+## Acceptance Criteria
+
+- 
+
 ## People
 
 - 
@@ -55,6 +59,12 @@ For each requirement, capture:
 - user_perspective: "As a [role], I want [X], so that [Y]" (generate if not explicit)
 - business_rules: specific rules mentioned
 - edge_cases: edge cases mentioned or obvious ones
+- acceptance_criteria: testable ACs in GIVEN/WHEN/THEN form (one per list entry).
+                      Include when the source describes observable behavior clear
+                      enough to write a test for. Format each as:
+                        "AC1: Title — GIVEN precondition WHEN action THEN outcome"
+                      Or split across lines within the string if that reads better.
+                      Skip if the source is too abstract for concrete ACs.
 - source_quote: EXACT verbatim quote from the document (≥10 chars)
 - status: proposed (default), discussed (mentioned in multiple docs), confirmed (client EXPLICITLY confirmed)
 - confidence: high (explicit), medium (implied), low (inferred)

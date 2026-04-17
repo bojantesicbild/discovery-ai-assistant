@@ -18,6 +18,7 @@ class Requirement(Base, IdMixin, TimestampMixin):
     user_perspective: Mapped[str | None] = mapped_column(Text, nullable=True)
     business_rules: Mapped[list] = mapped_column(JSONB, default=list)
     edge_cases: Mapped[list] = mapped_column(JSONB, default=list)
+    acceptance_criteria: Mapped[list] = mapped_column(JSONB, default=list)  # ["AC1: GIVEN... WHEN... THEN...", ...]
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     source_quote: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String, default="proposed")

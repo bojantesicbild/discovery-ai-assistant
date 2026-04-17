@@ -64,6 +64,13 @@ fields:
     required: false
     frontmatter: false
 
+  - key: acceptance_criteria
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "Testable AC blocks in GIVEN/WHEN/THEN form, each string is one AC. Extracted at ingest time so story-story-agent can lift them verbatim into PBIs and qa-analysis-planning-agent can triage them directly."
+
   - key: source_doc
     type: string
     required: false
@@ -131,6 +138,11 @@ sections:
     source_field: source_quote
     required: false
 
+  - name: Acceptance Criteria
+    format: bullets
+    generated_from: acceptance_criteria
+    required: false
+
   - name: People
     format: bullets
     generated_from: source_person
@@ -180,6 +192,12 @@ extraction_prompt: |
   - user_perspective: "As a [role], I want [X], so that [Y]" (generate if not explicit)
   - business_rules: specific rules mentioned
   - edge_cases: edge cases mentioned or obvious ones
+  - acceptance_criteria: testable ACs in GIVEN/WHEN/THEN form (one per list entry).
+                        Include when the source describes observable behavior clear
+                        enough to write a test for. Format each as:
+                          "AC1: Title — GIVEN precondition WHEN action THEN outcome"
+                        Or split across lines within the string if that reads better.
+                        Skip if the source is too abstract for concrete ACs.
   - source_quote: EXACT verbatim quote from the document (≥10 chars)
   - status: proposed (default), discussed (mentioned in multiple docs), confirmed (client EXPLICITLY confirmed)
   - confidence: high (explicit), medium (implied), low (inferred)
