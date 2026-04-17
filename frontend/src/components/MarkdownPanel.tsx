@@ -366,8 +366,8 @@ function renderMarkdown(text: string): string {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:12px;font-family:monospace">$1</code>')
-    .replace(/^- (.+)$/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li style="margin:4px 0;padding-left:4px">$1</li>')
+    .replace(/^- (.+)$/gm, '<li class="chat-li">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li class="chat-oli">$1</li>')
     .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
     .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--gray-200);margin:16px 0">')
     .replace(/\n\n/g, '</p><p style="margin:10px 0">')
@@ -376,7 +376,10 @@ function renderMarkdown(text: string): string {
   html = '<p style="margin:10px 0">' + html + '</p>';
 
   html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) => {
-    return '<ul style="padding-left:20px;margin:8px 0">' + match.replace(/<br>/g, '') + '</ul>';
+    const isOrdered = /class="chat-oli"/.test(match);
+    const tag = isOrdered ? 'ol' : 'ul';
+    const cls = isOrdered ? 'chat-ol' : 'chat-ul';
+    return `<${tag} class="${cls}">` + match.replace(/<br>/g, '') + `</${tag}>`;
   });
 
   // 3. Re-insert tables
