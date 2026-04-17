@@ -227,6 +227,7 @@ async def list_gaps(
         "resolution": g.resolution,
         "closed_at": g.closed_at.isoformat() if g.closed_at else None,
         "closed_by": g.closed_by,
+        "assignee": g.assignee,
         "created_at": g.created_at.isoformat() if g.created_at else None,
     } for g, doc_name in rows]
     await _attach_seen(items, db, user.id, project_id, "gap")

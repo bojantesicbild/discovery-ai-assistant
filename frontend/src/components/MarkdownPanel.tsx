@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getItemHistory, type HistoryEntry } from "@/lib/api";
+import { renderMarkdown } from "@/lib/markdown";
 
 interface MarkdownPanelProps {
   title: string;
@@ -142,8 +143,20 @@ export default function MarkdownPanel({
               <span style={{ fontWeight: 600, color: "var(--gray-400)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{key}:</span>
               <span style={{
                 padding: "1px 8px", borderRadius: 10, fontSize: 10, fontWeight: 600,
-                background: value === "must" ? "var(--danger-light)" : value === "confirmed" ? "var(--green-light)" : "var(--gray-100)",
-                color: value === "must" ? "var(--danger)" : value === "confirmed" ? "#059669" : "var(--gray-600)",
+                ...((): { background: string; color: string } => {
+                  // Status-aware chip palette. Green for positive states
+                  // (confirmed, resolved), red for must-priority, amber
+                  // for attention (open), muted grey for dismissed (so
+                  // it reads as "closed, not acted on").
+                  switch (value) {
+                    case "must":       return { background: "var(--danger-light)", color: "var(--danger)" };
+                    case "confirmed":
+                    case "resolved":   return { background: "var(--green-light)", color: "#059669" };
+                    case "open":       return { background: "#FEF3C7",            color: "#B45309" };
+                    case "dismissed":  return { background: "var(--gray-100)",    color: "var(--gray-400)" };
+                    default:           return { background: "var(--gray-100)",    color: "var(--gray-600)" };
+                  }
+                })(),
               }}>
                 {value}
               </span>
@@ -302,114 +315,4 @@ export default function MarkdownPanel({
       </div>
     </div>
   );
-}
-
-
-function renderMarkdown(text: string): string {
-  // 1. Extract tables into a map, replace with placeholders
-  const tables: Record<string, string> = {};
-  const lines = text.split("\n");
-  const cleaned: string[] = [];
-  let i = 0;
-  let tableIdx = 0;
-
-  while (i < lines.length) {
-    if (
-      lines[i].includes("|") &&
-      i + 1 < lines.length &&
-      /^\|?\s*[-:]+[-| :]*$/.test(lines[i + 1])
-    ) {
-      const tableLines: string[] = [];
-      tableLines.push(lines[i]);
-      i++;
-      const separatorLine = lines[i];
-      i++;
-      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") {
-        tableLines.push(lines[i]);
-        i++;
-      }
-
-      const alignments = separatorLine
-        .split("|")
-        .filter((c) => c.trim())
-        .map((c) => {
-          const t = c.trim();
-          if (t.startsWith(":") && t.endsWith(":")) return "center";
-          if (t.endsWith(":")) return "right";
-          return "left";
-        });
-
-      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      const parseCells = (line: string) =>
-        line.split("|").filter((_, idx, arr) => idx > 0 && idx < arr.length - (line.endsWith("|") ? 1 : 0)).map((c) => c.trim());
-
-      const headerCells = parseCells(tableLines[0]);
-      let h = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px"><thead><tr>';
-      headerCells.forEach((cell, ci) => {
-        const a = alignments[ci] || "left";
-        h += `<th style="text-align:${a};padding:8px 12px;border:1px solid var(--gray-200);background:var(--gray-50);font-weight:600;color:var(--dark)">${esc(cell)}</th>`;
-      });
-      h += "</tr></thead><tbody>";
-      for (let r = 1; r < tableLines.length; r++) {
-        const cells = parseCells(tableLines[r]);
-        h += "<tr>";
-        cells.forEach((cell, ci) => {
-          const a = alignments[ci] || "left";
-          h += `<td style="text-align:${a};padding:6px 12px;border:1px solid var(--gray-200);color:var(--gray-600)">${esc(cell)}</td>`;
-        });
-        h += "</tr>";
-      }
-      h += "</tbody></table>";
-
-      const key = `__TABLE_${tableIdx++}__`;
-      tables[key] = h;
-      cleaned.push(key);
-    } else {
-      cleaned.push(lines[i]);
-      i++;
-    }
-  }
-
-  // 2. Process the rest as markdown (tables are now just placeholder strings)
-  let html = cleaned.join("\n")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:12px 0 2px;color:var(--dark)">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:14px 0 2px;color:var(--dark)">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:16px 0 4px;color:var(--dark)">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:12px;font-family:monospace">$1</code>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="md-link" style="color:var(--green);text-decoration:underline;cursor:pointer">$1</a>')
-    .replace(/^- (.+)$/gm, '<li class="chat-li">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li class="chat-oli">$1</li>')
-    .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--green);padding:8px 14px;margin:10px 0;background:var(--green-light);border-radius:0 var(--radius-xs) var(--radius-xs) 0;font-size:12px;color:var(--gray-600)">$1</blockquote>')
-    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--gray-200);margin:16px 0">')
-    .replace(/\n\n/g, '</p><p style="margin:6px 0">')
-    .replace(/\n/g, '<br>');
-
-  html = '<p style="margin:6px 0">' + html + '</p>';
-
-  html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) => {
-    const isOrdered = /class="chat-oli"/.test(match);
-    const tag = isOrdered ? 'ol' : 'ul';
-    const cls = isOrdered ? 'chat-ol' : 'chat-ul';
-    return `<${tag} class="${cls}">` + match.replace(/<br>/g, '') + `</${tag}>`;
-  });
-
-  // Strip stray <br> right after a heading or list — they're just noise
-  // from the newline that followed the block element in the source.
-  html = html.replace(/(<\/h[1-6]>|<\/ul>|<\/ol>)\s*<br>/g, '$1');
-  // Collapse empty paragraphs left behind when \n\n hugs a block element.
-  html = html.replace(/<p[^>]*>\s*(<br>\s*)*<\/p>/g, '');
-  html = html.replace(/<p[^>]*>\s*(<h[1-6][^>]*>)/g, '$1');
-  html = html.replace(/(<\/h[1-6]>)\s*<\/p>/g, '$1');
-
-  // 3. Re-insert tables
-  for (const [key, tableHtml] of Object.entries(tables)) {
-    html = html.replace(key, tableHtml);
-  }
-
-  return html;
 }

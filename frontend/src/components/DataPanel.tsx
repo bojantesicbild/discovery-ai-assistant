@@ -1157,16 +1157,39 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       clientBlock = `\n## Client Answer\n${who} · review round ${fb.round}${when ? ` · ${when}` : ""}\n\n> ${fb.answer.replace(/\n/g, "\n> ")}`;
     }
 
+    // Age line — shows raise date and either current age (open) or
+    // total time-to-close (resolved/dismissed) so triage has context.
+    let ageLine = "";
+    if (gap.created_at) {
+      const raised = new Date(gap.created_at);
+      const endPoint = gap.closed_at ? new Date(gap.closed_at) : new Date();
+      const days = Math.max(0, Math.floor((endPoint.getTime() - raised.getTime()) / 86_400_000));
+      const raisedDate = raised.toISOString().slice(0, 10);
+      const ageText =
+        gap.closed_at
+          ? (days === 0 ? "closed same day" : `open ${days} day${days === 1 ? "" : "s"} before closing`)
+          : (days === 0 ? "raised today" : `${days} day${days === 1 ? "" : "s"} old`);
+      ageLine = `*Raised ${raisedDate} · ${ageText}*`;
+    }
+
+    // "Suggested Action" is an instruction for the PM while the gap is
+    // open. Once closed, it becomes historical context, so reframe the
+    // heading to avoid sounding like a to-do.
+    const suggestedActionHeading = (gap.status === "resolved" || gap.status === "dismissed")
+      ? "Originally suggested action"
+      : "Suggested Action";
+
     const md = [
       `# ${gap.gap_id}: ${gap.question}`,
+      ageLine,
+      gap.assignee ? `\n**Owner:** ${gap.assignee}` : "",
       gap.source_person ? `\n**Ask:** ${gap.source_person}` : "",
       blocksLine ? `\n${blocksLine}` : "",
       clientBlock,
-      `\n## Suggested Action\n${gap.suggested_action || "*Not specified.*"}`,
+      gap.suggested_action ? `\n## ${suggestedActionHeading}\n${gap.suggested_action}` : "",
       gap.source_quote && gap.source_quote !== "extracted from document"
         ? `\n## Source Quote\n> ${gap.source_quote}`
         : "",
-      `\n## Suggested Question for Next Meeting *(auto-generated draft)*\n${_generateGapQuestion(gap)}`,
       sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
       resolutionBlock,
     ].filter(Boolean).join("\n");
@@ -1789,20 +1812,11 @@ function _reqActionsForStatus(status: string): { label: string; value: string; c
 }
 
 
-function _generateGapQuestion(gap: any): string {
-  const title = gap.question || "";
-  // Generate a concrete meeting question from the gap title
-  if (title.toLowerCase().includes("authority") || title.toLowerCase().includes("who")) {
-    return `"Who has the final authority on ${title.toLowerCase().replace("requirement confirmation authority definition", "confirming requirements")}? Can we agree on the decision-making process today?"`;
-  }
-  if (title.toLowerCase().includes("process") || title.toLowerCase().includes("how")) {
-    return `"Can you walk us through how ${title.toLowerCase()} should work? What's the expected workflow?"`;
-  }
-  if (title.toLowerCase().includes("policy") || title.toLowerCase().includes("archival")) {
-    return `"What's your preference for ${title.toLowerCase()}? Should we keep an audit trail or clean up permanently?"`;
-  }
-  return `"Can we clarify the requirement for '${title}'? What specifically do you need, and what's the priority?"`;
-}
+// Meeting questions are crafted by the discovery-prep-agent with full
+// project context when the user generates an agenda. No client-side
+// regex synthesis — we removed `_generateGapQuestion` because it was
+// keyword-matching that produced recursive gibberish for any gap whose
+// title already contained its trigger word.
 
 function ContraResolveForm({ onResolve }: { onResolve: (note: string) => void }) {
   const [note, setNote] = useState("");

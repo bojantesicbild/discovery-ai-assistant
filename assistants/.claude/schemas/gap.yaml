@@ -45,6 +45,11 @@ fields:
     required: false
     description: "Email or identifier of the person who closed the gap."
 
+  - key: assignee
+    type: string
+    required: false
+    description: "Person responsible for closing this gap — distinct from source_person (who raised it). Free-form string; could be email, name, or team tag."
+
   - key: blocked_reqs
     type: list
     item_type: string
