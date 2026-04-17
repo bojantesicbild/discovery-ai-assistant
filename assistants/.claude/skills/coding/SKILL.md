@@ -5,6 +5,67 @@
 ## When to Use
 Activated when user message contains: fix, implement, add, create, build, update, refactor, bug, code + specific target.
 
+---
+
+## Coding Discipline
+
+Bias toward caution over speed. For trivial edits (typo, rename, one-line config), use judgment — these heuristics add overhead where it isn't warranted. *(Principles adapted from Andrej Karpathy's CLAUDE.md — credited because the phrasing is sharper than anything we'd write from scratch.)*
+
+### 1. Think before coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity first
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+**Self-test:** *"Would a senior engineer say this is overcomplicated?"* If yes, simplify.
+
+### 3. Surgical changes
+
+Touch only what you must. Clean up only your own mess.
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+- Remove imports/variables/functions that *your* changes made unused. Don't remove pre-existing dead code unless asked.
+
+**Self-test:** *"Does every changed line trace directly to the user's request?"* If not, the extra changes are drift — pull them back.
+
+### 4. Goal-driven execution
+
+Transform tasks into verifiable goals before writing code.
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass."
+- "Fix the bug" → "Write a test that reproduces it, then make it pass."
+- "Refactor X" → "Ensure tests pass before and after."
+
+For multi-step work, state a brief plan and its verification step:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+**These principles are working if:** fewer unnecessary changes in diffs, fewer rewrites caused by overcomplication, clarifying questions arrive before implementation rather than after mistakes.
+
+---
+
 ## Anti-Patterns (NEVER do these)
 - "Skipping checkpoint because task is simple" (Simple tasks are where shortcuts cause the most damage)
 - "Auto-fixing architectural issues" (Architecture changes require user judgment)
