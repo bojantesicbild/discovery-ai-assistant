@@ -327,16 +327,56 @@ async def list_constraints(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Constraint).where(Constraint.project_id == project_id)
+    query = (
+        select(Constraint, Document.filename)
+        .outerjoin(Document, Constraint.source_doc_id == Document.id)
+        .where(Constraint.project_id == project_id)
+    )
     if type:
         query = query.where(Constraint.type == type)
+    # Stable order so the UI can assign CON-001, CON-002, … at render time
+    # in a way that matches the markdown vault's sequence.
+    query = query.order_by(Constraint.created_at, Constraint.id)
     result = await db.execute(query)
-    items = result.scalars().all()
-    out = [{"id": str(c.id), "type": c.type, "description": c.description,
-             "impact": c.impact, "status": c.status, "source_quote": c.source_quote}
-            for c in items]
+    rows = result.all()
+    out = [{
+        "id": str(c.id),
+        "type": c.type,
+        "description": c.description,
+        "impact": c.impact,
+        "status": c.status,
+        "source_quote": c.source_quote,
+        "source_doc": doc_name,
+        "source_doc_id": str(c.source_doc_id) if c.source_doc_id else None,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    } for c, doc_name in rows]
     await _attach_seen(out, db, user.id, project_id, "constraint")
-    return {"items": out, "total": len(items)}
+    return {"items": out, "total": len(rows)}
+
+
+@router.patch("/constraints/{constraint_id}/status")
+async def update_constraint_status(
+    project_id: uuid.UUID,
+    constraint_id: uuid.UUID,
+    status: str = Query(...),  # "confirmed" | "assumed" | "negotiable"
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if status not in ("confirmed", "assumed", "negotiable"):
+        return {"error": f"Invalid status: {status}. Expected confirmed | assumed | negotiable."}
+    result = await db.execute(
+        select(Constraint).where(
+            Constraint.project_id == project_id,
+            Constraint.id == constraint_id,
+        )
+    )
+    con = result.scalar_one_or_none()
+    if not con:
+        return {"error": "Not found"}
+    con.status = status
+    await db.flush()
+    await _sync_markdown(project_id, db)
+    return {"id": str(con.id), "status": con.status}
 
 
 # ── Decisions ─────────────────────────────────────────

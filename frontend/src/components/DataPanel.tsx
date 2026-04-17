@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import {
   getDashboard, listRequirements, listContradictions, listDocuments,
-  deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap,
+  deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap, updateConstraintStatus,
   listConstraints, listHandoffDocs, getHandoffDoc, generateHandoffStream,
   getDocumentContent, getReadiness, getReadinessTrajectory, getLatestDigest,
   listIntegrations, getMeetingAgenda, saveMeetingAgenda, createNewAgenda,
@@ -687,6 +687,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     <thead>
                       <tr>
                         <th style={{ width: 20 }}></th>
+                        <th style={{ width: 60 }}>ID</th>
                         <SortableHeader label="Type" columnKey="type" state={consTable} />
                         <SortableHeader label="Constraint" columnKey="description" state={consTable} />
                         <SortableHeader label="Impact" columnKey="impact" state={consTable} />
@@ -694,19 +695,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((c: any, i: number) => (
+                      {visible.map((c: any, i: number) => {
+                        // CON-NNN is derived from the constraint's position
+                        // in the full constraints list (API returns them in
+                        // stable created_at order).
+                        const absoluteIndex = constraints.findIndex((x: any) => x.id === c.id);
+                        const conId = `CON-${String(absoluteIndex + 1).padStart(3, "0")}`;
+                        return (
                         <tr
                           key={c.id || i}
                           className="clickable-row"
                           style={!c.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
                           onClick={() => {
-                            setDetail({
-                              title: `${c.type} Constraint`,
-                              content: `# ${c.type} Constraint\n\n${c.description}\n\n## Impact\n${c.impact}\n\n## Source\n> ${c.source_quote || "N/A"}`,
-                              meta: { type: c.type, status: c.status },
-                              history: c.id ? { projectId, itemType: "constraint", itemId: c.id } : undefined,
-                            });
-                            onNavigate?.("constraints", String(c.id).slice(0, 8));
+                            openConstraint(c, absoluteIndex);
+                            onNavigate?.("constraints", conId);
                             if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
                           }}
                         >
@@ -715,6 +717,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                             style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
                           >
                             <Chevron />
+                          </td>
+                          <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap" }}>
+                            {conId}
                           </td>
                           <td>
                             <span className="sev-badge" style={{
@@ -728,7 +733,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                           <td style={{ fontSize: 11, color: "var(--gray-500)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
                           <td><StatusPill status={c.status} /></td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                   <Pagination
@@ -1110,6 +1116,71 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     };
     if (mode === "push") pushDetail(view);
     else setDetail(view);
+  }
+
+  function openConstraint(con: any, index: number) {
+    // Constraints have no persistent display id in the DB. We assign
+    // CON-001, CON-002, … at render time based on the stable order
+    // returned by the API (created_at + id), so the UI number matches
+    // the vault's markdown filename sequence.
+    const conId = `CON-${String(index + 1).padStart(3, "0")}`;
+
+    // Use the description as the human-readable title — the previous
+    // "{type} Constraint" auto-derivation was uninformative (every
+    // technology constraint had the same title). First ~80 chars of
+    // description, stripped of trailing punctuation.
+    const desc = (con.description || "").trim();
+    const shortTitle = desc.length > 80 ? desc.slice(0, 77).trimEnd() + "…" : desc;
+    const headerTitle = shortTitle || `${con.type} constraint (no description)`;
+
+    const sourceLines: string[] = [];
+    if (con.source_doc && con.source_doc_id) {
+      sourceLines.push(`- [${con.source_doc}](doc://${con.source_doc_id})`);
+    } else if (con.source_doc) {
+      sourceLines.push(`- ${con.source_doc}`);
+    }
+
+    // Age line — same pattern as gap detail.
+    let ageLine = "";
+    if (con.created_at) {
+      const raised = new Date(con.created_at);
+      const days = Math.max(0, Math.floor((Date.now() - raised.getTime()) / 86_400_000));
+      const raisedDate = raised.toISOString().slice(0, 10);
+      const ageText = days === 0 ? "raised today" : `${days} day${days === 1 ? "" : "s"} old`;
+      ageLine = `*Raised ${raisedDate} · ${ageText}*`;
+    }
+
+    const md = [
+      `# ${conId}: ${headerTitle}`,
+      ageLine,
+      desc && desc.length > 80 ? `\n${desc}` : "", // full description if truncated in title
+      con.impact ? `\n## Impact\n${con.impact}` : "",
+      con.source_quote ? `\n## Source Quote\n> ${con.source_quote}` : "",
+      sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
+    ].filter(Boolean).join("\n");
+
+    // Status transition actions — only offer the statuses that aren't
+    // already current. Confirmed is the strongest state; negotiable is
+    // softest; assumed is the default when newly extracted.
+    const allStatuses: Array<{ label: string; value: string; color: string }> = [
+      { label: "Mark Confirmed",  value: "confirmed",  color: "#10b981" },
+      { label: "Mark Assumed",    value: "assumed",    color: "#f59e0b" },
+      { label: "Mark Negotiable", value: "negotiable", color: "#6366f1" },
+    ];
+    const actions = allStatuses.filter((a) => a.value !== con.status);
+
+    setDetail({
+      title: `${conId}: ${headerTitle}`,
+      content: md,
+      meta: { id: conId, type: con.type, status: con.status },
+      history: con.id ? { projectId, itemType: "constraint", itemId: con.id } : undefined,
+      actions,
+      onAction: async (action: string) => {
+        await updateConstraintStatus(projectId, con.id, action as "confirmed" | "assumed" | "negotiable");
+        loadData();
+        setDetail(null);
+      },
+    });
   }
 
   function openGap(gap: any) {

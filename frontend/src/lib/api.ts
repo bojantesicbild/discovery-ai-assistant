@@ -168,6 +168,17 @@ export async function resolveGap(
   return fetchAPI(`/api/projects/${projectId}/gaps/${gapId}/resolve?${q}`, { method: "PATCH" });
 }
 
+export async function updateConstraintStatus(
+  projectId: string,
+  constraintId: string,
+  status: "confirmed" | "assumed" | "negotiable",
+) {
+  return fetchAPI(
+    `/api/projects/${projectId}/constraints/${constraintId}/status?status=${status}`,
+    { method: "PATCH" },
+  );
+}
+
 // Dashboard
 export async function getDashboard(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/dashboard`);
