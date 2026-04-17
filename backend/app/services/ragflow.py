@@ -79,7 +79,7 @@ class RAGFlowClient:
     async def search(self, dataset_id: str, query: str, top_n: int = 10,
                      similarity_threshold: float = 0.3) -> list[dict]:
         client = await self._get_client()
-        resp = await client.post(f"/api/v1/retrieval", json={
+        resp = await client.post("/api/v1/retrieval", json={
             "dataset_ids": [dataset_id],
             "question": query,
             "top_k": top_n,

@@ -9,7 +9,6 @@ Endpoints:
     GET    /api/integrations/google/callback                  — OAuth callback
 """
 
-import json
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -30,7 +29,6 @@ from app.deps import get_current_user
 from app.models.auth import User
 from app.models.operational import ProjectIntegration
 from app.services.connector_catalog import (
-    CONNECTORS,
     GOOGLE_SCOPES,
     get_connector,
     list_catalog,
@@ -272,7 +270,10 @@ async def google_callback(
         return _frontend_redirect(error="invalid_state")
 
     project_id = uuid.UUID(state_data["project_id"])
-    connector_id = state_data["connector_id"]
+    # state_data also carries "connector_id" but the callback below
+    # creates integrations for both gmail + google_drive unconditionally
+    # (one OAuth consent authorizes both Google services). The originally
+    # requested connector_id is currently informational only.
 
     # Exchange code for tokens
     async with httpx.AsyncClient(timeout=20) as client:

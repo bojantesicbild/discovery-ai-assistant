@@ -10,7 +10,6 @@ All mutating endpoints trigger manager.restart_for_project.
 """
 
 import uuid
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException

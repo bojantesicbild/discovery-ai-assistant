@@ -1,6 +1,5 @@
 """Store tools — write new findings to PostgreSQL."""
 
-import json
 import uuid
 from pydantic_ai import RunContext
 from app.agent.deps import AgentDeps

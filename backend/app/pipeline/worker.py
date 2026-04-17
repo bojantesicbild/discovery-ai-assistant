@@ -1,6 +1,6 @@
 """arq worker — async document processing queue + scheduled digests."""
 
-from arq import create_pool, cron
+from arq import cron
 from arq.connections import RedisSettings
 from app.config import settings
 from app.pipeline.tasks import process_document

@@ -1,6 +1,5 @@
 """Load agent prompts from the shared assistants/ directory."""
 
-from pathlib import Path
 from app.config import settings
 
 

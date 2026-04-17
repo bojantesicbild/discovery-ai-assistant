@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import structlog
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 log = structlog.get_logger()
 

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,6 @@ from app.deps import get_current_user
 from app.models.auth import User
 from app.models.meeting import MeetingAgenda
 
-from pathlib import Path
 from app.agent.claude_runner import claude_runner
 
 log = structlog.get_logger()

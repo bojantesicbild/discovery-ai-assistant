@@ -1,7 +1,6 @@
 """File storage for uploaded documents — saves to disk for pipeline processing."""
 
 import uuid
-import shutil
 from pathlib import Path
 from app.config import settings
 

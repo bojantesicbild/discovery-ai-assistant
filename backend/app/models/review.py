@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -37,3 +38,27 @@ class ReviewSubmission(Base, IdMixin, TimestampMixin):
     requirement_actions: Mapped[list] = mapped_column(JSONB, default=list)
     gap_actions: Mapped[list] = mapped_column(JSONB, default=list)
     summary: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+
+class ProposedUpdate(Base, IdMixin, TimestampMixin):
+    """A staged patch to a requirement, generated from a client's gap answer.
+
+    Never applied silently. The PM reviews each proposal and explicitly
+    accepts (applies the patch), rejects (marks resolved without changes),
+    or edits before accepting."""
+    __tablename__ = "proposed_updates"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
+    source_gap_id: Mapped[str] = mapped_column(String, nullable=False)
+    target_req_id: Mapped[str] = mapped_column(String, nullable=False)
+    # field on Requirement to patch: "description" | "acceptance_criteria" | "business_rules"
+    proposed_field: Mapped[str] = mapped_column(String, nullable=False)
+    # JSONB so we can carry either a string (description) or a list (criteria/rules)
+    proposed_value: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    current_value: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    client_answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_round: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)

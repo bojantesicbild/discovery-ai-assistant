@@ -2,7 +2,6 @@
 
 from pydantic_ai import Agent, RunContext
 from app.agent.deps import AgentDeps
-from app.agent.prompt_loader import load_skill_prompt
 from app.agent.tools.search import search_documents, search_items, search_pipeline
 from app.agent.tools.query import (
     get_project_context, get_readiness, get_requirements,

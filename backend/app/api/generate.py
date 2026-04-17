@@ -3,8 +3,7 @@
 import uuid
 import json
 import time
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text

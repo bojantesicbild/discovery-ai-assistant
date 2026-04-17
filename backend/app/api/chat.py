@@ -7,17 +7,14 @@ and use the same Claude Code --resume session via PROJECT_SHARED_USER.
 
 import uuid
 import json
-from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from app.db.session import async_session, get_db
 from app.deps import get_current_user
 from app.models.auth import User
-from app.models.operational import Conversation
 from app.schemas.chat import ChatMessage
 from app.agent.claude_runner import claude_runner
 from app.services.conversation_store import (

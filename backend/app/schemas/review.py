@@ -59,6 +59,10 @@ class ClientRequirementView(BaseModel):
     description: str
     user_perspective: Optional[str] = None
     business_rules: list[str] = Field(default_factory=list)
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    edge_cases: list[str] = Field(default_factory=list)
+    source_quote: Optional[str] = None
+    source_doc: Optional[str] = None
     status: str
 
 
@@ -70,6 +74,8 @@ class ClientGapView(BaseModel):
     area: str
     blocked_reqs: list[str] = Field(default_factory=list)
     suggested_action: Optional[str] = None
+    source_quote: Optional[str] = None
+    source_doc: Optional[str] = None
 
 
 class ClientReviewData(BaseModel):

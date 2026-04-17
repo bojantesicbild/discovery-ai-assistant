@@ -1,6 +1,5 @@
 """Seed control point templates for all 6 project types."""
 
-import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.control import ControlPointTemplate

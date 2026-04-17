@@ -2,7 +2,7 @@
 
 import json
 from pydantic_ai import RunContext
-from sqlalchemy import select, func
+from sqlalchemy import select
 from app.agent.deps import AgentDeps
 from app.models.extraction import (
     Requirement, Constraint, Decision, Stakeholder,
@@ -10,7 +10,6 @@ from app.models.extraction import (
 )
 from app.models.control import ReadinessHistory
 from app.services.preamble import preamble_builder
-from app.services.evaluator import evaluator
 
 
 async def get_project_context(ctx: RunContext[AgentDeps]) -> str:

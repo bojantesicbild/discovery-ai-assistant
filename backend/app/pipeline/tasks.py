@@ -17,6 +17,7 @@ from app.models.extraction import (
     Requirement, Constraint, Decision, Stakeholder,
     Assumption, ScopeItem, Contradiction, ChangeHistory, Gap,
 )
+from app.schemas.extraction import DiscoveryExtraction
 from sqlalchemy import func as sa_func
 
 log = structlog.get_logger()
@@ -196,16 +197,11 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     return {"dataset_id": dataset_id, "doc_id": "no-file", "status": "skipped"}
 
 
-async def _stage_extract(doc: Document, project=None, existing_summary: str = "") -> "DiscoveryExtraction":
+async def _stage_extract(doc: Document, project=None, existing_summary: str = "") -> DiscoveryExtraction:
     """Extract typed business data using Claude Code. Returns structured JSON."""
-    from app.schemas.extraction import (
-        DiscoveryExtraction, Requirement, Constraint, Decision,
-        Stakeholder, Assumption, ScopeItem,
-    )
     from app.services.storage import read_upload_text
     from app.agent.claude_runner import claude_runner
     from pathlib import Path
-    import json as _json
 
     file_path = (doc.classification or {}).get("file_path")
     if not file_path:
@@ -743,7 +739,6 @@ async def _merge_or_create(
 
 async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction, doc_filename: str = "") -> dict:
     """Store extracted items in PostgreSQL typed tables."""
-    from sqlalchemy import func as sql_func
     counts = {
         "requirements": 0, "constraints": 0, "decisions": 0,
         "stakeholders": 0, "assumptions": 0, "scope_items": 0,
@@ -1190,7 +1185,6 @@ from app.pipeline.markdown_writer import (  # noqa: E402
     assumption_to_payload,
     scope_to_payload,
     contradiction_to_payload,
-    stakeholder_filename_safe,
 )
 
 

@@ -131,7 +131,6 @@ def _get_context(body: str, link_target: str) -> str:
         return ""
 
     # Get the line containing the link
-    line_start = body.rfind("\n", 0, match.start()) + 1
     line_end = body.find("\n", match.end())
     if line_end == -1:
         line_end = len(body)

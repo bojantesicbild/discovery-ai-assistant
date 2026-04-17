@@ -2,7 +2,7 @@
 
 import uuid
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -50,7 +50,18 @@ async def _attach_seen(
     return items
 
 async def _sync_markdown(project_id: uuid.UUID, db):
-    """Re-export all data to markdown files after any write operation."""
+    """Re-export all data to markdown files after any write operation.
+
+    Exception handling is deliberately narrow: we catch **transient I/O and
+    database errors** (disk full, permission denied, DB connection blip) so
+    the user's API request still succeeds when infra blips — but we let
+    **programming errors** (NameError, TypeError, AttributeError, ImportError)
+    bubble up. A broad `except Exception` used to swallow the latter silently;
+    a renamed function whose call site wasn't updated shipped for weeks as a
+    "non-fatal" warning, with the vault silently drifting from the DB. Don't
+    repeat that.
+    """
+    from sqlalchemy.exc import OperationalError, DBAPIError
     try:
         from app.pipeline.tasks import _stage_export_markdown
         # Get any doc to pass (needed for function signature but not used for data)
@@ -58,8 +69,10 @@ async def _sync_markdown(project_id: uuid.UUID, db):
         doc = result.scalar_one_or_none()
         if doc:
             await _stage_export_markdown(db, project_id, doc)
-    except Exception as e:
-        log.warning("Markdown sync failed (non-fatal)", error=str(e))
+    except (OSError, OperationalError, DBAPIError) as e:
+        # Transient infra failure — disk / network / DB. User's write
+        # succeeded; the vault export can be re-run later.
+        log.warning("Markdown sync failed (transient, non-fatal)", error=str(e))
 
 
 # ── Requirements ──────────────────────────────────────

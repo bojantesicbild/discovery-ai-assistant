@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any
 
 import structlog
 from sqlalchemy import distinct, select

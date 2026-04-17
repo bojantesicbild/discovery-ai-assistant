@@ -1,14 +1,12 @@
 """Scheduled digests — daily and weekly reports for POs."""
 
 import uuid
-from pathlib import Path
 from datetime import datetime, timedelta, timezone, date
 from sqlalchemy import select, func, text
-from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
 
 from app.db.session import async_session
-from app.models.extraction import Requirement, Constraint, Decision, Stakeholder, Gap
+from app.models.extraction import Requirement, Constraint, Decision, Gap
 from app.models.control import ReadinessHistory
 from app.models.operational import Digest, ActivityLog
 from app.services.evaluator import compute_trajectory
