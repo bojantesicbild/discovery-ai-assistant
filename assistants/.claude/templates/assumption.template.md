@@ -3,6 +3,8 @@
 ---
 id: [ASM-NNN — assigned by writer]
 statement: [statement]
+basis: [basis]
+risk_if_wrong: [risk_if_wrong]
 needs_validation_by: [needs_validation_by]
 validated: False
 source_doc: [source_doc]
@@ -19,11 +21,11 @@ _(description)_
 
 ## Basis
 
-_Why we assume this_
+_Why we assume this — surfaced in frontmatter so Obsidian Dataview and MCP queries can filter on it_
 
 ## Risk if wrong
 
-_(content)_
+_What breaks if this assumption is wrong — surfaced in frontmatter for quick triage and queryability_
 
 ## Validation
 

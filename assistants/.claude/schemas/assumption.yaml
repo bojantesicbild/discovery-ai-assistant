@@ -19,13 +19,12 @@ fields:
   - key: basis
     type: text
     required: true
-    frontmatter: false
-    description: "Why we assume this"
+    description: "Why we assume this — surfaced in frontmatter so Obsidian Dataview and MCP queries can filter on it"
 
   - key: risk_if_wrong
     type: text
     required: true
-    frontmatter: false
+    description: "What breaks if this assumption is wrong — surfaced in frontmatter for quick triage and queryability"
 
   - key: needs_validation_by
     type: string
