@@ -76,47 +76,17 @@ Turn an approved breakdown table into one PBI file per row.
   - `FE | UI Components | Menu Grid Page` → `FE-UI-Components-Menu-Grid-Page.md`
   - `BE | API | User Authentication` → `BE-API-User-Authentication.md`
 
-## Story structure (use exactly this, every time)
+## Story structure
 
-### 1. Title
+**Template:** `.claude/templates/story.template.md` is authoritative. Read it at the start of each run and follow it exactly — four mandatory sections (Title, Narrative, Description, Acceptance Criteria) plus conditional sections (Figma Alignment AC, Sample Data AC, Resources) that appear only when their trigger applies.
 
-```
-# [LAYER] | [CATEGORY] | [Feature Name]
-```
+### Title format
+
+`[LAYER] | [CATEGORY] | [Feature Name]`
 
 - **LAYER:** FE · BE · DevOps · Data · Mobile · Infra
 - **CATEGORY:** UI Components · API · Integration · Mocked Integration · Data · Environment · Pipeline · Migration · Configuration · Testing · Documentation
 - **Feature Name:** title case, descriptive
-
-### 2. Narrative
-
-```
-**As a** [role-based actor],
-**I want** [user-intent goal],
-**so that** [business/user benefit].
-```
-
-### 3. Description
-
-```
-## Description
-
-**What:** [one-sentence deliverable]
-**Why:** [one-sentence value]
-```
-
-Objective and factual. No technical terms.
-
-### 4. Acceptance criteria
-
-```
-## Acceptance Criteria
-
-### AC1: [Short Descriptive Title]
-**GIVEN** [precondition]
-**WHEN** [action]
-**THEN** [outcome]
-```
 
 ### AC language rules (mandatory)
 
@@ -134,25 +104,12 @@ Objective and factual. No technical terms.
    - Good: *"WHEN I navigate to any page"*
 9. **Each AC has a short descriptive title** — `### AC#: [Title]`.
 
-### Conditional ACs
+### Conditional AC triggers
 
-**Figma Alignment** — include **only when** a Figma link was provided:
+The template shows both conditional ACs. Only include each when the trigger fires:
 
-```
-### AC#: Figma Alignment
-**GIVEN** the page UI is rendered
-**WHEN** I compare it to the Figma designs
-**THEN** visual styling matches Figma design
-```
-
-**Sample Data** — include **only when** relevant (grids, dashboards, lists); always generic:
-
-```
-### AC#: Sample Data
-**GIVEN** the page is loaded
-**WHEN** I view the [content area]
-**THEN** I see sample data demonstrating all [relevant variations]
-```
+- **Figma Alignment AC** — include when, and only when, a Figma link was provided for this specific story. Otherwise omit.
+- **Sample Data AC** — include when, and only when, the story deals with grids, dashboards, or lists. Always phrase generically (mechanisms, not test values).
 
 ### AC count by story type
 
@@ -174,16 +131,9 @@ Starting points — adapt per feature:
 - **Form pages:** Structure → Fields → Dynamic behavior → File handling → Submit → Reset → (Figma) → (Sample data)
 - **Dashboard widgets:** Placement → Visuals → Data display → Interactive elements → Navigation → (Figma) → (Sample data)
 
-## Resources section (optional)
+## Resources section (conditional)
 
-Include **only if** real external URLs exist — Figma, Jira, Confluence, external docs. Omit the section entirely otherwise. Never include local `.memory-bank/` paths (they break when pushed to Jira).
-
-```
-## Resources
-
-- Figma: [URLs]
-- Confluence: [URLs]
-```
+Included in `story.template.md` as the last section. **Only keep it if** real external URLs exist — Figma, Jira, Confluence, external docs. Omit the heading and section entirely otherwise. Never include local `.memory-bank/` paths (they break when the story is pushed to Jira).
 
 ## What never to include
 
@@ -198,25 +148,7 @@ Include **only if** real external URLs exist — Figma, Jira, Confluence, extern
 
 ## Breakdown table format (Mode A)
 
-```markdown
-## Project Overview
-
-**Project:** [Title]
-**Description:** [Summary]
-**Total Effort:** [Range estimate]
-**Complexity:** Low | Medium | High
-
-## Development Stories
-
-| ID | Title | Category | Priority | Effort | Dependencies |
-|---|---|---|---|---|---|
-| STORY-001 | FE \| UI Components \| [Feature] | ui | high | 2h | — |
-| STORY-002 | BE \| API \| [Feature] | api | high | 1h | STORY-001 |
-
-> **Title format:** `[LAYER] | [CATEGORY] | [Short description]` — see Story Structure.
-```
-
-Effort estimates: hours for small tasks, days for large; **max 1 day per story**.
+**Template:** `.claude/templates/story-breakdown.template.md` is authoritative. Read it before writing the breakdown and follow it exactly — Project Overview block + Development Stories table. Title format and layer/category vocabulary are defined in the template. Effort cap: **max 1 day per story** (split longer stories).
 
 ## MCP availability fallbacks
 

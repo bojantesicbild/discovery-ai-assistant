@@ -31,66 +31,36 @@ You are in **DELEGATED MODE**: the orchestrator has already approved this work. 
 ## Process
 
 1. **Check readiness** — `get_readiness(project_id)`. If below 70%, include a prominent warning in each document header (*"Readiness at generation: X%. Sections marked [ASSUMED] require validation before development."*). Proceed regardless; mark gaps clearly.
-2. **Load everything in parallel** — `get_project_context`, `get_requirements`, `get_stakeholders`, `get_assumptions`, `get_decisions`, `get_scope`, `get_contradictions`.
-3. **Load templates** — read from `.claude/templates/`: `discovery-brief.template.md`, `mvp-scope-freeze.template.md`, `functional-requirements.template.md`. If a template is missing, use the structural defaults below.
-4. **Write three documents** to `.memory-bank/docs/discovery/`:
-   - `discovery-brief.md` — project overview, business context, stakeholder map, glossary
-   - `mvp-scope-freeze.md` — IN/OUT scope, decisions with rationale, constraints, dependencies
-   - `functional-requirements.md` — requirements grouped by area with priority, user perspective, business rules, acceptance criteria
-5. **Attribute every claim** — per the attribution format below. No exceptions.
+2. **Load the three templates** (mandatory — they define the exact structure to follow):
+   - `.claude/templates/discovery-brief.template.md`
+   - `.claude/templates/mvp-scope-freeze.template.md`
+   - `.claude/templates/functional-requirements.template.md`
+3. **Load everything in parallel via MCP** — `get_project_context`, `get_requirements`, `get_stakeholders`, `get_assumptions`, `get_decisions`, `get_scope`, `get_contradictions`, `get_gaps`.
+4. **Synthesize and write three documents** to `.memory-bank/docs/discovery/`:
+   - `discovery-brief.md`
+   - `mvp-scope-freeze.md`
+   - `functional-requirements.md`
+
+   Each document follows its template exactly — same section order, same headings, same table columns. Fill every cell / bullet / placeholder with project-specific content pulled from MCP. If a template has a placeholder you cannot fill, write *NOT COVERED — needs discovery* in that cell (never leave blank, never delete the heading).
+
+5. **Synthesize where the schema doesn't have a direct field.** The templates ask for things the per-item schemas don't capture:
+   - **Acceptance criteria per FR** — derive from each BR's `source_quote`, `business_rules`, and `edge_cases`. Write as GIVEN/WHEN/THEN blocks.
+   - **Story type per FR** — classify as UI / API / FULL-STACK / BACKEND-ONLY by scanning the BR's user_perspective and business rules for UI keywords ("clicks", "sees", "page") vs API keywords ("endpoint", "response", "/api/").
+   - **Complexity per FR** — LOW / MEDIUM / HIGH based on edge-case count, business-rule count, and integration touches.
+   - **Test strategy per FR** — AUTOMATED for deterministic UI/API, MANUAL for exploratory or visual-heavy, BOTH for hybrid.
+   - **Dependencies between FRs** — when BR descriptions reference each other or share a workflow.
+   - **Traceability matrix** — one row per FR linking back to its BR and source document.
+   - **Data model overview** — infer entities from BR titles and business rules; show relationships only where they're obvious.
+
+6. **Attribute every claim** per the rules below. No exceptions.
 
 ## Attribution rules
 
 Every claim carries one of:
 
 - **[CONFIRMED — Source: path/to/source.md]** — explicit client statement exists
-- **[ASSUMED — based on: reason]** — inferred or industry-standard; needs validation
-- **NOT COVERED — needs discovery** — for sections where no data exists (never leave blank)
-
-## Output — structural defaults
-
-Used when a template is missing. Templates in `.claude/templates/` override these.
-
-### Shared header (all three documents)
-
-```markdown
-# [Document title]
-
-**Project:** [name]
-**Generated:** [YYYY-MM-DD]
-**Readiness at generation:** [X]%
-**Status:** DRAFT | REVIEW | FINAL
-
-> Sections marked [ASSUMED] require validation before development.
-> Sections marked NOT COVERED require additional discovery.
-```
-
-### Attribution format inside sections
-
-```markdown
-## [Section title]
-
-[Content paragraph.] [CONFIRMED — Source: client-meeting-2026-03-20.md]
-
-[Another paragraph.] [ASSUMED — based on: industry standard for B2B SaaS auth]
-```
-
-### Glossary (in `discovery-brief.md`)
-
-```markdown
-## Glossary
-
-| Term | Definition | Source |
-|---|---|---|
-| [term] | [definition] | [where this term was defined or discussed] |
-```
-
-### Footer (all three documents)
-
-```markdown
----
-*Prepared by Crnogochi*
-```
+- **[ASSUMED — based on: reason]** — inferred, industry-standard, or synthesized (e.g., ACs derived from source quote)
+- **NOT COVERED — needs discovery** — for sections where no data exists (never leave blank, never delete heading)
 
 ## Chat response
 
