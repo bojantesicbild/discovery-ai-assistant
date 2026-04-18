@@ -257,15 +257,26 @@ def parse_knowledge_graph(discovery_dir: Path) -> dict:
         links = WIKILINK_RE.findall(body)
         seen_targets = set()
 
-        for link_text in links:
-            target_id = _resolve_link_target(link_text, node_ids)
+        for raw_link in links:
+            # Obsidian alias syntax: [[target|display]]. Splitting here avoids
+            # creating phantom nodes like `Sarah_Chen|Sarah Chen` beside the
+            # real `Sarah_Chen` file-backed node.
+            if "|" in raw_link:
+                target_part, display_part = raw_link.split("|", 1)
+                target_part = target_part.strip()
+                display_part = display_part.strip()
+            else:
+                target_part = raw_link.strip()
+                display_part = target_part
+
+            target_id = _resolve_link_target(target_part, node_ids)
 
             # Skip self-links and duplicates
             if target_id == source_id or target_id in seen_targets:
                 continue
             seen_targets.add(target_id)
 
-            context = _get_context(body, link_text)
+            context = _get_context(body, raw_link)
 
             # Create implicit node for targets without files
             # But first check if a case-variant exists (BR-012 vs br-012)
@@ -280,10 +291,16 @@ def parse_knowledge_graph(discovery_dir: Path) -> dict:
                     # Redirect edge to the existing node
                     target_id = existing_key
                 else:
+                    # Skip phantom ID-pattern nodes (e.g. a gap.blocked_reqs
+                    # pointing at BR-012 when that BR doesn't exist). These
+                    # are almost always stale references left over after
+                    # dedup — rendering them pollutes the graph.
+                    if re.match(r'^(BR|GAP|CON|DEC|CTR|ASM|SCO)-\d+$', target_part, re.IGNORECASE):
+                        continue
                     node_ids[target_id] = {
                         "id": target_id,
-                        "label": link_text,
-                        "type": _guess_type(link_text),
+                        "label": display_part,
+                        "type": _guess_type(display_part),
                         "meta": {},
                     }
 
