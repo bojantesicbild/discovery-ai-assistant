@@ -31,14 +31,14 @@ fields:
 
   - key: status
     type: enum
-    values: [open, in-progress, resolved, dismissed]
+    values: [open, resolved, dismissed]
     required: true
     default: open
 
   - key: closed_at
     type: datetime
     required: false
-    description: "When the gap was moved to resolved or dismissed. Null while open/in-progress."
+    description: "When the gap was moved to resolved or dismissed. Null while the gap is open."
 
   - key: closed_by
     type: string

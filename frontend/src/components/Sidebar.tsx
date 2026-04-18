@@ -18,7 +18,6 @@ const NAV_ITEMS = [
     { href: "/qa", label: "QA", icon: <><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></> },
   ]},
   { label: "System", items: [
-    { href: "/review", label: "Client Review", icon: <><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></> },
     { href: "/documents", label: "Documents", icon: <><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></> },
     { href: "/knowledge", label: "Knowledge Base", icon: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></> },
     { href: "/settings", label: "Settings", icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></> },
@@ -94,20 +93,18 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
             <div className="nav-label" style={collapsed ? { visibility: "hidden" } : undefined}>{section.label}</div>
             {section.items.map((item) => {
               // Build the actual href — knowledge and code are project-scoped
-              const projectScoped = ["/knowledge", "/code", "/review"];
+              const projectScoped = ["/knowledge", "/code"];
               const resolvedHref = projectScoped.includes(item.href) && projectId
                 ? `/projects/${projectId}${item.href}`
                 : item.href;
 
               const isActive = item.href === "/discovery"
-                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge") && !pathname?.includes("/code") && !pathname?.includes("/review")
+                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge") && !pathname?.includes("/code")
                 : item.href === "/knowledge"
                   ? pathname?.includes("/knowledge")
                   : item.href === "/code"
                     ? pathname?.includes("/code")
-                    : item.href === "/review"
-                      ? pathname?.includes("/review")
-                      : pathname === item.href;
+                    : pathname === item.href;
 
               // Dynamic badge: Discovery shows the live unread count for
               // the current project (overriding the static placeholder).

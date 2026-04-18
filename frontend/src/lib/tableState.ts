@@ -29,13 +29,15 @@ export function useTableState(
   key: string,
   defaultSortKey: string,
   defaultSortDir: SortDir = "asc",
-  defaultPageSize: number = 25,
+  defaultPageSize: number = 10,
 ): TableState {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = usePersistedState<string>(`${key}:sortKey`, defaultSortKey);
   const [sortDir, setSortDir] = usePersistedState<SortDir>(`${key}:sortDir`, defaultSortDir);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = usePersistedState<number>(`${key}:pageSize`, defaultPageSize);
+  // v2 suffix — one-time invalidation of previously-stored page sizes (25)
+  // so everyone gets the new default (10) on first load.
+  const [pageSize, setPageSize] = usePersistedState<number>(`${key}:pageSize:v2`, defaultPageSize);
 
   const setSort = (k: string) => {
     if (sortKey === k) {

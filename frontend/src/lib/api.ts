@@ -111,6 +111,85 @@ export async function getClientFeedback(projectId: string): Promise<{
   return fetchAPI(`/api/projects/${projectId}/client-feedback`);
 }
 
+// Review tokens (PM-facing)
+export interface ReviewToken {
+  id: string;
+  token: string;
+  label: string | null;
+  client_name: string | null;
+  client_email: string | null;
+  expires_at: string;
+  revoked_at: string | null;
+  submitted_at: string | null;
+  round_number: number;
+  created_at: string | null;
+  shareable_url: string;
+}
+export interface ReviewSubmission {
+  id: string;
+  round_number: number;
+  client_name: string | null;
+  submitted_at: string | null;
+  confirmed: number;
+  discussed: number;
+  gaps_answered: number;
+  requirement_actions?: { req_id: string; action: string; note?: string }[];
+  gap_actions?: { gap_id: string; action: string; answer?: string }[];
+}
+export async function listReviewTokens(projectId: string): Promise<{ tokens: ReviewToken[] }> {
+  return fetchAPI(`/api/projects/${projectId}/review-tokens`);
+}
+export async function createReviewToken(projectId: string, body: {
+  label?: string; client_name?: string; client_email?: string; expires_in_days?: number;
+}): Promise<ReviewToken> {
+  return fetchAPI(`/api/projects/${projectId}/review-tokens`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+export async function revokeReviewToken(projectId: string, tokenId: string) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  await fetch(`${API_URL}/api/projects/${projectId}/review-tokens/${tokenId}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+}
+export async function listReviewSubmissions(projectId: string): Promise<{ submissions: ReviewSubmission[] }> {
+  return fetchAPI(`/api/projects/${projectId}/review-submissions`);
+}
+
+// Staged proposals — agent-generated patches awaiting PM review
+export interface ProposedUpdate {
+  id: string;
+  source_gap_id: string;
+  gap_question: string | null;
+  target_req_id: string;
+  req_title: string | null;
+  proposed_field: "description" | "acceptance_criteria" | "business_rules";
+  proposed_value: string | string[];
+  current_value: string | string[] | null;
+  rationale: string | null;
+  client_answer: string | null;
+  review_round: number | null;
+  status: "pending" | "accepted" | "rejected" | "edited";
+  created_at: string | null;
+  reviewed_at: string | null;
+}
+export async function listProposedUpdates(projectId: string, status: string = "pending"): Promise<{ items: ProposedUpdate[]; total: number }> {
+  return fetchAPI(`/api/projects/${projectId}/proposed-updates?status=${encodeURIComponent(status)}`);
+}
+export async function acceptProposal(projectId: string, proposalId: string, overrideValue?: string | string[]) {
+  return fetchAPI(`/api/projects/${projectId}/proposed-updates/${proposalId}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ override_value: overrideValue ?? null }),
+  });
+}
+export async function rejectProposal(projectId: string, proposalId: string) {
+  return fetchAPI(`/api/projects/${projectId}/proposed-updates/${proposalId}/reject`, {
+    method: "POST",
+  });
+}
+
 // Extracted items
 export async function listRequirements(projectId: string, params?: Record<string, string>) {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";

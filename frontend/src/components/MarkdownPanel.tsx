@@ -19,6 +19,9 @@ interface MarkdownPanelProps {
    *  for app-internal protocols like `doc://<uuid>` to cross-link between
    *  detail views without a real URL. */
   onLinkClick?: (href: string) => boolean | void;
+  /** Interactive React content rendered above the markdown body (e.g.,
+   *  pending client-review proposals for this item). */
+  slotTop?: React.ReactNode;
 }
 
 export default function MarkdownPanel({
@@ -32,6 +35,7 @@ export default function MarkdownPanel({
   onAction,
   history,
   onLinkClick,
+  slotTop,
 }: MarkdownPanelProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -295,22 +299,25 @@ export default function MarkdownPanel({
             onBlur={(e) => { e.target.style.borderColor = "var(--gray-200)"; e.target.style.boxShadow = "none"; }}
           />
         ) : (
-          <div
-            style={{
-              fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
-              fontFamily: "var(--font)",
-            }}
-            onClick={(e) => {
-              if (!onLinkClick) return;
-              let el: HTMLElement | null = e.target as HTMLElement;
-              while (el && el.tagName !== "A") el = el.parentElement;
-              if (!el) return;
-              const href = (el as HTMLAnchorElement).getAttribute("href") || "";
-              const handled = onLinkClick(href);
-              if (handled !== false) e.preventDefault();
-            }}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
-          />
+          <>
+            {slotTop}
+            <div
+              style={{
+                fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
+                fontFamily: "var(--font)",
+              }}
+              onClick={(e) => {
+                if (!onLinkClick) return;
+                let el: HTMLElement | null = e.target as HTMLElement;
+                while (el && el.tagName !== "A") el = el.parentElement;
+                if (!el) return;
+                const href = (el as HTMLAnchorElement).getAttribute("href") || "";
+                const handled = onLinkClick(href);
+                if (handled !== false) e.preventDefault();
+              }}
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+            />
+          </>
         )}
       </div>
     </div>

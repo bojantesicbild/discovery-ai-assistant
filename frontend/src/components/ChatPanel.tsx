@@ -1406,8 +1406,6 @@ function ClientReviewNotice({
   isFirst?: boolean;
   isLast?: boolean;
 }) {
-  const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
   const data = (msg.data || {}) as Record<string, unknown>;
   const round = (data.round as number) ?? 1;
   const clientName = (data.client_name as string) || "Client";
@@ -1415,17 +1413,15 @@ function ClientReviewNotice({
   const discussed = (data.discussed as number) || 0;
   const gapsAnswered = (data.gaps_answered as number) || 0;
   const readiness = data.readiness as number | undefined;
-  const totalDecisions = confirmed + discussed;
-  const confirmRate = totalDecisions > 0 ? Math.round((confirmed / totalDecisions) * 100) : 0;
 
   const theme = { bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed", chipBg: "#ede9fe" };
 
   const openReview = (e: React.MouseEvent) => {
     e.stopPropagation();
-    router.push(`/projects/${projectId}/review`);
+    // Topbar listens for this event and opens ClientReviewModal — avoids
+    // threading props through ProjectShell just to open a modal.
+    window.dispatchEvent(new CustomEvent("open-client-review"));
   };
-
-  const hasDetails = totalDecisions > 0 || gapsAnswered > 0 || typeof readiness === "number";
 
   const wrapperStyle: React.CSSProperties = grouped
     ? {
@@ -1443,62 +1439,78 @@ function ClientReviewNotice({
 
   return (
     <div style={wrapperStyle}>
-      {/* Row */}
+      {/* Single compact row — mirrors DocumentIngestNotice layout */}
       <div
-        onClick={hasDetails ? () => setExpanded(!expanded) : undefined}
         style={{
           display: "flex", alignItems: "center", gap: 8,
-          padding: "6px 10px",
-          cursor: hasDetails ? "pointer" : "default",
+          padding: "4px 10px",
           minHeight: 22,
         }}
       >
-        {/* Round badge */}
+        {/* Source dot (purple = review) */}
         <span style={{
-          fontSize: 9, fontWeight: 800, padding: "2px 7px", borderRadius: 4,
-          background: "#fff", color: theme.color, border: `1px solid ${theme.border}`,
-          flexShrink: 0, letterSpacing: 0.3,
-        }}>
-          R{round}
-        </span>
+          width: 6, height: 6, borderRadius: "50%",
+          background: theme.color, flexShrink: 0,
+        }} title="Client review" />
 
-        {/* Client name + action */}
-        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)", whiteSpace: "nowrap" }}>
-          {clientName}
-        </span>
-        <span style={{ fontSize: 11, color: "var(--gray-500)" }}>submitted review</span>
+        {/* Round + client name — shrinkable with ellipsis */}
+        <button
+          onClick={openReview}
+          title={`Open review round ${round}`}
+          style={{
+            background: "none", border: "none", padding: 0, cursor: "pointer",
+            textAlign: "left", minWidth: 0, maxWidth: 280,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            fontFamily: "inherit", flexShrink: 1,
+            display: "inline-flex", alignItems: "center", gap: 5,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = theme.color)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "var(--dark)")}
+        >
+          <span style={{
+            fontSize: 9, fontWeight: 800, padding: "1px 5px", borderRadius: 3,
+            background: "#fff", color: theme.color, border: `1px solid ${theme.border}`,
+            letterSpacing: 0.3, flexShrink: 0,
+          }}>
+            R{round}
+          </span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dark)" }}>
+            {clientName}
+          </span>
+        </button>
 
-        {/* Stat chips */}
+        {/* Inline chips — nowrap, flex-shrink 0 so they stay on one line */}
         <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
           {confirmed > 0 && (
             <span style={{
               padding: "1px 6px", borderRadius: 4,
-              background: "#d1fae5", color: "#059669",
-              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+              background: "rgba(255,255,255,0.7)", color: "#059669",
+              fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
             }}>
-              ✓ {confirmed} confirmed
+              +{confirmed} confirmed
             </span>
           )}
           {discussed > 0 && (
             <span style={{
               padding: "1px 6px", borderRadius: 4,
-              background: "#fef3c7", color: "#d97706",
-              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+              background: "rgba(255,255,255,0.7)", color: "#d97706",
+              fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
             }}>
-              ⚑ {discussed} flagged
+              +{discussed} flagged
             </span>
           )}
           {gapsAnswered > 0 && (
             <span style={{
               padding: "1px 6px", borderRadius: 4,
-              background: theme.chipBg, color: theme.color,
-              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+              background: "rgba(255,255,255,0.7)", color: theme.color,
+              fontSize: 10, fontWeight: 600, whiteSpace: "nowrap",
             }}>
-              ? {gapsAnswered} gaps answered
+              +{gapsAnswered} answered
             </span>
           )}
         </div>
 
+        {/* Spacer pushes right cluster */}
         <div style={{ flex: 1 }} />
 
         {/* Readiness */}
@@ -1508,89 +1520,16 @@ function ClientReviewNotice({
           </span>
         )}
 
-        {/* Open review page button */}
-        <button
-          onClick={openReview}
-          title="Open Client Review page"
-          style={{
-            padding: "3px 9px", borderRadius: 5,
-            background: "#fff", color: theme.color,
-            border: `1px solid ${theme.border}`,
-            fontSize: 10, fontWeight: 700, cursor: "pointer",
-            fontFamily: "inherit", flexShrink: 0,
-            display: "inline-flex", alignItems: "center", gap: 3,
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = theme.chipBg; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "#fff"; }}
-        >
-          View
-          <svg viewBox="0 0 24 24" style={{ width: 8, height: 8, stroke: "currentColor", fill: "none", strokeWidth: 3 }}>
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-
-        {/* Expand chevron */}
-        {hasDetails && (
-          <svg viewBox="0 0 24 24" style={{
-            width: 10, height: 10, stroke: "var(--gray-400)", fill: "none",
-            strokeWidth: 2.5, flexShrink: 0,
-            transform: expanded ? "rotate(180deg)" : "none",
-            transition: "transform 0.15s",
-          }}>
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        )}
+        {/* Source pill (REVIEW) */}
+        <span style={{
+          fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 4,
+          background: "#fff", color: theme.color, border: `1px solid ${theme.border}`,
+          textTransform: "uppercase", letterSpacing: 0.3, flexShrink: 0,
+        }}>
+          Review
+        </span>
       </div>
 
-      {/* Expanded details */}
-      {expanded && hasDetails && (
-        <div style={{
-          padding: "0 10px 10px 24px",
-          display: "flex", flexDirection: "column", gap: 8,
-        }}>
-          {/* Confirmation progress bar */}
-          {totalDecisions > 0 && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                <span style={{ fontSize: 9, fontWeight: 600, color: "var(--gray-500)" }}>
-                  Confirmation rate ({confirmed}/{totalDecisions})
-                </span>
-                <span style={{
-                  fontSize: 10, fontWeight: 700,
-                  color: confirmRate >= 80 ? "#059669" : confirmRate >= 50 ? "#d97706" : "#dc2626",
-                }}>
-                  {confirmRate}%
-                </span>
-              </div>
-              <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,0.6)", overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", borderRadius: 2,
-                  width: `${confirmRate}%`,
-                  background: confirmRate >= 80 ? "#059669" : confirmRate >= 50 ? "#d97706" : "#dc2626",
-                  transition: "width 0.5s ease",
-                }} />
-              </div>
-            </div>
-          )}
-
-          <button
-            onClick={openReview}
-            style={{
-              padding: "6px 10px", borderRadius: 6,
-              background: "#fff", color: theme.color,
-              border: `1px solid ${theme.border}`,
-              fontSize: 10, fontWeight: 700, cursor: "pointer",
-              fontFamily: "inherit", alignSelf: "flex-start",
-              display: "inline-flex", alignItems: "center", gap: 5,
-            }}
-          >
-            <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-              <path d="M15 3h6v6M14 10l7-7M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-            </svg>
-            View full response in Client Review
-          </button>
-        </div>
-      )}
     </div>
   );
 }

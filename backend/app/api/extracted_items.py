@@ -263,9 +263,9 @@ async def resolve_gap(
     gap = result.scalar_one_or_none()
     if not gap:
         return {"error": "Not found"}
-    # Validate status — the enum allows open/in-progress/resolved/dismissed.
-    # We treat empty resolution (via reopen flow) as a signal to clear closure.
-    if status not in ("resolved", "dismissed", "open", "in-progress"):
+    # Validate status — allowed values are open/resolved/dismissed.
+    # Empty resolution (via the reopen flow) signals to clear closure fields.
+    if status not in ("resolved", "dismissed", "open"):
         status = "resolved"
     gap.status = status
     gap.resolution = resolution

@@ -118,7 +118,7 @@ class Gap(Base, IdMixin, TimestampMixin):
     source_person: Mapped[str | None] = mapped_column(String, nullable=True)
     blocked_reqs: Mapped[list] = mapped_column(JSONB, default=list)  # ["BR-001", "BR-002"]
     suggested_action: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(String, default="open")  # open, in-progress, resolved, dismissed
+    status: Mapped[str] = mapped_column(String, default="open")  # open, resolved, dismissed
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_by: Mapped[str | None] = mapped_column(String, nullable=True)
     assignee: Mapped[str | None] = mapped_column(String, nullable=True)  # who's responsible for closing this gap

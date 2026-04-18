@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { uploadDocument, listProjects, searchProject, getNotifications, getNotificationCount, markNotificationRead } from "@/lib/api";
 import DirectoryModal from "./DirectoryModal";
+import ClientReviewModal from "./ClientReviewModal";
 
 interface Project {
   id: string;
@@ -94,6 +95,15 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
   const notifRef = useRef<HTMLDivElement>(null);
   const NOTIF_PAGE_SIZE = 6;
   const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  // Let other components (e.g., ChatPanel's review-submitted notice) open
+  // the review modal without prop-threading through ProjectShell.
+  useEffect(() => {
+    const onOpen = () => setReviewOpen(true);
+    window.addEventListener("open-client-review", onOpen);
+    return () => window.removeEventListener("open-client-review", onOpen);
+  }, []);
 
   // Auto-open directory when returning from OAuth callback
   useEffect(() => {
@@ -455,6 +465,19 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
 
         <button
           className="icon-btn"
+          title="Client Review — generate links, view submissions"
+          onClick={() => setReviewOpen(true)}
+        >
+          <svg viewBox="0 0 24 24">
+            <path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+            <circle cx="8.5" cy="7" r="4" />
+            <path d="M20 8v6" />
+            <path d="M23 11h-6" />
+          </svg>
+        </button>
+
+        <button
+          className="icon-btn"
           title="Directory — Connectors, Skills, Plugins"
           onClick={() => setDirectoryOpen(true)}
         >
@@ -493,6 +516,11 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
         projectId={projectId}
         open={directoryOpen}
         onClose={() => setDirectoryOpen(false)}
+      />
+      <ClientReviewModal
+        projectId={projectId}
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
       />
     </header>
   );

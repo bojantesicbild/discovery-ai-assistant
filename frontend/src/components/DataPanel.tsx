@@ -11,6 +11,7 @@ import {
   listMeetingAgendas, getMeetingAgendaByRound,
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
   getClientFeedback, type ReqClientFeedback, type GapClientFeedback,
+  listProposedUpdates, acceptProposal, rejectProposal, type ProposedUpdate,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 import GmailImportPanel from "./GmailImportPanel";
@@ -35,6 +36,21 @@ interface DetailView {
   actions?: { label: string; value: string; color: string }[];
   onAction?: (value: string) => void;
   history?: { projectId: string; itemType: string; itemId: string };
+  /** Filter key used to rebuild the interactive slot on state refresh.
+   *  For requirements, this is the req_id — so that when proposals change
+   *  (accept/reject), the rerendered detail view picks up the new list. */
+  itemKey?: string;
+  itemKind?: "requirement" | "gap";
+  /** Closure info for gaps — rendered as metadata above the body, not in
+   *  the markdown. `attribution` is the " — Answered via ..." suffix split
+   *  from the resolution text; `closedAt` / `closedBy` come from gap fields. */
+  gapResolution?: {
+    kind: "resolved" | "dismissed";
+    text: string;
+    attribution?: string | null;
+    closedAt?: string | null;
+    closedBy?: string | null;
+  };
 }
 
 const TABS = [
@@ -139,6 +155,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     `datapanel:statusFilter:${projectId}`,
     "all",
   );
+  // Gaps get their own status filter — previously shared priorityFilter with
+  // Requirements, which caused "Must"-on-reqs to silently hide all gaps.
+  const [gapStatusFilter, setGapStatusFilter] = usePersistedState<string>(
+    `datapanel:gapStatusFilter:${projectId}`,
+    "all",
+  );
+  const [proposals, setProposals] = useState<ProposedUpdate[]>([]);
   const [gapSection, setGapSection] = usePersistedState<"gaps" | "constraints" | "conflicts">(
     `datapanel:gapSection:${projectId}`,
     "gaps",
@@ -210,7 +233,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   async function loadData() {
     try {
-      const [dash, reqs, contras, docs, gapsData, consData, feedback] = await Promise.all([
+      const [dash, reqs, contras, docs, gapsData, consData, feedback, props] = await Promise.all([
         getDashboard(projectId),
         listRequirements(projectId),
         listContradictions(projectId),
@@ -218,6 +241,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         listGaps(projectId),
         listConstraints(projectId),
         getClientFeedback(projectId).catch(() => ({ requirements: {}, gaps: {} })),
+        listProposedUpdates(projectId, "pending").catch(() => ({ items: [] as ProposedUpdate[], total: 0 })),
       ]);
       setDashboard(dash);
       setRequirements(reqs.items || []);
@@ -226,6 +250,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       setGaps(gapsData.items || []);
       setConstraints(consData.items || []);
       setClientFeedback(feedback);
+      setProposals(props.items || []);
     } catch {}
   }
 
@@ -235,7 +260,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const offset = circumference - (score / 100) * circumference;
 
   const openContras = contradictions.filter((c: any) => !c.resolved);
-  const openGaps = gaps.filter((g: any) => g.status === "open" || g.status === "in-progress");
+  const openGaps = gaps.filter((g: any) => g.status === "open");
 
   // If detail view is open
   if (detail) {
@@ -256,6 +281,48 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           actions={detail.actions}
           onAction={detail.onAction}
           history={detail.history}
+          slotTop={(() => {
+            if (!detail.itemKey || !detail.itemKind) return undefined;
+            const reqFb = detail.itemKind === "requirement" ? clientFeedback.requirements[detail.itemKey] : undefined;
+            const gapFb = detail.itemKind === "gap" ? clientFeedback.gaps[detail.itemKey] : undefined;
+            const pendingProps = detail.itemKind === "requirement"
+              ? proposals.filter((p) => p.target_req_id === detail.itemKey)
+              : [];
+            const hasAnything = reqFb || gapFb || pendingProps.length > 0 || detail.gapResolution;
+            if (!hasAnything) return undefined;
+            // Gap closure + client answer → single combined card.
+            // Everything else stays independent.
+            const combinedGapClosure = detail.gapResolution && gapFb?.answer;
+            return (
+              <>
+                {detail.gapResolution && (
+                  <GapResolutionCard
+                    r={detail.gapResolution}
+                    clientAnswer={combinedGapClosure ? gapFb : undefined}
+                  />
+                )}
+                {reqFb && <ClientFeedbackCard kind="requirement" fb={reqFb} />}
+                {gapFb && !combinedGapClosure && <ClientFeedbackCard kind="gap" fb={gapFb} />}
+                {pendingProps.length > 0 && (
+                  <InlineProposals
+                    proposals={pendingProps}
+                    onAction={async (id, decision) => {
+                      try {
+                        if (decision.kind === "accept") {
+                          await acceptProposal(projectId, id, decision.overrideValue);
+                        } else {
+                          await rejectProposal(projectId, id);
+                        }
+                        await loadData();
+                      } catch (e) {
+                        console.error("Proposal action failed", e);
+                      }
+                    }}
+                  />
+                )}
+              </>
+            );
+          })()}
           onLinkClick={(href: string) => {
             // In-app links push onto the detail stack so the close
             // button returns to the caller's view (e.g., the gap that
@@ -384,23 +451,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         {/* ── REQUIREMENTS ── */}
         {activeTab === "reqs" && (
           <div className="dp-tab-content active">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
+            {/* Filter row — priority + status chips, colored by value */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginRight: 2 }}>Priority</span>
+              {["all", "must", "should", "could"].map((f) => (
+                <FilterChip key={`p-${f}`} value={f} label={f === "all" ? "All" : f} active={priorityFilter === f} onClick={() => setPriorityFilter(f)} />
+              ))}
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginLeft: 8, marginRight: 2 }}>Status</span>
+              {["all", "confirmed", "discussed", "proposed"].map((f) => (
+                <FilterChip key={`s-${f}`} value={f} label={f === "all" ? "All" : f} active={statusFilter === f} onClick={() => setStatusFilter(f)} />
+              ))}
+            </div>
+            {/* Search row — full width, with unread-mark-all on the right */}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <TableSearch state={reqsTable} placeholder="Search requirements…" />
-              <div className="panel-filter" style={{ marginBottom: 0 }}>
-                {["all", "must", "should", "could"].map((f) => (
-                  <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
-                    {f === "all" ? "All" : f}
-                  </button>
-                ))}
-              </div>
-              <div style={{ width: 1, height: 16, background: "var(--gray-200)" }} />
-              <div className="panel-filter" style={{ marginBottom: 0 }}>
-                {["all", "confirmed", "discussed", "proposed"].map((f) => (
-                  <button key={f} className={`panel-filter-btn${statusFilter === f ? " active" : ""}`} onClick={() => setStatusFilter(f)} style={{ textTransform: "capitalize" }}>
-                    {f === "all" ? "All Status" : f}
-                  </button>
-                ))}
-              </div>
               {unreadCounts.requirement > 0 && (
                 <button
                   onClick={() => markTabSeenAll("requirement", setRequirements)}
@@ -434,14 +498,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   <table className="panel-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 20 }}></th>
                         <SortableHeader label="ID" columnKey="req_id" state={reqsTable} />
                         <SortableHeader label="Requirement" columnKey="title" state={reqsTable} />
-                        <SortableHeader label="Type" columnKey="type" state={reqsTable} />
-                        <SortableHeader label="Priority" columnKey="priority" state={reqsTable} />
+                        <SortableHeader label="Type / Pri" columnKey="priority" state={reqsTable} />
                         <SortableHeader label="Status" columnKey="status" state={reqsTable} />
-                        <th style={{ width: 80 }}>Client</th>
-                        <SortableHeader label="Ver" columnKey="version" state={reqsTable} width={50} />
                         <SortableHeader label="Source" columnKey="source_doc" state={reqsTable} />
                       </tr>
                     </thead>
@@ -455,27 +515,65 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                             if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
                           }}
                           className="clickable-row"
+                          title={req.title}
                           style={!req.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
                         >
-                          <td
-                            className="chevron-cell"
-                            style={!req.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
-                          >
-                            <Chevron />
+                          <td style={{
+                            whiteSpace: "nowrap", lineHeight: 1.2,
+                            borderLeft: !req.seen_at ? "3px solid var(--green)" : undefined,
+                          }}>
+                            <div style={{ fontWeight: 700, color: "var(--green)", fontSize: 12 }}>{req.req_id}</div>
+                            {req.version > 1 && (
+                              <div style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 600 }}>v{req.version}</div>
+                            )}
                           </td>
-                          <td style={{ fontWeight: 700, color: "var(--green)", whiteSpace: "nowrap" }}>
-                            {req.req_id}                          </td>
                           <td>
-                            <div style={{ fontWeight: 600, fontSize: 12 }}>{req.title}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                              <div className="cell-title" style={{ fontWeight: 600, fontSize: 12, flex: 1, minWidth: 0 }}>{req.title}</div>
+                              {(() => {
+                                const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
+                                if (pendingCount === 0) return null;
+                                return (
+                                  <span
+                                    title={`${pendingCount} pending client-driven update${pendingCount !== 1 ? "s" : ""}`}
+                                    style={{
+                                      fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 10,
+                                      background: "#eff6ff", color: "#1d4ed8",
+                                      border: "1px solid #bfdbfe", whiteSpace: "nowrap",
+                                      flexShrink: 0,
+                                    }}
+                                  >⚠ {pendingCount}</span>
+                                );
+                              })()}
+                            </div>
                           </td>
-                          <td><TypeBadge type={req.type} /></td>
-                          <td><PriBadge priority={req.priority} /></td>
-                          <td><StatusPill status={req.status} /></td>
                           <td>
-                            <ReqClientBadge fb={clientFeedback.requirements[req.req_id]} />
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                              <TypeBadge type={req.type} />
+                              <PriBadge priority={req.priority} />
+                            </div>
                           </td>
-                          <td style={{ fontSize: 10, color: "var(--gray-500)", textAlign: "center", whiteSpace: "nowrap" }}>
-                            {req.version ? `v${req.version}` : "—"}
+                          <td>
+                            {(() => {
+                              const fb = clientFeedback.requirements[req.req_id];
+                              // Collapse to the client badge when PM status and
+                              // client action agree (both would show the same
+                              // word). Keep both when they disagree — that's
+                              // a signal the PM needs to notice.
+                              const aligned = fb && (
+                                (fb.action === "confirm" && req.status === "confirmed") ||
+                                (fb.action === "discuss" && req.status === "discussed")
+                              );
+                              if (fb && aligned) {
+                                return <ReqClientBadge fb={fb} />;
+                              }
+                              return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                                  <StatusPill status={req.status} />
+                                  {fb && <ReqClientBadge fb={fb} />}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
                             <SourceBadges sourceDoc={req.source_doc} sources={req.sources} version={req.version} person={req.source_person} />
@@ -537,15 +635,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
             {/* ── Gaps sub-section ── */}
             {gapSection === "gaps" && (<>
+            {/* Filter row — status chips, colored by value */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginRight: 2 }}>Status</span>
+              {["all", "open", "resolved", "dismissed"].map((f) => (
+                <FilterChip key={`gs-${f}`} value={f} label={f === "all" ? "All" : f.replace("-", " ")} active={gapStatusFilter === f} onClick={() => setGapStatusFilter(f)} />
+              ))}
+            </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
               <TableSearch state={gapsTable} placeholder="Search gaps…" />
-              <div className="panel-filter" style={{ marginBottom: 0 }}>
-                {["all", "open", "in-progress"].map((f) => (
-                  <button key={f} className={`panel-filter-btn${priorityFilter === f ? " active" : ""}`} onClick={() => setPriorityFilter(f)} style={{ textTransform: "capitalize" }}>
-                    {f === "all" ? "All" : f.replace("-", " ")}
-                  </button>
-                ))}
-              </div>
               {unreadCounts.gap > 0 && (
                 <button
                   onClick={() => markTabSeenAll("gap", setGaps)}
@@ -564,7 +662,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             {gaps.length === 0 ? (
               <EmptyState icon="M12 9v2m0 4h.01" text="No gaps detected. Run gap analysis from the chat to identify missing requirements." />
             ) : (() => {
-              const filtered = gaps.filter((g: any) => priorityFilter === "all" || g.status === priorityFilter);
+              const filtered = gaps.filter((g: any) => gapStatusFilter === "all" || g.status === gapStatusFilter);
               const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
                 filtered,
                 gapsTable,
@@ -583,14 +681,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   <table className="panel-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 20 }}></th>
                         <SortableHeader label="ID" columnKey="gap_id" state={gapsTable} />
-                        <SortableHeader label="Severity" columnKey="severity" state={gapsTable} />
                         <SortableHeader label="Gap Question" columnKey="question" state={gapsTable} />
                         <SortableHeader label="Area" columnKey="area" state={gapsTable} />
                         <SortableHeader label="Status" columnKey="status" state={gapsTable} />
-                        <th style={{ width: 80 }}>Client</th>
-                        <th style={{ width: 70 }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -605,36 +699,38 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                           openGap(gap);
                         }}
                       >
-                        <td
-                          className="chevron-cell"
-                          style={!gap.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}
-                        />
-                        <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap" }}>
-                          {gap.gap_id}
+                        <td style={{
+                          whiteSpace: "nowrap", lineHeight: 1.2,
+                          borderLeft: !gap.seen_at ? "3px solid var(--green)" : undefined,
+                        }}>
+                          <div style={{
+                            fontFamily: "'SF Mono', 'Fira Code', monospace",
+                            fontSize: 11, color: "var(--gray-600)",
+                          }}>{gap.gap_id}</div>
+                          <div style={{ marginTop: 2 }}>
+                            <SevBadge severity={gap.severity} />
+                          </div>
                         </td>
-                        <td><SevBadge severity={gap.severity} /></td>
-                        <td style={{ fontWeight: 500 }}>
-                          {gap.question}
+                        <td style={{ fontWeight: 500 }} title={gap.question}>
+                          <div className="cell-title">{gap.question}</div>
                         </td>
                         <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
-                        <td><GapStatusPill status={gap.status} /></td>
                         <td>
-                          <GapClientBadge fb={clientFeedback.gaps[gap.gap_id]} />
-                        </td>
-                        <td>
-                          {(gap.status === "open" || gap.status === "in-progress") && (
-                            <button
-                              className="inline-action"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const answer = prompt("Resolution — what was the answer?");
-                                if (answer) resolveGap(projectId, gap.gap_id, answer).then(() => loadData());
-                              }}
-                              title="Resolve"
-                            >
-                              &#10003;
-                            </button>
-                          )}
+                          {(() => {
+                            const fb = clientFeedback.gaps[gap.gap_id];
+                            // Collapse when PM has resolved AND client has answered —
+                            // the client badge carries both signals (+ round number).
+                            const aligned = fb && gap.status === "resolved";
+                            if (fb && aligned) {
+                              return <GapClientBadge fb={fb} />;
+                            }
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                                <GapStatusPill status={gap.status} />
+                                {fb && <GapClientBadge fb={fb} />}
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     </Fragment>
@@ -1074,21 +1170,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       else sourceLines.push(`- ${name}`);
     });
 
-    const fb = clientFeedback.requirements[req.req_id];
-    let clientBlock = "";
-    if (fb) {
-      const verb = fb.action === "confirm" ? "**Confirmed**" : "**Flagged for discussion**";
-      const when = fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : "";
-      const who = fb.client_name || "client";
-      clientBlock = `\n## Client Feedback\n${verb} by ${who} · review round ${fb.round}${when ? ` · ${when}` : ""}`;
-      if (fb.note) clientBlock += `\n\n> ${fb.note.replace(/\n/g, "\n> ")}`;
-    }
-
     const md = [
       `# ${req.req_id}: ${req.title}`,
-      "", `**Priority:** ${req.priority} | **Status:** ${req.status} | **Confidence:** ${req.confidence}`,
-      req.source_person ? `**Requested by:** ${req.source_person}` : "",
-      clientBlock,
       "", "## Description", req.description || "No description",
       req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
       `\n## Business Rules\n${req.business_rules?.length
@@ -1101,18 +1184,28 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         ? req.edge_cases.map((e: string) => `- ${e}`).join("\n")
         : "*None captured.*"}`,
       sourceLines.length ? `\n## Sources\n${sourceLines.join("\n")}` : "",
-      req.version > 1 ? `\n*Version ${req.version} — merged from ${1 + (req.sources?.length || 0)} documents*` : "",
     ].filter(Boolean).join("\n");
 
-    const view = {
+    const reqMeta: Record<string, string> = {
+      priority: req.priority,
+      status: req.status,
+      confidence: req.confidence,
+      version: `v${req.version || 1}${req.version > 1 ? ` · merged from ${1 + (req.sources?.length || 0)} docs` : ""}`,
+      source: req.source_doc || "unknown",
+    };
+    if (req.source_person) reqMeta.requested_by = req.source_person;
+
+    const view: DetailView = {
       title: `${req.req_id}: ${req.title}`, content: md,
-      meta: { priority: req.priority, status: req.status, confidence: req.confidence, version: `v${req.version || 1}`, source: req.source_doc || "unknown" },
+      meta: reqMeta,
       history: req.id ? { projectId, itemType: "requirement", itemId: req.id } : undefined,
       actions: _reqActionsForStatus(req.status),
       onAction: async (action: string) => {
         await updateRequirement(projectId, req.req_id, { status: action });
         loadData(); setDetail(null);
       },
+      itemKey: req.req_id,
+      itemKind: "requirement",
     };
     if (mode === "push") pushDetail(view);
     else setDetail(view);
@@ -1140,19 +1233,18 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       sourceLines.push(`- ${con.source_doc}`);
     }
 
-    // Age line — same pattern as gap detail.
-    let ageLine = "";
+    // Age info → meta chip, no longer inlined as markdown.
+    let raisedValue: string | null = null;
     if (con.created_at) {
       const raised = new Date(con.created_at);
       const days = Math.max(0, Math.floor((Date.now() - raised.getTime()) / 86_400_000));
       const raisedDate = raised.toISOString().slice(0, 10);
-      const ageText = days === 0 ? "raised today" : `${days} day${days === 1 ? "" : "s"} old`;
-      ageLine = `*Raised ${raisedDate} · ${ageText}*`;
+      const ageText = days === 0 ? "today" : `${days}d old`;
+      raisedValue = `${raisedDate} · ${ageText}`;
     }
 
     const md = [
       `# ${conId}: ${headerTitle}`,
-      ageLine,
       desc && desc.length > 80 ? `\n${desc}` : "", // full description if truncated in title
       con.impact ? `\n## Impact\n${con.impact}` : "",
       con.source_quote ? `\n## Source Quote\n> ${con.source_quote}` : "",
@@ -1169,10 +1261,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     ];
     const actions = allStatuses.filter((a) => a.value !== con.status);
 
+    const conMeta: Record<string, string> = { id: conId, type: con.type, status: con.status };
+    if (raisedValue) conMeta.raised = raisedValue;
+
     setDetail({
       title: `${conId}: ${headerTitle}`,
       content: md,
-      meta: { id: conId, type: con.type, status: con.status },
+      meta: conMeta,
       history: con.id ? { projectId, itemType: "constraint", itemId: con.id } : undefined,
       actions,
       onAction: async (action: string) => {
@@ -1205,32 +1300,21 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       else sourceLines.push(`- ${name}`);
     });
 
-    let resolutionBlock = "";
+    let gapResolution: DetailView["gapResolution"] = undefined;
     if ((gap.status === "resolved" || gap.status === "dismissed") && gap.resolution) {
       const parts = (gap.resolution as string).split("\n\n— Answered via ");
-      const answer = parts[0];
-      const attribution = parts.length > 1 ? parts[1] : null;
-      const heading = gap.status === "dismissed" ? "Dismissal" : "Resolution";
-      resolutionBlock = `\n## ${heading}\n${answer}`;
-      if (attribution) resolutionBlock += `\n\n*— ${attribution}*`;
-      if (gap.closed_at) {
-        const when = new Date(gap.closed_at).toLocaleString();
-        const who = gap.closed_by || "unknown";
-        resolutionBlock += `\n\n*Closed ${when} by ${who}*`;
-      }
+      gapResolution = {
+        kind: gap.status as "resolved" | "dismissed",
+        text: parts[0],
+        attribution: parts.length > 1 ? parts[1] : null,
+        closedAt: gap.closed_at || null,
+        closedBy: gap.closed_by || null,
+      };
     }
 
-    const fb = clientFeedback.gaps[gap.gap_id];
-    let clientBlock = "";
-    if (fb && fb.answer) {
-      const when = fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : "";
-      const who = fb.client_name || "client";
-      clientBlock = `\n## Client Answer\n${who} · review round ${fb.round}${when ? ` · ${when}` : ""}\n\n> ${fb.answer.replace(/\n/g, "\n> ")}`;
-    }
-
-    // Age line — shows raise date and either current age (open) or
-    // total time-to-close (resolved/dismissed) so triage has context.
-    let ageLine = "";
+    // Age info — raise date + current age (open) or time-to-close (closed)
+    // goes into the meta chip row; no longer inlined as markdown.
+    let raisedValue: string | null = null;
     if (gap.created_at) {
       const raised = new Date(gap.created_at);
       const endPoint = gap.closed_at ? new Date(gap.closed_at) : new Date();
@@ -1238,9 +1322,9 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       const raisedDate = raised.toISOString().slice(0, 10);
       const ageText =
         gap.closed_at
-          ? (days === 0 ? "closed same day" : `open ${days} day${days === 1 ? "" : "s"} before closing`)
-          : (days === 0 ? "raised today" : `${days} day${days === 1 ? "" : "s"} old`);
-      ageLine = `*Raised ${raisedDate} · ${ageText}*`;
+          ? (days === 0 ? "closed same day" : `${days}d open before close`)
+          : (days === 0 ? "today" : `${days}d old`);
+      raisedValue = `${raisedDate} · ${ageText}`;
     }
 
     // "Suggested Action" is an instruction for the PM while the gap is
@@ -1252,20 +1336,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
     const md = [
       `# ${gap.gap_id}: ${gap.question}`,
-      ageLine,
-      gap.assignee ? `\n**Owner:** ${gap.assignee}` : "",
-      gap.source_person ? `\n**Ask:** ${gap.source_person}` : "",
       blocksLine ? `\n${blocksLine}` : "",
-      clientBlock,
       gap.suggested_action ? `\n## ${suggestedActionHeading}\n${gap.suggested_action}` : "",
       gap.source_quote && gap.source_quote !== "extracted from document"
         ? `\n## Source Quote\n> ${gap.source_quote}`
         : "",
       sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
-      resolutionBlock,
     ].filter(Boolean).join("\n");
 
-    const isOpen = gap.status === "open" || gap.status === "in-progress";
+    const isOpen = gap.status === "open";
     const actions = isOpen
       ? [
           { label: "Resolve", value: "resolve", color: "#10b981" },
@@ -1274,11 +1353,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         ]
       : [{ label: "Reopen", value: "reopen", color: "#6b7280" }];
 
+    const gapMeta: Record<string, string> = {
+      severity: gap.severity,
+      status: gap.status,
+      area: gap.area || "general",
+    };
+    if (raisedValue) gapMeta.raised = raisedValue;
+    if (gap.assignee) gapMeta.owner = gap.assignee;
+    if (gap.source_person) gapMeta.ask = gap.source_person;
+
     setDetail({
       title: `${gap.gap_id}: ${gap.question}`,
       content: md,
-      meta: { severity: gap.severity, status: gap.status, area: gap.area || "general" },
+      meta: gapMeta,
       history: gap.id ? { projectId, itemType: "gap", itemId: gap.id } : undefined,
+      itemKey: gap.gap_id,
+      itemKind: "gap",
+      gapResolution,
       actions,
       onAction: async (action: string) => {
         if (action === "resolve") {
@@ -1361,7 +1452,7 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
   const confirmedReqs = requirements.filter((r: any) => r.status === "confirmed").length;
   const mustReqs = requirements.filter((r: any) => r.priority === "must").length;
   const openContras = contradictions.filter((c: any) => !c.resolved).length;
-  const openGaps = gaps.filter((g: any) => g.status === "open" || g.status === "in-progress").length;
+  const openGaps = gaps.filter((g: any) => g.status === "open").length;
 
   // Ring math
   const circumference = 2 * Math.PI * 54;
@@ -1726,7 +1817,7 @@ function SevBadge({ severity }: { severity: string }) {
 
 function StatusPill({ status, label }: { status: string; label?: string }) {
   const display = label || status;
-  const cls = status === "confirmed" || status === "resolved" ? "resolved" : status === "dropped" || status === "failed" ? "dropped" : status === "discussed" || status === "in-progress" ? "in-progress" : "open";
+  const cls = status === "confirmed" || status === "resolved" ? "resolved" : status === "dropped" || status === "failed" ? "dropped" : status === "discussed" ? "in-progress" : "open";
   return (
     <span className={`gap-status-pill ${cls}`}>
       <span style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor", display: "inline-block" }} />
@@ -1738,6 +1829,51 @@ function StatusPill({ status, label }: { status: string; label?: string }) {
 function GapStatusPill({ status }: { status: string }) {
   return <span className={`gap-status-pill ${status}`}>{status.replace("-", " ")}</span>;
 }
+
+// Color map for filter chips — each value lights up in its status color
+// when active, matching the corresponding badge/pill elsewhere in the UI.
+const FILTER_CHIP_COLORS: Record<string, { bg: string; fg: string; border: string }> = {
+  // priority
+  must: { bg: "#fef2f2", fg: "#dc2626", border: "#fecaca" },
+  should: { bg: "#fffbeb", fg: "#d97706", border: "#fde68a" },
+  could: { bg: "#eff6ff", fg: "#2563eb", border: "#bfdbfe" },
+  wont: { bg: "#f3f4f6", fg: "#6b7280", border: "#e5e7eb" },
+  // req status
+  confirmed: { bg: "#d1fae5", fg: "#059669", border: "#a7f3d0" },
+  discussed: { bg: "#fef3c7", fg: "#b45309", border: "#fde68a" },
+  proposed: { bg: "#fef3c7", fg: "#d97706", border: "#fde68a" },
+  // gap status
+  open: { bg: "#fef3c7", fg: "#b45309", border: "#fde68a" },
+  resolved: { bg: "#d1fae5", fg: "#059669", border: "#a7f3d0" },
+  dismissed: { bg: "#f3f4f6", fg: "#6b7280", border: "#e5e7eb" },
+  // default (All)
+  all: { bg: "var(--green-light)", fg: "#059669", border: "var(--green)" },
+};
+
+function FilterChip({
+  value, label, active, onClick,
+}: {
+  value: string; label: string; active: boolean; onClick: () => void;
+}) {
+  const c = FILTER_CHIP_COLORS[value] || FILTER_CHIP_COLORS.all;
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "3px 10px", borderRadius: 16,
+        fontSize: 11, fontWeight: 600,
+        border: `1px solid ${active ? c.border : "var(--gray-200)"}`,
+        background: active ? c.bg : "var(--white)",
+        color: active ? c.fg : "var(--gray-500)",
+        cursor: "pointer", transition: "all 0.15s",
+        fontFamily: "var(--font)",
+        textTransform: "capitalize",
+        whiteSpace: "nowrap",
+      }}
+    >{label}</button>
+  );
+}
+
 
 function ReqClientBadge({ fb }: { fb: ReqClientFeedback | undefined }) {
   if (!fb) return <span style={{ color: "var(--gray-300)", fontSize: 11 }}>—</span>;
@@ -1788,13 +1924,336 @@ function GapClientBadge({ fb }: { fb: GapClientFeedback | undefined }) {
   );
 }
 
-function SourceBadges({ sourceDoc, sources, version, person }: { sourceDoc?: string; sources?: any[]; version?: number; person?: string }) {
-  const totalSources = 1 + (sources?.length || 0);
+
+function GapResolutionCard({ r, clientAnswer }: {
+  r: NonNullable<DetailView["gapResolution"]>;
+  /** When the gap also has a client answer, nest it as the supporting
+   *  evidence that led to the resolution. Collapses two cards into one. */
+  clientAnswer?: GapClientFeedback;
+}) {
+  const isDismissed = r.kind === "dismissed";
+  const label = isDismissed ? "Dismissed" : "Resolved";
+  const color = isDismissed ? "#6b7280" : "#047857";
+  const bg = isDismissed ? "#f3f4f6" : "#d1fae5";
+  const border = isDismissed ? "#e5e7eb" : "#a7f3d0";
+
+  const when = r.closedAt ? new Date(r.closedAt).toLocaleString() : null;
+  const who = r.closedBy || null;
+
+  const answerWhen = clientAnswer?.submitted_at ? new Date(clientAnswer.submitted_at).toLocaleString() : null;
+  const answerWho = clientAnswer?.client_name || "client";
+
+  return (
+    <div style={{
+      marginBottom: 12, borderRadius: 10,
+      background: bg, border: `1px solid ${border}`,
+      padding: "10px 14px",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+        fontSize: 12, fontWeight: 700, color, marginBottom: r.text ? 6 : 0,
+      }}>
+        <span>{isDismissed ? "✕" : "✓"} {label}</span>
+        {(when || who) && (
+          <span style={{ fontWeight: 500, opacity: 0.75 }}>
+            ·{when ? ` ${when}` : ""}{who ? ` by ${who}` : ""}
+          </span>
+        )}
+      </div>
+      {r.text && (
+        <div style={{
+          fontSize: 13, color: "var(--dark)", lineHeight: 1.55,
+          whiteSpace: "pre-wrap",
+        }}>
+          {r.text}
+        </div>
+      )}
+      {r.attribution && !clientAnswer && (
+        <div style={{
+          fontSize: 11, color: "var(--gray-500)", marginTop: 6, fontStyle: "italic",
+        }}>
+          — {r.attribution}
+        </div>
+      )}
+
+      {/* Nested client answer — shown as supporting evidence when both exist */}
+      {clientAnswer?.answer && (
+        <div style={{
+          marginTop: 10, paddingTop: 10,
+          borderTop: `1px dashed ${border}`,
+        }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
+            textTransform: "uppercase", color: "var(--gray-500)",
+            marginBottom: 4,
+          }}>
+            Based on client answer
+          </div>
+          <div style={{
+            fontSize: 11, color: "var(--gray-500)", marginBottom: 4,
+          }}>
+            {answerWho} · review round {clientAnswer.round}{answerWhen ? ` · ${answerWhen}` : ""}
+          </div>
+          <div style={{
+            fontSize: 13, color: "var(--dark)", lineHeight: 1.5,
+            fontStyle: "italic", whiteSpace: "pre-wrap",
+          }}>
+            &ldquo;{clientAnswer.answer}&rdquo;
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function ClientFeedbackCard({ kind, fb }: {
+  kind: "requirement" | "gap";
+  fb: ReqClientFeedback | GapClientFeedback;
+}) {
+  const when = fb.submitted_at ? new Date(fb.submitted_at).toLocaleString() : null;
+  const who = fb.client_name || "client";
+
+  let label: string;
+  let color: string;
+  let bg: string;
+  let border: string;
+  let body: string | null;
+
+  if (kind === "requirement") {
+    const r = fb as ReqClientFeedback;
+    if (r.action === "confirm") {
+      label = "Confirmed by client";
+      color = "#047857"; bg = "#d1fae5"; border = "#a7f3d0";
+    } else {
+      label = "Flagged for discussion by client";
+      color = "#b45309"; bg = "#fef3c7"; border = "#fde68a";
+    }
+    body = r.note;
+  } else {
+    const g = fb as GapClientFeedback;
+    label = "Answered by client";
+    color = "#1d4ed8"; bg = "#dbeafe"; border = "#bfdbfe";
+    body = g.answer;
+  }
+
+  return (
+    <div style={{
+      marginBottom: 12, borderRadius: 10,
+      background: bg, border: `1px solid ${border}`,
+      padding: "10px 14px",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+        fontSize: 12, fontWeight: 700, color, marginBottom: body ? 6 : 0,
+      }}>
+        <span>{label}</span>
+        <span style={{ fontWeight: 500, opacity: 0.75 }}>
+          · {who} · review round {fb.round}{when ? ` · ${when}` : ""}
+        </span>
+      </div>
+      {body && (
+        <div style={{
+          fontSize: 13, color: "var(--dark)", lineHeight: 1.55,
+          whiteSpace: "pre-wrap", fontStyle: "italic",
+        }}>
+          "{body}"
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+type ProposalAction =
+  | { kind: "accept"; overrideValue?: string | string[] }
+  | { kind: "reject" };
+
+function InlineProposals({
+  proposals,
+  onAction,
+}: {
+  proposals: ProposedUpdate[];
+  onAction: (id: string, decision: ProposalAction) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState<Record<string, string>>({});
+
+  if (proposals.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+      <div style={{
+        padding: "10px 14px", borderRadius: 10,
+        background: "#eff6ff", border: "1px solid #bfdbfe",
+        fontSize: 12, color: "#1e40af", lineHeight: 1.5,
+      }}>
+        <strong>
+          {proposals.length} pending update{proposals.length !== 1 ? "s" : ""}
+        </strong>{" "}
+        from recent client answers — accept to apply, reject to discard. Nothing is applied without your approval.
+      </div>
+
+      {proposals.map((p) => {
+        const isList = p.proposed_field !== "description";
+        const proposedList = Array.isArray(p.proposed_value) ? p.proposed_value : [String(p.proposed_value)];
+        const currentList = Array.isArray(p.current_value) ? p.current_value : p.current_value ? [String(p.current_value)] : [];
+        const fieldLabel = p.proposed_field.replace(/_/g, " ");
+        const editVal = editing[p.id];
+        const isEditing = editVal !== undefined;
+
+        return (
+          <div
+            key={p.id}
+            style={{
+              background: "#fff", borderRadius: 12, padding: 16,
+              border: "1px solid var(--gray-200)",
+              display: "flex", flexDirection: "column", gap: 10,
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
+                background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe",
+                letterSpacing: 0.3,
+              }}>{p.target_req_id}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>
+                {p.req_title || "Requirement"}
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--gray-500)" }}>
+                from {p.source_gap_id}{p.review_round ? ` · review round ${p.review_round}` : ""}
+              </span>
+            </div>
+
+            {/* Gap question + client answer */}
+            {p.gap_question && (
+              <div style={{ fontSize: 12, color: "var(--gray-600)" }}>
+                <strong>Question:</strong> {p.gap_question}
+              </div>
+            )}
+            {p.client_answer && (
+              <div style={{
+                fontSize: 12, color: "var(--gray-600)",
+                borderLeft: "3px solid var(--green)",
+                padding: "6px 10px", background: "var(--green-light)",
+                borderRadius: "0 6px 6px 0",
+              }}>
+                {p.client_answer}
+              </div>
+            )}
+
+            {/* Proposed patch */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>
+              Proposed change — {fieldLabel}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {/* Current */}
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 10, color: "var(--gray-500)", marginBottom: 4 }}>Current</div>
+                {currentList.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "var(--gray-400)", fontStyle: "italic" }}>(empty)</div>
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--gray-600)" }}>
+                    {currentList.map((v, i) => <li key={i}>{v}</li>)}
+                  </ul>
+                )}
+              </div>
+              {/* Proposed */}
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 10, color: "#059669", marginBottom: 4, fontWeight: 600 }}>
+                  {isList ? "+ Adding" : "Replacing with"}
+                </div>
+                {isEditing ? (
+                  <textarea
+                    value={editVal}
+                    onChange={(e) => setEditing((prev) => ({ ...prev, [p.id]: e.target.value }))}
+                    style={{
+                      width: "100%", minHeight: 60, padding: "8px 10px",
+                      borderRadius: 6, border: "1px solid var(--gray-200)",
+                      fontSize: 12, fontFamily: "var(--font)", resize: "vertical",
+                    }}
+                  />
+                ) : (
+                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#047857", fontWeight: 500 }}>
+                    {proposedList.map((v, i) => <li key={i}>{v}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {p.rationale && !isEditing && (
+              <div style={{ fontSize: 11, color: "var(--gray-500)", fontStyle: "italic" }}>
+                {p.rationale}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+              <button
+                onClick={() => {
+                  const override = isEditing
+                    ? (isList ? editVal.split("\n").map((s) => s.trim()).filter(Boolean) : editVal)
+                    : undefined;
+                  onAction(p.id, { kind: "accept", overrideValue: override });
+                  setEditing((prev) => {
+                    const next = { ...prev };
+                    delete next[p.id];
+                    return next;
+                  });
+                }}
+                style={{
+                  padding: "6px 14px", borderRadius: 8, border: "none",
+                  background: "var(--green)", color: "var(--dark)",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  fontFamily: "var(--font)",
+                }}
+              >{isEditing ? "✓ Save & accept" : "Accept"}</button>
+              <button
+                onClick={() => {
+                  if (isEditing) {
+                    setEditing((prev) => {
+                      const next = { ...prev };
+                      delete next[p.id];
+                      return next;
+                    });
+                  } else {
+                    const initial = isList ? proposedList.join("\n") : String(p.proposed_value);
+                    setEditing((prev) => ({ ...prev, [p.id]: initial }));
+                  }
+                }}
+                style={{
+                  padding: "6px 14px", borderRadius: 8,
+                  border: "1px solid var(--gray-200)", background: "#fff",
+                  color: "var(--gray-600)",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "var(--font)",
+                }}
+              >{isEditing ? "Cancel edit" : "Edit"}</button>
+              <button
+                onClick={() => onAction(p.id, { kind: "reject" })}
+                style={{
+                  padding: "6px 14px", borderRadius: 8,
+                  border: "1px solid #fecaca", background: "#fff",
+                  color: "#dc2626",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "var(--font)",
+                }}
+              >Reject</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
+function SourceBadges({ sourceDoc, sources, person }: { sourceDoc?: string; sources?: any[]; version?: number; person?: string }) {
+  // Build the deduped list of source filenames — primary first, extras after
   const allNames: string[] = [];
   if (sourceDoc) allNames.push(sourceDoc);
   if (sources) {
     for (const s of sources) {
-      // sources entries might not have filename, use doc_id short
       const name = s.filename || s.doc_id?.slice(0, 8) || "doc";
       if (!allNames.includes(name)) allNames.push(name);
     }
@@ -1802,28 +2261,29 @@ function SourceBadges({ sourceDoc, sources, version, person }: { sourceDoc?: str
 
   if (allNames.length === 0) return <span style={{ color: "var(--gray-300)" }}>—</span>;
 
+  const primary = allNames[0];
+  const extraCount = allNames.length - 1;
+  const truncated = primary.length > 20 ? primary.slice(0, 18) + "…" : primary;
+  // Combined tooltip so hover reveals all sources + person
+  const tooltip = [
+    person ? `By: ${person}` : null,
+    allNames.length === 1 ? primary : `Sources:\n- ${allNames.join("\n- ")}`,
+  ].filter(Boolean).join("\n\n");
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {person && (
-        <span className="person-chip">
-          <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2, flexShrink: 0 }}>
-            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-          </svg>
-          {person}
-        </span>
-      )}
-      {allNames.map((name, i) => (
-        <span key={i} className="source-tag" title={name}>
-          <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2, flexShrink: 0 }}>
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
-          </svg>
-          {name.length > 18 ? name.slice(0, 16) + "..." : name}
-        </span>
-      ))}
-      {(version || 1) > 1 && (
-        <span style={{ fontSize: 9, fontWeight: 600, color: "#7c3aed", background: "#f3e8ff", padding: "0 5px", borderRadius: 4, width: "fit-content" }}>
-          v{version}
-        </span>
+    <div title={tooltip} style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap",
+    }}>
+      <svg viewBox="0 0 24 24" style={{ width: 11, height: 11, stroke: "currentColor", fill: "none", strokeWidth: 2, flexShrink: 0 }}>
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <span>{truncated}</span>
+      {extraCount > 0 && (
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8,
+          background: "var(--gray-100)", color: "var(--gray-500)",
+        }}>+{extraCount}</span>
       )}
     </div>
   );
