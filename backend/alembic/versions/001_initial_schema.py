@@ -81,6 +81,9 @@ def upgrade() -> None:
         sa.Column("edge_cases", JSONB, default=[]),
         sa.Column("source_doc_id", UUID(as_uuid=True), sa.ForeignKey("documents.id"), nullable=True),
         sa.Column("source_quote", sa.Text, nullable=False),
+        sa.Column("source_person", sa.String, nullable=True),
+        sa.Column("sources", JSONB, server_default="[]"),
+        sa.Column("version", sa.Integer, server_default="1"),
         sa.Column("status", sa.String, default="proposed"),
         sa.Column("confidence", sa.String, default="medium"),
         sa.Column("ragflow_chunk_id", sa.String, nullable=True),
@@ -153,6 +156,26 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
+    # Gaps — missing from this migration historically; backfilled here so a
+    # fresh DB can finish `alembic upgrade head`. Columns match the schema
+    # expected BEFORE later migrations (009/012/015/016) add more fields.
+    op.create_table("gaps",
+        sa.Column("id", UUID(as_uuid=True), primary_key=True),
+        sa.Column("project_id", UUID(as_uuid=True), sa.ForeignKey("projects.id"), nullable=False),
+        sa.Column("gap_id", sa.String, nullable=False),
+        sa.Column("question", sa.Text, nullable=False),
+        sa.Column("severity", sa.String, default="medium"),
+        sa.Column("area", sa.String, default="general"),
+        sa.Column("source_doc_id", UUID(as_uuid=True), sa.ForeignKey("documents.id"), nullable=True),
+        sa.Column("source_quote", sa.Text, nullable=True),
+        sa.Column("source_person", sa.String, nullable=True),
+        sa.Column("blocked_reqs", JSONB, server_default="[]"),
+        sa.Column("suggested_action", sa.Text, nullable=True),
+        sa.Column("status", sa.String, default="open"),
+        sa.Column("resolution", sa.Text, nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+
     # Contradictions
     op.create_table("contradictions",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
@@ -164,6 +187,7 @@ def upgrade() -> None:
         sa.Column("explanation", sa.Text, nullable=False),
         sa.Column("resolved", sa.Boolean, default=False),
         sa.Column("resolution_note", sa.Text, nullable=True),
+        sa.Column("source_doc_id", UUID(as_uuid=True), sa.ForeignKey("documents.id"), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
@@ -274,7 +298,7 @@ def downgrade() -> None:
     tables = [
         "pipeline_syncs", "learnings", "pipeline_checkpoints", "llm_calls",
         "activity_log", "conversations", "readiness_history", "control_point_templates",
-        "change_history", "contradictions", "scope_items", "assumptions",
+        "change_history", "contradictions", "gaps", "scope_items", "assumptions",
         "stakeholders", "decisions", "constraints", "requirements",
         "documents", "project_members", "projects", "users",
     ]
