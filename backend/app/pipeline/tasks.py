@@ -865,8 +865,27 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction,
     )
     next_gap_num = (max_gap.scalar() or 0) + 1
 
+    # Load the project's current BR id set so gap.blocked_reqs can be
+    # filtered to real references. The LLM sometimes hallucinates ids
+    # like BR-012 when none exists — we'd otherwise render phantom nodes
+    # in the knowledge graph and emit broken wikilinks into the vault.
+    existing_req_ids = {
+        r for (r,) in (await db.execute(
+            select(Requirement.req_id).where(Requirement.project_id == project_id)
+        )).all()
+    }
+
     for gap in extraction.gaps:
         gap_id = f"GAP-{next_gap_num:03d}"
+        raw_blocked = list(gap.blocked_reqs or [])
+        valid_blocked = [b for b in raw_blocked if b in existing_req_ids]
+        dropped = [b for b in raw_blocked if b not in existing_req_ids]
+        if dropped:
+            log.warning(
+                "Dropped stale blocked_reqs on gap",
+                gap_question=(gap.question or "")[:80],
+                dropped=dropped,
+            )
         created, _ = await _merge_or_create(
             db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
             model_cls=Gap, item_type="gap",
@@ -875,7 +894,7 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction,
                 gap_id=gap_id, question=gap.question, severity=gap.severity, area=gap.area,
                 source_doc_id=doc_id, source_quote=gap.source_quote,
                 source_person=gap.source_person if gap.source_person != "unknown" else None,
-                blocked_reqs=gap.blocked_reqs, suggested_action=gap.suggested_action, status="open",
+                blocked_reqs=valid_blocked, suggested_action=gap.suggested_action, status="open",
             ),
             tracked_fields=("severity", "area", "suggested_action"),
             history_label={"question": (gap.question or "")[:120]},
