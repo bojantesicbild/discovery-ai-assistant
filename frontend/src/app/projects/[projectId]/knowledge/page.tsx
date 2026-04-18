@@ -326,12 +326,10 @@ export default function KnowledgeGraphPage() {
   useEffect(() => {
     (async () => {
       try {
-        // Check if logged in
-        const token = localStorage.getItem("token");
-        if (!token) {
-          window.location.href = "/";
-          return;
-        }
+        // No explicit localStorage token gate here — fetchAPI attaches the
+        // token automatically and the backend responds with 401 if absent.
+        // The previous `window.location.href = "/"` bounced authenticated
+        // users whose token hadn't been written to localStorage yet.
         const data = await getKnowledgeGraph(projectId);
         const rawNodes: GraphNode[] = (data.nodes || []).map((n: any, i: number) => {
           const x = 400 + Math.cos(i * 0.8) * 200 + Math.random() * 100;
