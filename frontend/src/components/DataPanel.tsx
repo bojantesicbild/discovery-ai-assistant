@@ -29,6 +29,8 @@ import {
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { ReadinessPanel } from "./datapanel/readiness";
+import { RequirementsTab } from "./datapanel/tabs/requirements-tab";
+import { DocumentsTab } from "./datapanel/tabs/documents-tab";
 import { usePersistedState } from "@/lib/persistedState";
 import { useUnreadCounts } from "@/lib/useUnreadCounts";
 import { useTableState, applyTableState } from "@/lib/tableState";
@@ -459,149 +461,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
         {/* ── REQUIREMENTS ── */}
         {activeTab === "reqs" && (
-          <div className="dp-tab-content active">
-            {/* Filter row — priority + status chips, colored by value */}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginRight: 2 }}>Priority</span>
-              {["all", "must", "should", "could"].map((f) => (
-                <FilterChip key={`p-${f}`} value={f} label={f === "all" ? "All" : f} active={priorityFilter === f} onClick={() => setPriorityFilter(f)} />
-              ))}
-              <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginLeft: 8, marginRight: 2 }}>Status</span>
-              {["all", "confirmed", "discussed", "proposed"].map((f) => (
-                <FilterChip key={`s-${f}`} value={f} label={f === "all" ? "All" : f} active={statusFilter === f} onClick={() => setStatusFilter(f)} />
-              ))}
-            </div>
-            {/* Search row — full width, with unread-mark-all on the right */}
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-              <TableSearch state={reqsTable} placeholder="Search requirements…" />
-              {unreadCounts.requirement > 0 && (
-                <button
-                  onClick={() => markTabSeenAll("requirement", setRequirements)}
-                  title="Mark all requirements as read"
-                  style={{
-                    marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
-                    background: "var(--green-light)", color: "#059669",
-                    border: "1px solid var(--green-mid)",
-                    fontSize: 11, fontWeight: 600, cursor: "pointer",
-                  }}
-                >
-                  ✓ Mark all read ({unreadCounts.requirement})
-                </button>
-              )}
-            </div>
-            {requirements.length === 0 ? (
-              <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
-            ) : (() => {
-              // Apply legacy filter chips first, then search/sort/paginate
-              const filtered = requirements.filter((r) =>
-                (priorityFilter === "all" || r.priority === priorityFilter) &&
-                (statusFilter === "all" || r.status === statusFilter)
-              );
-              const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
-                filtered,
-                reqsTable,
-                ["req_id", "title", "type", "priority", "status", "source_person"],
-              );
-              return (
-                <>
-                  <table className="panel-table">
-                    <thead>
-                      <tr>
-                        <SortableHeader label="ID" columnKey="req_id" state={reqsTable} />
-                        <SortableHeader label="Requirement" columnKey="title" state={reqsTable} />
-                        <SortableHeader label="Type / Pri" columnKey="priority" state={reqsTable} />
-                        <SortableHeader label="Status" columnKey="status" state={reqsTable} />
-                        <SortableHeader label="Source" columnKey="source_doc" state={reqsTable} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visible.map((req) => (
-                        <tr
-                          key={req.id || req.req_id}
-                          onClick={() => {
-                            openRequirement(req);
-                            onNavigate?.("reqs", req.req_id);
-                            if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
-                          }}
-                          className="clickable-row"
-                          title={req.title}
-                          style={!req.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
-                        >
-                          <td style={{
-                            whiteSpace: "nowrap", lineHeight: 1.2,
-                            borderLeft: !req.seen_at ? "3px solid var(--green)" : undefined,
-                          }}>
-                            <div style={{ fontWeight: 700, color: "var(--green)", fontSize: 12 }}>{req.req_id}</div>
-                            {req.version > 1 && (
-                              <div style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 600 }}>v{req.version}</div>
-                            )}
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                              <div className="cell-title" style={{ fontWeight: 600, fontSize: 12, flex: 1, minWidth: 0 }}>{req.title}</div>
-                              {(() => {
-                                const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
-                                if (pendingCount === 0) return null;
-                                return (
-                                  <span
-                                    title={`${pendingCount} pending client-driven update${pendingCount !== 1 ? "s" : ""}`}
-                                    style={{
-                                      fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 10,
-                                      background: "#eff6ff", color: "#1d4ed8",
-                                      border: "1px solid #bfdbfe", whiteSpace: "nowrap",
-                                      flexShrink: 0,
-                                    }}
-                                  >⚠ {pendingCount}</span>
-                                );
-                              })()}
-                            </div>
-                          </td>
-                          <td>
-                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                              <TypeBadge type={req.type} />
-                              <PriBadge priority={req.priority} />
-                            </div>
-                          </td>
-                          <td>
-                            {(() => {
-                              const fb = clientFeedback.requirements[req.req_id];
-                              // Collapse to the client badge when PM status and
-                              // client action agree (both would show the same
-                              // word). Keep both when they disagree — that's
-                              // a signal the PM needs to notice.
-                              const aligned = fb && (
-                                (fb.action === "confirm" && req.status === "confirmed") ||
-                                (fb.action === "discuss" && req.status === "discussed")
-                              );
-                              if (fb && aligned) {
-                                return <ReqClientBadge fb={fb} />;
-                              }
-                              return (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                                  <StatusPill status={req.status} />
-                                  {fb && <ReqClientBadge fb={fb} />}
-                                </div>
-                              );
-                            })()}
-                          </td>
-                          <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
-                            <SourceBadges sourceDoc={req.source_doc || undefined} sources={req.sources} version={req.version} person={req.source_person || undefined} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <Pagination
-                    state={reqsTable}
-                    total={filteredCount}
-                    pageStart={pageStart}
-                    pageEnd={pageEnd}
-                    totalPages={totalPages}
-                  />
-                </>
-              );
-            })()}
-          </div>
+          <RequirementsTab
+            requirements={requirements}
+            setRequirements={setRequirements}
+            reqsTable={reqsTable}
+            priorityFilter={priorityFilter}
+            setPriorityFilter={setPriorityFilter}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            unreadCount={unreadCounts.requirement}
+            markTabSeenAll={markTabSeenAll}
+            markRowSeen={markRowSeen}
+            openRequirement={openRequirement}
+            onNavigate={onNavigate}
+            clientFeedback={clientFeedback}
+            proposals={proposals}
+          />
         )}
 
         {/* ── GAPS ── */}
@@ -1048,114 +923,18 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
         {/* ── DOCUMENTS ── */}
         {activeTab === "docs" && (
-          <div className="dp-tab-content active">
-            {(gmailConnected || driveConnected) && (
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
-                {gmailConnected && (
-                  <button
-                    onClick={() => setGmailOpen(true)}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "6px 12px", borderRadius: 8,
-                      border: "1px solid var(--gray-200)", background: "#fff",
-                      color: "var(--dark)", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "var(--font)",
-                    }}
-                  >
-                    <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>G</span>
-                    Import from Gmail
-                  </button>
-                )}
-                {driveConnected && (
-                  <button
-                    onClick={() => setDriveOpen(true)}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "6px 12px", borderRadius: 8,
-                      border: "1px solid var(--gray-200)", background: "#fff",
-                      color: "var(--dark)", fontSize: 12, fontWeight: 600,
-                      cursor: "pointer", fontFamily: "var(--font)",
-                    }}
-                  >
-                    <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>D</span>
-                    Import from Drive
-                  </button>
-                )}
-              </div>
-            )}
-            {gmailOpen && (
-              <GmailImportPanel
-                projectId={projectId}
-                onClose={() => setGmailOpen(false)}
-                onImported={() => loadData()}
-              />
-            )}
-            {driveOpen && (
-              <DriveImportPanel
-                projectId={projectId}
-                onClose={() => setDriveOpen(false)}
-                onImported={() => loadData()}
-              />
-            )}
-            {documents.length === 0 ? (
-              <EmptyState icon="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" text='No documents uploaded yet. Click "Upload Document" to get started.' />
-            ) : (
-              <table className="panel-table">
-                <thead>
-                  <tr>
-                    <th>File</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Extracted</th>
-                    <th>Date</th>
-                    <th style={{ width: 40 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {documents.map((doc) => (
-                    <tr key={doc.id} onClick={() => openDocument(doc)} className="clickable-row">
-                      <td style={{ fontWeight: 600 }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          {doc.filename}
-                          <SourceBadge source={doc.classification?.source as string | undefined} autoSynced={doc.classification?.auto_synced as boolean | undefined} />
-                        </span>
-                      </td>
-                      <td><span className="type-badge">{doc.file_type?.toUpperCase()}</span></td>
-                      <td><StatusPill status={doc.pipeline_stage === "completed" ? "confirmed" : doc.pipeline_stage === "failed" ? "dropped" : "pending"} label={doc.pipeline_stage} /></td>
-                      <td>
-                        {doc.items_extracted > 0 ? (
-                          <span style={{ fontSize: 12 }}>
-                            {doc.items_extracted} items
-                            {doc.contradictions_found > 0 && (
-                              <span style={{ color: "var(--danger)", marginLeft: 4, fontSize: 10 }}>+{doc.contradictions_found} conflicts</span>
-                            )}
-                          </span>
-                        ) : <span style={{ color: "var(--gray-400)" }}>—</span>}
-                      </td>
-                      <td style={{ color: "var(--gray-500)", whiteSpace: "nowrap", fontSize: 11 }}>
-                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}
-                      </td>
-                      <td>
-                        <button
-                          title="Delete document"
-                          className="delete-btn"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!confirm(`Delete ${doc.filename}?`)) return;
-                            try { await deleteDocument(projectId, doc.id); loadData(); } catch { alert("Delete failed"); }
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "var(--danger)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
-                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+          <DocumentsTab
+            projectId={projectId}
+            documents={documents}
+            gmailOpen={gmailOpen}
+            setGmailOpen={setGmailOpen}
+            gmailConnected={gmailConnected}
+            driveOpen={driveOpen}
+            setDriveOpen={setDriveOpen}
+            driveConnected={driveConnected}
+            openDocument={openDocument}
+            loadData={loadData}
+          />
         )}
       </div>
     </div>
