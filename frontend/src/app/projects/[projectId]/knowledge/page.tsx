@@ -14,6 +14,8 @@ import { drawKnowledgeGraph } from "./_parts/canvas-draw";
 import { useGraphMouse } from "./_parts/use-graph-mouse";
 import { GraphToolbar } from "./_parts/graph-toolbar";
 import { TimelineScrubber } from "./_parts/timeline-scrubber";
+import { ListView } from "./_parts/list-view";
+import { TimelineView } from "./_parts/timeline-view";
 
 
 /* ---------- component ---------- */
@@ -468,252 +470,24 @@ export default function KnowledgeGraphPage() {
           </div>
         )}
 
-        {/* List view */}
         {viewMode === "list" && (
-          <div style={{ flex: 1, overflow: "auto", padding: 0 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid #e2e8f0", position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
-                  {[
-                    { key: "type", label: "Type" },
-                    { key: "id", label: "ID" },
-                    { key: "label", label: "Name" },
-                    { key: "status", label: "Status" },
-                    { key: "priority", label: "Priority" },
-                    { key: "connections", label: "Links" },
-                    { key: "date", label: "Date" },
-                  ].map((col) => (
-                    <th
-                      key={col.key}
-                      onClick={() => {
-                        if (sortCol === col.key) setSortAsc(!sortAsc);
-                        else { setSortCol(col.key); setSortAsc(true); }
-                      }}
-                      style={{
-                        textAlign: "left", padding: "10px 12px", fontWeight: 600,
-                        color: sortCol === col.key ? "#00E5A0" : "#64748b",
-                        cursor: "pointer", userSelect: "none", fontSize: 11,
-                        textTransform: "uppercase", letterSpacing: "0.5px",
-                      }}
-                    >
-                      {col.label}
-                      {sortCol === col.key && <span style={{ marginLeft: 4 }}>{sortAsc ? "↑" : "↓"}</span>}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...filteredNodes].sort((a, b) => {
-                  let av: string | number = "", bv: string | number = "";
-                  if (sortCol === "connections") { av = a.connections; bv = b.connections; }
-                  else if (sortCol === "status") { av = a.meta?.status || ""; bv = b.meta?.status || ""; }
-                  else if (sortCol === "priority") { av = a.meta?.priority || ""; bv = b.meta?.priority || ""; }
-                  else if (sortCol === "date") { av = a.meta?.date || "zzzz"; bv = b.meta?.date || "zzzz"; }
-                  else { av = (a as any)[sortCol] || ""; bv = (b as any)[sortCol] || ""; }
-                  if (typeof av === "number" && typeof bv === "number") return sortAsc ? av - bv : bv - av;
-                  return sortAsc ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-                }).map((n) => {
-                  const color = TYPE_COLORS[n.type] || "#6b7280";
-                  const isSelected = selectedNode?.id === n.id;
-                  return (
-                    <tr
-                      key={n.id}
-                      onClick={() => setSelectedNode({ ...n })}
-                      style={{
-                        borderBottom: "1px solid #f1f5f9",
-                        cursor: "pointer",
-                        background: isSelected ? "#f0fdf8" : undefined,
-                        transition: "background 0.1s",
-                      }}
-                      onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
-                      onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = ""; }}
-                    >
-                      <td style={{ padding: "8px 12px" }}>
-                        <span style={{
-                          display: "inline-flex", alignItems: "center", gap: 6,
-                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                          background: `${color}15`, color,
-                        }}>
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
-                          {TYPE_LABELS[n.type] || n.type}
-                        </span>
-                      </td>
-                      <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "#64748b", fontSize: 11 }}>{n.id}</td>
-                      <td style={{ padding: "8px 12px", fontWeight: 500, color: "#0f172a", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{n.label}</td>
-                      <td style={{ padding: "8px 12px" }}>
-                        {n.meta?.status && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                            background: n.meta.status === "confirmed" ? "#d1fae5" : n.meta.status === "proposed" ? "#FEF3C7" : "#f1f5f9",
-                            color: n.meta.status === "confirmed" ? "#00E5A0" : n.meta.status === "proposed" ? "#D97706" : "#64748b",
-                          }}>
-                            {n.meta.status}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: "8px 12px" }}>
-                        {n.meta?.priority && (
-                          <span style={{
-                            fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                            background: n.meta.priority === "must" ? "#fee2e2" : n.meta.priority === "should" ? "#FEF3C7" : "#eff6ff",
-                            color: n.meta.priority === "must" ? "#EF4444" : n.meta.priority === "should" ? "#D97706" : "#3B82F6",
-                          }}>
-                            {n.meta.priority.toUpperCase()}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: "8px 12px", color: "#64748b", textAlign: "center" }}>{n.connections}</td>
-                      <td style={{ padding: "8px 12px", color: "#94a3b8", fontSize: 11 }}>{n.meta?.date || "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ListView
+            filteredNodes={filteredNodes}
+            selectedNode={selectedNode}
+            onSelectNode={(n) => setSelectedNode({ ...n })}
+            sortCol={sortCol}
+            setSortCol={setSortCol}
+            sortAsc={sortAsc}
+            setSortAsc={setSortAsc}
+          />
         )}
 
-        {/* Timeline view */}
         {viewMode === "timeline" && (
-          <div style={{ flex: 1, overflow: "auto", padding: "20px 24px" }}>
-            {(() => {
-              const dated = filteredNodes.filter((n) => n.meta?.date);
-              const undated = filteredNodes.filter((n) => !n.meta?.date);
-              const grouped = new Map<string, GraphNode[]>();
-              for (const n of dated) {
-                const d = n.meta.date;
-                if (!grouped.has(d)) grouped.set(d, []);
-                grouped.get(d)!.push(n);
-              }
-              const sortedDates = [...grouped.keys()].sort((a, b) => b.localeCompare(a));
-
-              return (
-                <div style={{ position: "relative", paddingLeft: 28 }}>
-                  {/* Vertical line */}
-                  <div style={{ position: "absolute", left: 10, top: 0, bottom: 0, width: 2, background: "#e2e8f0" }} />
-
-                  {sortedDates.map((date) => (
-                    <div key={date} style={{ marginBottom: 24 }}>
-                      {/* Date marker */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, marginLeft: -28 }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: "50%", background: "#00E5A0",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          border: "3px solid #fff", boxShadow: "0 0 0 2px #e2e8f0", zIndex: 1,
-                        }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{date}</span>
-                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{grouped.get(date)!.length} item{grouped.get(date)!.length !== 1 ? "s" : ""}</span>
-                      </div>
-
-                      {/* Nodes for this date */}
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {grouped.get(date)!.map((n) => {
-                          const color = TYPE_COLORS[n.type] || "#6b7280";
-                          const isSelected = selectedNode?.id === n.id;
-                          return (
-                            <div
-                              key={n.id}
-                              onClick={() => setSelectedNode({ ...n })}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 10,
-                                padding: "10px 14px", borderRadius: 8,
-                                border: `1px solid ${isSelected ? "#00E5A0" : "#e2e8f0"}`,
-                                background: isSelected ? "#f0fdf8" : "#fff",
-                                cursor: "pointer", transition: "all 0.15s",
-                                borderLeft: `3px solid ${color}`,
-                              }}
-                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
-                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = isSelected ? "#f0fdf8" : "#fff"; }}
-                            >
-                              <span style={{
-                                fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                                background: `${color}15`, color, textTransform: "uppercase",
-                              }}>
-                                {TYPE_LABELS[n.type] || n.type}
-                              </span>
-                              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {n.label}
-                              </span>
-                              {n.meta?.status && (
-                                <span style={{
-                                  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
-                                  background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
-                                  color: n.meta.status === "confirmed" ? "#00E5A0" : "#64748b",
-                                }}>
-                                  {n.meta.status}
-                                </span>
-                              )}
-                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{n.connections} links</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Undated section */}
-                  {undated.length > 0 && (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, marginLeft: -28 }}>
-                        <div style={{
-                          width: 22, height: 22, borderRadius: "50%", background: "#94a3b8",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          border: "3px solid #fff", boxShadow: "0 0 0 2px #e2e8f0", zIndex: 1,
-                        }}>
-                          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#fff" }} />
-                        </div>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8" }}>Undated</span>
-                        <span style={{ fontSize: 11, color: "#94a3b8" }}>{undated.length} item{undated.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {undated.map((n) => {
-                          const color = TYPE_COLORS[n.type] || "#6b7280";
-                          const isSelected = selectedNode?.id === n.id;
-                          return (
-                            <div
-                              key={n.id}
-                              onClick={() => setSelectedNode({ ...n })}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 10,
-                                padding: "10px 14px", borderRadius: 8,
-                                border: `1px solid ${isSelected ? "#00E5A0" : "#e2e8f0"}`,
-                                background: isSelected ? "#f0fdf8" : "#fff",
-                                cursor: "pointer", transition: "all 0.15s",
-                                borderLeft: `3px solid ${color}`,
-                              }}
-                              onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f8fafc"; }}
-                              onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = isSelected ? "#f0fdf8" : "#fff"; }}
-                            >
-                              <span style={{
-                                fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                                background: `${color}15`, color, textTransform: "uppercase",
-                              }}>
-                                {TYPE_LABELS[n.type] || n.type}
-                              </span>
-                              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {n.label}
-                              </span>
-                              {n.meta?.status && (
-                                <span style={{
-                                  fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4,
-                                  background: n.meta.status === "confirmed" ? "#d1fae5" : "#f1f5f9",
-                                  color: n.meta.status === "confirmed" ? "#00E5A0" : "#64748b",
-                                }}>
-                                  {n.meta.status}
-                                </span>
-                              )}
-                              <span style={{ fontSize: 11, color: "#94a3b8" }}>{n.connections} links</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+          <TimelineView
+            filteredNodes={filteredNodes}
+            selectedNode={selectedNode}
+            onSelectNode={(n) => setSelectedNode({ ...n })}
+          />
         )}
 
         {/* Wiki view */}
