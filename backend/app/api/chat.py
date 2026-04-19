@@ -193,51 +193,7 @@ async def chat(
     )
 
 
-def _tool_label(tool_name: str, tool_input: dict) -> str:
-    """Build a human-friendly tool label like Claude Code shows."""
-    name = tool_name.replace("mcp__discovery__", "")
-
-    if tool_name == "Read":
-        path = tool_input.get("file_path", "")
-        short = path.rsplit("/", 1)[-1] if "/" in path else path
-        return f"Read {short}" if short else "Read file"
-    elif tool_name == "Grep":
-        pattern = tool_input.get("pattern", "")
-        return f"Grep '{pattern[:30]}'" if pattern else "Grep"
-    elif tool_name == "Glob":
-        pattern = tool_input.get("pattern", "")
-        return f"Glob {pattern[:30]}" if pattern else "Glob"
-    elif tool_name == "Bash":
-        cmd = tool_input.get("command", "")
-        return f"Bash: {cmd[:35]}" if cmd else "Bash"
-    elif tool_name == "Edit":
-        path = tool_input.get("file_path", "")
-        short = path.rsplit("/", 1)[-1] if "/" in path else path
-        return f"Edit {short}" if short else "Edit file"
-    elif tool_name == "Write":
-        path = tool_input.get("file_path", "")
-        short = path.rsplit("/", 1)[-1] if "/" in path else path
-        return f"Write {short}" if short else "Write file"
-    elif tool_name == "ToolSearch":
-        return "searching tools"
-    else:
-        return name.replace("_", " ")
-
-
-def _tool_type(tool_name: str) -> str:
-    """Classify tool into a type for UI badge coloring."""
-    if tool_name.startswith("mcp__"):
-        return "mcp"
-    elif tool_name in ("Read", "Grep", "Glob"):
-        return "read"
-    elif tool_name in ("Edit", "Write"):
-        return "write"
-    elif tool_name == "Bash":
-        return "bash"
-    elif tool_name == "ToolSearch":
-        return "search"
-    else:
-        return "other"
+from app.services.tool_labels import tool_label as _tool_label, tool_type as _tool_type  # noqa: E402, F401
 
 
 @router.get("/conversation")

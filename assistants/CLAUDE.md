@@ -263,13 +263,44 @@ Only reset the archived domain — never touch the others.
 **Tool inheritance.** Sub-agents do not declare `tools:` in their frontmatter — they inherit every tool and MCP server from this orchestrator session. This prevents namespace drift when MCP configurations change and keeps a single source of truth for what's available.
 
 **Discovery MCP** (`mcp-server/db_server.py`) — the project's own server:
-- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_decisions`, `get_readiness`, `get_gaps`, `search_documents`.
-- Write: `store_finding` (requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction), `update_requirement_status`.
+- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_decisions`, `get_readiness`, `get_gaps`, `search_documents`, `get_current_time`, `list_reminders`.
+- Write: `store_finding` (requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction), `update_requirement_status`, `schedule_reminder`, `cancel_reminder`, `reschedule_reminder`.
 - All writes auto-sync DB → markdown files and recalculate readiness.
 
 **Optional integrations** (if configured in user-level Claude Code): `context7` (library docs), `figma` (design), `mcp-atlassian` (Jira / Confluence), `playwright` (browser), `reportportal` (test runs), `chrome-devtools` (debugging).
 
 Agents reference MCP tool names in their prose for guidance; if a tool is unavailable at runtime, the agent should fall back to local search (Grep on `.memory-bank/docs/`) and note the gap in its chat reply.
+
+---
+
+## Reminders
+
+Project reminders — "check BR-003 with Sara tomorrow", "prep me before Monday's meeting" — use the Discovery MCP, **never** Claude Code's platform cron.
+
+| Intent | Use | Do NOT use |
+|---|---|---|
+| Schedule a PM reminder about a BR, gap, person, or meeting | `schedule_reminder` | `CronCreate` |
+| List active reminders for this project | `list_reminders` | `CronList` |
+| Cancel a project reminder | `cancel_reminder` | `CronDelete` |
+| Change the time on a pending project reminder | `reschedule_reminder` | `CronDelete` + `CronCreate` |
+
+**Why the distinction matters.** `CronCreate` / `CronList` / `CronDelete` schedule *raw Claude Code headless runs* at the platform layer — the trigger lands outside the project database. That means:
+- No prep-agent pipeline (no `docs/meeting-prep/` brief generated).
+- No lifecycle visibility in chat (no `reminder_prep_starting` / `reminder_prep_done` / `reminder_delivered` messages).
+- No dashboard counter, no `activity_log` entries, no delivery to the PM's configured channel (gmail / in_app).
+- `cancel_reminder` / `reschedule_reminder` cannot see or act on them.
+
+Use `CronCreate` only for genuinely repo-wide, headless automation with no user-facing artifact — e.g., "every morning at 7, run vault lint and commit the drift report". Never for a reminder a PM will want to see, edit, or cancel.
+
+**Mandatory sequence for `schedule_reminder`:**
+1. Call `get_current_time` to ground relative phrasing on the server clock.
+2. Resolve the user's phrasing to ISO-8601 with an explicit timezone offset.
+3. Echo the resolved time back in LOCAL time with weekday, e.g. "I'll ping you Sunday 2026-04-19 at 00:00 (CEST). Confirm?"
+4. Confirm the delivery channel (gmail / in_app — slack is reserved).
+5. If subject is a BR or gap, confirm the id (must exist).
+6. Only call the tool after the user confirms. If the tool returns `validation_errors`, relay the first error and ask for a correction — do not retry blindly.
+
+For reschedule, the same get-current-time + echo-confirmation sequence applies.
 
 ---
 

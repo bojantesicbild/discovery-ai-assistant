@@ -1,0 +1,155 @@
+"""Reminder delivery — route a prepared reminder to the chosen channel.
+
+v1 supports:
+- gmail: create a draft in the project's connected Gmail account with the
+  brief as the body. The PM opens the draft in Gmail, tweaks, and sends.
+- in_app: no external call. Frontend surfaces status='delivered' rows
+  as a badge / dashboard card.
+- slack: stub — raises NotImplementedError until the channel is wired.
+
+The caller (scan_due_reminders) is responsible for running prep before
+delivery and for transactional persistence of the status change.
+"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+import httpx
+import structlog
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.agent.claude_runner import claude_runner
+from app.models.operational import ActivityLog, ProjectIntegration
+from app.models.reminder import Reminder
+from app.services import conversation_store
+from app.services.secrets import decrypt_config
+
+log = structlog.get_logger()
+
+
+def _load_brief(project_id: uuid.UUID, rel_path: str) -> str:
+    """Read the brief markdown off disk. Returns the file body or a
+    fallback one-liner if the file disappeared between prep and delivery."""
+    absolute = claude_runner.get_project_dir(project_id) / rel_path
+    if not absolute.exists():
+        return f"(brief file missing at {rel_path} — check the vault)"
+    return absolute.read_text(encoding="utf-8")
+
+
+def _subject_line(reminder: Reminder) -> str:
+    parts = ["Reminder:"]
+    if reminder.subject_id:
+        parts.append(reminder.subject_id)
+    if reminder.person:
+        parts.append(f"with {reminder.person}")
+    if len(parts) == 1:
+        parts.append(reminder.raw_request[:60])
+    return " ".join(parts)
+
+
+async def _deliver_gmail(
+    db: AsyncSession, reminder: Reminder, brief_md: str
+) -> dict:
+    """Create a Gmail draft on the project's connected account."""
+    from app.services import gmail as gmail_service
+
+    result = await db.execute(
+        select(ProjectIntegration).where(
+            ProjectIntegration.project_id == reminder.project_id,
+            ProjectIntegration.connector_id == "gmail",
+        )
+    )
+    integration = result.scalar_one_or_none()
+    if not integration:
+        raise RuntimeError("Gmail integration not connected for this project")
+    config = decrypt_config(integration.config_encrypted)
+    refresh_token = config.get("refresh_token")
+    if not refresh_token:
+        raise RuntimeError("Gmail integration has no refresh token")
+    sender_email = (integration.metadata_public or {}).get("email", "")
+
+    access_token = await gmail_service.get_access_token(refresh_token)
+    draft = await gmail_service.create_draft(
+        access_token,
+        to="",  # PM fills in the recipient; body is the brief
+        subject=_subject_line(reminder),
+        body=brief_md,
+        sender_email=sender_email,
+    )
+    return draft
+
+
+async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
+    """Dispatch a prepared reminder to its channel. Idempotent via status guard."""
+    reminder = await db.scalar(select(Reminder).where(Reminder.id == reminder_id))
+    if reminder is None:
+        raise LookupError(f"reminder {reminder_id} not found")
+    if reminder.status != "prepared":
+        log.info("reminder.deliver.skipped", id=str(reminder_id), status=reminder.status)
+        return reminder
+
+    brief_md = ""
+    if reminder.prep_output_path:
+        brief_md = _load_brief(reminder.project_id, reminder.prep_output_path)
+
+    try:
+        if reminder.channel == "gmail":
+            draft = await _deliver_gmail(db, reminder, brief_md)
+            reminder.external_ref = draft.get("gmail_url") or draft.get("draft_id")
+        elif reminder.channel == "in_app":
+            # No external call — frontend surfaces status=delivered.
+            reminder.external_ref = None
+        elif reminder.channel == "slack":
+            raise NotImplementedError("slack delivery not wired yet")
+        else:
+            raise RuntimeError(f"unsupported channel: {reminder.channel}")
+    except (httpx.HTTPError, RuntimeError, NotImplementedError) as e:
+        reminder.status = "failed"
+        reminder.error_message = f"deliver_error: {e}"
+        await db.commit()
+        log.exception("reminder.deliver.failed", id=str(reminder_id), channel=reminder.channel)
+        return reminder
+
+    reminder.status = "delivered"
+    reminder.delivered_at = datetime.now(timezone.utc)
+
+    # Surface delivery in chat + activity log (best-effort).
+    label_parts = []
+    if reminder.subject_id:
+        label_parts.append(reminder.subject_id)
+    if reminder.person:
+        label_parts.append(f"with {reminder.person}")
+    label = " ".join(label_parts) or reminder.raw_request[:60]
+    link = f"[open draft]({reminder.external_ref})" if reminder.external_ref else ""
+    try:
+        await conversation_store.append_message(db, reminder.project_id, {
+            "role": "assistant",
+            "source": "reminder",
+            "kind": "reminder_delivered",
+            "reminder_id": str(reminder.id),
+            "content": f"📬 Reminder delivered via **{reminder.channel}** — {label}. {link}".strip(),
+        })
+    except Exception as e:
+        log.warning("reminder.chat.post.failed", id=str(reminder_id), kind="reminder_delivered", error=str(e))
+    try:
+        db.add(ActivityLog(
+            project_id=reminder.project_id,
+            user_id=reminder.created_by_user_id,
+            action="reminder_deliver_done",
+            summary=f"Reminder delivered via {reminder.channel}: {label}",
+            details={
+                "reminder_id": str(reminder.id),
+                "channel": reminder.channel,
+                "external_ref": reminder.external_ref,
+            },
+        ))
+    except Exception as e:
+        log.warning("reminder.activity.failed", id=str(reminder_id), action="reminder_deliver_done", error=str(e))
+
+    await db.commit()
+    log.info("reminder.deliver.done", id=str(reminder_id), channel=reminder.channel, ref=reminder.external_ref)
+    return reminder

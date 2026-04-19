@@ -39,12 +39,49 @@ async def run_integration_sync(ctx):
     await _run()
 
 
+async def scan_due_reminders(ctx):
+    """Pick up reminders whose prep window has opened, run prep + delivery.
+
+    Query: status='pending' AND (due_at - prep_lead) <= now(). For each,
+    claim it with an UPDATE ... RETURNING under a status guard so two
+    concurrent worker instances can't double-run the same row, then run
+    prep and (if prep succeeded) delivery. Errors are captured on the row
+    itself — no retries yet (v1)."""
+    from datetime import datetime, timezone
+    from sqlalchemy import text
+    from app.services.reminder_prep import prep_reminder
+    from app.services.reminder_delivery import deliver_reminder
+
+    async_session = ctx["db_session"]
+    async with async_session() as db:
+        result = await db.execute(
+            text(
+                "UPDATE reminders SET status = 'processing' "
+                "WHERE id IN ("
+                "  SELECT id FROM reminders "
+                "  WHERE status = 'pending' AND (due_at - prep_lead) <= now() "
+                "  ORDER BY due_at ASC LIMIT 10 FOR UPDATE SKIP LOCKED"
+                ") RETURNING id"
+            )
+        )
+        claimed = [row[0] for row in result.all()]
+        await db.commit()
+
+    for reminder_id in claimed:
+        async with async_session() as db:
+            r = await prep_reminder(db, reminder_id)
+        if r.status == "prepared":
+            async with async_session() as db:
+                await deliver_reminder(db, reminder_id)
+
+
 class WorkerSettings:
     functions = [process_document]
     cron_jobs = [
         cron(run_daily_digests, hour=7, minute=0),          # Every day at 7:00 AM
         cron(run_weekly_summaries, weekday=0, hour=7, minute=30),  # Monday 7:30 AM
         cron(run_integration_sync, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),  # Every 5 min
+        cron(scan_due_reminders, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),  # Every 5 min
     ]
     on_startup = startup
     on_shutdown = shutdown

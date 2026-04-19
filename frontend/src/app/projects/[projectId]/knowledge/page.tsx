@@ -11,6 +11,7 @@ import {
   applyClustersLayout, applyTimelineLayout,
 } from "./_parts/graph-layout";
 import { WikiView } from "./_parts/wiki-view";
+import { NodeDetailPanel } from "./_parts/node-detail-panel";
 
 
 /* ---------- component ---------- */
@@ -1131,188 +1132,16 @@ export default function KnowledgeGraphPage() {
             boxShadow: selectedNode ? "-4px 0 16px rgba(0,0,0,0.06)" : "none",
           }}
         >
-          {selectedNode && <>
-            {/* Panel header */}
-            <div style={{
-              padding: "12px 16px",
-              borderBottom: "1px solid var(--gray-100)",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{
-                  width: 10, height: 10, borderRadius: "50%",
-                  background: TYPE_COLORS[selectedNode.type] || "#6b7280",
-                }} />
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: TYPE_COLORS[selectedNode.type] || "#64748b" }}>
-                  {TYPE_LABELS[selectedNode.type] || selectedNode.type}
-                </span>
-                {(selectedNode.meta?.confidence === "low" || selectedNode.meta?.status === "pending") && (
-                  <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, background: "#FEF3C7", color: "#D97706", marginLeft: 4 }}>
-                    GAP
-                  </span>
-                )}
-              </div>
-              <button onClick={() => setSelectedNode(null)} style={{
-                background: "none", border: "none", fontSize: 16, color: "#94a3b8", cursor: "pointer", padding: "2px 6px",
-              }}>
-                x
-              </button>
-            </div>
-
-            <div style={{ padding: 16, flex: 1, overflow: "auto" }}>
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)", margin: "0 0 8px", lineHeight: 1.3 }}>
-                {selectedNode.label}
-              </h2>
-
-              {/* Link to document/requirement */}
-              {selectedNode.id.match(/^BR-\d+/) && (
-                <a
-                  href={`/projects/${projectId}/chat`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 11, fontWeight: 600, color: "#00E5A0",
-                    textDecoration: "none", padding: "3px 8px",
-                    background: "#d1fae5", borderRadius: 6, marginBottom: 12,
-                  }}
-                >
-                  View in Requirements
-                </a>
-              )}
-              {selectedNode.id.match(/^GAP-\d+/) && (
-                <a
-                  href={`/projects/${projectId}/chat`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 11, fontWeight: 600, color: "#D97706",
-                    textDecoration: "none", padding: "3px 8px",
-                    background: "#FEF3C7", borderRadius: 6, marginBottom: 12,
-                  }}
-                >
-                  View in Gaps
-                </a>
-              )}
-              {selectedNode.id.match(/^CON-\d+/) && (
-                <a
-                  href={`/projects/${projectId}/chat`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 4,
-                    fontSize: 11, fontWeight: 600, color: "#F97316",
-                    textDecoration: "none", padding: "3px 8px",
-                    background: "#FFF7ED", borderRadius: 6, marginBottom: 12,
-                  }}
-                >
-                  View in Constraints
-                </a>
-              )}
-
-              {/* Meta chips */}
-              {Object.keys(selectedNode.meta).length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 14 }}>
-                  {Object.entries(selectedNode.meta).map(([key, value]) => {
-                    if (!value) return null;
-                    const chipColor = key === "priority" ? (value === "must" ? "#EF4444" : value === "should" ? "#F59E0B" : "#3B82F6")
-                      : key === "status" ? (value === "confirmed" ? "#00E5A0" : value === "proposed" ? "#F59E0B" : "#6b7280")
-                      : key === "confidence" ? (value === "high" ? "#00E5A0" : value === "low" ? "#EF4444" : "#F59E0B")
-                      : "#6b7280";
-                    return (
-                      <span key={key} style={{
-                        fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                        background: `${chipColor}15`, color: chipColor,
-                      }}>
-                        {key.replace(/_/g, " ")}: {value}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Description from meta */}
-              {selectedNode.meta.description && (
-                <div style={{ fontSize: 12, color: "var(--gray-600)", lineHeight: 1.6, marginBottom: 14, padding: "10px 12px", background: "var(--gray-50)", borderRadius: 8 }}>
-                  {selectedNode.meta.description}
-                </div>
-              )}
-
-              {/* Source quote — skip if it looks like table data */}
-              {selectedNode.meta.source_quote && !selectedNode.meta.source_quote.includes("|") && (
-                <div style={{ fontSize: 12, fontStyle: "italic", color: "#4b5563", padding: "8px 12px", borderLeft: "3px solid var(--green)", background: "#f0fdf8", borderRadius: "0 6px 6px 0", marginBottom: 14, lineHeight: 1.5 }}>
-                  "{selectedNode.meta.source_quote}"
-                </div>
-              )}
-
-              {/* Connections — unique linked nodes */}
-              <div style={{ marginBottom: 14 }}>
-                <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--gray-400)", marginBottom: 4 }}>
-                  Connected To ({connectedNodes.length})
-                </h3>
-                <p style={{ fontSize: 10, color: "var(--gray-400)", margin: "0 0 8px" }}>Nodes directly linked via wikilinks</p>
-                {connectedNodes.length === 0 && (
-                  <p style={{ fontSize: 12, color: "#94a3b8" }}>No connections</p>
-                )}
-                {connectedNodes.map((cn) => (
-                  <button
-                    key={cn.id}
-                    onClick={() => setSelectedNode(cn)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8, width: "100%",
-                      padding: "8px 10px", marginBottom: 4, background: "var(--gray-50)",
-                      border: "1px solid var(--gray-200)", borderRadius: 8, fontSize: 12,
-                      color: "var(--dark)", cursor: "pointer", textAlign: "left", fontFamily: "var(--font)",
-                      transition: "all 0.15s",
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--green)"; e.currentTarget.style.background = "#f0fdf8"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--gray-200)"; e.currentTarget.style.background = "var(--gray-50)"; }}
-                  >
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: TYPE_COLORS[cn.type] || "#6b7280", flexShrink: 0 }} />
-                    <span style={{ flex: 1 }}>{cn.label}</span>
-                    <span style={{ fontSize: 9, color: TYPE_COLORS[cn.type], fontWeight: 600, textTransform: "uppercase" }}>{cn.type}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Relationships — edges with context */}
-              {selectedEdges.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--gray-400)", marginBottom: 4 }}>
-                    Edges ({selectedEdges.length})
-                  </h3>
-                  <p style={{ fontSize: 10, color: "var(--gray-400)", margin: "0 0 8px" }}>How this node is referenced in documents</p>
-                  {selectedEdges.map((e, i) => {
-                    const otherId = e.source === selectedNode.id ? e.target : e.source;
-                    const other = nodes.find((n) => n.id === otherId);
-                    const direction = e.source === selectedNode.id ? "links to" : "linked from";
-                    // Clean context — skip table data, skip if just repeats node name/id
-                    let cleanLabel = e.label && !e.label.includes("|") ? e.label.trim() : "";
-                    // Remove if it's just the node ID or name repeated
-                    if (cleanLabel && other) {
-                      const otherLabel = (other.label || "").toLowerCase();
-                      const cl = cleanLabel.toLowerCase();
-                      if (cl.startsWith(otherId.toLowerCase()) || cl === otherLabel || cl.length < 5) {
-                        cleanLabel = "";
-                      }
-                    }
-                    return (
-                      <div key={i} style={{
-                        padding: "5px 10px", marginBottom: 2, background: "var(--gray-50)",
-                        border: "1px solid var(--gray-100)", borderRadius: 6, fontSize: 12, lineHeight: 1.4,
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: TYPE_COLORS[other?.type || ""] || "#6b7280", flexShrink: 0 }} />
-                          <span style={{ fontWeight: 600, color: "var(--dark)", flex: 1, fontSize: 11 }}>{other?.label || otherId}</span>
-                          <span style={{ fontSize: 9, color: "var(--gray-400)" }}>{direction}</span>
-                        </div>
-                        {cleanLabel && (
-                          <div style={{ fontSize: 10, color: "var(--gray-500)", fontStyle: "italic", marginTop: 1, paddingLeft: 12 }}>
-                            {cleanLabel.length > 80 ? cleanLabel.slice(0, 80) + "..." : cleanLabel}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </>}
+          {selectedNode && (
+            <NodeDetailPanel
+              node={selectedNode}
+              nodes={nodes}
+              edges={edges}
+              projectId={projectId}
+              onClose={() => setSelectedNode(null)}
+              onSelect={setSelectedNode}
+            />
+          )}
         </div>
       </div>
 

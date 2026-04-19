@@ -23,6 +23,7 @@ Configure in .claude/settings.json:
 import os
 import sys
 import json
+import uuid
 import asyncio
 from pathlib import Path
 
@@ -34,6 +35,7 @@ from mcp.types import Tool, TextContent
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db")
 PROJECT_ID = os.environ.get("DISCOVERY_PROJECT_ID", "")
+USER_ID = os.environ.get("DISCOVERY_USER_ID", "")
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -157,6 +159,23 @@ async def get_project_id():
         return str(row["id"]) if row else None
 
 
+async def get_user_id(pid: str):
+    """Resolve user id for tools that write user-attributed rows (reminders).
+
+    Env var wins; otherwise fall back to the project lead so agent-invoked
+    writes still have a valid FK. Returns None if neither resolves — caller
+    should reject the tool call in that case."""
+    if USER_ID:
+        return USER_ID
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT user_id FROM project_members WHERE project_id = $1 AND role = 'lead' ORDER BY created_at ASC LIMIT 1",
+            pid,
+        )
+        return str(row["user_id"]) if row else None
+
+
 def _json_result(data) -> list[TextContent]:
     return [TextContent(type="text", text=json.dumps(data, indent=2, default=str))]
 
@@ -264,6 +283,128 @@ async def list_tools() -> list[Tool]:
         Tool(name="get_gaps", description="Get all identified knowledge gaps from the gaps table — open questions to ask the client/PO that are blocking discovery completion. Each gap has gap_id (GAP-XXX), question, severity (high/medium/low), area, status (open/resolved/dismissed), source quote, source person, and may list which requirements (BR-XXX) it blocks.", inputSchema={"type": "object", "properties": {}, "required": []}),
         Tool(name="search_documents", description="Full-text search across ALL extracted items: requirements, constraints, decisions, people, assumptions, scope items, gaps, and contradictions.", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search term to match across all extracted data"}}, "required": ["query"]}),
         Tool(name="store_finding", description="Store a new finding discovered during analysis. Supports all types: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction. Auto-assigns IDs and recalculates readiness.", inputSchema={"type": "object", "properties": {"finding_type": {"type": "string", "enum": ["requirement", "constraint", "decision", "stakeholder", "assumption", "gap", "scope", "contradiction"], "description": "Type of finding"}, "title": {"type": "string", "description": "Title/name of the finding"}, "description": {"type": "string", "description": "Detailed description (role for stakeholder, impact for assumption, area for gap, rationale for scope)"}, "priority": {"type": "string", "description": "Priority: must/should/could/wont for requirements, severity for gaps, 'in'/'out' for scope items, authority for stakeholders"}, "source": {"type": "string", "description": "Source context (default: agent)"}, "source_person": {"type": "string", "description": "Person who provided the finding (default: unknown)"}, "source_quote": {"type": "string", "description": "Verbatim quote from the source document (≥10 chars). Falls back to description if omitted."}, "acceptance_criteria": {"type": "array", "items": {"type": "string"}, "description": "Requirement-only. List of AC blocks in GIVEN/WHEN/THEN form, one string per AC."}}, "required": ["finding_type", "title", "description"]}),
+        Tool(
+            name="get_current_time",
+            description=(
+                "Get the server's current time and timezone. Call this BEFORE scheduling any reminder "
+                "so relative expressions ('tomorrow', 'in 2 hours', 'Friday') are grounded on the real "
+                "clock — do NOT guess the current time or assume a timezone. Returns "
+                "{now_utc, now_local, timezone, today_local}."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        Tool(
+            name="schedule_reminder",
+            description=(
+                "Schedule an in-project reminder for a future moment ('remind me to check BR-003 with Sara tomorrow, prep insights'). "
+                "IMPORTANT: For ANY user-facing reminder about a BR / gap / meeting / PM follow-up, "
+                "use THIS tool. Do NOT use Claude Code's built-in CronCreate / CronDelete / CronList — "
+                "those schedule raw Claude Code runs and land outside the project DB, so the prepared "
+                "brief never appears in chat, the dashboard does not see the reminder, and "
+                "cancel_reminder / reschedule_reminder / list_reminders cannot act on it. "
+                "This tool creates a row owned by the project reminder system, which: "
+                "runs the prep agent at due_at - prep_lead, writes a brief to docs/meeting-prep/, "
+                "surfaces the lifecycle in chat, and delivers via the configured channel. "
+                "MANDATORY sequence before calling this tool: "
+                "(1) call get_current_time to ground on the server clock; "
+                "(2) resolve the user's phrasing to an absolute ISO-8601 timestamp with an explicit timezone offset; "
+                "(3) echo the resolved time back in the user's LOCAL timezone WITH the weekday, "
+                "e.g. 'I'll ping you Sunday 2026-04-19 at 00:00 (CET). Confirm?'; "
+                "(4) confirm the delivery channel (gmail / in_app — slack is not yet supported in v1); "
+                "(5) if the subject is a BR or gap, confirm the id (must exist in the project). "
+                "Only call this tool AFTER the user confirms the echoed time, channel, and subject. "
+                "Returns {ok, reminder_id, validation_errors[]}. If validation_errors is non-empty, "
+                "relay the first error to the user and ask for a correction — do NOT retry blindly."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "subject_type": {"type": "string", "enum": ["requirement", "gap", "free"], "description": "What the reminder is about"},
+                    "subject_id": {"type": "string", "description": "Display id (BR-003 / GAP-012). Required for requirement/gap; null for free."},
+                    "person": {"type": "string", "description": "Person involved (e.g. stakeholder name). Optional."},
+                    "raw_request": {"type": "string", "description": "Original PM phrasing — audit trail"},
+                    "due_at_iso": {"type": "string", "description": "ISO-8601 timestamp with timezone (e.g. 2026-04-19T09:00:00+02:00)"},
+                    "channel": {"type": "string", "enum": ["gmail", "slack", "in_app"], "description": "Delivery channel — ALWAYS confirm with the user before calling"},
+                    "prep_lead_hours": {"type": "number", "description": "Hours before due_at when prep runs. Default 6 is right for real meetings (brief ready the morning of). For short-horizon tests ('remind me in 5 minutes') set this LOW (e.g. 0.02 for ~1min, 0.03 for ~2min) — otherwise the prep window opens 6 hours BEFORE due_at, and on a 5-minute test the scanner picks it up immediately, which defeats the test of 'does it fire at the right time'."},
+                    "prep_agent": {"type": "string", "description": "Which agent to run for prep. Default discovery-prep-agent."},
+                },
+                "required": ["subject_type", "raw_request", "due_at_iso", "channel"],
+            },
+        ),
+        Tool(
+            name="list_reminders",
+            description=(
+                "List project reminders (rows created via schedule_reminder). Do NOT use CronList — "
+                "that returns Claude Code platform crons, not the project's user-facing reminders. "
+                "Use this to find a specific reminder before canceling or rescheduling it "
+                "('what reminders do I have?', 'show me the Sara one'). "
+                "By default returns active rows only (pending / processing / prepared). Pass "
+                "include_closed=true to also see delivered / canceled / failed. Filters compose: "
+                "person does substring match, subject_id is exact. Returns rows ordered by due_at "
+                "ascending with id, subject_type, subject_id, person, due_at, channel, status, "
+                "raw_request, prep_output_path, external_ref, created_at."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "description": "Exact status filter (overrides include_closed). One of: pending, processing, prepared, delivered, canceled, failed"},
+                    "person": {"type": "string", "description": "Substring match on person (case-insensitive)"},
+                    "subject_id": {"type": "string", "description": "Exact display id (BR-003 / GAP-012)"},
+                    "include_closed": {"type": "boolean", "description": "Include delivered / canceled / failed rows. Default false."},
+                    "limit": {"type": "integer", "description": "Max rows (default 20, max 100)"},
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="cancel_reminder",
+            description=(
+                "Cancel a project reminder that hasn't been delivered yet. Use this for reminders "
+                "created via schedule_reminder — do NOT use CronDelete, which only removes Claude "
+                "Code platform crons and cannot touch project reminders. "
+                "Find the reminder_id via list_reminders first. "
+                "Allowed current states: pending, processing, prepared, failed — these move to canceled. "
+                "Rejected: delivered (already fired — suggest scheduling a new reminder instead). "
+                "Idempotent: canceling an already-canceled row returns ok with noop=true. "
+                "Before calling, confirm the target with the user by echoing the subject + due_at + person."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "reminder_id": {"type": "string", "description": "UUID from list_reminders"},
+                },
+                "required": ["reminder_id"],
+            },
+        ),
+        Tool(
+            name="reschedule_reminder",
+            description=(
+                "Move a pending project reminder to a new due_at (and optionally change prep_lead_hours). "
+                "This operates on rows created by schedule_reminder — not on Claude Code platform crons. "
+                "If the user rescheduled a prior 'reminder' that was actually a CronCreate, cancel that "
+                "via CronDelete and create a fresh one here via schedule_reminder instead. "
+                "MANDATORY sequence before calling: "
+                "(1) list_reminders to find the target id; "
+                "(2) get_current_time to ground the new time on the server clock; "
+                "(3) echo the change to the user in LOCAL time WITH weekday, e.g. "
+                "'Moving reminder from Sunday 2026-04-19 00:00 (CEST) to Monday 2026-04-21 09:00 (CEST). Confirm?'; "
+                "(4) only call after the user confirms. "
+                "State guard: only pending rows are reschedulable. Processing (prep running) is "
+                "rejected — wait for it to finish. Prepared (brief already written) is rejected — "
+                "cancel + schedule a new one so the brief stays attached to a coherent time. "
+                "Delivered / canceled / failed are all rejected similarly. Validation on new_due_at_iso "
+                "matches schedule_reminder: must be future, must include timezone offset."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "reminder_id": {"type": "string", "description": "UUID from list_reminders"},
+                    "new_due_at_iso": {"type": "string", "description": "ISO-8601 timestamp with timezone (e.g. 2026-04-21T09:00:00+02:00)"},
+                    "new_prep_lead_hours": {"type": "number", "description": "Optional. Keep existing if omitted."},
+                },
+                "required": ["reminder_id", "new_due_at_iso"],
+            },
+        ),
     ]
 
 
@@ -716,6 +857,286 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             else:
                 return _json_result({"error": f"Unknown finding_type: {finding_type}. Supported: requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction."})
+
+        if name == "get_current_time":
+            import datetime as _dt
+            now_utc = _dt.datetime.now(_dt.timezone.utc)
+            local = now_utc.astimezone()
+            return _json_result({
+                "now_utc": now_utc.isoformat(),
+                "now_local": local.isoformat(),
+                "timezone": str(local.tzinfo),
+                "today_local": local.strftime("%Y-%m-%d (%A)"),
+            })
+
+        if name == "schedule_reminder":
+            from datetime import datetime, timezone
+
+            subject_type = arguments.get("subject_type")
+            subject_id = arguments.get("subject_id")
+            person = arguments.get("person")
+            raw_request = arguments.get("raw_request") or ""
+            due_at_iso = arguments.get("due_at_iso") or ""
+            channel = arguments.get("channel")
+            prep_lead_hours = float(arguments.get("prep_lead_hours", 6))
+            prep_agent = arguments.get("prep_agent") or "discovery-prep-agent"
+
+            errors: list[str] = []
+            supported_channels = {"gmail", "in_app"}
+            if channel not in supported_channels:
+                errors.append(
+                    f"channel '{channel}' is not supported in v1 — ask the user to pick one of: {sorted(supported_channels)}"
+                )
+            if subject_type not in {"requirement", "gap", "free"}:
+                errors.append("subject_type must be requirement, gap, or free")
+
+            try:
+                due_at = datetime.fromisoformat(due_at_iso)
+                if due_at.tzinfo is None:
+                    errors.append("due_at_iso must include a timezone offset (e.g. +00:00)")
+                elif due_at <= datetime.now(timezone.utc):
+                    errors.append(f"due_at_iso must be in the future, got {due_at.isoformat()}")
+            except ValueError:
+                errors.append(f"due_at_iso is not a valid ISO-8601 timestamp: {due_at_iso!r}")
+                due_at = None
+
+            # Subject existence check — so the orchestrator can ask the user
+            # to clarify instead of scheduling a brief about a non-existent BR.
+            if subject_type in {"requirement", "gap"}:
+                if not subject_id:
+                    errors.append(f"subject_id is required when subject_type='{subject_type}'")
+                else:
+                    if subject_type == "requirement":
+                        hit = await conn.fetchval(
+                            "SELECT id FROM requirements WHERE project_id = $1 AND req_id = $2",
+                            pid, subject_id,
+                        )
+                    else:
+                        hit = await conn.fetchval(
+                            "SELECT id FROM gaps WHERE project_id = $1 AND gap_id = $2",
+                            pid, subject_id,
+                        )
+                    if not hit:
+                        # Suggest closest match so orchestrator can offer it.
+                        col = "req_id" if subject_type == "requirement" else "gap_id"
+                        tbl = "requirements" if subject_type == "requirement" else "gaps"
+                        near = await conn.fetch(
+                            f"SELECT {col} FROM {tbl} WHERE project_id = $1 ORDER BY {col} LIMIT 5",
+                            pid,
+                        )
+                        known = [r[col] for r in near]
+                        errors.append(
+                            f"{subject_id} not found in this project. Known ids start with: {known}. "
+                            f"Ask the user to confirm the correct id."
+                        )
+
+            uid = await get_user_id(pid)
+            if not uid:
+                errors.append("No user found to attribute the reminder to. Set DISCOVERY_USER_ID or add a project lead.")
+
+            if errors:
+                return _json_result({"ok": False, "validation_errors": errors})
+
+            # Insert — all validated.
+            row = await conn.fetchrow(
+                "INSERT INTO reminders "
+                "(id, project_id, created_by_user_id, subject_type, subject_id, person, raw_request, due_at, prep_lead, channel, prep_agent, status) "
+                "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, make_interval(hours => $8), $9, $10, 'pending') "
+                "RETURNING id",
+                pid, uid, subject_type, subject_id, person, raw_request, due_at, prep_lead_hours, channel, prep_agent,
+            )
+            await conn.execute(
+                "INSERT INTO activity_log (id, project_id, action, summary, details) "
+                "VALUES (gen_random_uuid(), $1, 'reminder_scheduled', $2, $3)",
+                pid,
+                f"Reminder scheduled: {subject_id or subject_type} @ {due_at.isoformat()} via {channel}",
+                json.dumps({"reminder_id": str(row["id"]), "channel": channel, "prep_agent": prep_agent}),
+            )
+            return _json_result({
+                "ok": True,
+                "reminder_id": str(row["id"]),
+                "echo": f"Reminder scheduled for {due_at.isoformat()} ({channel}). Prep will run ~{prep_lead_hours:g}h before.",
+            })
+
+        if name == "list_reminders":
+            status = arguments.get("status")
+            person = arguments.get("person")
+            subject_id = arguments.get("subject_id")
+            include_closed = bool(arguments.get("include_closed", False))
+            limit = min(int(arguments.get("limit", 20) or 20), 100)
+
+            where = ["project_id = $1"]
+            params: list = [pid]
+            if status:
+                if status not in {"pending", "processing", "prepared", "delivered", "canceled", "failed"}:
+                    return _json_result({"ok": False, "error": f"invalid status: {status!r}"})
+                where.append(f"status = ${len(params) + 1}")
+                params.append(status)
+            elif not include_closed:
+                where.append("status IN ('pending', 'processing', 'prepared')")
+            if person:
+                where.append(f"person ILIKE ${len(params) + 1}")
+                params.append(f"%{person}%")
+            if subject_id:
+                where.append(f"subject_id = ${len(params) + 1}")
+                params.append(subject_id)
+
+            q = (
+                "SELECT id, subject_type, subject_id, person, due_at, prep_lead, channel, status, "
+                "raw_request, prep_output_path, external_ref, error_message, created_at "
+                "FROM reminders WHERE " + " AND ".join(where) + " "
+                f"ORDER BY due_at ASC LIMIT {limit}"
+            )
+            rows = await conn.fetch(q, *params)
+            return _json_result({
+                "ok": True,
+                "count": len(rows),
+                "reminders": [
+                    {
+                        "id": str(r["id"]),
+                        "subject_type": r["subject_type"],
+                        "subject_id": r["subject_id"],
+                        "person": r["person"],
+                        "due_at": r["due_at"].isoformat() if r["due_at"] else None,
+                        "prep_lead_hours": r["prep_lead"].total_seconds() / 3600 if r["prep_lead"] else None,
+                        "channel": r["channel"],
+                        "status": r["status"],
+                        "raw_request": r["raw_request"],
+                        "prep_output_path": r["prep_output_path"],
+                        "external_ref": r["external_ref"],
+                        "error_message": r["error_message"],
+                        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    }
+                    for r in rows
+                ],
+            })
+
+        if name == "cancel_reminder":
+            rid = arguments.get("reminder_id")
+            if not rid:
+                return _json_result({"ok": False, "error": "reminder_id is required"})
+            try:
+                rid_uuid = uuid.UUID(rid) if not isinstance(rid, uuid.UUID) else rid
+            except (ValueError, AttributeError):
+                return _json_result({"ok": False, "error": f"reminder_id is not a valid UUID: {rid!r}"})
+
+            current = await conn.fetchrow(
+                "SELECT id, status, subject_id, person, due_at FROM reminders WHERE id = $1 AND project_id = $2",
+                rid_uuid, pid,
+            )
+            if not current:
+                return _json_result({"ok": False, "error": "reminder not found in this project"})
+
+            old_status = current["status"]
+            if old_status == "canceled":
+                return _json_result({
+                    "ok": True,
+                    "noop": True,
+                    "reminder_id": str(rid_uuid),
+                    "status": "canceled",
+                })
+            if old_status == "delivered":
+                return _json_result({
+                    "ok": False,
+                    "error": (
+                        f"reminder already delivered on {current['due_at'].isoformat()} — "
+                        "too late to cancel. Schedule a new reminder if you need one."
+                    ),
+                })
+
+            await conn.execute(
+                "UPDATE reminders SET status = 'canceled', updated_at = now() WHERE id = $1",
+                rid_uuid,
+            )
+            await conn.execute(
+                "INSERT INTO activity_log (id, project_id, action, summary, details) "
+                "VALUES (gen_random_uuid(), $1, 'reminder_canceled', $2, $3)",
+                pid,
+                f"Reminder canceled: {current['subject_id'] or 'free'} @ {current['due_at'].isoformat()}",
+                json.dumps({"reminder_id": str(rid_uuid), "old_status": old_status}),
+            )
+            return _json_result({
+                "ok": True,
+                "reminder_id": str(rid_uuid),
+                "old_status": old_status,
+                "status": "canceled",
+            })
+
+        if name == "reschedule_reminder":
+            from datetime import datetime, timezone
+
+            rid = arguments.get("reminder_id")
+            new_iso = arguments.get("new_due_at_iso") or ""
+            new_lead = arguments.get("new_prep_lead_hours")
+
+            errors: list[str] = []
+            if not rid:
+                errors.append("reminder_id is required")
+            try:
+                rid_uuid = uuid.UUID(rid) if not isinstance(rid, uuid.UUID) else rid
+            except (ValueError, AttributeError, TypeError):
+                errors.append(f"reminder_id is not a valid UUID: {rid!r}")
+                rid_uuid = None
+
+            try:
+                new_due_at = datetime.fromisoformat(new_iso)
+                if new_due_at.tzinfo is None:
+                    errors.append("new_due_at_iso must include a timezone offset")
+                elif new_due_at <= datetime.now(timezone.utc):
+                    errors.append(f"new_due_at_iso must be in the future, got {new_due_at.isoformat()}")
+            except ValueError:
+                errors.append(f"new_due_at_iso is not a valid ISO-8601 timestamp: {new_iso!r}")
+                new_due_at = None
+
+            if errors:
+                return _json_result({"ok": False, "validation_errors": errors})
+
+            current = await conn.fetchrow(
+                "SELECT id, status, subject_id, person, due_at FROM reminders WHERE id = $1 AND project_id = $2",
+                rid_uuid, pid,
+            )
+            if not current:
+                return _json_result({"ok": False, "error": "reminder not found in this project"})
+            if current["status"] != "pending":
+                msg = {
+                    "processing": "reminder is currently running prep — wait for it to finish, then cancel + schedule a new one if needed",
+                    "prepared": "reminder already has a prepared brief — cancel it and schedule a new one so the brief stays consistent with its time",
+                    "delivered": "reminder already delivered — schedule a new one instead",
+                    "canceled": "reminder is canceled — schedule a new one instead",
+                    "failed": "reminder failed — cancel it and schedule a new one",
+                }.get(current["status"], f"cannot reschedule a reminder in status {current['status']!r}")
+                return _json_result({"ok": False, "error": msg, "current_status": current["status"]})
+
+            if new_lead is not None:
+                await conn.execute(
+                    "UPDATE reminders SET due_at = $1, prep_lead = make_interval(hours => $2), updated_at = now() "
+                    "WHERE id = $3",
+                    new_due_at, float(new_lead), rid_uuid,
+                )
+            else:
+                await conn.execute(
+                    "UPDATE reminders SET due_at = $1, updated_at = now() WHERE id = $2",
+                    new_due_at, rid_uuid,
+                )
+            await conn.execute(
+                "INSERT INTO activity_log (id, project_id, action, summary, details) "
+                "VALUES (gen_random_uuid(), $1, 'reminder_rescheduled', $2, $3)",
+                pid,
+                f"Reminder rescheduled: {current['subject_id'] or 'free'} → {new_due_at.isoformat()}",
+                json.dumps({
+                    "reminder_id": str(rid_uuid),
+                    "old_due_at": current["due_at"].isoformat(),
+                    "new_due_at": new_due_at.isoformat(),
+                    "new_prep_lead_hours": new_lead,
+                }),
+            )
+            return _json_result({
+                "ok": True,
+                "reminder_id": str(rid_uuid),
+                "old_due_at": current["due_at"].isoformat(),
+                "new_due_at": new_due_at.isoformat(),
+                "echo": f"Reminder moved to {new_due_at.isoformat()}.",
+            })
 
     return _json_result({"error": f"Unknown tool: {name}"})
 

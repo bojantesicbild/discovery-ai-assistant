@@ -632,6 +632,51 @@ export async function markNotificationRead(projectId: string, notificationId: st
   return fetchAPI(`/api/projects/${projectId}/notifications/${notificationId}/read`, { method: "PATCH" });
 }
 
+// Reminders
+export interface Reminder {
+  id: string;
+  project_id: string;
+  subject_type: string;
+  subject_id: string | null;
+  person: string | null;
+  raw_request: string;
+  due_at: string;
+  prep_lead_hours: number;
+  channel: string;
+  prep_agent: string;
+  status: string;
+  prepared_at: string | null;
+  delivered_at: string | null;
+  prep_output_path: string | null;
+  external_ref: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+export async function listReminders(
+  projectId: string,
+  opts: { status?: string } = {},
+): Promise<Reminder[]> {
+  const qs = opts.status ? `?status=${encodeURIComponent(opts.status)}` : "";
+  return fetchAPI(`/api/projects/${projectId}/reminders${qs}`);
+}
+
+export async function cancelReminder(projectId: string, reminderId: string) {
+  return fetchAPI(`/api/projects/${projectId}/reminders/${reminderId}`, { method: "DELETE" });
+}
+
+// Vault file viewer
+export interface VaultFile {
+  path: string;
+  content: string;
+  size: number;
+  modified: string | null;
+}
+
+export async function readVaultFile(projectId: string, path: string): Promise<VaultFile> {
+  return fetchAPI(`/api/projects/${projectId}/vault/file?path=${encodeURIComponent(path)}`);
+}
+
 // Integrations / Connectors
 export interface CatalogConnector {
   id: string;
