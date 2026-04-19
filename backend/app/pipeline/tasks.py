@@ -18,6 +18,13 @@ from app.models.extraction import (
     Assumption, ScopeItem, Contradiction, ChangeHistory, Gap,
 )
 from app.schemas.extraction import DiscoveryExtraction
+from pydantic import ValidationError
+
+# Narrow exception tuple for the per-item LLM-output parsers below.
+# These dicts come from untrusted model output, so we expect any combo of
+# missing keys, wrong types, and Pydantic validation failures. Anything
+# else escaping here is a real bug we want to surface, not swallow.
+_PARSE_ERRORS = (KeyError, TypeError, ValueError, ValidationError)
 from sqlalchemy import func as sa_func
 
 log = structlog.get_logger()
@@ -432,7 +439,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
             if r.get("existing_match"):
                 req._existing_match = r["existing_match"]
             requirements.append(req)
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid requirement", error=str(e), data=r)
 
     constraints = []
@@ -446,7 +453,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 source_quote=c.get("source_quote", "extracted from document")[:500] or "extracted from document",
                 status=c.get("status", "assumed"),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid constraint", error=str(e))
 
     decisions = []
@@ -460,7 +467,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 source_doc=d.get("source_doc", filename),
                 status=d.get("status", "tentative"),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid decision", error=str(e))
 
     stakeholders = []
@@ -473,7 +480,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 decision_authority=s.get("decision_authority", "informed"),
                 interests=s.get("interests", []),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid stakeholder", error=str(e))
 
     assumptions = []
@@ -484,7 +491,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 basis=a.get("basis", ""),
                 risk_if_wrong=a.get("risk_if_wrong", ""),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid assumption", error=str(e))
 
     scope_items = []
@@ -496,7 +503,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 rationale=s.get("rationale", ""),
                 source_doc=s.get("source_doc", filename),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid scope item", error=str(e))
 
     # Parse gaps
@@ -514,7 +521,7 @@ def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
                 blocked_reqs=g.get("blocked_reqs", []),
                 suggested_action=g.get("suggested_action", ""),
             ))
-        except Exception as e:
+        except _PARSE_ERRORS as e:
             log.warning("Skipping invalid gap", error=str(e))
 
     return DiscoveryExtraction(
@@ -805,15 +812,31 @@ async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction,
         if created:
             counts["constraints"] += 1
 
-    # Store decisions (dedup by lowercased title)
+    # Store decisions (dedup by lowercased title).
+    # decision.impacts carries BR ids the decision affects; like gap.blocked_reqs
+    # it can contain LLM-hallucinated refs. Filter to real ids up front.
+    existing_req_ids_for_decisions = {
+        r for (r,) in (await db.execute(
+            select(Requirement.req_id).where(Requirement.project_id == project_id)
+        )).all()
+    }
     for dec in extraction.decisions:
+        raw_impacts = list(dec.impacts or [])
+        valid_impacts = [i for i in raw_impacts if i in existing_req_ids_for_decisions]
+        dropped_impacts = [i for i in raw_impacts if i not in existing_req_ids_for_decisions]
+        if dropped_impacts:
+            log.warning(
+                "Dropped stale impacts on decision",
+                decision_title=(dec.title or "")[:80],
+                dropped=dropped_impacts,
+            )
         created, _ = await _merge_or_create(
             db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
             model_cls=Decision, item_type="decision",
             match_filters=[sa_func.lower(Decision.title) == (dec.title or "").lower()],
             new_kwargs=dict(
                 title=dec.title, decided_by=dec.decided_by, rationale=dec.rationale,
-                alternatives=dec.alternatives_considered, impacts=dec.impacts,
+                alternatives=dec.alternatives_considered, impacts=valid_impacts,
                 source_doc_id=doc_id, status=dec.status,
             ),
             tracked_fields=("decided_by", "rationale", "status"),

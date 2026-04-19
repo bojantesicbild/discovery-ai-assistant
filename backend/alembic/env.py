@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -7,6 +8,13 @@ from alembic import context
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# DATABASE_URL env var overrides alembic.ini's sqlalchemy.url. Used by
+# the migration smoke test (tests/check_migrations.py) to run against a
+# throwaway DB, and by any deployment that injects connection strings
+# through environment rather than committing them.
+if os.environ.get("DATABASE_URL"):
+    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
 # Import all models so Alembic can detect them
 from app.db.base import Base
