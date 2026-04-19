@@ -12,6 +12,7 @@ import {
   markFindingSeen, markFindingsTypeSeenAll, type FindingType,
   getClientFeedback, type ReqClientFeedback, type GapClientFeedback,
   listProposedUpdates, acceptProposal, rejectProposal, type ProposedUpdate,
+  type ApiRequirement, type ApiGap, type ApiConstraint, type ApiContradiction, type ApiDocument,
 } from "@/lib/api";
 import MarkdownPanel from "./MarkdownPanel";
 import GmailImportPanel from "./GmailImportPanel";
@@ -77,15 +78,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     initialTab || "reqs",
   );
   const [dashboard, setDashboard] = useState<any>(null);
-  const [requirements, setRequirements] = useState<any[]>([]);
-  const [contradictions, setContradictions] = useState<any[]>([]);
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [requirements, setRequirements] = useState<ApiRequirement[]>([]);
+  const [contradictions, setContradictions] = useState<ApiContradiction[]>([]);
+  const [documents, setDocuments] = useState<ApiDocument[]>([]);
   const [gmailOpen, setGmailOpen] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
   const [driveConnected, setDriveConnected] = useState(false);
-  const [gaps, setGaps] = useState<any[]>([]);
-  const [constraints, setConstraints] = useState<any[]>([]);
+  const [gaps, setGaps] = useState<ApiGap[]>([]);
+  const [constraints, setConstraints] = useState<ApiConstraint[]>([]);
   const [clientFeedback, setClientFeedback] = useState<{
     requirements: Record<string, ReqClientFeedback>;
     gaps: Record<string, GapClientFeedback>;
@@ -197,20 +198,20 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     if (!highlightId) return;
 
     if (initialTab === "reqs") {
-      const req = requirements.find((r: any) => r.req_id === highlightId);
+      const req = requirements.find((r) => r.req_id === highlightId);
       if (req) openRequirement(req);
     } else if (initialTab === "gaps") {
-      const gap = gaps.find((g: any) => g.gap_id === highlightId);
+      const gap = gaps.find((g) => g.gap_id === highlightId);
       if (gap) setExpandedRow(gap.id);
     } else if (initialTab === "constraints") {
-      const con = constraints.find((c: any) => String(c.id).startsWith(highlightId));
+      const con = constraints.find((c) => String(c.id).startsWith(highlightId));
       if (con) setExpandedRow(con.id);
     } else if (initialTab === "contradictions") {
-      const ct = contradictions.find((c: any) => String(c.id).startsWith(highlightId));
+      const ct = contradictions.find((c) => String(c.id).startsWith(highlightId));
       if (ct) setExpandedRow(ct.id);
     } else if (initialTab === "docs") {
       // highlightId may be either a document UUID or a filename. Match either.
-      const doc = documents.find((d: any) => d.id === highlightId || d.filename === highlightId);
+      const doc = documents.find((d) => d.id === highlightId || d.filename === highlightId);
       if (doc) openDocument(doc);
     }
   }, [highlightId, initialTab, requirements, gaps, constraints, contradictions, documents]);
@@ -259,8 +260,8 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const circumference = 2 * Math.PI * 15;
   const offset = circumference - (score / 100) * circumference;
 
-  const openContras = contradictions.filter((c: any) => !c.resolved);
-  const openGaps = gaps.filter((g: any) => g.status === "open");
+  const openContras = contradictions.filter((c) => !c.resolved);
+  const openGaps = gaps.filter((g) => g.status === "open");
 
   // If detail view is open
   if (detail) {
@@ -329,14 +330,16 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             // linked to a BR) instead of the table.
             if (href.startsWith("doc://")) {
               const docId = href.slice("doc://".length);
-              const doc = documents.find((d: any) => d.id === docId);
+              const doc = documents.find((d) => d.id === docId);
               if (doc) openDocument(doc, "push");
-              else openDocument({ id: docId, filename: "document" }, "push");
+              // Fallback stub when the doc isn't in local state — openDocument
+              // hits the API and updates the panel with the real fields.
+              else openDocument({ id: docId, filename: "document" } as ApiDocument, "push");
               return true;
             }
             if (href.startsWith("br://")) {
               const key = href.slice("br://".length);
-              const req = requirements.find((r: any) => r.id === key || r.req_id === key);
+              const req = requirements.find((r) => r.id === key || r.req_id === key);
               if (req) openRequirement(req, "push");
               return true;
             }
@@ -484,7 +487,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
             ) : (() => {
               // Apply legacy filter chips first, then search/sort/paginate
-              const filtered = requirements.filter((r: any) =>
+              const filtered = requirements.filter((r) =>
                 (priorityFilter === "all" || r.priority === priorityFilter) &&
                 (statusFilter === "all" || r.status === statusFilter)
               );
@@ -506,7 +509,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((req: any) => (
+                      {visible.map((req) => (
                         <tr
                           key={req.id || req.req_id}
                           onClick={() => {
@@ -576,7 +579,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                             })()}
                           </td>
                           <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
-                            <SourceBadges sourceDoc={req.source_doc} sources={req.sources} version={req.version} person={req.source_person} />
+                            <SourceBadges sourceDoc={req.source_doc || undefined} sources={req.sources} version={req.version} person={req.source_person || undefined} />
                           </td>
                         </tr>
                       ))}
@@ -662,7 +665,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             {gaps.length === 0 ? (
               <EmptyState icon="M12 9v2m0 4h.01" text="No gaps detected. Run gap analysis from the chat to identify missing requirements." />
             ) : (() => {
-              const filtered = gaps.filter((g: any) => gapStatusFilter === "all" || g.status === gapStatusFilter);
+              const filtered = gaps.filter((g) => gapStatusFilter === "all" || g.status === gapStatusFilter);
               const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
                 filtered,
                 gapsTable,
@@ -673,7 +676,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                     const order: Record<string, number> = { high: 0, medium: 1, low: 2 };
                     return order[item.severity] ?? 99;
                   }
-                  return item[key];
+                  return (item as unknown as Record<string, unknown>)[key];
                 },
               );
               return (
@@ -688,7 +691,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((gap: any) => (
+                      {visible.map((gap) => (
                     <Fragment key={gap.id}>
                       <tr
                         className="clickable-row"
@@ -791,11 +794,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((c: any, i: number) => {
+                      {visible.map((c, i) => {
                         // CON-NNN is derived from the constraint's position
                         // in the full constraints list (API returns them in
                         // stable created_at order).
-                        const absoluteIndex = constraints.findIndex((x: any) => x.id === c.id);
+                        const absoluteIndex = constraints.findIndex((x) => x.id === c.id);
                         const conId = `CON-${String(absoluteIndex + 1).padStart(3, "0")}`;
                         return (
                         <tr
@@ -876,7 +879,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             {contradictions.length === 0 ? (
               <EmptyState icon="M13 10V3L4 14h7v7l9-11h-7z" text="No contradictions detected between sources." />
             ) : (() => {
-              const filtered = contradictions.filter((c: any) =>
+              const filtered = contradictions.filter((c) =>
                 contraFilter === "all" ? true :
                 contraFilter === "open" ? !c.resolved :
                 c.resolved
@@ -900,7 +903,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                       </tr>
                     </thead>
                     <tbody>
-                      {visible.map((c: any) => (
+                      {visible.map((c) => (
                     <Fragment key={c.id}>
                       <tr
                         className="clickable-row"
@@ -1103,12 +1106,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                   </tr>
                 </thead>
                 <tbody>
-                  {documents.map((doc: any) => (
+                  {documents.map((doc) => (
                     <tr key={doc.id} onClick={() => openDocument(doc)} className="clickable-row">
                       <td style={{ fontWeight: 600 }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                           {doc.filename}
-                          <SourceBadge source={doc.classification?.source} autoSynced={doc.classification?.auto_synced} />
+                          <SourceBadge source={doc.classification?.source as string | undefined} autoSynced={doc.classification?.auto_synced as boolean | undefined} />
                         </span>
                       </td>
                       <td><span className="type-badge">{doc.file_type?.toUpperCase()}</span></td>
@@ -1152,7 +1155,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     </div>
   );
 
-  function openRequirement(req: any, mode: "replace" | "push" = "replace") {
+  function openRequirement(req: ApiRequirement, mode: "replace" | "push" = "replace") {
     // Build the Sources section: one clickable link per source document.
     // Format: "- [filename.md](doc://<uuid>)". Links are intercepted by
     // the MarkdownPanel (see onLinkClick below) and resolve to the
@@ -1164,7 +1167,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     } else if (req.source_doc) {
       sourceLines.push(`- ${req.source_doc}`);
     }
-    (req.sources || []).forEach((s: any) => {
+    (req.sources || []).forEach((s) => {
       const name = s.filename || s.doc_id?.slice(0, 8) || "document";
       if (s.doc_id) sourceLines.push(`- [${name}](doc://${s.doc_id})`);
       else sourceLines.push(`- ${name}`);
@@ -1278,12 +1281,12 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     });
   }
 
-  function openGap(gap: any) {
+  function openGap(gap: ApiGap) {
     // Resolve each blocked BR id to its uuid (if we have it in state) so
     // the "Blocks" line renders as clickable links into the BR detail.
     const blocksLine = (gap.blocked_reqs || []).length
       ? "**Blocks:** " + gap.blocked_reqs.map((brId: string) => {
-          const req = requirements.find((r: any) => r.req_id === brId);
+          const req = requirements.find((r) => r.req_id === brId);
           return req ? `[${brId}](br://${req.id})` : brId;
         }).join(", ")
       : "";
@@ -1294,7 +1297,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     } else if (gap.source_doc) {
       sourceLines.push(`- ${gap.source_doc}`);
     }
-    (gap.sources || []).forEach((s: any) => {
+    (gap.sources || []).forEach((s) => {
       const name = s.filename || s.doc_id?.slice(0, 8) || "document";
       if (s.doc_id) sourceLines.push(`- [${name}](doc://${s.doc_id})`);
       else sourceLines.push(`- ${name}`);
@@ -1409,7 +1412,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
    *               (adds on top of the stack so the close button returns to
    *               the caller's view, e.g. a BR that linked here).
    */
-  async function openDocument(doc: any, mode: "replace" | "push" = "replace") {
+  async function openDocument(doc: ApiDocument, mode: "replace" | "push" = "replace") {
     const metaLines = [
       `# ${doc.filename}`,
       "", `**Type:** ${doc.file_type} | **Status:** ${doc.pipeline_stage}`,
@@ -1451,8 +1454,8 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
   const statusColor = score >= 85 ? "#059669" : score >= 65 ? "#d97706" : "#ef4444";
   const confirmedReqs = requirements.filter((r: any) => r.status === "confirmed").length;
   const mustReqs = requirements.filter((r: any) => r.priority === "must").length;
-  const openContras = contradictions.filter((c: any) => !c.resolved).length;
-  const openGaps = gaps.filter((g: any) => g.status === "open").length;
+  const openContras = contradictions.filter((c) => !c.resolved).length;
+  const openGaps = gaps.filter((g) => g.status === "open").length;
 
   // Ring math
   const circumference = 2 * Math.PI * 54;
@@ -1689,7 +1692,7 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
 
         {/* Check items */}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {checks.map((c: any, i: number) => {
+          {checks.map((c, i) => {
             const isOk = c.status === "covered";
             const isWarn = c.status === "partial";
             return (
@@ -1748,7 +1751,7 @@ function ReadinessPanel({ onClose, score, checks, trajectory, requirements, gaps
               </svg>
               Next Steps to Improve Readiness
             </div>
-            {checks.filter((c: any) => c.status !== "covered").map((c: any, i: number) => (
+            {checks.filter((c: any) => c.status !== "covered").map((c, i) => (
               <div key={i} style={{
                 fontSize: 12, padding: "4px 0", display: "flex", alignItems: "flex-start", gap: 8,
               }}>
@@ -2877,7 +2880,7 @@ function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constra
   const getStatus = (id: string) => statuses[id];
 
   // Derived data
-  const openGaps = gaps.filter((g: any) => g.status === "open");
+  const openGaps = gaps.filter((g) => g.status === "open");
   const highGaps = openGaps.filter((g: any) => g.severity === "high");
   const unconfirmedMust = requirements.filter((r: any) => r.status !== "confirmed" && (r.priority === "must" || r.priority === "should"));
 

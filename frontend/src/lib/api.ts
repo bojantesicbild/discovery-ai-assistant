@@ -81,13 +81,163 @@ export async function deleteDocument(projectId: string, documentId: string) {
   if (!res.ok) throw new Error("Delete failed");
 }
 
-export async function listDocuments(projectId: string) {
+export async function listDocuments(projectId: string): Promise<{ documents: ApiDocument[] }> {
   return fetchAPI(`/api/projects/${projectId}/documents`);
 }
 
 export async function getDocumentContent(projectId: string, documentId: string) {
   return fetchAPI(`/api/projects/${projectId}/documents/${documentId}/content`);
 }
+
+// ── Extracted-item shapes (mirror the dicts returned by backend/app/api/extracted_items.py) ──
+export interface ApiSourceRef {
+  doc_id?: string;
+  filename?: string;
+  quote?: string;
+  added_at?: string;
+}
+
+export interface ApiRequirement {
+  id: string;
+  req_id: string;
+  title: string;
+  type: string;                // functional | non_functional
+  priority: string;            // must | should | could | wont
+  description: string;
+  user_perspective: string | null;
+  business_rules: string[];
+  edge_cases: string[];
+  acceptance_criteria: string[];
+  source_doc: string | null;
+  source_doc_id: string | null;
+  source_quote: string | null;
+  source_person: string | null;
+  sources: ApiSourceRef[];
+  version: number;
+  status: string;              // proposed | discussed | confirmed | changed | dropped
+  confidence: string;          // high | medium | low
+  created_at: string | null;
+  seen_at: string | null;
+}
+
+export interface ApiGap {
+  id: string;
+  gap_id: string;
+  question: string;
+  severity: string;            // high | medium | low
+  area: string;
+  source_doc: string | null;
+  source_doc_id: string | null;
+  source_quote: string | null;
+  source_person: string | null;
+  blocked_reqs: string[];
+  sources: ApiSourceRef[];
+  suggested_action: string | null;
+  status: string;              // open | resolved | dismissed
+  resolution: string | null;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  assignee?: string | null;
+  created_at: string | null;
+  seen_at: string | null;
+}
+
+export interface ApiConstraint {
+  id: string;
+  type: string;
+  description: string;
+  impact: string;
+  status: string;
+  source_quote: string | null;
+  source_doc?: string | null;
+  source_doc_id?: string | null;
+  sources?: ApiSourceRef[];
+  created_at?: string | null;
+  seen_at: string | null;
+}
+
+export interface ApiDecision {
+  id: string;
+  title: string;
+  decided_by: string | null;
+  date: string | null;
+  rationale: string;
+  alternatives: string[];
+  impacts: string[];           // BR ids the decision affects
+  status: string;
+  seen_at: string | null;
+}
+
+export interface ApiStakeholder {
+  id: string;
+  name: string;
+  role: string;
+  organization: string;
+  decision_authority: string;  // final | recommender | informed
+  interests: string[];
+  seen_at: string | null;
+}
+
+export interface ApiAssumption {
+  id: string;
+  statement: string;
+  basis: string;
+  risk_if_wrong: string;
+  needs_validation_by: string | null;
+  validated: boolean;
+  seen_at: string | null;
+}
+
+export interface ApiScope {
+  id: string;
+  description: string;
+  in_scope: boolean;
+  rationale: string;
+  seen_at: string | null;
+}
+
+export interface ApiContradiction {
+  id: string;
+  item_a_type: string;
+  item_a_id: string;
+  item_a_ref: string;
+  item_a_source: string | null;
+  item_a_person?: string | null;
+  item_b_type: string;
+  item_b_id: string;
+  item_b_ref: string;
+  item_b_source: string | null;
+  item_b_person?: string | null;
+  explanation: string;
+  resolved: boolean;
+  resolution_note: string | null;
+  suggested_resolution?: string | null;
+  created_at: string | null;
+  seen_at: string | null;
+}
+
+export interface ApiDocument {
+  id: string;
+  project_id?: string;
+  filename: string;
+  file_type: string;
+  file_size_bytes: number | null;
+  chunking_template?: string | null;
+  classification?: Record<string, unknown> | null;
+  pipeline_stage: string;
+  pipeline_error: string | null;
+  items_extracted: number;
+  contradictions_found: number;
+  created_at: string;
+  pipeline_started_at?: string | null;
+  pipeline_completed_at?: string | null;
+}
+
+export interface ApiListResponse<T> {
+  items: T[];
+  total: number;
+}
+
 
 // Client review feedback (aggregated per item across all submissions)
 export interface ReqClientFeedback {
@@ -191,7 +341,7 @@ export async function rejectProposal(projectId: string, proposalId: string) {
 }
 
 // Extracted items
-export async function listRequirements(projectId: string, params?: Record<string, string>) {
+export async function listRequirements(projectId: string, params?: Record<string, string>): Promise<ApiListResponse<ApiRequirement>> {
   const qs = params ? "?" + new URLSearchParams(params).toString() : "";
   return fetchAPI(`/api/projects/${projectId}/requirements${qs}`);
 }
@@ -209,31 +359,31 @@ export async function resolveContradiction(projectId: string, contradictionId: s
   return fetchAPI(`/api/projects/${projectId}/contradictions/${contradictionId}/resolve?resolution_note=${encodeURIComponent(note)}`, { method: "PATCH" });
 }
 
-export async function listConstraints(projectId: string) {
+export async function listConstraints(projectId: string): Promise<ApiListResponse<ApiConstraint>> {
   return fetchAPI(`/api/projects/${projectId}/constraints`);
 }
 
-export async function listDecisions(projectId: string) {
+export async function listDecisions(projectId: string): Promise<ApiListResponse<ApiDecision>> {
   return fetchAPI(`/api/projects/${projectId}/decisions`);
 }
 
-export async function listStakeholders(projectId: string) {
+export async function listStakeholders(projectId: string): Promise<ApiListResponse<ApiStakeholder>> {
   return fetchAPI(`/api/projects/${projectId}/stakeholders`);
 }
 
-export async function listAssumptions(projectId: string) {
+export async function listAssumptions(projectId: string): Promise<ApiListResponse<ApiAssumption>> {
   return fetchAPI(`/api/projects/${projectId}/assumptions`);
 }
 
-export async function listScope(projectId: string) {
+export async function listScope(projectId: string): Promise<ApiListResponse<ApiScope>> {
   return fetchAPI(`/api/projects/${projectId}/scope`);
 }
 
-export async function listContradictions(projectId: string) {
+export async function listContradictions(projectId: string): Promise<ApiListResponse<ApiContradiction>> {
   return fetchAPI(`/api/projects/${projectId}/contradictions`);
 }
 
-export async function listGaps(projectId: string) {
+export async function listGaps(projectId: string): Promise<ApiListResponse<ApiGap>> {
   return fetchAPI(`/api/projects/${projectId}/gaps`);
 }
 

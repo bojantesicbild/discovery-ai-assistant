@@ -2,19 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { listDocuments, uploadDocument, listIntegrations } from "@/lib/api";
+import { listDocuments, uploadDocument, listIntegrations, type ApiDocument } from "@/lib/api";
 import GmailImportPanel from "@/components/GmailImportPanel";
 
-interface Document {
-  id: string;
-  filename: string;
-  file_type: string;
-  file_size_bytes: number | null;
-  pipeline_stage: string;
-  items_extracted: number;
-  contradictions_found: number;
-  created_at: string;
-}
+type Document = ApiDocument;
 
 export default function DocumentsPage() {
   const params = useParams();

@@ -2,21 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { listRequirements } from "@/lib/api";
+import { listRequirements, type ApiRequirement } from "@/lib/api";
 
-interface Requirement {
-  id: string;
-  req_id: string;
-  title: string;
-  type: string;
-  priority: string;
-  description: string;
-  user_perspective: string | null;
-  business_rules: string[];
-  status: string;
-  confidence: string;
-  source_quote: string;
-}
+type Requirement = ApiRequirement;
 
 export default function RequirementsPage() {
   const params = useParams();
