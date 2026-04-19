@@ -11,6 +11,9 @@ import {
 import { WikiView } from "./_parts/wiki-view";
 import { NodeDetailPanel } from "./_parts/node-detail-panel";
 import { drawKnowledgeGraph } from "./_parts/canvas-draw";
+import { useGraphMouse } from "./_parts/use-graph-mouse";
+import { GraphToolbar } from "./_parts/graph-toolbar";
+import { TimelineScrubber } from "./_parts/timeline-scrubber";
 
 
 /* ---------- component ---------- */
@@ -152,76 +155,11 @@ export default function KnowledgeGraphPage() {
   }, [nodes, draw, viewMode]);
 
   /* ---------- mouse interaction ---------- */
-  function findNodeAt(mx: number, my: number): GraphNode | null {
-    // Only search visible (filtered) nodes
-    const filters = filtersRef.current;
-    const q = searchRef.current.toLowerCase();
-    const allNodes = nodesRef.current;
-    for (let i = allNodes.length - 1; i >= 0; i--) {
-      const n = allNodes[i];
-      if (!filters.has(n.type)) continue;
-      if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) continue;
-      const r = Math.max(6, Math.min(20, 6 + n.connections * 2)) + 8; // larger hit area
-      const dx = mx - n.x;
-      const dy = my - n.y;
-      if (dx * dx + dy * dy < r * r) return n;
-    }
-    return null;
-  }
+  const mouseHandlers = useGraphMouse({
+    canvasRef, nodesRef, filtersRef, searchRef,
+    dragNode, setDragNode, setHoveredNode, setSelectedNode,
+  });
 
-  function getCanvasPos(e: React.MouseEvent): [number, number] {
-    const canvas = canvasRef.current;
-    if (!canvas) return [0, 0];
-    const rect = canvas.getBoundingClientRect();
-    // No DPR adjustment needed — node positions are in CSS pixels
-    return [e.clientX - rect.left, e.clientY - rect.top];
-  }
-
-  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-
-  function handleMouseDown(e: React.MouseEvent) {
-    const [mx, my] = getCanvasPos(e);
-    const node = findNodeAt(mx, my);
-    dragStartRef.current = { x: mx, y: my };
-    if (node) {
-      setDragNode(node);
-    }
-  }
-
-  function handleMouseMove(e: React.MouseEvent) {
-    const [mx, my] = getCanvasPos(e);
-    if (dragNode) {
-      dragNode.x = mx;
-      dragNode.y = my;
-      dragNode.vx = 0;
-      dragNode.vy = 0;
-      return;
-    }
-    const node = findNodeAt(mx, my);
-    setHoveredNode(node);
-    if (canvasRef.current) {
-      canvasRef.current.style.cursor = node ? "pointer" : "default";
-    }
-  }
-
-  function handleClick(e: React.MouseEvent) {
-    const [mx, my] = getCanvasPos(e);
-    console.log("CLICK at", mx, my);
-    console.log("Visible nodes:", nodesRef.current.filter(n => filtersRef.current.has(n.type)).map(n => `${n.id}(${Math.round(n.x)},${Math.round(n.y)})`).slice(0, 5));
-    const node = findNodeAt(mx, my);
-    console.log("Found node:", node?.id, node?.label);
-    // Force re-render by using a callback
-    if (node) {
-      setSelectedNode({...node});
-    } else {
-      setSelectedNode(null);
-    }
-  }
-
-  function handleMouseUp() {
-    setDragNode(null);
-    dragStartRef.current = null;
-  }
 
   function setStep(n: number) {
     setTimelineStep(n);
@@ -501,186 +439,32 @@ export default function KnowledgeGraphPage() {
         {/* Graph view */}
         {viewMode === "graph" && (
           <div style={{ flex: 1, position: "relative", transition: "all 0.25s ease", display: "flex", flexDirection: "column" }}>
-            {/* Graph toolbar — layout modes + entity filters */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 0, padding: "6px 12px",
-              background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
-              zIndex: 2, flexShrink: 0,
-            }}>
-              {/* Layout buttons */}
-              {["force", "circle", "grid", "tree", "clusters", "timeline-layout"].map((l) => (
-                <button
-                  key={l}
-                  onClick={() => changeLayout(l)}
-                  style={{
-                    padding: "4px 10px", border: "none", borderRadius: 6,
-                    background: graphLayout === l ? "var(--green)" : "transparent",
-                    color: graphLayout === l ? "var(--dark)" : "#64748b",
-                    fontSize: 11, fontWeight: 600, cursor: "pointer",
-                    fontFamily: "var(--font)", transition: "all 0.15s",
-                  }}
-                >
-                  {l === "force" ? "Force" : l === "circle" ? "Circle" : l === "grid" ? "Grid" : l === "tree" ? "Tree" : l === "clusters" ? "Clusters" : "Timeline"}
-                </button>
-              ))}
-
-              <div style={{ width: 1, height: 16, background: "#e2e8f0", margin: "0 8px" }} />
-
-              {/* Reset */}
-              <button
-                onClick={() => changeLayout("force")}
-                style={{
-                  padding: "4px 8px", border: "none", borderRadius: 6,
-                  background: "transparent", color: "#94a3b8",
-                  fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "var(--font)",
-                }}
-              >
-                Reset
-              </button>
-
-              <div style={{ flex: 1 }} />
-
-              {/* Entity type filters */}
-              <div style={{ display: "flex", gap: 4 }}>
-                {Object.entries(TYPE_LABELS).map(([type, label]) => {
-                  const active = activeFilters.has(type);
-                  const color = TYPE_COLORS[type];
-                  const count = filteredNodes.filter((n) => n.type === type).length;
-                  return (
-                    <button
-                      key={type}
-                      onClick={() => toggleFilter(type)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 4,
-                        padding: "3px 8px", border: "none", borderRadius: 4,
-                        background: active ? `${color}15` : "transparent",
-                        color: active ? color : "#94a3b8",
-                        fontSize: 10, fontWeight: 600, cursor: "pointer",
-                        fontFamily: "var(--font)", transition: "all 0.15s",
-                        opacity: active ? 1 : 0.6,
-                      }}
-                    >
-                      <span style={{
-                        width: 7, height: 7, borderRadius: "50%",
-                        background: active ? color : "#cbd5e1",
-                      }} />
-                      {label}
-                      {active && count > 0 && (
-                        <span style={{ fontSize: 9, color: "#94a3b8", marginLeft: 2 }}>{count}</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <GraphToolbar
+              graphLayout={graphLayout}
+              changeLayout={changeLayout}
+              activeFilters={activeFilters}
+              toggleFilter={toggleFilter}
+              filteredNodes={filteredNodes}
+            />
             <div style={{ flex: 1, position: "relative" }}>
             <canvas
               ref={canvasRef}
-              onClick={handleClick}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={() => { setDragNode(null); dragStartRef.current = null; }}
+              {...mouseHandlers}
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             />
             </div>
 
-            {/* Timeline scrubber bar */}
-            {timelineDates.length > 0 && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "8px 16px",
-                background: "#f8fafc", borderTop: "1px solid #e2e8f0", flexShrink: 0,
-              }}>
-                <button
-                  onClick={togglePlay}
-                  style={{
-                    width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0",
-                    background: timelinePlaying ? "#00E5A0" : "#fff",
-                    color: timelinePlaying ? "#fff" : "#64748b", fontSize: 12, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {timelinePlaying ? "❚❚" : "▶"}
-                </button>
-
-                <div style={{ flex: 1, position: "relative", height: 32, display: "flex", alignItems: "center" }}>
-                  {/* Track line */}
-                  <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "#e2e8f0", borderRadius: 1 }} />
-                  {/* Fill line */}
-                  <div style={{
-                    position: "absolute", left: 0, height: 2, borderRadius: 1,
-                    background: "#00E5A0", transition: "width 0.3s ease",
-                    width: timelineStep < 0
-                      ? "100%"
-                      : `${(timelineStep / Math.max(timelineDates.length - 1, 1)) * 100}%`,
-                  }} />
-                  {/* Dots */}
-                  {timelineDates.map((date, i) => {
-                    const left = `${(i / Math.max(timelineDates.length - 1, 1)) * 100}%`;
-                    const isReached = timelineStep < 0 || i <= timelineStep;
-                    const isActive = i === timelineStep;
-                    return (
-                      <div
-                        key={date}
-                        onClick={() => setStep(i)}
-                        title={date}
-                        style={{
-                          position: "absolute", left, transform: "translateX(-50%)",
-                          width: isActive ? 24 : 18, height: isActive ? 24 : 18,
-                          borderRadius: "50%", cursor: "pointer",
-                          background: isActive ? "#00E5A0" : isReached ? "#00E5A0" : "#e2e8f0",
-                          border: isActive ? "2px solid #fff" : "2px solid #f8fafc",
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 9, fontWeight: 700, color: isReached ? "#1A1A1A" : "#94a3b8",
-                          transition: "all 0.3s ease", zIndex: isActive ? 2 : 1,
-                          boxShadow: isActive ? "0 0 0 3px rgba(0,229,160,0.2)" : "none",
-                        }}
-                      >
-                        {i + 1}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Stats */}
-                <div style={{ fontSize: 11, color: "#94a3b8", whiteSpace: "nowrap", minWidth: 120, textAlign: "right" }}>
-                  {(() => {
-                    if (timelineStep < 0) {
-                      return `${filteredNodes.length} entities · ${filteredEdgeCount} edges`;
-                    }
-                    const cutoff = timelineDates[timelineStep];
-                    const nodeDate = (n: GraphNode) => (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
-                    const visCount = nodes.filter((n) => { const d = nodeDate(n); return !d || d <= cutoff; }).length;
-                    const prevCutoff = timelineStep > 0 ? timelineDates[timelineStep - 1] : null;
-                    const prevCount = prevCutoff ? nodes.filter((n) => { const d = nodeDate(n); return !d || d <= prevCutoff; }).length : 0;
-                    const diff = visCount - prevCount;
-                    return (
-                      <>
-                        {visCount} entities
-                        {diff > 0 && (
-                          <span style={{ color: "#00E5A0", marginLeft: 8, fontWeight: 600 }}>+{diff} new</span>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-
-                {/* Show all button */}
-                {timelineStep >= 0 && (
-                  <button
-                    onClick={() => { setTimelineStep(-1); setTimelinePlaying(false); clearInterval(timelineIntervalRef.current); }}
-                    style={{
-                      padding: "3px 10px", borderRadius: 6, border: "1px solid #e2e8f0",
-                      background: "#fff", color: "#64748b",
-                      fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
-                    }}
-                  >
-                    Show All
-                  </button>
-                )}
-              </div>
-            )}
+            <TimelineScrubber
+              timelineDates={timelineDates}
+              timelineStep={timelineStep}
+              timelinePlaying={timelinePlaying}
+              filteredNodes={filteredNodes}
+              filteredEdgeCount={filteredEdgeCount}
+              nodes={nodes}
+              setStep={setStep}
+              togglePlay={togglePlay}
+              showAll={() => { setTimelineStep(-1); setTimelinePlaying(false); clearInterval(timelineIntervalRef.current); }}
+            />
           </div>
         )}
 
