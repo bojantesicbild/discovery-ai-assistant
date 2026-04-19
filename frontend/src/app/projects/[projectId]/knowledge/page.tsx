@@ -7,11 +7,10 @@ import { usePersistedState } from "@/lib/persistedState";
 import {
   type GraphNode, type GraphEdge,
   TYPE_COLORS, TYPE_LABELS,
-  runForces, applyCircleLayout, applyGridLayout, applyTreeLayout,
-  applyClustersLayout, applyTimelineLayout,
 } from "./_parts/graph-layout";
 import { WikiView } from "./_parts/wiki-view";
 import { NodeDetailPanel } from "./_parts/node-detail-panel";
+import { drawKnowledgeGraph } from "./_parts/canvas-draw";
 
 
 /* ---------- component ---------- */
@@ -123,203 +122,27 @@ export default function KnowledgeGraphPage() {
   }, [projectId]);
 
   /* ---------- canvas draw loop ---------- */
+  /* ---------- canvas draw loop ---------- */
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const targetW = Math.round(rect.width * dpr);
-    const targetH = Math.round(rect.height * dpr);
-    if (canvas.width !== targetW || canvas.height !== targetH) {
-      canvas.width = targetW;
-      canvas.height = targetH;
-    }
-    // Reset transform every frame to avoid accumulated scaling
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const w = rect.width;
-    const h = rect.height;
-    const allNodes = nodesRef.current;
-    const allEdges = edgesRef.current;
-    const filters = filtersRef.current;
-    const q = searchRef.current.toLowerCase();
-
-    // Filter nodes
-    const tlStep = timelineStepRef.current;
-    const tlDates = timelineDatesRef.current;
-    const pinned = pinnedNeighborRef.current;
-    const visibleIds = new Set<string>();
-    const visible = allNodes.filter((n) => {
-      if (!filters.has(n.type)) return false;
-      // Pinned filter: if nodes are pinned, only show pinned + neighbors
-      if (pinned) {
-        if (!pinned.has(n.id)) return false;
-        // Don't apply text search when pinned — pinning is the filter
-      } else if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) {
-        return false;
-      }
-      // Timeline filter
-      if (tlStep >= 0 && tlDates.length > 0) {
-        const cutoffDate = tlDates[tlStep];
-        const nodeDate = (n.meta?.created_at || n.meta?.date || "").slice(0, 10);
-        if (nodeDate && nodeDate > cutoffDate) return false;
-      }
-      visibleIds.add(n.id);
-      return true;
+    drawKnowledgeGraph(canvas, {
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
+      filters: filtersRef.current,
+      search: searchRef.current,
+      selected: selectedRef.current,
+      hovered: hoveredRef.current,
+      drag: dragRef.current,
+      layout: layoutRef.current,
+      layoutApplied: layoutAppliedRef,
+      timelineStep: timelineStepRef.current,
+      timelineDates: timelineDatesRef.current,
+      pinnedNeighbors: pinnedNeighborRef.current,
     });
-    const visibleEdges = allEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
-
-    // Apply layout
-    const layout = layoutRef.current;
-    if (layout !== "force" && layoutAppliedRef.current !== layout) {
-      // Compute target positions
-      if (layout === "circle") applyCircleLayout(visible, w, h);
-      else if (layout === "grid") applyGridLayout(visible, w, h);
-      else if (layout === "tree") applyTreeLayout(visible, visibleEdges, w, h);
-      else if (layout === "clusters") applyClustersLayout(visible, w, h);
-      else if (layout === "timeline-layout") applyTimelineLayout(visible, w, h);
-      layoutAppliedRef.current = layout;
-    } else if (layout === "force" && !dragRef.current) {
-      runForces(visible, visibleEdges, w, h);
-      layoutAppliedRef.current = "force";
-    }
-
-    // Animate toward targets (for non-force layouts)
-    if (layout !== "force") {
-      const lerp = 0.08;
-      for (const n of visible) {
-        n.x += (n.tx - n.x) * lerp;
-        n.y += (n.ty - n.y) * lerp;
-        n.vx = 0;
-        n.vy = 0;
-      }
-    }
-
-    // Clear + background
-    ctx.clearRect(0, 0, w, h);
-
-    // Dot grid background
-    const gridSize = 20;
-    ctx.fillStyle = "rgba(148,163,184,0.25)";
-    for (let gx = gridSize; gx < w; gx += gridSize) {
-      for (let gy = gridSize; gy < h; gy += gridSize) {
-        ctx.beginPath();
-        ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Radial vignette — soft fade at edges
-    const grad = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.65);
-    grad.addColorStop(0, "rgba(255,255,255,0)");
-    grad.addColorStop(1, "rgba(249,250,251,0.85)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    // Build node map for edge drawing
-    const nodeMap = new Map<string, GraphNode>();
-    for (const n of visible) nodeMap.set(n.id, n);
-
-    // Draw edges
-    const highlightedEdges: { e: GraphEdge; a: GraphNode; b: GraphNode }[] = [];
-    ctx.lineWidth = 1;
-    for (const e of visibleEdges) {
-      const a = nodeMap.get(e.source);
-      const b = nodeMap.get(e.target);
-      if (!a || !b) continue;
-
-      const isHighlighted =
-        selectedRef.current && (selectedRef.current.id === e.source || selectedRef.current.id === e.target);
-      if (isHighlighted) {
-        highlightedEdges.push({ e, a, b });
-      }
-      ctx.strokeStyle = isHighlighted ? "rgba(0,229,160,0.6)" : "rgba(148,163,184,0.25)";
-      ctx.lineWidth = isHighlighted ? 2 : 1;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.stroke();
-    }
-
-    // Draw edge labels on highlighted edges
-    for (const { e, a, b } of highlightedEdges) {
-      let label = e.label && !e.label.includes("|") ? e.label.trim() : "";
-      if (!label || label.length < 5) continue;
-      // Truncate
-      if (label.length > 40) label = label.slice(0, 38) + "…";
-      const mx = (a.x + b.x) / 2;
-      const my = (a.y + b.y) / 2;
-      ctx.save();
-      ctx.font = "9px Inter, sans-serif";
-      const tw = ctx.measureText(label).width;
-      // Background pill
-      ctx.fillStyle = "rgba(255,255,255,0.92)";
-      ctx.beginPath();
-      ctx.roundRect(mx - tw / 2 - 4, my - 6, tw + 8, 13, 4);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,229,160,0.3)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // Text
-      ctx.fillStyle = "#374151";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, mx, my + 0.5);
-      ctx.restore();
-    }
-
-    // Draw nodes
-    for (const n of visible) {
-      const r = Math.max(6, Math.min(20, 6 + n.connections * 2));
-      const isGap = n.meta?.confidence === "low" || n.meta?.status === "pending";
-      const color = isGap ? "#F59E0B" : (TYPE_COLORS[n.type] || "#6b7280");
-      const isSelected = selectedRef.current?.id === n.id;
-      const isHovered = hoveredRef.current?.id === n.id;
-
-      // Glow for selected/hovered
-      if (isSelected || isHovered) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r + 4, 0, Math.PI * 2);
-        ctx.fillStyle = isSelected ? `${color}44` : `${color}22`;
-        ctx.fill();
-      }
-
-      // Gap indicator: dashed ring
-      if (isGap) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r + 3, 0, Math.PI * 2);
-        ctx.setLineDash([3, 3]);
-        ctx.strokeStyle = "#EF4444";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Node circle
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
-
-      if (isSelected) {
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-
-      // Label — short ID for requirements/gaps/constraints, full name for others
-      const shortLabel = n.id.match(/^(BR|GAP|CON)-\d+/) ? n.id : n.label;
-      ctx.font = isSelected || isHovered ? "bold 11px system-ui" : "11px system-ui";
-      ctx.fillStyle = "#334155";
-      ctx.textAlign = "center";
-      ctx.fillText(shortLabel, n.x, n.y + r + 14);
-    }
-
     animRef.current = requestAnimationFrame(draw);
   }, []);
+
 
   useEffect(() => {
     if (nodes.length > 0 && viewMode === "graph") {
