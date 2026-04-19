@@ -10,6 +10,15 @@ __pycache__/
 # Environment
 .env
 backend/.env
+*.env.bak
+
+# Next.js build output
+.next/
+frontend/.next/
+backend/.next/
+
+# Test fixtures (local dev only, not in git)
+test-data/
 
 # Uploads (user files, not in git)
 uploads/
@@ -23,6 +32,9 @@ uploads/
 
 # Docker
 postgres_data/
+
+# Local DB backups produced by scripts/dev-up.sh
+scripts/backups/
 
 # Old
 jira/

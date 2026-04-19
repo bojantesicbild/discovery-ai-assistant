@@ -38,6 +38,21 @@ async def process_document(ctx, document_id: str):
             log.error("Document not found", document_id=document_id)
             return
 
+        # Idempotency guard: arq occasionally re-delivers the same job
+        # (retry after transient failure, duplicate enqueue during a flaky
+        # upload burst). Without this, a "completed" doc gets re-extracted
+        # — BR versions churn upward and the chat shows one
+        # `document_ingested` notice per re-run. Terminal states mean we're
+        # done; an explicit DB flip back to "queued" is required to
+        # re-process (e.g. via a future re-ingest endpoint).
+        if doc.pipeline_stage in ("completed", "failed"):
+            log.info(
+                "Skipping already-processed document",
+                document_id=document_id,
+                stage=doc.pipeline_stage,
+            )
+            return
+
         doc.pipeline_started_at = datetime.now(timezone.utc)
         project_id = doc.project_id
 
