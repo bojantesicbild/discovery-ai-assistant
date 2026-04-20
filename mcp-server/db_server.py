@@ -162,9 +162,10 @@ async def get_project_id():
 async def get_user_id(pid: str):
     """Resolve user id for tools that write user-attributed rows (reminders).
 
-    Env var wins; otherwise fall back to the project lead so agent-invoked
-    writes still have a valid FK. Returns None if neither resolves — caller
-    should reject the tool call in that case."""
+    Fallback chain: env var → project lead → any project member → solo
+    user (when the users table has exactly one row, a reasonable default
+    for single-dev setups). Returns None only when none of those resolve
+    — caller should reject the tool call in that case."""
     if USER_ID:
         return USER_ID
     pool = await get_pool()
@@ -173,7 +174,23 @@ async def get_user_id(pid: str):
             "SELECT user_id FROM project_members WHERE project_id = $1 AND role = 'lead' ORDER BY created_at ASC LIMIT 1",
             pid,
         )
-        return str(row["user_id"]) if row else None
+        if row:
+            return str(row["user_id"])
+        # Any member of this project.
+        row = await conn.fetchrow(
+            "SELECT user_id FROM project_members WHERE project_id = $1 ORDER BY created_at ASC LIMIT 1",
+            pid,
+        )
+        if row:
+            return str(row["user_id"])
+        # Solo-user escape hatch: if there's exactly one user in the whole
+        # system, attribute to them. Avoids breaking single-dev setups
+        # where project_members never got seeded.
+        count = await conn.fetchval("SELECT count(*) FROM users")
+        if count == 1:
+            row = await conn.fetchrow("SELECT id FROM users LIMIT 1")
+            return str(row["id"]) if row else None
+        return None
 
 
 def _json_result(data) -> list[TextContent]:
@@ -310,7 +327,10 @@ async def list_tools() -> list[Tool]:
                 "(2) resolve the user's phrasing to an absolute ISO-8601 timestamp with an explicit timezone offset; "
                 "(3) echo the resolved time back in the user's LOCAL timezone WITH the weekday, "
                 "e.g. 'I'll ping you Sunday 2026-04-19 at 00:00 (CET). Confirm?'; "
-                "(4) confirm the delivery channel (gmail / in_app — slack is not yet supported in v1); "
+                "(4) confirm the delivery channel, BUT IN USER-FRIENDLY LANGUAGE — say "
+                "'email (Gmail draft)' or 'in-app notification', NOT the raw ids 'gmail' / 'in_app' / 'slack'. "
+                "The user is a PM, not a developer. Example: 'Should I email you a draft or send you an in-app notification?' "
+                "Only translate back to the raw channel id when you actually call this tool; "
                 "(5) if the subject is a BR or gap, confirm the id (must exist in the project). "
                 "Only call this tool AFTER the user confirms the echoed time, channel, and subject. "
                 "Returns {ok, reminder_id, validation_errors[]}. If validation_errors is non-empty, "

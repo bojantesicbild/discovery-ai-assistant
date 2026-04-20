@@ -296,11 +296,13 @@ Use `CronCreate` only for genuinely repo-wide, headless automation with no user-
 1. Call `get_current_time` to ground relative phrasing on the server clock.
 2. Resolve the user's phrasing to ISO-8601 with an explicit timezone offset.
 3. Echo the resolved time back in LOCAL time with weekday, e.g. "I'll ping you Sunday 2026-04-19 at 00:00 (CEST). Confirm?"
-4. Confirm the delivery channel (gmail / in_app — slack is reserved).
+4. Confirm the delivery channel IN USER-FRIENDLY LANGUAGE. The user is a PM, not a developer — ask "email (Gmail draft) or in-app notification?", NOT "gmail or in_app?". Translate the confirmed answer to the raw channel id (`gmail` / `in_app` / `slack`) only when you actually call the tool.
 5. If subject is a BR or gap, confirm the id (must exist).
 6. Only call the tool after the user confirms. If the tool returns `validation_errors`, relay the first error and ask for a correction — do not retry blindly.
 
 For reschedule, the same get-current-time + echo-confirmation sequence applies.
+
+**Chat-facing language when surfacing a reminder.** When confirming, acknowledging, or reporting back about a reminder in chat, translate channel ids both ways: say *email* / *Gmail draft* / *in-app notification* / *Slack message*; never echo `gmail`, `in_app`, `slack` back to the user verbatim.
 
 ---
 

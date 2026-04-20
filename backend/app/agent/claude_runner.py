@@ -251,9 +251,13 @@ class ClaudeCodeRunner:
         mcp_path = project_dir / ".mcp.json"
         mcp_path.write_text(json.dumps(config, indent=2))
 
-    async def refresh_mcp_config(self, project_id: uuid.UUID):
+    async def refresh_mcp_config(self, project_id: uuid.UUID, user_id: uuid.UUID | None = None):
         """Rewrite .mcp.json merging the base discovery server with any enabled
-        project integrations (Gmail, Drive, Slack, …). Called before each run."""
+        project integrations (Gmail, Drive, Slack, …). Called before each run.
+
+        `user_id` is threaded into the MCP env as DISCOVERY_USER_ID so write
+        tools (schedule_reminder, …) can attribute rows without needing a
+        project lead fallback when the caller is known."""
         from sqlalchemy import select
         from app.db.session import async_session
         from app.models.operational import ProjectIntegration
@@ -264,17 +268,21 @@ class ClaudeCodeRunner:
         project_dir = self.get_project_dir(project_id)
         python_cmd = str(MCP_VENV_PYTHON) if MCP_VENV_PYTHON.exists() else "python3"
 
+        discovery_env: dict[str, str] = {
+            "DATABASE_URL": os.environ.get(
+                "DATABASE_URL",
+                "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db",
+            ),
+            "DISCOVERY_PROJECT_ID": str(project_id),
+        }
+        if user_id is not None:
+            discovery_env["DISCOVERY_USER_ID"] = str(user_id)
+
         servers: dict = {
             "discovery": {
                 "command": python_cmd,
                 "args": [str(MCP_SERVER_PATH)],
-                "env": {
-                    "DATABASE_URL": os.environ.get(
-                        "DATABASE_URL",
-                        "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db",
-                    ),
-                    "DISCOVERY_PROJECT_ID": str(project_id),
-                },
+                "env": discovery_env,
             }
         }
 
@@ -359,7 +367,7 @@ class ClaudeCodeRunner:
         project_dir = self.get_project_dir(project_id)
         # Refresh .mcp.json with enabled integrations (Gmail, Slack, ...)
         try:
-            await self.refresh_mcp_config(project_id)
+            await self.refresh_mcp_config(project_id, user_id)
         except Exception as e:
             log.warning("refresh_mcp_config failed, continuing with existing config", error=str(e))
 
