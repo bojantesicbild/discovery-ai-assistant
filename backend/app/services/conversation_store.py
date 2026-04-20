@@ -82,6 +82,28 @@ async def append_message(
     return message["id"]
 
 
+async def find_latest_message_by(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    predicate,
+) -> str | None:
+    """Scan the project's shared conversation newest-first and return the
+    id of the first message for which `predicate(message)` is True.
+
+    Used by the reminder delivery step to locate the streaming prep card
+    so it can be patched in place (one card per reminder lifecycle)
+    rather than appending a second 'delivered' message."""
+    conv = await get_shared(db, project_id)
+    history = list(conv.messages or [])
+    for msg in reversed(history):
+        try:
+            if predicate(msg):
+                return msg.get("id")
+        except Exception:
+            continue
+    return None
+
+
 async def update_message_by_id(
     db: AsyncSession,
     project_id: uuid.UUID,

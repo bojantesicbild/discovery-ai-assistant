@@ -41,11 +41,9 @@ function subjectLabel(r: Reminder): string {
   return raw.length > 60 ? raw.slice(0, 60) + "…" : raw;
 }
 
-function channelEmoji(ch: string): string {
-  if (ch === "gmail") return "✉️";
-  if (ch === "slack") return "💬";
-  if (ch === "in_app") return "🔔";
-  return "•";
+function channelLabel(ch: string): string {
+  if (ch === "in_app") return "in-app";
+  return ch;
 }
 
 interface Props {
@@ -125,22 +123,22 @@ export default function RemindersPanel({ reminders, loading, onCancel }: Props) 
                   {sc.label}
                 </span>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 11, color: "#64748b", paddingLeft: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#64748b", paddingLeft: 16 }}>
                 <span title={new Date(r.due_at).toLocaleString()} style={{ color: isOverdue ? "#b91c1c" : "#64748b", fontWeight: isOverdue ? 600 : 400 }}>
-                  {isOverdue ? "⏰ overdue · " : "⏱ "}
+                  {isOverdue ? "Overdue · " : ""}
                   {formatDue(r.due_at)}
                 </span>
                 {r.person && <span>· with {r.person}</span>}
-                <span title={`channel: ${r.channel}`}>· {channelEmoji(r.channel)} {r.channel}</span>
+                <span title={`channel: ${r.channel}`}>· {channelLabel(r.channel)}</span>
               </div>
               {r.prep_output_path && (
                 <div style={{ fontSize: 10, color: "#94a3b8", paddingLeft: 16, fontFamily: "monospace" }}>
-                  📄 {r.prep_output_path.replace(".memory-bank/docs/meeting-prep/", "")}
+                  {r.prep_output_path.replace(".memory-bank/docs/meeting-prep/", "")}
                 </div>
               )}
               {r.error_message && (
                 <div style={{ fontSize: 10, color: "#991b1b", paddingLeft: 16 }}>
-                  ⚠ {r.error_message}
+                  {r.error_message}
                 </div>
               )}
               {CANCELABLE.has(r.status) && (

@@ -122,6 +122,7 @@ interface ChatPanelProps {
 }
 
 export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
@@ -480,7 +481,30 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       </div>
 
       {/* Messages */}
-      <div className="chat-messages" id="chatMessages">
+      <div
+        className="chat-messages"
+        id="chatMessages"
+        onClick={(e) => {
+          // Delegate clicks on file chips + internal markdown links so
+          // markdown like `[📄 brief.md](/projects/.../vault?path=...)` and
+          // auto-generated `<a data-file="...">` references from the agent
+          // both open the vault viewer.
+          const target = e.target as HTMLElement;
+          const anchor = target.closest("a");
+          if (!anchor) return;
+          const route = anchor.getAttribute("data-route");
+          if (route) {
+            e.preventDefault();
+            router.push(route);
+            return;
+          }
+          const file = anchor.getAttribute("data-file");
+          if (file) {
+            e.preventDefault();
+            router.push(`/projects/${projectId}/vault?path=${encodeURIComponent(file)}`);
+          }
+        }}
+      >
         {messages.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 40, marginBottom: 16 }}>&#128269;</div>
@@ -1694,6 +1718,17 @@ function renderInline(text: string): string {
   const CS = 'style="padding:1px 5px;background:#f0fdf4;border:1px solid #dcfce7;border-radius:4px;font-size:0.88em;font-family:monospace;color:#16a34a"';
   const WS = 'style="color:#059669;font-weight:600;cursor:pointer;border-bottom:1px dashed #059669;text-decoration:none"';
 
+  // Standard markdown [text](url) links — preserve BEFORE backtick/path
+  // handling so a link like [📄 brief.md](/projects/.../vault?path=...) survives
+  // intact instead of the backtick-less filename getting auto-linked by the
+  // bare-file-path pass below.
+  t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) => {
+    const isInternal = href.startsWith("/") && !href.startsWith("//");
+    const attrs = isInternal
+      ? `data-route="${href}" style="color:#059669;font-weight:600;cursor:pointer;border-bottom:1px dashed #059669;text-decoration:none"`
+      : `href="${href}" target="_blank" rel="noopener noreferrer" style="color:#059669;text-decoration:underline"`;
+    return slot(`<a ${attrs}>${label}</a>`);
+  });
   // File paths in backticks → slot
   t = t.replace(/`([^`]*\.(?:md|json|yaml|yml|txt|py|ts|tsx|js|sh))`/g, (_m, path) => {
     const name = path.split("/").pop() || path;

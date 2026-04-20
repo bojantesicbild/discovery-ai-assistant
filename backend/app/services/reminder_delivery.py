@@ -117,22 +117,64 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
     reminder.status = "delivered"
     reminder.delivered_at = datetime.now(timezone.utc)
 
-    # Surface delivery in chat + activity log (best-effort).
+    # Patch the EXISTING prep card in place rather than appending a second
+    # message. One card per reminder lifecycle — the delivery info shows
+    # as " · delivered via <channel>" on the same card the user already
+    # saw prep on.
     label_parts = []
     if reminder.subject_id:
         label_parts.append(reminder.subject_id)
     if reminder.person:
         label_parts.append(f"with {reminder.person}")
     label = " ".join(label_parts) or reminder.raw_request[:60]
-    link = f"[open draft]({reminder.external_ref})" if reminder.external_ref else ""
+
     try:
-        await conversation_store.append_message(db, reminder.project_id, {
-            "role": "assistant",
-            "source": "reminder",
-            "kind": "reminder_delivered",
-            "reminder_id": str(reminder.id),
-            "content": f"📬 Reminder delivered via **{reminder.channel}** — {label}. {link}".strip(),
-        })
+        from app.services.reminder_prep import render_reminder_card
+        prep_msg_id = await conversation_store.find_latest_message_by(
+            db, reminder.project_id,
+            lambda m: (
+                m.get("reminder_id") == str(reminder.id)
+                and m.get("kind") in {"reminder_prep", "reminder_prep_done"}
+            ),
+        )
+        if prep_msg_id:
+            # Prefer the structured fields we stamped on the message; fall
+            # back to recomputed defaults if they're missing (older rows).
+            conv = await conversation_store.get_shared(db, reminder.project_id)
+            existing = next(
+                (m for m in (conv.messages or []) if isinstance(m, dict) and m.get("id") == prep_msg_id),
+                {},
+            )
+            new_content = render_reminder_card(
+                state="delivered",
+                channel=reminder.channel,
+                label=existing.get("reminder_card_label") or label,
+                due_local=existing.get("reminder_card_due_local")
+                    or reminder.due_at.astimezone().strftime("%a %Y-%m-%d %H:%M %Z"),
+                viewer_url=existing.get("reminder_card_viewer_url"),
+                filename=existing.get("reminder_card_filename"),
+                agent_reply=existing.get("reminder_card_agent_reply"),
+            )
+            await conversation_store.update_message_by_id(
+                db, reminder.project_id, prep_msg_id,
+                {
+                    "kind": "reminder_delivered",
+                    "content": new_content,
+                    "reminder_card_state": "delivered",
+                    "external_ref": reminder.external_ref,
+                },
+            )
+        else:
+            # Edge case: no prep card (e.g., prep was skipped or pre-dates
+            # streaming). Post a compact standalone delivery note.
+            ref_link = f" ([open draft]({reminder.external_ref}))" if reminder.external_ref else ""
+            await conversation_store.append_message(db, reminder.project_id, {
+                "role": "assistant",
+                "source": "reminder",
+                "kind": "reminder_delivered",
+                "reminder_id": str(reminder.id),
+                "content": f"Reminder delivered via {reminder.channel.replace('_', '-')} — {label}.{ref_link}",
+            })
     except Exception as e:
         log.warning("reminder.chat.post.failed", id=str(reminder_id), kind="reminder_delivered", error=str(e))
     try:

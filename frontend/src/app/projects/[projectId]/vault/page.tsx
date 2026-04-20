@@ -33,57 +33,62 @@ export default function VaultFilePage() {
   const filename = path.split("/").pop() || path;
 
   return (
-    <div style={{ padding: "24px 32px", maxWidth: 960, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <button
-          onClick={() => router.back()}
-          style={{
-            padding: "6px 12px", borderRadius: 6, border: "1px solid var(--gray-200)",
-            background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#475569",
-            fontFamily: "inherit",
-          }}
-        >
-          ← Back
-        </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginBottom: 2 }}>
-            {path}
+    // flex: 1 + min-height: 0 + overflow: auto so the page scrolls inside
+    // the main-content shell (which is height:100vh + overflow:hidden).
+    <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <div style={{ padding: "24px 32px", maxWidth: 960, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <button
+            onClick={() => router.back()}
+            style={{
+              padding: "6px 12px", borderRadius: 6, border: "1px solid var(--gray-200)",
+              background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#475569",
+              fontFamily: "inherit",
+            }}
+          >
+            ← Back
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {path}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{filename}</div>
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{filename}</div>
+          {file?.modified && (
+            <div style={{ fontSize: 10, color: "#94a3b8", whiteSpace: "nowrap" }}>
+              Modified {new Date(file.modified).toLocaleString()}
+            </div>
+          )}
         </div>
-        {file?.modified && (
-          <div style={{ fontSize: 10, color: "#94a3b8" }}>
-            Modified {new Date(file.modified).toLocaleString()}
+
+        {loading && (
+          <div style={{ padding: "48px 16px", textAlign: "center", color: "#94a3b8" }}>
+            Loading…
           </div>
         )}
+
+        {error && (
+          <div style={{
+            padding: 16, borderRadius: 8,
+            background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca",
+            fontSize: 13,
+          }}>
+            ⚠ {error}
+          </div>
+        )}
+
+        {file && !loading && (
+          <div
+            className="md-body"
+            style={{
+              background: "#fff", padding: "24px 32px", borderRadius: 10,
+              border: "1px solid var(--gray-100)", fontSize: 14, lineHeight: 1.6, color: "#0f172a",
+              marginBottom: 32,
+            }}
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content) }}
+          />
+        )}
       </div>
-
-      {loading && (
-        <div style={{ padding: "48px 16px", textAlign: "center", color: "#94a3b8" }}>
-          Loading…
-        </div>
-      )}
-
-      {error && (
-        <div style={{
-          padding: 16, borderRadius: 8,
-          background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca",
-          fontSize: 13,
-        }}>
-          ⚠ {error}
-        </div>
-      )}
-
-      {file && !loading && (
-        <div
-          className="md-body"
-          style={{
-            background: "#fff", padding: "24px 32px", borderRadius: 10,
-            border: "1px solid var(--gray-100)", fontSize: 14, lineHeight: 1.6, color: "#0f172a",
-          }}
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(file.content) }}
-        />
-      )}
     </div>
   );
 }

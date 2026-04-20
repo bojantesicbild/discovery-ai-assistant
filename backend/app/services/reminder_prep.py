@@ -15,6 +15,7 @@ that appeared during the run and record its path.
 from __future__ import annotations
 
 import json
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,6 +29,10 @@ from app.models.operational import ActivityLog
 from app.models.reminder import Reminder
 from app.services import conversation_store
 from app.services.tool_labels import tool_label as _tool_label
+
+# Max frequency of in-flight conversation updates while prep is streaming.
+# Lower = more real-time in the chat but more DB traffic; higher = laggier.
+_LIVE_UPDATE_THROTTLE_MS = 700
 
 log = structlog.get_logger()
 
@@ -146,6 +151,46 @@ async def _post_chat(
         log.warning("reminder.chat.post.failed", id=str(reminder.id), kind=kind, error=str(e))
 
 
+def render_reminder_card(
+    *,
+    state: str,  # running | ready | failed | delivered
+    label: str,
+    due_local: str,
+    channel: str | None = None,
+    viewer_url: str | None = None,
+    filename: str | None = None,
+    agent_reply: str | None = None,
+    error: str | None = None,
+) -> str:
+    """Compose the body of a reminder lifecycle message.
+
+    One card per reminder evolves through states — 'running' while prep
+    is streaming, 'ready' after the brief lands, 'delivered' after the
+    channel handoff, 'failed' on error. Keeping rendering in one place
+    makes the chat layout consistent and avoids decorative emoji drift.
+    """
+    headline = {
+        "running": f"**Reminder prep running** — {label}",
+        "ready": f"**Reminder ready** — {label}",
+        "delivered": f"**Reminder ready** — {label}",
+        "failed": f"**Reminder prep failed** — {label}",
+    }.get(state, f"**Reminder** — {label}")
+
+    meta_parts = [f"Due {due_local}"]
+    if state == "delivered" and channel:
+        meta_parts.append(f"delivered via {channel.replace('_', '-')}")
+    if viewer_url and filename and state in {"ready", "delivered"}:
+        meta_parts.append(f"[Open brief]({viewer_url})")
+    meta_line = "  ·  ".join(meta_parts)
+
+    lines = [headline, "", meta_line]
+    if error and state == "failed":
+        lines += ["", f"`{error}`"]
+    if agent_reply and state in {"ready", "delivered"}:
+        lines += ["", agent_reply.strip()]
+    return "\n".join(lines)
+
+
 async def _log_activity(
     db: AsyncSession,
     reminder: Reminder,
@@ -167,11 +212,15 @@ async def _log_activity(
 
 
 async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
-    """Run the prep agent for a reminder. Idempotent via status guard.
+    """Run the prep agent for a reminder and stream its progress into chat.
 
-    Returns the updated Reminder row. Caller is responsible for deciding
-    whether to proceed to delivery (status will be 'prepared' on success,
-    'failed' otherwise)."""
+    Uses the placeholder + incremental-update pattern from slack/listener.py:
+    one conversation message is created up front with _processing=True, and
+    its `segments` / `toolCalls` / `thinkingCount` are patched in place as
+    events arrive. The web chat (which polls the conversation endpoint)
+    sees the activity panel grow in near real-time. On completion the same
+    message is finalized with the agent's reply + a clickable brief link
+    and _processing flips to False — no second message."""
     reminder = await db.scalar(select(Reminder).where(Reminder.id == reminder_id))
     if reminder is None:
         raise LookupError(f"reminder {reminder_id} not found")
@@ -183,17 +232,34 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     prep_dir = _meeting_prep_dir(reminder.project_id)
     prompt = _build_prompt(reminder)
     label = _subject_label(reminder)
+    due_local = reminder.due_at.astimezone().strftime("%a %Y-%m-%d %H:%M %Z")
 
-    # Announce to chat + activity log so the user sees prep happening.
-    await _post_chat(
-        db,
-        reminder,
-        kind="reminder_prep_starting",
-        content=f"🔔 Preparing your reminder ({label}) — due {reminder.due_at.astimezone().strftime('%A %Y-%m-%d %H:%M %Z')}.",
-    )
+    # Create the ONE streaming message up front. All subsequent updates
+    # patch this row in place — the chat renderer shows it as a live
+    # "processing" card that fills in with tool calls and text as they arrive.
+    placeholder_id: str | None = None
+    try:
+        placeholder_id = await conversation_store.append_message(
+            db, reminder.project_id,
+            {
+                "role": "assistant",
+                "source": "reminder",
+                "kind": "reminder_prep",
+                "reminder_id": str(reminder.id),
+                "content": render_reminder_card(
+                    state="running", label=label, due_local=due_local,
+                ),
+                "segments": [],
+                "toolCalls": [],
+                "thinkingCount": 0,
+                "_processing": True,
+            },
+        )
+    except Exception as e:
+        log.warning("reminder.chat.placeholder.failed", id=str(reminder_id), error=str(e))
+
     await _log_activity(
-        db,
-        reminder,
+        db, reminder,
         action="reminder_prep_started",
         summary=f"Reminder prep started: {label}",
         details={"reminder_id": str(reminder_id), "prep_agent": reminder.prep_agent},
@@ -207,6 +273,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     activity_tools: list[str] = []
     activity_thinking = 0
     last_phase: str | None = None
+    last_update_ms = 0.0
 
     def _flush_activity() -> None:
         nonlocal activity_tools, activity_thinking
@@ -218,6 +285,40 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
             })
             activity_tools = []
             activity_thinking = 0
+
+    def _snapshot_segments() -> list[dict]:
+        """Finalized segments plus a trailing in-flight activity segment
+        (if the current phase is activity), so the UI never waits for the
+        next 'text' event to flush a pending tool-call run."""
+        snap = list(segments)
+        if activity_tools or activity_thinking > 0:
+            snap.append({
+                "type": "activity",
+                "tools": list(activity_tools),
+                "thinkingCount": activity_thinking,
+            })
+        return snap
+
+    async def _maybe_live_update() -> None:
+        """Throttled in-place update of the streaming placeholder."""
+        nonlocal last_update_ms
+        if not placeholder_id:
+            return
+        now_ms = time.time() * 1000
+        if now_ms - last_update_ms < _LIVE_UPDATE_THROTTLE_MS:
+            return
+        last_update_ms = now_ms
+        try:
+            await conversation_store.update_message_by_id(
+                db, reminder.project_id, placeholder_id,
+                {
+                    "segments": _snapshot_segments(),
+                    "toolCalls": list(tool_calls),
+                    "thinkingCount": thinking_count,
+                },
+            )
+        except Exception as e:
+            log.warning("reminder.chat.live.failed", id=str(reminder_id), error=str(e))
 
     try:
         async for event in claude_runner.run_stream(
@@ -231,6 +332,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 thinking_count += 1
                 activity_thinking += 1
                 last_phase = "activity"
+                await _maybe_live_update()
             elif etype == "text":
                 if last_phase == "activity":
                     _flush_activity()
@@ -241,20 +343,33 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                     segments[-1]["content"] = segments[-1].get("content", "") + chunk
                 else:
                     segments.append({"type": "text", "content": chunk})
+                await _maybe_live_update()
             elif etype == "tool_use":
                 last_phase = "activity"
-                label = _tool_label(event.get("tool", "unknown"), event.get("input", {}) or {})
-                tool_calls.append(label)
-                activity_tools.append(label)
+                tlabel = _tool_label(event.get("tool", "unknown"), event.get("input", {}) or {})
+                tool_calls.append(tlabel)
+                activity_tools.append(tlabel)
+                await _maybe_live_update()
     except Exception as e:
         reminder.status = "failed"
         reminder.error_message = f"prep_agent_error: {e}"
-        await _post_chat(
-            db,
-            reminder,
-            kind="reminder_prep_failed",
-            content=f"⚠️ Reminder prep failed ({label}): `{e}`",
-        )
+        if placeholder_id:
+            try:
+                await conversation_store.update_message_by_id(
+                    db, reminder.project_id, placeholder_id,
+                    {
+                        "kind": "reminder_prep_failed",
+                        "content": render_reminder_card(
+                            state="failed", label=label, due_local=due_local, error=str(e),
+                        ),
+                        "_processing": False,
+                        "segments": _snapshot_segments(),
+                        "toolCalls": list(tool_calls),
+                        "thinkingCount": thinking_count,
+                    },
+                )
+            except Exception:
+                pass
         await _log_activity(
             db, reminder,
             action="reminder_prep_failed",
@@ -271,12 +386,24 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
         reminder.error_message = (
             "prep agent ran but produced no new file in .memory-bank/docs/meeting-prep/"
         )
-        await _post_chat(
-            db,
-            reminder,
-            kind="reminder_prep_failed",
-            content=f"⚠️ Reminder prep ran but no brief file landed in `docs/meeting-prep/` ({label}).",
-        )
+        if placeholder_id:
+            try:
+                await conversation_store.update_message_by_id(
+                    db, reminder.project_id, placeholder_id,
+                    {
+                        "kind": "reminder_prep_failed",
+                        "content": render_reminder_card(
+                            state="failed", label=label, due_local=due_local,
+                            error="prep agent produced no brief file in docs/meeting-prep/",
+                        ),
+                        "_processing": False,
+                        "segments": _snapshot_segments(),
+                        "toolCalls": list(tool_calls),
+                        "thinkingCount": thinking_count,
+                    },
+                )
+            except Exception:
+                pass
         await _log_activity(
             db, reminder,
             action="reminder_prep_failed",
@@ -296,28 +423,61 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     reminder.prepared_at = datetime.now(timezone.utc)
     reminder.status = "prepared"
 
-    # Agent's own chat reply is what the user most wants to see; include
-    # a clickable link to the brief (vault viewer route).
-    agent_reply = ("".join(text_chunks)).strip() or "_(agent wrote no chat text)_"
+    agent_reply = ("".join(text_chunks)).strip()
     viewer_url = f"/projects/{reminder.project_id}/vault?path={rel_path}"
     filename = str(rel_path).rsplit("/", 1)[-1]
-    chat_content = (
-        f"✅ **Reminder prep complete** — {label}\n\n"
-        f"{agent_reply}\n\n"
-        f"Brief: [📄 {filename}]({viewer_url})"
+    chat_content = render_reminder_card(
+        state="ready",
+        label=label,
+        due_local=due_local,
+        viewer_url=viewer_url,
+        filename=filename,
+        agent_reply=agent_reply,
     )
-    await _post_chat(
-        db,
-        reminder,
-        kind="reminder_prep_done",
-        content=chat_content,
-        extra={
-            "prep_output_path": str(rel_path),
-            "toolCalls": tool_calls,
-            "thinkingCount": thinking_count,
-            "segments": segments,
-        },
-    )
+
+    # Structured fields the delivery step rebuilds the card from — keeps
+    # rendering centralized in render_reminder_card instead of scraping
+    # the content string on delivery.
+    card_fields = {
+        "reminder_card_state": "ready",
+        "reminder_card_label": label,
+        "reminder_card_due_local": due_local,
+        "reminder_card_viewer_url": viewer_url,
+        "reminder_card_filename": filename,
+        "reminder_card_agent_reply": agent_reply,
+    }
+
+    if placeholder_id:
+        try:
+            await conversation_store.update_message_by_id(
+                db, reminder.project_id, placeholder_id,
+                {
+                    "kind": "reminder_prep_done",
+                    "content": chat_content,
+                    "segments": segments,
+                    "toolCalls": tool_calls,
+                    "thinkingCount": thinking_count,
+                    "prep_output_path": str(rel_path),
+                    "_processing": False,
+                    **card_fields,
+                },
+            )
+        except Exception as e:
+            log.warning("reminder.chat.final.failed", id=str(reminder_id), error=str(e))
+    else:
+        # Fallback if the placeholder never landed (rare).
+        await _post_chat(
+            db, reminder,
+            kind="reminder_prep_done",
+            content=chat_content,
+            extra={
+                "prep_output_path": str(rel_path),
+                "toolCalls": tool_calls,
+                "thinkingCount": thinking_count,
+                "segments": segments,
+                **card_fields,
+            },
+        )
     await _log_activity(
         db, reminder,
         action="reminder_prep_done",
