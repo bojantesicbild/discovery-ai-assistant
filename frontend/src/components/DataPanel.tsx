@@ -28,6 +28,7 @@ import {
 } from "./datapanel/feedback-cards";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
+import { RemindersTab } from "./datapanel/reminders-tab";
 import { ReadinessPanel } from "./datapanel/readiness";
 import { RequirementsTab } from "./datapanel/tabs/requirements-tab";
 import { DocumentsTab } from "./datapanel/tabs/documents-tab";
@@ -71,6 +72,7 @@ const TABS = [
   { id: "reqs", label: "Requirements", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   { id: "gaps", label: "Gaps", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" },
   { id: "meeting", label: "Meeting Prep", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "reminders", label: "Reminders", icon: "M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" },
   { id: "handoff", label: "Handoff", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
 ];
@@ -531,6 +533,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               constraints={constraints}
               dashboard={dashboard}
             />
+          </div>
+        )}
+
+        {/* ── REMINDERS ── */}
+        {activeTab === "reminders" && (
+          <div className="dp-tab-content active">
+            <RemindersTab projectId={projectId} />
           </div>
         )}
 

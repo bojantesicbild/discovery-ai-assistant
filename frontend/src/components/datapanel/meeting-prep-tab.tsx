@@ -5,6 +5,7 @@
 // DataPanel.tsx; the tab owns all its own state so it lifts out cleanly.
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   getMeetingAgenda, saveMeetingAgenda, createNewAgenda, chatStream,
   listIntegrations,
@@ -16,8 +17,11 @@ import { EmptyState } from "./pills";
 export function MeetingPrepTab({ projectId, contradictions, gaps, requirements, constraints, dashboard }: {
   projectId: string; contradictions: ApiContradiction[]; gaps: ApiGap[]; requirements: ApiRequirement[]; constraints: ApiConstraint[]; dashboard: any;
 }) {
+  const searchParams = useSearchParams();
+  const requestedFile = searchParams.get("file");
   const [phase, setPhase] = useState<"pick" | "agenda">("pick");
   const [agenda, setAgenda] = useState("");
+  const [activeFilename, setActiveFilename] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -94,7 +98,8 @@ export function MeetingPrepTab({ projectId, contradictions, gaps, requirements, 
       .catch(() => {});
   }, [projectId]);
 
-  // Load saved agenda + history on mount
+  // Load saved agenda + history on mount (and whenever the user deep-links
+  // to a specific file via ?file=..., e.g. from a reminder lifecycle card).
   useEffect(() => {
     (async () => {
       // Load history
@@ -103,12 +108,13 @@ export function MeetingPrepTab({ projectId, contradictions, gaps, requirements, 
         const hist = await listMeetingAgendas(projectId);
         setAgendaHistory(hist.agendas || []);
       } catch {}
-      // Load latest agenda — vault file first, then DB
+      // Load the requested file if present; otherwise fall back to latest.
       try {
         const { getMeetingAgendaFromVault } = await import("@/lib/api");
-        const vault = await getMeetingAgendaFromVault(projectId);
+        const vault = await getMeetingAgendaFromVault(projectId, requestedFile || undefined);
         if (vault.content) {
           setAgenda(vault.content);
+          setActiveFilename(vault.filename || null);
           setPhase("agenda");
           return;
         }
@@ -122,7 +128,7 @@ export function MeetingPrepTab({ projectId, contradictions, gaps, requirements, 
         }
       } catch {}
     })();
-  }, [projectId]);
+  }, [projectId, requestedFile]);
 
   // Listen for chat response completion — the agent writes the agenda
   // to a .md file in the vault. Read it via the dedicated endpoint.

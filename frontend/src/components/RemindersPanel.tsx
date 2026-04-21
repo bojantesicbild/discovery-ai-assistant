@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Reminder } from "@/lib/api";
 
 // Status → (dot color, label) used to color the leading dot and the
@@ -43,7 +44,14 @@ function subjectLabel(r: Reminder): string {
 
 function channelLabel(ch: string): string {
   if (ch === "in_app") return "in-app";
+  if (ch === "calendar") return "Google Calendar";
   return ch;
+}
+
+function recurrenceLabel(rec: string): string | null {
+  if (!rec || rec === "none") return null;
+  if (rec === "weekdays") return "weekdays";
+  return rec; // daily / weekly / monthly
 }
 
 interface Props {
@@ -51,10 +59,17 @@ interface Props {
   reminders: Reminder[];
   loading: boolean;
   onCancel: (reminderId: string) => Promise<void>;
+  onOpen?: () => void;  // close the popover after navigating
 }
 
-export default function RemindersPanel({ reminders, loading, onCancel }: Props) {
+export default function RemindersPanel({ projectId, reminders, loading, onCancel, onOpen }: Props) {
   const [canceling, setCanceling] = useState<string | null>(null);
+  const router = useRouter();
+
+  function openInTab(reminderId: string) {
+    router.push(`/projects/${projectId}/chat?tab=reminders&r=${reminderId}`);
+    onOpen?.();
+  }
 
   if (loading) {
     return (
@@ -103,10 +118,16 @@ export default function RemindersPanel({ reminders, loading, onCancel }: Props) 
                 Past
               </div>
             )}
-            <div style={{
-              padding: "10px 16px", borderBottom: "1px solid var(--gray-50)",
-              display: "flex", flexDirection: "column", gap: 4,
-            }}>
+            <div
+              onClick={() => openInTab(r.id)}
+              style={{
+                padding: "10px 16px", borderBottom: "1px solid var(--gray-50)",
+                display: "flex", flexDirection: "column", gap: 4,
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#f8fafc"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span title={r.status} style={{
                   width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
@@ -130,6 +151,14 @@ export default function RemindersPanel({ reminders, loading, onCancel }: Props) 
                 </span>
                 {r.person && <span>· with {r.person}</span>}
                 <span title={`channel: ${r.channel}`}>· {channelLabel(r.channel)}</span>
+                {recurrenceLabel(r.recurrence || "none") && (
+                  <span
+                    title={`Recurring: ${r.recurrence}${r.recurrence_end_at ? ` until ${new Date(r.recurrence_end_at).toLocaleDateString()}` : " (no end)"}${(r.occurrence_count ?? 0) > 0 ? ` · ${r.occurrence_count} past fires` : ""}`}
+                    style={{ color: "#0e7490", fontWeight: 600 }}
+                  >
+                    · ↻ {recurrenceLabel(r.recurrence || "none")}
+                  </span>
+                )}
               </div>
               {r.prep_output_path && (
                 <div style={{ fontSize: 10, color: "#94a3b8", paddingLeft: 16, fontFamily: "monospace" }}>
@@ -145,7 +174,8 @@ export default function RemindersPanel({ reminders, loading, onCancel }: Props) 
                 <div style={{ paddingLeft: 16, marginTop: 2 }}>
                   <button
                     disabled={canceling === r.id}
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation();  // don't trigger the row's openInTab
                       setCanceling(r.id);
                       try { await onCancel(r.id); } finally { setCanceling(null); }
                     }}

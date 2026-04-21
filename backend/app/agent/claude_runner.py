@@ -275,7 +275,11 @@ class ClaudeCodeRunner:
             ),
             "DISCOVERY_PROJECT_ID": str(project_id),
         }
-        if user_id is not None:
+        # Skip the PROJECT_SHARED_USER sentinel — it's a session-sharing
+        # marker, not a real user. Letting it through as DISCOVERY_USER_ID
+        # would produce FK violations when the MCP tries to attribute rows
+        # to 00000000-0000-0000-0000-000000000000.
+        if user_id is not None and str(user_id) != "00000000-0000-0000-0000-000000000000":
             discovery_env["DISCOVERY_USER_ID"] = str(user_id)
 
         servers: dict = {

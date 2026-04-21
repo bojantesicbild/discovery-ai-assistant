@@ -17,8 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.deps import get_current_user
+from app.agent.claude_runner import claude_runner
 from app.models.auth import User
 from app.models.extraction import Requirement, Gap
+from app.models.operational import ActivityLog
 from app.models.reminder import Reminder, SUBJECT_TYPES, CHANNELS, STATUSES
 
 log = structlog.get_logger()
@@ -28,7 +30,7 @@ router = APIRouter(prefix="/api/projects/{project_id}/reminders", tags=["reminde
 # v1: slack channel is reserved but not yet wired end-to-end. Requests
 # targeting it are rejected at create time so the orchestrator can ask
 # the PM to pick a different channel instead of queuing a dead row.
-SUPPORTED_CHANNELS = {"gmail", "in_app"}
+SUPPORTED_CHANNELS = {"gmail", "in_app", "calendar"}
 
 
 class ReminderCreate(BaseModel):
@@ -60,6 +62,10 @@ class ReminderOut(BaseModel):
     external_ref: str | None
     error_message: str | None
     created_at: str
+    recurrence: str
+    recurrence_end_at: str | None
+    occurrence_count: int
+    output_kind: str
 
 
 def _serialize(r: Reminder) -> ReminderOut:
@@ -81,6 +87,10 @@ def _serialize(r: Reminder) -> ReminderOut:
         external_ref=r.external_ref,
         error_message=r.error_message,
         created_at=r.created_at.isoformat() if r.created_at else "",
+        recurrence=r.recurrence or "none",
+        recurrence_end_at=r.recurrence_end_at.isoformat() if r.recurrence_end_at else None,
+        occurrence_count=r.occurrence_count or 0,
+        output_kind=r.output_kind or "notification",
     )
 
 
@@ -166,6 +176,87 @@ async def list_reminders(
         q = q.where(Reminder.status == status)
     result = await db.execute(q)
     return [_serialize(r) for r in result.scalars().all()]
+
+
+class ActivityEntry(BaseModel):
+    action: str
+    summary: str
+    details: dict | None
+    created_at: str
+
+
+class ReminderDetail(BaseModel):
+    reminder: ReminderOut
+    activity: list[ActivityEntry]
+    brief_content: str | None
+    brief_exists: bool
+
+
+@router.get("/{reminder_id}", response_model=ReminderDetail)
+async def get_reminder(
+    project_id: uuid.UUID,
+    reminder_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Single-call detail view: reminder + its activity timeline + the
+    brief content (read inline so the UI renders without a second round
+    trip). activity_log is filtered to entries whose `details.reminder_id`
+    matches — covers prep_started / prep_done / deliver_done / retry /
+    canceled across the lifecycle."""
+    reminder = await db.scalar(
+        select(Reminder).where(
+            Reminder.id == reminder_id,
+            Reminder.project_id == project_id,
+        )
+    )
+    if not reminder:
+        raise HTTPException(404, "reminder not found")
+
+    # Pull activity_log entries for this reminder. details is JSONB; we
+    # filter by the stored reminder_id string.
+    act_rows = await db.execute(
+        select(ActivityLog)
+        .where(
+            ActivityLog.project_id == project_id,
+            ActivityLog.action.like("reminder_%"),
+            ActivityLog.details["reminder_id"].astext == str(reminder_id),
+        )
+        .order_by(ActivityLog.created_at.asc())
+    )
+    activity = [
+        ActivityEntry(
+            action=a.action,
+            summary=a.summary,
+            details=a.details,
+            created_at=a.created_at.isoformat() if a.created_at else "",
+        )
+        for a in act_rows.scalars().all()
+    ]
+
+    # Read the brief file inline — saves the UI a second call, and the
+    # brief is small enough to embed (2MB cap enforced by vault.py; prep
+    # briefs are typically a few KB).
+    brief_content: str | None = None
+    brief_exists = False
+    if reminder.prep_output_path:
+        project_root = claude_runner.get_project_dir(project_id).resolve()
+        full = (project_root / reminder.prep_output_path).resolve()
+        try:
+            full.relative_to(project_root)
+            if full.exists() and full.is_file():
+                brief_exists = True
+                if full.stat().st_size <= 500_000:
+                    brief_content = full.read_text(encoding="utf-8")
+        except ValueError:
+            pass
+
+    return ReminderDetail(
+        reminder=_serialize(reminder),
+        activity=activity,
+        brief_content=brief_content,
+        brief_exists=brief_exists,
+    )
 
 
 @router.delete("/{reminder_id}")

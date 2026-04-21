@@ -36,6 +36,10 @@ from mcp.types import Tool, TextContent
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db")
 PROJECT_ID = os.environ.get("DISCOVERY_PROJECT_ID", "")
 USER_ID = os.environ.get("DISCOVERY_USER_ID", "")
+# The all-zeros UUID is the session-sharing sentinel, not a real user.
+# Treat it as unset so the fallback chain in get_user_id runs.
+if USER_ID == "00000000-0000-0000-0000-000000000000":
+    USER_ID = ""
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -322,6 +326,10 @@ async def list_tools() -> list[Tool]:
                 "This tool creates a row owned by the project reminder system, which: "
                 "runs the prep agent at due_at - prep_lead, writes a brief to docs/meeting-prep/, "
                 "surfaces the lifecycle in chat, and delivers via the configured channel. "
+                "Note: plain free-text reminders (subject_type='free' with no person and no subject_id — "
+                "e.g., 'remind me to test' or 'remind me in 1 minute') skip the brief step entirely "
+                "and deliver just a notification. Only reminders with a BR / gap / person get a full "
+                "prep brief. Don't promise the user a 'meeting brief' for a plain personal reminder. "
                 "MANDATORY sequence before calling this tool: "
                 "(1) call get_current_time to ground on the server clock; "
                 "(2) resolve the user's phrasing to an absolute ISO-8601 timestamp with an explicit timezone offset; "
@@ -346,7 +354,9 @@ async def list_tools() -> list[Tool]:
                     "due_at_iso": {"type": "string", "description": "ISO-8601 timestamp with timezone (e.g. 2026-04-19T09:00:00+02:00)"},
                     "channel": {"type": "string", "enum": ["gmail", "slack", "in_app"], "description": "Delivery channel — ALWAYS confirm with the user before calling"},
                     "prep_lead_hours": {"type": "number", "description": "Hours before due_at when prep runs. Default 6 is right for real meetings (brief ready the morning of). For short-horizon tests ('remind me in 5 minutes') set this LOW (e.g. 0.02 for ~1min, 0.03 for ~2min) — otherwise the prep window opens 6 hours BEFORE due_at, and on a 5-minute test the scanner picks it up immediately, which defeats the test of 'does it fire at the right time'."},
-                    "prep_agent": {"type": "string", "description": "Which agent to run for prep. Default discovery-prep-agent."},
+                    "prep_agent": {"type": "string", "description": "Which agent to run for prep when output_kind=agenda. Default discovery-prep-agent."},
+                    "output_kind": {"type": "string", "enum": ["notification", "status", "agenda", "research"], "description": "What the reminder produces when it fires. PICK CAREFULLY — a wrong pick either wastes an LLM run or produces a useless empty ping. Rules: (1) 'notification' = default; use for plain reminders with no subject ('remind me in 2 min', 'take a break'). No file, just a ping. (2) 'status' = short DB-backed summary; use for 'remind me about BR-003 tomorrow' — quick lookup of current state, priority, blocking gaps. No LLM, fires in ~100ms. (3) 'agenda' = full discovery-prep-agent run; ONLY use when the user is genuinely preparing for a meeting with a stakeholder ('prep me for Sara's meeting Monday'). Takes ~1 minute + LLM cost — never the default. (4) 'research' = reserved, not yet implemented. When a person is named, ASK the user: 'Should I prep a full meeting agenda or just a short status check?' Don't assume."},
+                    "recurrence_end_at_iso": {"type": "string", "description": "ISO-8601 timestamp when recurrence stops. Null = runs forever (the user gets to cancel manually)."},
                 },
                 "required": ["subject_type", "raw_request", "due_at_iso", "channel"],
             },
@@ -900,13 +910,33 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             channel = arguments.get("channel")
             prep_lead_hours = float(arguments.get("prep_lead_hours", 6))
             prep_agent = arguments.get("prep_agent") or "discovery-prep-agent"
+            recurrence = arguments.get("recurrence") or "none"
+            recurrence_end_iso = arguments.get("recurrence_end_at_iso")
+            output_kind = arguments.get("output_kind") or "notification"
 
             errors: list[str] = []
-            supported_channels = {"gmail", "in_app"}
+            supported_channels = {"gmail", "in_app", "calendar"}
             if channel not in supported_channels:
                 errors.append(
                     f"channel '{channel}' is not supported in v1 — ask the user to pick one of: {sorted(supported_channels)}"
                 )
+            if recurrence not in {"none", "daily", "weekdays", "weekly", "monthly"}:
+                errors.append(f"recurrence '{recurrence}' invalid — must be none/daily/weekdays/weekly/monthly")
+            if output_kind not in {"notification", "status", "agenda", "research"}:
+                errors.append(f"output_kind '{output_kind}' invalid — must be notification/status/agenda/research")
+            if output_kind == "status" and subject_type not in {"requirement", "gap"}:
+                errors.append("output_kind='status' requires subject_type=requirement or gap with a valid subject_id")
+            if output_kind == "research":
+                errors.append("output_kind='research' is reserved and not yet implemented — use 'status' or 'agenda'")
+
+            recurrence_end_at = None
+            if recurrence_end_iso:
+                try:
+                    recurrence_end_at = datetime.fromisoformat(recurrence_end_iso)
+                    if recurrence_end_at.tzinfo is None:
+                        errors.append("recurrence_end_at_iso must include a timezone offset")
+                except ValueError:
+                    errors.append(f"recurrence_end_at_iso is not a valid ISO-8601 timestamp: {recurrence_end_iso!r}")
             if subject_type not in {"requirement", "gap", "free"}:
                 errors.append("subject_type must be requirement, gap, or free")
 
@@ -960,10 +990,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             # Insert — all validated.
             row = await conn.fetchrow(
                 "INSERT INTO reminders "
-                "(id, project_id, created_by_user_id, subject_type, subject_id, person, raw_request, due_at, prep_lead, channel, prep_agent, status) "
-                "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, make_interval(hours => $8), $9, $10, 'pending') "
+                "(id, project_id, created_by_user_id, subject_type, subject_id, person, raw_request, due_at, prep_lead, channel, prep_agent, status, recurrence, recurrence_end_at, output_kind) "
+                "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, make_interval(hours => $8), $9, $10, 'pending', $11, $12, $13) "
                 "RETURNING id",
-                pid, uid, subject_type, subject_id, person, raw_request, due_at, prep_lead_hours, channel, prep_agent,
+                pid, uid, subject_type, subject_id, person, raw_request, due_at, prep_lead_hours, channel, prep_agent, recurrence, recurrence_end_at, output_kind,
             )
             await conn.execute(
                 "INSERT INTO activity_log (id, project_id, action, summary, details) "

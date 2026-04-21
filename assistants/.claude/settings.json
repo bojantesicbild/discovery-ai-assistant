@@ -4,6 +4,14 @@
     "command": ".claude/scripts/statusline.sh"
   },
   "showThinkingSummaries": true,
+  "permissions": {
+    "deny": [
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "RemoteTrigger"
+    ]
+  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },

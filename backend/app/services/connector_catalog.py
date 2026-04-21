@@ -13,14 +13,17 @@ the decrypted ProjectIntegration.config + any shared account data.
 
 from typing import Any
 
-# Scopes requested by the Google OAuth flow. Shared across Gmail + Drive so
-# one consent covers both.
+# Scopes requested by the Google OAuth flow. Shared across Gmail + Drive +
+# Calendar so one consent covers all three. Users connected before the
+# calendar scope landed must reauthenticate to grant it — the existing
+# refresh_token will NOT auto-acquire a new scope.
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/calendar.events",
     "openid",
     "email",
     "profile",

@@ -651,6 +651,10 @@ export interface Reminder {
   external_ref: string | null;
   error_message: string | null;
   created_at: string;
+  recurrence?: string;
+  recurrence_end_at?: string | null;
+  occurrence_count?: number;
+  output_kind?: string;  // notification | status | agenda | research
 }
 
 export async function listReminders(
@@ -663,6 +667,24 @@ export async function listReminders(
 
 export async function cancelReminder(projectId: string, reminderId: string) {
   return fetchAPI(`/api/projects/${projectId}/reminders/${reminderId}`, { method: "DELETE" });
+}
+
+export interface ReminderActivity {
+  action: string;
+  summary: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ReminderDetail {
+  reminder: Reminder;
+  activity: ReminderActivity[];
+  brief_content: string | null;
+  brief_exists: boolean;
+}
+
+export async function getReminder(projectId: string, reminderId: string): Promise<ReminderDetail> {
+  return fetchAPI(`/api/projects/${projectId}/reminders/${reminderId}`);
 }
 
 // Vault file viewer
@@ -905,8 +927,9 @@ export async function getMeetingAgenda(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/meeting-agenda`);
 }
 
-export async function getMeetingAgendaFromVault(projectId: string) {
-  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/from-vault`);
+export async function getMeetingAgendaFromVault(projectId: string, filename?: string) {
+  const qs = filename ? `?filename=${encodeURIComponent(filename)}` : "";
+  return fetchAPI(`/api/projects/${projectId}/meeting-agenda/from-vault${qs}`);
 }
 
 export async function listMeetingAgendas(projectId: string) {

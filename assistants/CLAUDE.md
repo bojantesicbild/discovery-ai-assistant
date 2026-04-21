@@ -296,9 +296,15 @@ Use `CronCreate` only for genuinely repo-wide, headless automation with no user-
 1. Call `get_current_time` to ground relative phrasing on the server clock.
 2. Resolve the user's phrasing to ISO-8601 with an explicit timezone offset.
 3. Echo the resolved time back in LOCAL time with weekday, e.g. "I'll ping you Sunday 2026-04-19 at 00:00 (CEST). Confirm?"
-4. Confirm the delivery channel IN USER-FRIENDLY LANGUAGE. The user is a PM, not a developer — ask "email (Gmail draft) or in-app notification?", NOT "gmail or in_app?". Translate the confirmed answer to the raw channel id (`gmail` / `in_app` / `slack`) only when you actually call the tool.
-5. If subject is a BR or gap, confirm the id (must exist).
-6. Only call the tool after the user confirms. If the tool returns `validation_errors`, relay the first error and ask for a correction — do not retry blindly.
+4. Confirm the delivery channel IN USER-FRIENDLY LANGUAGE. The user is a PM, not a developer — ask "email (Gmail draft), Google Calendar event, or in-app notification?", NOT "gmail, calendar, in_app?". Translate the confirmed answer to the raw channel id (`gmail` / `calendar` / `in_app` / `slack`) only when you actually call the tool.
+5. **Pick the right `output_kind` — do NOT default to agenda.** Three real options:
+   - `notification` (default) — plain reminders with no subject ("remind me in 2 min", "take a break"). Produces no file, just a ping.
+   - `status` — "remind me about BR-003 tomorrow", "check GAP-012 next week". Short DB-backed summary of the item's current state. No LLM, ~100ms.
+   - `agenda` — ONLY when the user is preparing for a real meeting with a stakeholder ("prep me for Sara's meeting Monday", "build an agenda for the client review"). Full discovery-prep-agent run, ~1 minute, LLM cost. NEVER use this as the default.
+   - When a person is named AND the intent is ambiguous, **ask once**: "Should I prep a full meeting agenda or just a quick status check?"
+6. If subject is a BR or gap, confirm the id (must exist).
+7. **If the user's phrasing implies recurrence** ("every Monday", "each morning", "weekly") — pick from the five values (`none` / `daily` / `weekdays` / `weekly` / `monthly`), then echo the pattern AND ask about the end date: "I'll ping you every Monday at 09:00 (CEST). Run indefinitely, or stop after a specific date?". Translate to `recurrence` + `recurrence_end_at_iso` args only after the user confirms.
+8. Only call the tool after the user confirms. If the tool returns `validation_errors`, relay the first error and ask for a correction — do not retry blindly.
 
 For reschedule, the same get-current-time + echo-confirmation sequence applies.
 

@@ -36,15 +36,35 @@ class AgendaSaveRequest(BaseModel):
 @router.get("/from-vault")
 async def get_agenda_from_vault(
     project_id: uuid.UUID,
+    filename: str | None = None,
     user: User = Depends(get_current_user),
 ):
-    """Read the latest meeting agenda .md file from the vault's
-    docs/meeting-prep/ directory. This is where the discovery-prep-agent
-    writes the agenda."""
+    """Read a meeting agenda .md file from the vault's `docs/meeting-prep/`.
+
+    Without `filename`: returns the most recently modified file (historical
+    behavior — keeps the Meeting Prep tab's default load working).
+
+    With `filename`: returns that specific file. Used by the reminder
+    lifecycle card to deep-link into THIS reminder's brief rather than
+    whichever happens to be newest. The filename is validated to live
+    under meeting-prep/ so it can't escape the directory."""
     project_dir = claude_runner.get_project_dir(project_id)
     prep_dir = project_dir / ".memory-bank" / "docs" / "meeting-prep"
     if not prep_dir.exists():
         return {"content": "", "filename": None}
+
+    if filename:
+        safe = filename.replace("\\", "/").split("/")[-1]  # strip any path prefix
+        if not safe.endswith(".md"):
+            return {"content": "", "filename": None}
+        target = prep_dir / safe
+        if not target.exists() or not target.is_file():
+            return {"content": "", "filename": None}
+        return {
+            "content": target.read_text(encoding="utf-8"),
+            "filename": target.name,
+            "modified": datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc).isoformat(),
+        }
 
     files = sorted(prep_dir.glob("*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
     if not files:

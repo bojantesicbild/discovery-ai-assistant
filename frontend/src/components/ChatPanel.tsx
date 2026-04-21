@@ -485,10 +485,13 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         className="chat-messages"
         id="chatMessages"
         onClick={(e) => {
-          // Delegate clicks on file chips + internal markdown links so
-          // markdown like `[📄 brief.md](/projects/.../vault?path=...)` and
-          // auto-generated `<a data-file="...">` references from the agent
-          // both open the vault viewer.
+          // Delegate clicks on file chips + internal markdown links.
+          // - `[text](/…)` internal markdown link → route as-is.
+          // - `<a data-file="…">` chips from the agent's auto-decoration:
+          //     files under docs/meeting-prep/ → Meeting Prep tab with the
+          //     specific file pre-loaded (nicer than a bare vault viewer
+          //     for briefs the user acts on).
+          //     Everything else → plain vault viewer.
           const target = e.target as HTMLElement;
           const anchor = target.closest("a");
           if (!anchor) return;
@@ -501,7 +504,20 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           const file = anchor.getAttribute("data-file");
           if (file) {
             e.preventDefault();
-            router.push(`/projects/${projectId}/vault?path=${encodeURIComponent(file)}`);
+            const basename = file.split("/").pop() || file;
+            const isMeetingPrepFile =
+              file.includes("docs/meeting-prep/") || file.startsWith("meeting-prep/");
+            // Status briefs live in meeting-prep/ too but are distinct
+            // files (`YYYY-MM-DD-status-<subj>-<id>.md`) — they belong
+            // in the Reminders tab's expanded detail, not the Meeting
+            // Prep editor.
+            if (isMeetingPrepFile && basename.includes("-status-")) {
+              router.push(`/projects/${projectId}/chat?tab=reminders`);
+            } else if (isMeetingPrepFile) {
+              router.push(`/projects/${projectId}/chat?tab=meeting&file=${encodeURIComponent(basename)}`);
+            } else {
+              router.push(`/projects/${projectId}/vault?path=${encodeURIComponent(file)}`);
+            }
           }
         }}
       >

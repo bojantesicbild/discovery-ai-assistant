@@ -51,27 +51,38 @@ def _subject_line(reminder: Reminder) -> str:
     return " ".join(parts)
 
 
+async def _load_google_integration(db: AsyncSession, project_id) -> tuple[str, str]:
+    """Return (refresh_token, sender_email) for the project's Google OAuth
+    integration. Raises RuntimeError if missing so the delivery branch
+    surfaces a clear error. Shared by both Gmail draft + Calendar event
+    delivery — one OAuth consent covers both APIs."""
+    result = await db.execute(
+        select(ProjectIntegration).where(
+            ProjectIntegration.project_id == project_id,
+            ProjectIntegration.connector_id == "gmail",
+        )
+    )
+    integration = result.scalar_one_or_none()
+    if not integration:
+        raise RuntimeError(
+            "Google integration not connected for this project — connect Gmail first "
+            "(one OAuth covers Gmail + Calendar)"
+        )
+    config = decrypt_config(integration.config_encrypted)
+    refresh_token = config.get("refresh_token")
+    if not refresh_token:
+        raise RuntimeError("Google integration has no refresh token — reconnect Gmail")
+    sender_email = (integration.metadata_public or {}).get("email", "")
+    return refresh_token, sender_email
+
+
 async def _deliver_gmail(
     db: AsyncSession, reminder: Reminder, brief_md: str
 ) -> dict:
     """Create a Gmail draft on the project's connected account."""
     from app.services import gmail as gmail_service
 
-    result = await db.execute(
-        select(ProjectIntegration).where(
-            ProjectIntegration.project_id == reminder.project_id,
-            ProjectIntegration.connector_id == "gmail",
-        )
-    )
-    integration = result.scalar_one_or_none()
-    if not integration:
-        raise RuntimeError("Gmail integration not connected for this project")
-    config = decrypt_config(integration.config_encrypted)
-    refresh_token = config.get("refresh_token")
-    if not refresh_token:
-        raise RuntimeError("Gmail integration has no refresh token")
-    sender_email = (integration.metadata_public or {}).get("email", "")
-
+    refresh_token, sender_email = await _load_google_integration(db, reminder.project_id)
     access_token = await gmail_service.get_access_token(refresh_token)
     draft = await gmail_service.create_draft(
         access_token,
@@ -81,6 +92,45 @@ async def _deliver_gmail(
         sender_email=sender_email,
     )
     return draft
+
+
+async def _deliver_calendar(
+    db: AsyncSession, reminder: Reminder, brief_md: str
+) -> dict:
+    """Create a Google Calendar event on the project's connected account."""
+    from app.services import gmail as gmail_service
+    from app.services import calendar as calendar_service
+    from app.services.reminder_recurrence import to_google_rrule
+
+    refresh_token, sender_email = await _load_google_integration(db, reminder.project_id)
+    access_token = await gmail_service.get_access_token(refresh_token)
+
+    # Description body: include brief if we have one; otherwise the raw
+    # request (free-text reminders don't generate a brief).
+    if brief_md:
+        body = (
+            f"Scheduled via Discovery Assistant.\n\n"
+            f"Original request: {reminder.raw_request}\n\n"
+            f"---\n\n{brief_md}"
+        )
+    else:
+        body = f"Scheduled via Discovery Assistant.\n\nOriginal request: {reminder.raw_request}"
+
+    # Use native Google recurrence when set — Google owns the next-fire
+    # math instead of our worker.
+    rrule = to_google_rrule(reminder.recurrence) if reminder.recurrence and reminder.recurrence != "none" else None
+
+    event = await calendar_service.create_event(
+        access_token,
+        sender_email=sender_email,
+        summary=_subject_line(reminder),
+        description=body,
+        start_at=reminder.due_at,
+        recurrence_rrule=rrule,
+    )
+    # Return in a shape compatible with gmail draft — deliver_reminder
+    # reads .get("gmail_url") || .get("draft_id"); calendar uses html_link.
+    return {"gmail_url": event.get("html_link"), "draft_id": event.get("event_id")}
 
 
 async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
@@ -100,6 +150,9 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
         if reminder.channel == "gmail":
             draft = await _deliver_gmail(db, reminder, brief_md)
             reminder.external_ref = draft.get("gmail_url") or draft.get("draft_id")
+        elif reminder.channel == "calendar":
+            event = await _deliver_calendar(db, reminder, brief_md)
+            reminder.external_ref = event.get("gmail_url") or event.get("draft_id")
         elif reminder.channel == "in_app":
             # No external call — frontend surfaces status=delivered.
             reminder.external_ref = None
@@ -108,6 +161,11 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
         else:
             raise RuntimeError(f"unsupported channel: {reminder.channel}")
     except (httpx.HTTPError, RuntimeError, NotImplementedError) as e:
+        # Delivery failures are terminal in v1 — the brief already exists,
+        # so the user can re-deliver manually or reschedule. Unlike prep
+        # failures (LLM timeouts etc.), delivery errors tend to be config
+        # issues (broken Gmail token, slack disconnect) that an automatic
+        # retry won't fix until the human intervenes.
         reminder.status = "failed"
         reminder.error_message = f"deliver_error: {e}"
         await db.commit()
@@ -154,6 +212,7 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
                 viewer_url=existing.get("reminder_card_viewer_url"),
                 filename=existing.get("reminder_card_filename"),
                 agent_reply=existing.get("reminder_card_agent_reply"),
+                output_kind=reminder.output_kind or "agenda",
             )
             await conversation_store.update_message_by_id(
                 db, reminder.project_id, prep_msg_id,

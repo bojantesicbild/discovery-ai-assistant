@@ -126,6 +126,28 @@ def _subject_label(r: Reminder) -> str:
     return " ".join(parts)
 
 
+def _output_kind(r: Reminder) -> str:
+    """Explicit output kind from the row, with a safe default. Superseded
+    the older `_needs_brief` heuristic — output behavior is no longer
+    inferred from subject_type/person; the agent sets it at create time."""
+    return r.output_kind or "notification"
+
+
+def _mark_failed_or_retry(r: Reminder, error: str) -> str:
+    """Bump retry_count and decide the resulting status.
+
+    Returns the new status so callers can branch UI/logging. Sets
+    `error_message` to `error` either way — the scanner picks the row
+    back up as long as status is 'pending' and retry_count < max_retries."""
+    r.retry_count = (r.retry_count or 0) + 1
+    r.error_message = error
+    if r.retry_count < (r.max_retries or 0):
+        r.status = "pending"  # scanner will retry on next tick
+        return "pending"
+    r.status = "failed"
+    return "failed"
+
+
 async def _post_chat(
     db: AsyncSession,
     reminder: Reminder,
@@ -151,6 +173,16 @@ async def _post_chat(
         log.warning("reminder.chat.post.failed", id=str(reminder.id), kind=kind, error=str(e))
 
 
+def _friendly_channel(channel: str) -> str:
+    """Map raw channel ids to user-facing language."""
+    return {
+        "in_app": "in-app notification",
+        "gmail": "email (Gmail draft)",
+        "calendar": "Google Calendar event",
+        "slack": "Slack message",
+    }.get(channel, channel)
+
+
 def render_reminder_card(
     *,
     state: str,  # running | ready | failed | delivered
@@ -161,33 +193,45 @@ def render_reminder_card(
     filename: str | None = None,
     agent_reply: str | None = None,
     error: str | None = None,
+    output_kind: str = "agenda",  # drives the "Open …" link label
 ) -> str:
     """Compose the body of a reminder lifecycle message.
 
     One card per reminder evolves through states — 'running' while prep
-    is streaming, 'ready' after the brief lands, 'delivered' after the
-    channel handoff, 'failed' on error. Keeping rendering in one place
-    makes the chat layout consistent and avoids decorative emoji drift.
+    is composing the brief, 'ready' after the brief lands, 'delivered'
+    after the channel handoff, 'failed' on error. Wording is PM-facing,
+    not developer-facing: channel ids like `in_app` become
+    'in-app notification'; link text is 'Open meeting agenda', not
+    'Open brief'; the agent's technical recap is quoted below so the
+    actionable info (what, when, where) leads the card.
     """
     headline = {
-        "running": f"**Reminder prep running** — {label}",
-        "ready": f"**Reminder ready** — {label}",
-        "delivered": f"**Reminder ready** — {label}",
-        "failed": f"**Reminder prep failed** — {label}",
-    }.get(state, f"**Reminder** — {label}")
+        "running": f"Preparing your reminder — **{label}**",
+        "ready": f"Your reminder is ready — **{label}**",
+        "delivered": f"Your reminder is ready — **{label}**",
+        "failed": f"Reminder prep failed — **{label}**",
+    }.get(state, f"Reminder — **{label}**")
 
-    meta_parts = [f"Due {due_local}"]
+    meta_parts = [f"Scheduled for {due_local}"]
     if state == "delivered" and channel:
-        meta_parts.append(f"delivered via {channel.replace('_', '-')}")
+        meta_parts.append(f"delivered as {_friendly_channel(channel)}")
     if viewer_url and filename and state in {"ready", "delivered"}:
-        meta_parts.append(f"[Open brief]({viewer_url})")
+        link_label = {
+            "agenda": "Open meeting agenda",
+            "status": "Open status brief",
+            "research": "Open research",
+        }.get(output_kind, "Open brief")
+        meta_parts.append(f"[{link_label}]({viewer_url})")
     meta_line = "  ·  ".join(meta_parts)
 
     lines = [headline, "", meta_line]
     if error and state == "failed":
         lines += ["", f"`{error}`"]
     if agent_reply and state in {"ready", "delivered"}:
-        lines += ["", agent_reply.strip()]
+        # Blockquote the agent's technical summary so the headline +
+        # action link stay dominant; power users still get the detail.
+        quoted = "\n".join(f"> {ln}" if ln else ">" for ln in agent_reply.strip().splitlines())
+        lines += ["", quoted]
     return "\n".join(lines)
 
 
@@ -229,10 +273,119 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
         return reminder
 
     started_at = datetime.now(timezone.utc)
+    reminder.last_attempted_at = started_at
     prep_dir = _meeting_prep_dir(reminder.project_id)
     prompt = _build_prompt(reminder)
     label = _subject_label(reminder)
     due_local = reminder.due_at.astimezone().strftime("%a %Y-%m-%d %H:%M %Z")
+
+    kind = _output_kind(reminder)
+
+    # Notification: just a ping, no output file, no LLM. Fastest path.
+    if kind == "notification":
+        try:
+            await conversation_store.append_message(
+                db, reminder.project_id,
+                {
+                    "role": "assistant",
+                    "source": "reminder",
+                    "kind": "reminder_prep_done",
+                    "reminder_id": str(reminder.id),
+                    "content": render_reminder_card(
+                        state="ready", label=label, due_local=due_local,
+                    ),
+                    "_processing": False,
+                    "reminder_card_state": "ready",
+                    "reminder_card_label": label,
+                    "reminder_card_due_local": due_local,
+                },
+            )
+        except Exception as e:
+            log.warning("reminder.chat.placeholder.failed", id=str(reminder_id), error=str(e))
+        await _log_activity(
+            db, reminder,
+            action="reminder_prep_skipped",
+            summary=f"Notification-only reminder: {label}",
+            details={"reminder_id": str(reminder_id), "output_kind": "notification"},
+        )
+        reminder.prepared_at = datetime.now(timezone.utc)
+        reminder.status = "prepared"
+        await db.commit()
+        log.info("reminder.prep.notification", id=str(reminder_id))
+        return reminder
+
+    # Status: render a short DB-backed summary, no LLM spawn. Much cheaper
+    # than the agenda path for "remind me about BR-003" style reminders.
+    if kind == "status":
+        from app.services.reminder_status import render_status_brief
+        result = await render_status_brief(db, reminder)
+        if result is None:
+            # Subject no longer exists (edge case: BR deleted between
+            # schedule and fire). Fall back to notification-only; don't
+            # fail the reminder.
+            log.warning("reminder.status.subject_missing", id=str(reminder_id), subject=reminder.subject_id)
+            try:
+                await conversation_store.append_message(
+                    db, reminder.project_id,
+                    {
+                        "role": "assistant", "source": "reminder",
+                        "kind": "reminder_prep_done", "reminder_id": str(reminder.id),
+                        "content": render_reminder_card(state="ready", label=label, due_local=due_local),
+                        "_processing": False,
+                        "reminder_card_state": "ready", "reminder_card_label": label,
+                        "reminder_card_due_local": due_local,
+                    },
+                )
+            except Exception:
+                pass
+            reminder.prepared_at = datetime.now(timezone.utc)
+            reminder.status = "prepared"
+            await db.commit()
+            return reminder
+
+        brief_path, brief_body = result
+        rel_path = brief_path.relative_to(claude_runner.get_project_dir(reminder.project_id))
+        # Status briefs open in the Reminders tab (expanded detail) — they
+        # aren't meeting agendas. agenda briefs keep routing to Meeting Prep.
+        viewer_url = f"/projects/{reminder.project_id}/chat?tab=reminders&r={reminder.id}"
+        filename = brief_path.name
+        chat_content = render_reminder_card(
+            state="ready", label=label, due_local=due_local,
+            viewer_url=viewer_url, filename=filename,
+            agent_reply=None,  # Status summary already IS the brief — don't double-print.
+            output_kind="status",
+        )
+        try:
+            await conversation_store.append_message(
+                db, reminder.project_id,
+                {
+                    "role": "assistant", "source": "reminder",
+                    "kind": "reminder_prep_done", "reminder_id": str(reminder.id),
+                    "content": chat_content, "_processing": False,
+                    "prep_output_path": str(rel_path),
+                    "reminder_card_state": "ready", "reminder_card_label": label,
+                    "reminder_card_due_local": due_local,
+                    "reminder_card_viewer_url": viewer_url,
+                    "reminder_card_filename": filename,
+                },
+            )
+        except Exception as e:
+            log.warning("reminder.chat.status.failed", id=str(reminder_id), error=str(e))
+        await _log_activity(
+            db, reminder,
+            action="reminder_status_rendered",
+            summary=f"Status brief rendered: {label}",
+            details={"reminder_id": str(reminder_id), "path": str(rel_path)},
+        )
+        reminder.prep_output_path = str(rel_path)
+        reminder.prepared_at = datetime.now(timezone.utc)
+        reminder.status = "prepared"
+        await db.commit()
+        log.info("reminder.prep.status_done", id=str(reminder_id))
+        return reminder
+
+    # kind == "agenda" (or unknown future values): fall through to the full
+    # discovery-prep-agent streaming path below.
 
     # Create the ONE streaming message up front. All subsequent updates
     # patch this row in place — the chat renderer shows it as a live
@@ -351,18 +504,22 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 activity_tools.append(tlabel)
                 await _maybe_live_update()
     except Exception as e:
-        reminder.status = "failed"
-        reminder.error_message = f"prep_agent_error: {e}"
+        new_status = _mark_failed_or_retry(reminder, f"prep_agent_error: {e}")
         if placeholder_id:
             try:
+                # Keep the card in 'running' if we're going to retry — the
+                # user doesn't need to see transient failures; only flip to
+                # the failed state when we've exhausted retries.
+                card_state = "failed" if new_status == "failed" else "running"
                 await conversation_store.update_message_by_id(
                     db, reminder.project_id, placeholder_id,
                     {
-                        "kind": "reminder_prep_failed",
+                        "kind": "reminder_prep_failed" if new_status == "failed" else "reminder_prep",
                         "content": render_reminder_card(
-                            state="failed", label=label, due_local=due_local, error=str(e),
+                            state=card_state, label=label, due_local=due_local,
+                            error=str(e) if card_state == "failed" else None,
                         ),
-                        "_processing": False,
+                        "_processing": new_status == "pending",  # keep processing indicator if retrying
                         "segments": _snapshot_segments(),
                         "toolCalls": list(tool_calls),
                         "thinkingCount": thinking_count,
@@ -372,31 +529,34 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 pass
         await _log_activity(
             db, reminder,
-            action="reminder_prep_failed",
-            summary=f"Reminder prep failed: {label}",
-            details={"reminder_id": str(reminder_id), "error": str(e)},
+            action="reminder_prep_failed" if new_status == "failed" else "reminder_prep_retry",
+            summary=(
+                f"Reminder prep failed terminally: {label}" if new_status == "failed"
+                else f"Reminder prep will retry ({reminder.retry_count}/{reminder.max_retries}): {label}"
+            ),
+            details={"reminder_id": str(reminder_id), "error": str(e), "retry_count": reminder.retry_count},
         )
         await db.commit()
-        log.exception("reminder.prep.failed", id=str(reminder_id))
+        log.exception("reminder.prep.failed", id=str(reminder_id), terminal=(new_status == "failed"))
         return reminder
 
     brief = _latest_brief_after(prep_dir, started_at, _filename_slug(reminder))
     if brief is None:
-        reminder.status = "failed"
-        reminder.error_message = (
-            "prep agent ran but produced no new file in .memory-bank/docs/meeting-prep/"
+        new_status = _mark_failed_or_retry(
+            reminder, "prep agent ran but produced no new file in .memory-bank/docs/meeting-prep/"
         )
         if placeholder_id:
             try:
+                card_state = "failed" if new_status == "failed" else "running"
                 await conversation_store.update_message_by_id(
                     db, reminder.project_id, placeholder_id,
                     {
-                        "kind": "reminder_prep_failed",
+                        "kind": "reminder_prep_failed" if new_status == "failed" else "reminder_prep",
                         "content": render_reminder_card(
-                            state="failed", label=label, due_local=due_local,
-                            error="prep agent produced no brief file in docs/meeting-prep/",
+                            state=card_state, label=label, due_local=due_local,
+                            error="prep agent produced no brief file" if card_state == "failed" else None,
                         ),
-                        "_processing": False,
+                        "_processing": new_status == "pending",
                         "segments": _snapshot_segments(),
                         "toolCalls": list(tool_calls),
                         "thinkingCount": thinking_count,
@@ -406,12 +566,12 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 pass
         await _log_activity(
             db, reminder,
-            action="reminder_prep_failed",
+            action="reminder_prep_failed" if new_status == "failed" else "reminder_prep_retry",
             summary=f"Reminder prep produced no file: {label}",
-            details={"reminder_id": str(reminder_id)},
+            details={"reminder_id": str(reminder_id), "retry_count": reminder.retry_count},
         )
         await db.commit()
-        log.warning("reminder.prep.no_output", id=str(reminder_id))
+        log.warning("reminder.prep.no_output", id=str(reminder_id), terminal=(new_status == "failed"))
         return reminder
 
     # Close out any trailing activity segment so the web chat renders the
@@ -424,8 +584,13 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     reminder.status = "prepared"
 
     agent_reply = ("".join(text_chunks)).strip()
-    viewer_url = f"/projects/{reminder.project_id}/vault?path={rel_path}"
     filename = str(rel_path).rsplit("/", 1)[-1]
+    # Agenda reminders go to the Meeting Prep tab — that's the surface
+    # built for viewing / editing / emailing full meeting agendas.
+    # (Status / notification reminders take different routes above.)
+    viewer_url = (
+        f"/projects/{reminder.project_id}/chat?tab=meeting&file={filename}"
+    )
     chat_content = render_reminder_card(
         state="ready",
         label=label,
@@ -433,6 +598,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
         viewer_url=viewer_url,
         filename=filename,
         agent_reply=agent_reply,
+        output_kind="agenda",
     )
 
     # Structured fields the delivery step rebuilds the card from — keeps

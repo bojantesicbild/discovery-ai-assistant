@@ -540,6 +540,7 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
                     projectId={projectId}
                     reminders={reminders}
                     loading={remindersLoading}
+                    onOpen={() => setNotifOpen(false)}
                     onCancel={async (rid) => {
                       await cancelReminder(projectId, rid);
                       setReminders((prev) => prev.map((r) => r.id === rid ? { ...r, status: "canceled" } : r));
