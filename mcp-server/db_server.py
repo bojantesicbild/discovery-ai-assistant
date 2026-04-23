@@ -351,6 +351,65 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="propose_update",
+            description=(
+                "Stage a delta to an EXISTING requirement instead of creating a duplicate. "
+                "Call this when your dedup check (get_requirements) matched an existing BR but "
+                "the current document carries new info — a new rationale, an extra acceptance "
+                "criterion, a source_person that wasn't captured, etc. Each call writes ONE "
+                "staged proposal (one field, one patch) that shows up on the PM's BR detail "
+                "view with Accept / Reject buttons. PM decides; nothing mutates the BR until "
+                "they accept.\n\n"
+                "IMPORTANT: only propose fields whose content genuinely differs from what the "
+                "BR already has. Don't propose the same value back. Don't propose on "
+                "priority / status / confidence / version — those go through "
+                "update_requirement_status / update_requirement_priority.\n\n"
+                "Supported fields: description, user_perspective, rationale, scope_note, "
+                "title, source_person, acceptance_criteria, business_rules, edge_cases, "
+                "alternatives_considered, blocked_by.\n\n"
+                "For list fields (acceptance_criteria etc.), pass ONLY the new entries — "
+                "the accept endpoint appends with dedup. For string fields, pass the new "
+                "value; accept replaces the existing string.\n\n"
+                "Before proposing, check `get_past_rejections` for this BR + field. If the "
+                "PM has already rejected a similar proposal, don't re-propose — note it in "
+                "your chat summary instead."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "target_req_id": {"type": "string", "description": "BR id to patch (e.g. 'BR-004')."},
+                    "field": {"type": "string", "description": "Which requirement field to patch. One of: description, user_perspective, rationale, scope_note, title, source_person, acceptance_criteria, business_rules, edge_cases, alternatives_considered, blocked_by."},
+                    "value": {"description": "New value. For string fields a string; for list fields an array of strings (only the new entries — they'll be appended with dedup on accept)."},
+                    "rationale": {"type": "string", "description": "One-sentence note on why the agent is proposing this. Appears in the UI so the PM can judge the change without re-reading the source document."},
+                    "source_doc_id": {"type": "string", "description": "UUID of the document that surfaced this delta — always pass the Document ID from the pipeline message."},
+                    "source_person": {"type": "string", "description": "Stakeholder quoted in the source for this delta, when named."},
+                },
+                "required": ["target_req_id", "field", "value"],
+            },
+        ),
+        Tool(
+            name="get_past_rejections",
+            description=(
+                "Return the PM's recent rejected proposals on this project so the extraction "
+                "agent doesn't re-propose the same pattern. Call this BEFORE propose_update "
+                "for any BR you're about to patch — if the PM already rejected a similar "
+                "proposal on this target+field, skip the propose_update and note in your chat "
+                "summary that an earlier rejection covers this. This is the 'learning' loop: "
+                "no model fine-tuning, just growing institutional memory fed back each run.\n\n"
+                "Returns rejected_at desc, rows with target_req_id, proposed_field, "
+                "proposed_value, rejection_reason, rejected_at."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "target_req_id": {"type": "string", "description": "Filter to a specific BR id. Optional — omit to see all recent rejections across the project."},
+                    "field": {"type": "string", "description": "Filter to a specific field. Optional."},
+                    "limit": {"type": "integer", "description": "Max rows to return (default 20)."},
+                },
+                "required": [],
+            },
+        ),
+        Tool(
             name="get_current_time",
             description=(
                 "Get the server's current time and timezone. Call this BEFORE scheduling any reminder "
@@ -870,6 +929,134 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
             else:
                 return _json_result({"error": f"Unknown finding_type: {finding_type}. Supported: requirement, constraint, stakeholder, gap, contradiction."})
+
+        if name == "propose_update":
+            target_req_id = arguments.get("target_req_id")
+            field = arguments.get("field")
+            value = arguments.get("value")
+            rationale = arguments.get("rationale") or None
+            person = arguments.get("source_person") or None
+            doc_id_raw = arguments.get("source_doc_id") or None
+
+            # App-level enforcement of the whitelist — mirrors the backend
+            # `_apply_patch` function so the agent gets a clean error before
+            # the row hits the DB rather than a 400 on accept.
+            string_fields = {
+                "description", "user_perspective", "rationale", "scope_note",
+                "title", "source_person",
+            }
+            list_fields = {
+                "acceptance_criteria", "business_rules", "edge_cases",
+                "alternatives_considered", "blocked_by",
+            }
+            if not target_req_id or not field:
+                return _json_result({"error": "target_req_id and field are required"})
+            if field not in string_fields and field not in list_fields:
+                return _json_result({
+                    "error": f"Cannot propose on field '{field}'. Allowed: "
+                             f"{sorted(string_fields | list_fields)}"
+                })
+
+            # Resolve the target BR (by its req_id within the project).
+            br = await conn.fetchrow(
+                "SELECT id, "
+                "       description, user_perspective, rationale, scope_note, title, source_person, "
+                "       acceptance_criteria, business_rules, edge_cases, "
+                "       alternatives_considered, blocked_by "
+                "FROM requirements WHERE project_id = $1 AND req_id = $2",
+                pid, target_req_id,
+            )
+            if not br:
+                return _json_result({"error": f"Requirement {target_req_id} not found"})
+
+            current = br[field] if field in br.keys() else None
+            # No-op guard: don't stage a proposal that reproduces the
+            # existing value. For lists: skip when every new entry is
+            # already present.
+            if field in list_fields:
+                new_items = value if isinstance(value, list) else [value]
+                new_items = [s for s in new_items if isinstance(s, str) and s.strip()]
+                existing_items = list(current or [])
+                truly_new = [s for s in new_items if s not in existing_items]
+                if not truly_new:
+                    return _json_result({
+                        "skipped": True,
+                        "reason": f"All proposed {field} entries already exist on {target_req_id}.",
+                    })
+                staged_value = truly_new
+                current_value_for_row = existing_items or None
+            else:
+                staged_value = str(value) if value is not None else None
+                if (staged_value or "") == (current or ""):
+                    return _json_result({
+                        "skipped": True,
+                        "reason": f"{field} on {target_req_id} already equals the proposed value.",
+                    })
+                current_value_for_row = current
+
+            # Validate + parse the doc id (same defensive pattern as
+            # store_finding — bad UUIDs silently fall back to NULL rather
+            # than failing the whole call).
+            doc_uuid = None
+            if doc_id_raw:
+                try:
+                    doc_uuid = uuid.UUID(str(doc_id_raw))
+                except (ValueError, TypeError):
+                    doc_uuid = None
+
+            await conn.execute(
+                "INSERT INTO proposed_updates "
+                "(id, project_id, source_gap_id, source_doc_id, source_person, "
+                " target_req_id, proposed_field, proposed_value, current_value, rationale, status) "
+                "VALUES (gen_random_uuid(), $1, NULL, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, 'pending')",
+                pid, doc_uuid, person, target_req_id, field,
+                json.dumps(staged_value), json.dumps(current_value_for_row), rationale,
+            )
+            await conn.execute(
+                "INSERT INTO activity_log (id, project_id, action, summary, details) "
+                "VALUES (gen_random_uuid(), $1, 'proposal_created', $2, $3)",
+                pid, f"Proposed update to {target_req_id} ({field})",
+                json.dumps({"req_id": target_req_id, "field": field, "source": "extraction"}),
+            )
+            return _json_result({
+                "success": True,
+                "target_req_id": target_req_id,
+                "field": field,
+                "staged_value": staged_value,
+            })
+
+        if name == "get_past_rejections":
+            target_req_id = arguments.get("target_req_id")
+            field = arguments.get("field")
+            limit = int(arguments.get("limit") or 20)
+            clauses = ["project_id = $1", "status = 'rejected'"]
+            params: list = [pid]
+            if target_req_id:
+                clauses.append(f"target_req_id = ${len(params) + 1}")
+                params.append(target_req_id)
+            if field:
+                clauses.append(f"proposed_field = ${len(params) + 1}")
+                params.append(field)
+            params.append(limit)
+            rows = await conn.fetch(
+                "SELECT target_req_id, proposed_field, proposed_value, "
+                "       rejection_reason, reviewed_at "
+                "FROM proposed_updates "
+                f"WHERE {' AND '.join(clauses)} "
+                f"ORDER BY reviewed_at DESC NULLS LAST "
+                f"LIMIT ${len(params)}",
+                *params,
+            )
+            return _json_result([
+                {
+                    "target_req_id": r["target_req_id"],
+                    "field": r["proposed_field"],
+                    "rejected_value": r["proposed_value"],
+                    "reason": r["rejection_reason"],
+                    "rejected_at": r["reviewed_at"].isoformat() if r["reviewed_at"] else None,
+                }
+                for r in rows
+            ])
 
         if name == "get_current_time":
             import datetime as _dt

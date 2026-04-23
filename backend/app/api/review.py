@@ -295,11 +295,15 @@ async def list_proposed_updates(
     result = await db.execute(q)
     proposals = result.scalars().all()
 
-    # Enrich with gap question + target req title for the UI
-    gap_ids = list({p.source_gap_id for p in proposals})
+    # Enrich with gap question + target req title + source doc filename.
+    # Extraction-driven proposals have source_gap_id=NULL but set source_doc_id;
+    # filter None out of the gap lookup so the IN-query stays well-formed.
+    gap_ids = [gid for gid in {p.source_gap_id for p in proposals} if gid]
+    doc_ids = [did for did in {p.source_doc_id for p in proposals} if did]
     req_ids = list({p.target_req_id for p in proposals})
     gap_map: dict[str, Gap] = {}
     req_map: dict[str, Requirement] = {}
+    doc_map: dict[uuid.UUID, str] = {}
     if gap_ids:
         gr = await db.execute(select(Gap).where(Gap.project_id == project_id, Gap.gap_id.in_(gap_ids)))
         for g in gr.scalars().all():
@@ -308,15 +312,23 @@ async def list_proposed_updates(
         rr = await db.execute(select(Requirement).where(Requirement.project_id == project_id, Requirement.req_id.in_(req_ids)))
         for r in rr.scalars().all():
             req_map[r.req_id] = r
+    if doc_ids:
+        from app.models.document import Document
+        dr = await db.execute(select(Document.id, Document.filename).where(Document.id.in_(doc_ids)))
+        for row in dr.all():
+            doc_map[row.id] = row.filename
 
     items = []
     for p in proposals:
-        g = gap_map.get(p.source_gap_id)
+        g = gap_map.get(p.source_gap_id) if p.source_gap_id else None
         r = req_map.get(p.target_req_id)
         items.append({
             "id": str(p.id),
             "source_gap_id": p.source_gap_id,
             "gap_question": g.question if g else None,
+            "source_doc_id": str(p.source_doc_id) if p.source_doc_id else None,
+            "source_doc": doc_map.get(p.source_doc_id) if p.source_doc_id else None,
+            "source_person": p.source_person,
             "target_req_id": p.target_req_id,
             "req_title": r.title if r else None,
             "proposed_field": p.proposed_field,
@@ -326,6 +338,7 @@ async def list_proposed_updates(
             "client_answer": p.client_answer,
             "review_round": p.review_round,
             "status": p.status,
+            "rejection_reason": p.rejection_reason,
             "created_at": p.created_at.isoformat() if p.created_at else None,
             "reviewed_at": p.reviewed_at.isoformat() if p.reviewed_at else None,
         })
@@ -336,14 +349,42 @@ class ProposalDecision(BaseModel):
     override_value: Any | None = None
 
 
+class ProposalRejection(BaseModel):
+    # Optional free-text "why?" the PM types on reject. Persisted on the
+    # proposal row AND fed to the next extraction run as context so the
+    # agent stops re-proposing the same pattern. Empty string treated
+    # as "no reason given" (still a valid negative signal).
+    reason: str | None = None
+
+
+_STRING_PATCH_FIELDS = (
+    "description",
+    "user_perspective",
+    "rationale",
+    "scope_note",
+    "title",
+    "source_person",
+)
+_LIST_PATCH_FIELDS = (
+    "acceptance_criteria",
+    "business_rules",
+    "edge_cases",
+    "alternatives_considered",
+    "blocked_by",
+)
+
+
 def _apply_patch(req: Requirement, field: str, new_value: Any) -> None:
     """Apply a proposed patch to a Requirement.
-    - description: replace the whole string
-    - acceptance_criteria / business_rules: append new items (dedup)
+
+    String fields replace the whole value. List fields append new items
+    with dedup (order-preserving). Also bumps `version` and appends the
+    field name to `sources` as a lightweight merge-history marker so the
+    UI's "v2 · merged from 2 docs" chip keeps working.
     """
-    if field == "description":
-        req.description = str(new_value)
-    elif field in ("acceptance_criteria", "business_rules"):
+    if field in _STRING_PATCH_FIELDS:
+        setattr(req, field, str(new_value) if new_value is not None else None)
+    elif field in _LIST_PATCH_FIELDS:
         existing = list(getattr(req, field) or [])
         additions = new_value if isinstance(new_value, list) else [new_value]
         for item in additions:
@@ -351,7 +392,15 @@ def _apply_patch(req: Requirement, field: str, new_value: Any) -> None:
                 existing.append(item)
         setattr(req, field, existing)
     else:
-        raise HTTPException(status_code=400, detail=f"Unknown field: {field}")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot patch field '{field}'. Allowed: "
+                f"{', '.join(_STRING_PATCH_FIELDS + _LIST_PATCH_FIELDS)}."
+            ),
+        )
+    # Bump version so the BR table chip updates visibly.
+    req.version = (req.version or 1) + 1
 
 
 @router.post("/api/projects/{project_id}/proposed-updates/{proposal_id}/accept")
@@ -386,11 +435,12 @@ async def accept_proposal(
     p.reviewed_at = datetime.now(timezone.utc)
     p.reviewed_by = user.id
 
+    provenance = p.source_gap_id or (f"doc:{p.source_doc_id}" if p.source_doc_id else "unknown")
     db.add(ActivityLog(
         project_id=project_id,
         user_id=user.id,
         action="proposal_accepted",
-        summary=f"Applied client-driven update to {req.req_id} ({p.proposed_field}) — from {p.source_gap_id}",
+        summary=f"Applied update to {req.req_id} ({p.proposed_field}) — from {provenance}",
         details={"proposal_id": str(p.id), "req_id": req.req_id, "field": p.proposed_field, "edited": body.override_value is not None},
     ))
 
@@ -402,30 +452,49 @@ async def accept_proposal(
 async def reject_proposal(
     project_id: uuid.UUID,
     proposal_id: uuid.UUID,
+    body: ProposalRejection = ProposalRejection(),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark proposal rejected. Does not modify the target requirement."""
+    """Mark proposal rejected. Does not modify the target requirement.
+
+    The optional `reason` is captured verbatim on the proposal row and
+    echoed into the activity log. The next extraction run pulls recent
+    rejection reasons back into its prompt so the agent learns the
+    PM's preferences without anyone editing agent files by hand.
+    """
     p = await db.get(ProposedUpdate, proposal_id)
     if not p or p.project_id != project_id:
         raise HTTPException(status_code=404, detail="Proposal not found")
     if p.status != "pending":
         raise HTTPException(status_code=409, detail=f"Proposal already {p.status}")
 
+    reason = (body.reason or "").strip() or None
+
     p.status = "rejected"
+    p.rejection_reason = reason
     p.reviewed_at = datetime.now(timezone.utc)
     p.reviewed_by = user.id
 
+    provenance = p.source_gap_id or (f"doc:{p.source_doc_id}" if p.source_doc_id else "unknown")
+    summary = f"Rejected proposed update to {p.target_req_id} from {provenance}"
+    if reason:
+        summary += f" — {reason[:80]}"
     db.add(ActivityLog(
         project_id=project_id,
         user_id=user.id,
         action="proposal_rejected",
-        summary=f"Rejected proposed update to {p.target_req_id} from {p.source_gap_id}",
-        details={"proposal_id": str(p.id), "req_id": p.target_req_id, "field": p.proposed_field},
+        summary=summary,
+        details={
+            "proposal_id": str(p.id),
+            "req_id": p.target_req_id,
+            "field": p.proposed_field,
+            "reason": reason,
+        },
     ))
 
     await db.commit()
-    return {"id": str(p.id), "status": p.status}
+    return {"id": str(p.id), "status": p.status, "rejection_reason": reason}
 
 
 @router.get("/api/projects/{project_id}/client-feedback")

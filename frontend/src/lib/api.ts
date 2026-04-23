@@ -301,20 +301,41 @@ export async function listReviewSubmissions(projectId: string): Promise<{ submis
   return fetchAPI(`/api/projects/${projectId}/review-submissions`);
 }
 
-// Staged proposals — agent-generated patches awaiting PM review
+// Staged proposals — agent-generated patches awaiting PM review.
+// Two provenance flavours share this shape:
+//   (a) gap-driven  — source_gap_id + gap_question + client_answer set (client-review portal).
+//   (b) extraction-driven — source_doc_id + source_doc + source_person set (MCP propose_update).
+// Fields from the other flavour are null.
+export type ProposedField =
+  | "description"
+  | "user_perspective"
+  | "rationale"
+  | "scope_note"
+  | "title"
+  | "source_person"
+  | "acceptance_criteria"
+  | "business_rules"
+  | "edge_cases"
+  | "alternatives_considered"
+  | "blocked_by";
+
 export interface ProposedUpdate {
   id: string;
-  source_gap_id: string;
+  source_gap_id: string | null;
   gap_question: string | null;
+  source_doc_id: string | null;
+  source_doc: string | null;
+  source_person: string | null;
   target_req_id: string;
   req_title: string | null;
-  proposed_field: "description" | "acceptance_criteria" | "business_rules";
+  proposed_field: ProposedField;
   proposed_value: string | string[];
   current_value: string | string[] | null;
   rationale: string | null;
   client_answer: string | null;
   review_round: number | null;
   status: "pending" | "accepted" | "rejected" | "edited";
+  rejection_reason: string | null;
   created_at: string | null;
   reviewed_at: string | null;
 }
@@ -327,9 +348,10 @@ export async function acceptProposal(projectId: string, proposalId: string, over
     body: JSON.stringify({ override_value: overrideValue ?? null }),
   });
 }
-export async function rejectProposal(projectId: string, proposalId: string) {
+export async function rejectProposal(projectId: string, proposalId: string, reason?: string) {
   return fetchAPI(`/api/projects/${projectId}/proposed-updates/${proposalId}/reject`, {
     method: "POST",
+    body: JSON.stringify({ reason: reason ?? null }),
   });
 }
 

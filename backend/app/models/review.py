@@ -49,9 +49,17 @@ class ProposedUpdate(Base, IdMixin, TimestampMixin):
     __tablename__ = "proposed_updates"
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False, index=True)
-    source_gap_id: Mapped[str] = mapped_column(String, nullable=False)
+    # Exactly one of source_gap_id / source_doc_id is populated. Gap path
+    # is the original client-review flow; doc path is the re-extraction
+    # flow introduced in migration 030.
+    source_gap_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    source_person: Mapped[str | None] = mapped_column(String, nullable=True)
     target_req_id: Mapped[str] = mapped_column(String, nullable=False)
-    # field on Requirement to patch: "description" | "acceptance_criteria" | "business_rules"
+    # field on Requirement to patch: description / user_perspective / rationale /
+    # scope_note / acceptance_criteria / business_rules / edge_cases /
+    # alternatives_considered / blocked_by / source_person. See
+    # app.api.review._apply_patch for the live whitelist.
     proposed_field: Mapped[str] = mapped_column(String, nullable=False)
     # JSONB so we can carry either a string (description) or a list (criteria/rules)
     proposed_value: Mapped[Any] = mapped_column(JSONB, nullable=False)
@@ -62,3 +70,8 @@ class ProposedUpdate(Base, IdMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # Free-text rationale the PM gave when rejecting (or approving with
+    # reservations). Fed back to the extraction agent on the next run as
+    # part of the "past rejections to avoid" section — this is how the
+    # agent stops re-proposing the same pattern.
+    rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)

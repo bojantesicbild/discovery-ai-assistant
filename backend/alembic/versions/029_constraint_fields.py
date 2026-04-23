@@ -1,7 +1,7 @@
 """Constraint enrichment: source_person, affects_reqs, workaround.
 
 Revision ID: 029_constraint_fields
-Revises: 028_chat_sessions
+Revises: 027_taxonomy_cleanup
 Create Date: 2026-04-23
 
 Adds three fields to constraints to match the signal density BR and Gap
@@ -26,7 +26,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "029_constraint_fields"
-down_revision: Union[str, None] = "028_chat_sessions"
+down_revision: Union[str, None] = "027_taxonomy_cleanup"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

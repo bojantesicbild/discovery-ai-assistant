@@ -195,6 +195,40 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
 _LIVE_UPDATE_THROTTLE_MS = 700
 
 
+async def _build_rejection_context(db, project_id: uuid.UUID, limit: int = 10) -> str:
+    """Return a short 'PAST REJECTIONS' block to prepend to the extraction
+    message, or "" when there are no rejections.
+
+    Reads the most recently rejected proposed_updates rows for this
+    project and formats them as one line per rejection so the agent can
+    treat them as negative signals without having to call
+    get_past_rejections itself. Limit is small on purpose — old rejections
+    decay in relevance and bloating the prompt is worse than missing one.
+    """
+    from app.models.review import ProposedUpdate
+    from sqlalchemy import select as _select
+    rows = await db.execute(
+        _select(ProposedUpdate)
+        .where(
+            ProposedUpdate.project_id == project_id,
+            ProposedUpdate.status == "rejected",
+        )
+        .order_by(ProposedUpdate.reviewed_at.desc().nulls_last())
+        .limit(limit)
+    )
+    proposals = rows.scalars().all()
+    if not proposals:
+        return ""
+    lines = ["PAST REJECTIONS the PM made on this project (avoid re-proposing the same pattern):"]
+    for p in proposals:
+        reason = (p.rejection_reason or "(no reason given)").strip().replace("\n", " ")
+        when = p.reviewed_at.date().isoformat() if p.reviewed_at else "unknown date"
+        lines.append(
+            f"- {p.target_req_id} · {p.proposed_field} rejected {when}: {reason[:160]}"
+        )
+    return "\n".join(lines) + "\n\n"
+
+
 async def _stage_extract(db, doc: Document, project=None) -> dict:
     """Invoke discovery-extraction-agent on the document.
 
@@ -234,16 +268,25 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
             f"Type: {project.project_type}\n"
         )
 
+    # Past rejections context — feeds the learning loop. When the PM
+    # rejects a proposed update with a reason, that reason shows up here
+    # on the next run so the agent stops re-proposing the same pattern.
+    # No fine-tuning, just growing institutional memory fed back each run.
+    rejection_context = await _build_rejection_context(db, doc.project_id, limit=10)
+
     message = (
         "You have a document to extract findings from. Follow your extraction "
-        "process: dedup-check first (get_requirements, get_gaps), then call "
-        "store_finding per finding, then close with a 2-3 sentence chat summary.\n\n"
+        "process: dedup-check first (get_requirements, get_gaps). For net-new "
+        "findings call store_finding. For EXISTING items that the current "
+        "document has new info on, call propose_update (one field per call). "
+        "Close with a 2-3 sentence chat summary.\n\n"
         f"{project_context}"
         f"Filename: {doc.filename}\n"
         f"Document ID: {doc.id}\n"
         "IMPORTANT: pass `source_doc_id` = \"" + str(doc.id) + "\" on EVERY "
-        "store_finding call so the Source column in the UI links back to this "
-        "document. This is non-optional for pipeline extractions.\n\n"
+        "store_finding and propose_update call so the Source column in the UI "
+        "links back to this document. This is non-optional for pipeline runs.\n\n"
+        f"{rejection_context}"
         "DOCUMENT CONTENT:\n"
         "---\n"
         f"{text[:12000]}\n"

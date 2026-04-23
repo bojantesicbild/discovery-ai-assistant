@@ -23,9 +23,10 @@ import {
   EmptyState,
 } from "./datapanel/pills";
 import {
-  GapResolutionCard, ClientFeedbackCard, InlineProposals,
+  GapResolutionCard, ClientFeedbackCard,
   type GapResolution,
 } from "./datapanel/feedback-cards";
+import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { RemindersTab } from "./datapanel/reminders-tab";
@@ -316,10 +317,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             if (!detail.itemKey || !detail.itemKind) return undefined;
             const reqFb = detail.itemKind === "requirement" ? clientFeedback.requirements[detail.itemKey] : undefined;
             const gapFb = detail.itemKind === "gap" ? clientFeedback.gaps[detail.itemKey] : undefined;
-            const pendingProps = detail.itemKind === "requirement"
-              ? proposals.filter((p) => p.target_req_id === detail.itemKey)
-              : [];
-            const hasAnything = reqFb || gapFb || pendingProps.length > 0 || detail.gapResolution;
+            const hasAnything = reqFb || gapFb || detail.gapResolution;
             if (!hasAnything) return undefined;
             // Gap closure + client answer → single combined card.
             // Everything else stays independent.
@@ -334,24 +332,33 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
                 )}
                 {reqFb && <ClientFeedbackCard kind="requirement" fb={reqFb} />}
                 {gapFb && !combinedGapClosure && <ClientFeedbackCard kind="gap" fb={gapFb} />}
-                {pendingProps.length > 0 && (
-                  <InlineProposals
-                    proposals={pendingProps}
-                    onAction={async (id, decision) => {
-                      try {
-                        if (decision.kind === "accept") {
-                          await acceptProposal(projectId, id, decision.overrideValue);
-                        } else {
-                          await rejectProposal(projectId, id);
-                        }
-                        await loadData();
-                      } catch (e) {
-                        console.error("Proposal action failed", e);
-                      }
-                    }}
-                  />
-                )}
               </>
+            );
+          })()}
+          slotBottom={(() => {
+            if (detail.itemKind !== "requirement" || !detail.itemKey) return undefined;
+            const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
+            if (pendingProps.length === 0) return undefined;
+            return (
+              <ProposedUpdatesSection
+                proposals={pendingProps}
+                onAccept={async (id) => {
+                  try {
+                    await acceptProposal(projectId, id);
+                    await loadData();
+                  } catch (e) {
+                    console.error("Proposal accept failed", e);
+                  }
+                }}
+                onReject={async (id, reason) => {
+                  try {
+                    await rejectProposal(projectId, id, reason || undefined);
+                    await loadData();
+                  } catch (e) {
+                    console.error("Proposal reject failed", e);
+                  }
+                }}
+              />
             );
           })()}
           onLinkClick={(href: string) => {

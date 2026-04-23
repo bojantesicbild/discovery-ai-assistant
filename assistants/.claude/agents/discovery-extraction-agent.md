@@ -34,9 +34,15 @@ You are in **DELEGATED MODE**. The pipeline has already approved this work — t
 
 Execute in this order, no skipping.
 
-1. **Deduplication check (important).** Call `get_requirements` and `get_gaps` first. Scan for titles/questions that overlap with what you're about to extract. Don't re-create items that clearly already exist. When in doubt: skip rather than duplicate.
+1. **Deduplication check (important).** Call `get_requirements` and `get_gaps` first. Scan for titles/questions that overlap with what you're about to extract.
+   - If no match → go to step 2 (`store_finding`).
+   - If a match exists AND the current document carries **new info** on that item (rationale that wasn't captured, an extra acceptance criterion, a `source_person` that was missing, a `blocked_by` dependency, etc.) → use `propose_update` (step 2a), NOT `store_finding`.
+   - If a match exists AND the current document says the same thing → genuinely skip.
+   - When in doubt between "skip" and "propose": prefer `propose_update` with a clear `rationale`. The PM can reject noise in one click, but can't recover an extraction the agent silently dropped.
 
-2. **Extract, one `store_finding` call per item.** The MCP tool validates enums and assigns display ids (BR-NNN, GAP-NNN, etc.) server-side — don't compute ids yourself.
+2. **Extract, one `store_finding` call per item** (new findings). The MCP tool validates enums and assigns display ids (BR-NNN, GAP-NNN, etc.) server-side — don't compute ids yourself.
+
+   **2a. Updates to existing BRs use `propose_update`, not `store_finding`.** Each call stages ONE field patch (target_req_id, field, value, rationale, source_doc_id, source_person). The PM reviews on the BR detail panel and accepts or rejects. Nothing mutates the BR until they accept. Before proposing, call `get_past_rejections` with `{target_req_id, field}` — if the PM already rejected a similar change, skip and note it in your chat summary. This is how the agent learns the PM's preferences without anyone editing agent files by hand.
 
 3. **Five finding kinds only** — the project's taxonomy. Do NOT extract `decision`, `scope`, or `assumption` even if the document mentions them; those live on other kinds now:
    - Decisions → folded onto the relevant BR as `rationale` + `alternatives_considered`.

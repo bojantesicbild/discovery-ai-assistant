@@ -22,6 +22,9 @@ interface MarkdownPanelProps {
   /** Interactive React content rendered above the markdown body (e.g.,
    *  pending client-review proposals for this item). */
   slotTop?: React.ReactNode;
+  /** Interactive React content rendered below the markdown body (e.g.,
+   *  agent-proposed extraction updates waiting for PM accept/reject). */
+  slotBottom?: React.ReactNode;
 }
 
 export default function MarkdownPanel({
@@ -36,6 +39,7 @@ export default function MarkdownPanel({
   history,
   onLinkClick,
   slotTop,
+  slotBottom,
 }: MarkdownPanelProps) {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(content);
@@ -319,6 +323,7 @@ export default function MarkdownPanel({
               }}
               dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
             />
+            {slotBottom}
           </>
         )}
       </div>
