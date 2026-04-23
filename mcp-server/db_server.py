@@ -435,6 +435,349 @@ async def _recalculate_readiness(conn, pid: str):
     return overall
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Relationships — dual-write + query helpers
+# ─────────────────────────────────────────────────────────────────────
+# The MCP uses raw asyncpg (no SQLAlchemy), so we mirror the backend's
+# `app.services.relationships` contract here with SQL. Keeping the two
+# in sync is a drift risk, but small — both write to the same table
+# with the same unique key, so the UPSERT semantics can't actually
+# diverge silently.
+
+
+async def _resolve_finding_uuid(conn, pid: str, display_id: str) -> tuple[str, str] | None:
+    """Resolve a display id (BR-004 / GAP-007 / CON-002 / CTR-005 /
+    stakeholder name / doc filename) to (kind, uuid). Returns None when
+    nothing matches."""
+    if not display_id:
+        return None
+    upper = display_id.upper()
+    if upper.startswith("BR-"):
+        row = await conn.fetchrow(
+            "SELECT id FROM requirements WHERE project_id = $1 AND req_id = $2",
+            pid, upper,
+        )
+        return ("requirement", str(row["id"])) if row else None
+    if upper.startswith("GAP-"):
+        row = await conn.fetchrow(
+            "SELECT id FROM gaps WHERE project_id = $1 AND gap_id = $2",
+            pid, upper,
+        )
+        return ("gap", str(row["id"])) if row else None
+    if upper.startswith("CON-"):
+        try:
+            idx = int(upper.split("-", 1)[1]) - 1
+        except (ValueError, IndexError):
+            return None
+        row = await conn.fetchrow(
+            "SELECT id FROM constraints WHERE project_id = $1 "
+            "ORDER BY created_at, id OFFSET $2 LIMIT 1",
+            pid, idx,
+        )
+        return ("constraint", str(row["id"])) if row else None
+    if upper.startswith("CTR-"):
+        try:
+            idx = int(upper.split("-", 1)[1]) - 1
+        except (ValueError, IndexError):
+            return None
+        row = await conn.fetchrow(
+            "SELECT id FROM contradictions WHERE project_id = $1 "
+            "ORDER BY created_at, id OFFSET $2 LIMIT 1",
+            pid, idx,
+        )
+        return ("contradiction", str(row["id"])) if row else None
+
+    # No prefix — try stakeholder name, then document filename.
+    row = await conn.fetchrow(
+        "SELECT id FROM stakeholders WHERE project_id = $1 AND name = $2",
+        pid, display_id,
+    )
+    if row:
+        return ("stakeholder", str(row["id"]))
+    row = await conn.fetchrow(
+        "SELECT id FROM documents WHERE project_id = $1 AND filename = $2",
+        pid, display_id,
+    )
+    if row:
+        return ("document", str(row["id"]))
+    return None
+
+
+async def _upsert_relationship(
+    conn, *, pid: str,
+    from_type: str, from_uuid: str,
+    to_type: str, to_uuid: str,
+    rel_type: str,
+    confidence: str,
+    created_by: str,
+    source_doc_id: str | None = None,
+    source_quote: str | None = None,
+    rationale: str | None = None,
+) -> None:
+    """Insert a relationship row or bump last_seen_at + reactivate on
+    re-proposal. Mirrors app.services.relationships.upsert_relationship.
+
+    Confidence never downgrades: explicit > proposed > derived."""
+    await conn.execute(
+        """
+        INSERT INTO relationships
+          (project_id, from_type, from_uuid, to_type, to_uuid,
+           rel_type, confidence, created_by,
+           source_doc_id, source_quote, rationale)
+        VALUES ($1, $2, $3::uuid, $4, $5::uuid, $6, $7::rel_confidence,
+                $8::rel_source, $9, $10, $11)
+        ON CONFLICT ON CONSTRAINT uq_relationships_endpoints
+        DO UPDATE SET
+          last_seen_at = NOW(),
+          status = 'active',
+          retracted_at = NULL,
+          retracted_by = NULL,
+          retraction_reason = NULL,
+          source_quote = EXCLUDED.source_quote,
+          rationale = EXCLUDED.rationale,
+          confidence = CASE
+            WHEN relationships.confidence = 'explicit' THEN 'explicit'::rel_confidence
+            WHEN EXCLUDED.confidence = 'explicit' THEN 'explicit'::rel_confidence
+            WHEN relationships.confidence = 'proposed' THEN 'proposed'::rel_confidence
+            ELSE EXCLUDED.confidence
+          END
+        """,
+        pid, from_type, from_uuid, to_type, to_uuid,
+        rel_type, confidence, created_by,
+        source_doc_id, source_quote, rationale,
+    )
+
+
+async def _fetch_finding_refs(conn, kind: str, uuids: list[str]) -> list[dict]:
+    """Resolve a batch of (kind, uuid) pairs back to {uuid, kind,
+    display_id, label}. Used by get_connections to render neighbours.
+
+    Display ids for requirement / gap come from their `req_id` / `gap_id`
+    columns; constraint and contradiction use a short UUID prefix since
+    their display ids are positional (assigned at markdown render time).
+    Stakeholder uses name; document uses filename.
+    """
+    if not uuids:
+        return []
+    if kind == "requirement":
+        rows = await conn.fetch(
+            "SELECT id, req_id, title FROM requirements WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": r["req_id"], "label": r["title"] or ""}
+            for r in rows
+        ]
+    if kind == "gap":
+        rows = await conn.fetch(
+            "SELECT id, gap_id, question FROM gaps WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": r["gap_id"], "label": (r["question"] or "")[:80]}
+            for r in rows
+        ]
+    if kind == "constraint":
+        rows = await conn.fetch(
+            "SELECT id, description FROM constraints WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": f"CON-{str(r['id'])[:8]}",
+             "label": (r["description"] or "")[:80]}
+            for r in rows
+        ]
+    if kind == "contradiction":
+        rows = await conn.fetch(
+            "SELECT id, title, explanation FROM contradictions WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": f"CTR-{str(r['id'])[:8]}",
+             "label": r["title"] or (r["explanation"] or "")[:80]}
+            for r in rows
+        ]
+    if kind == "stakeholder":
+        rows = await conn.fetch(
+            "SELECT id, name, role FROM stakeholders WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": r["name"], "label": r["role"] or ""}
+            for r in rows
+        ]
+    if kind == "document":
+        rows = await conn.fetch(
+            "SELECT id, filename FROM documents WHERE id = ANY($1::uuid[])",
+            uuids,
+        )
+        return [
+            {"uuid": str(r["id"]), "kind": kind,
+             "display_id": r["filename"], "label": r["filename"]}
+            for r in rows
+        ]
+    return []
+
+
+async def _derived_connections(conn, pid: str, center: tuple[str, str]) -> list[dict]:
+    """Two cheap inference groups computed at query time so we don't
+    materialize O(N²) co-extraction edges. Mirrors the backend
+    service's _derived_groups_for."""
+    kind, cuuid = center
+    groups: list[dict] = []
+
+    # Fetch the center's source_doc_id + source_person (columns vary
+    # per kind, hence this tiny dispatch).
+    center_row = None
+    if kind in ("requirement", "gap", "constraint", "stakeholder", "contradiction"):
+        center_row = await conn.fetchrow(
+            f"SELECT source_doc_id, "
+            f"       {'source_person' if kind != 'stakeholder' else 'NULL AS source_person'} "
+            f"FROM {kind}s WHERE id = $1::uuid",
+            cuuid,
+        )
+    if center_row is None:
+        return groups
+
+    source_doc_id = center_row["source_doc_id"]
+    source_person = center_row["source_person"]
+
+    if source_doc_id:
+        members: list[dict] = []
+        for sibling_kind in ("requirement", "gap", "constraint", "stakeholder", "contradiction"):
+            rows = await conn.fetch(
+                f"SELECT id FROM {sibling_kind}s "
+                f"WHERE project_id = $1 AND source_doc_id = $2::uuid AND id <> $3::uuid "
+                f"LIMIT 30",
+                pid, str(source_doc_id), cuuid,
+            )
+            if not rows:
+                continue
+            refs = await _fetch_finding_refs(conn, sibling_kind, [str(r["id"]) for r in rows])
+            members.extend(refs)
+        if members:
+            doc = await conn.fetchrow(
+                "SELECT filename FROM documents WHERE id = $1::uuid",
+                str(source_doc_id),
+            )
+            groups.append({
+                "kind": "shared_source_doc",
+                "key": doc["filename"] if doc else str(source_doc_id)[:8],
+                "members": members,
+            })
+
+    if source_person:
+        members = []
+        for sibling_kind in ("requirement", "gap", "constraint", "contradiction"):
+            rows = await conn.fetch(
+                f"SELECT id FROM {sibling_kind}s "
+                f"WHERE project_id = $1 AND source_person = $2 AND id <> $3::uuid "
+                f"LIMIT 30",
+                pid, source_person, cuuid,
+            )
+            if not rows:
+                continue
+            refs = await _fetch_finding_refs(conn, sibling_kind, [str(r["id"]) for r in rows])
+            members.extend(refs)
+        if members:
+            groups.append({
+                "kind": "shared_stakeholder",
+                "key": source_person,
+                "members": members,
+            })
+
+    return groups
+
+
+async def _dual_write_relationships(
+    conn, *, pid: str,
+    finding_type: str, finding_uuid: str,
+    blocked_by_ids: list[str] | None = None,
+    blocks_ids: list[str] | None = None,
+    affects_ids: list[str] | None = None,
+    source_doc_id: str | None = None,
+    source_person_name: str | None = None,
+    source_quote: str | None = None,
+) -> int:
+    """Emit explicit relationships alongside a newly stored finding.
+    Called inline from the MCP store_finding handlers so every new
+    finding contributes to the edge graph immediately."""
+    written = 0
+
+    for br in blocked_by_ids or []:
+        target = await _resolve_finding_uuid(conn, pid, br)
+        if target and target[0] == "requirement":
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=finding_type, from_uuid=finding_uuid,
+                to_type=target[0], to_uuid=target[1],
+                rel_type="blocked_by",
+                confidence="explicit", created_by="extraction",
+                source_doc_id=source_doc_id, source_quote=source_quote,
+            )
+            written += 1
+
+    for br in blocks_ids or []:
+        target = await _resolve_finding_uuid(conn, pid, br)
+        if target and target[0] == "requirement":
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=finding_type, from_uuid=finding_uuid,
+                to_type=target[0], to_uuid=target[1],
+                rel_type="blocks",
+                confidence="explicit", created_by="extraction",
+                source_doc_id=source_doc_id, source_quote=source_quote,
+            )
+            written += 1
+
+    for br in affects_ids or []:
+        target = await _resolve_finding_uuid(conn, pid, br)
+        if target and target[0] == "requirement":
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=finding_type, from_uuid=finding_uuid,
+                to_type=target[0], to_uuid=target[1],
+                rel_type="affects",
+                confidence="explicit", created_by="extraction",
+                source_doc_id=source_doc_id, source_quote=source_quote,
+            )
+            written += 1
+
+    if source_doc_id:
+        await _upsert_relationship(
+            conn, pid=pid,
+            from_type=finding_type, from_uuid=finding_uuid,
+            to_type="document", to_uuid=source_doc_id,
+            rel_type="derived_from",
+            confidence="explicit", created_by="extraction",
+            source_doc_id=source_doc_id,
+        )
+        written += 1
+
+    if source_person_name:
+        stk = await conn.fetchrow(
+            "SELECT id FROM stakeholders WHERE project_id = $1 AND name = $2",
+            pid, source_person_name,
+        )
+        if stk:
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=finding_type, from_uuid=finding_uuid,
+                to_type="stakeholder", to_uuid=str(stk["id"]),
+                rel_type="raised_by",
+                confidence="explicit", created_by="extraction",
+                source_doc_id=source_doc_id, source_quote=source_quote,
+            )
+            written += 1
+
+    return written
+
+
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -484,6 +827,7 @@ async def list_tools() -> list[Tool]:
                     "affects_reqs": {"type": "array", "items": {"type": "string"}, "description": "Constraint-only. BR ids this constraint shapes (e.g. ['BR-004', 'BR-007']). Gives the PM a one-click 'what's at risk if this constraint stays' view. Include only when the source document clearly links the constraint to specific requirements."},
                     "workaround": {"type": "string", "description": "Constraint-only. Short mitigation note — the negotiation lever the PM can use when pushing back on an assumed constraint. Format: 'option considered — reason it fails' or just a free-text sentence. Skip when no workaround is discussed in the source."},
                     "kind": {"type": "string", "enum": ["missing_info", "unvalidated_assumption", "undecided"], "description": "Gap-only. Kind of gap: 'missing_info' (default) = client never told us; 'unvalidated_assumption' = we're assuming X but nothing confirms it; 'undecided' = a call that needs to be made but hasn't been."},
+                    "blocked_reqs": {"type": "array", "items": {"type": "string"}, "description": "Gap-only. BR ids this gap blocks — capture when the source explicitly says a question must be answered before a BR can proceed ('we can't finalize BR-004 until we decide X'). Format ['BR-004', 'BR-005']. Drives the PM's 'what's at risk if this gap stays open' view."},
                     "side_a": {"type": "string", "description": "Contradiction-only. The FIRST conflicting statement — what one source/person said. E.g. 'David says 2 handoff docs'."},
                     "side_b": {"type": "string", "description": "Contradiction-only. The SECOND conflicting statement — what the other source/person said. E.g. 'Sarah says 3 handoff docs are required'."},
                     "area": {"type": "string", "description": "Contradiction-only. Domain category: tech-stack / scope / governance / timeline / budget / other."},
@@ -598,6 +942,68 @@ async def list_tools() -> list[Tool]:
                     "top_n": {"type": "integer", "description": "How many items per ranking list (default 10)."},
                 },
                 "required": [],
+            },
+        ),
+        Tool(
+            name="propose_relationship",
+            description=(
+                "Stage an explicit edge between two findings as a PROPOSAL, "
+                "not an immediate write. The PM reviews on the detail panel "
+                "and accepts (flips to 'explicit') or rejects (retracts with "
+                "a reason that feeds the past-rejections loop).\n\n"
+                "Use this when the current document suggests a relationship "
+                "to an EXISTING item — e.g. a new gap that hints it blocks "
+                "BR-004, a new constraint that affects BR-007. For edges "
+                "discovered AT extraction time on a freshly-written finding, "
+                "prefer the built-in dual-write fields (blocked_by on req, "
+                "blocked_reqs on gap, affects_reqs on constraint) which "
+                "write 'explicit' immediately.\n\n"
+                "Rel types: 'blocks', 'blocked_by', 'affects', 'affected_by', "
+                "'raised_by', 'derived_from', 'contradicts'. Unknown types "
+                "are allowed but won't render with nice labels.\n\n"
+                "Endpoints are display ids (BR-004, GAP-007, CON-002, CTR-005, "
+                "document filename, stakeholder name)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "from_id": {"type": "string", "description": "Display id of the FROM side (BR-004 / GAP-007 / CON-002 / CTR-005 / stakeholder name / document filename)."},
+                    "to_id": {"type": "string", "description": "Display id of the TO side."},
+                    "rel_type": {"type": "string", "description": "Edge type: blocks, blocked_by, affects, affected_by, raised_by, derived_from, contradicts."},
+                    "source_quote": {"type": "string", "description": "Verbatim quote from the source document supporting this edge (≥10 chars)."},
+                    "rationale": {"type": "string", "description": "One-sentence explanation of why this edge should exist."},
+                    "source_doc_id": {"type": "string", "description": "UUID of the document whose reading surfaced this edge — pass the Document ID from the pipeline message."},
+                },
+                "required": ["from_id", "to_id", "rel_type"],
+            },
+        ),
+        Tool(
+            name="get_connections",
+            description=(
+                "Return all edges (outgoing + incoming + derived) touching "
+                "one finding. This is the primary traversal primitive — "
+                "replaces content-overlap guessing for relational questions "
+                "like 'what gap blocks BR-004', 'which contradictions touch "
+                "this constraint', 'who raised this requirement'.\n\n"
+                "Explicit edges come from the relationships table (agent- "
+                "and human-authored). Derived groups are cheap inference "
+                "(same source_doc, same source_person) — not stored to "
+                "avoid combinatorial explosion on large documents.\n\n"
+                "Every edge carries confidence ('explicit' / 'proposed' / "
+                "'derived'), source_doc, and source_quote. Cite them in "
+                "your chat reply — 'GAP-007 blocks BR-004 (explicit, from "
+                "client-meeting-2.md)' beats 'likely impacts'.\n\n"
+                "Pass the finding's display id (BR-004 / GAP-007 / ...)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "finding_id": {"type": "string", "description": "Display id of the finding (BR-004, GAP-007, CON-002, CTR-005, stakeholder name, document filename)."},
+                    "rel_types": {"type": "array", "items": {"type": "string"}, "description": "Optional filter — comma-of-types to restrict to (e.g. ['blocks', 'blocked_by'])."},
+                    "include_derived": {"type": "boolean", "description": "Include shared-source-doc / shared-stakeholder derived groups. Default true."},
+                    "max_edges": {"type": "integer", "description": "Cap on explicit edges returned. Default 60."},
+                },
+                "required": ["finding_id"],
             },
         ),
         Tool(
@@ -1006,19 +1412,30 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 alternatives = arguments.get("alternatives_considered") or []
                 scope_note = arguments.get("scope_note") or None
                 blocked_by = arguments.get("blocked_by") or []
-                await conn.execute(
+                row = await conn.fetchrow(
                     "INSERT INTO requirements (id, project_id, req_id, title, description, type, priority, status, confidence, "
                     " source_quote, source_person, source_doc_id, acceptance_criteria, "
                     " rationale, alternatives_considered, scope_note, blocked_by) "
                     "VALUES (gen_random_uuid(), $1, $2, $3, $4, 'functional', $5, 'proposed', 'medium', "
-                    "        $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13::jsonb)",
+                    "        $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13::jsonb) "
+                    "RETURNING id",
                     pid, new_req_id, title, description, req_priority,
                     source_quote, source_person, source_doc_uuid, json.dumps(acs),
                     rationale, json.dumps(alternatives), scope_note, json.dumps(blocked_by),
                 )
+                finding_uuid = str(row["id"])
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New requirement {new_req_id}: {title}", json.dumps({"type": "requirement", "req_id": new_req_id, "source": source})
+                )
+                # Dual-write explicit edges: blocked_by + derived_from + raised_by.
+                await _dual_write_relationships(
+                    conn, pid=pid,
+                    finding_type="requirement", finding_uuid=finding_uuid,
+                    blocked_by_ids=blocked_by,
+                    source_doc_id=str(source_doc_uuid) if source_doc_uuid else None,
+                    source_person_name=(source_person if source_person and source_person != "unknown" else None),
+                    source_quote=source_quote,
                 )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "requirement", "req_id": new_req_id, "title": title, "readiness": new_score})
@@ -1031,16 +1448,26 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 con_type = coerce_enum("constraint", "type", priority, "technology")
                 affects = arguments.get("affects_reqs") or []
                 workaround = arguments.get("workaround") or None
-                await conn.execute(
+                row = await conn.fetchrow(
                     "INSERT INTO constraints (id, project_id, type, description, impact, "
                     " source_quote, source_person, source_doc_id, affects_reqs, workaround, status) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'assumed')",
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'assumed') "
+                    "RETURNING id",
                     pid, con_type, title, description or "", source_quote or "",
                     source_person, source_doc_uuid, json.dumps(affects), workaround
                 )
+                finding_uuid = str(row["id"])
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New constraint: {title}", json.dumps({"type": "constraint", "source": source})
+                )
+                await _dual_write_relationships(
+                    conn, pid=pid,
+                    finding_type="constraint", finding_uuid=finding_uuid,
+                    affects_ids=affects,
+                    source_doc_id=str(source_doc_uuid) if source_doc_uuid else None,
+                    source_person_name=(source_person if source_person and source_person != "unknown" else None),
+                    source_quote=source_quote,
                 )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "constraint", "title": title, "readiness": new_score})
@@ -1068,14 +1495,31 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 kind = arguments.get("kind") or "missing_info"
                 if kind not in ("missing_info", "unvalidated_assumption", "undecided"):
                     kind = "missing_info"
-                await conn.execute(
-                    "INSERT INTO gaps (id, project_id, gap_id, question, kind, severity, area, status, source_quote, source_doc_id) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'open', $7, $8)",
-                    pid, gap_id, title, kind, priority or "medium", source or "general", source_quote or "", source_doc_uuid
+                # Gaps that block BRs — the agent-time capture of blocking
+                # relationships. Dual-written as `blocks` edges below.
+                blocked_reqs = arguments.get("blocked_reqs") or []
+                row = await conn.fetchrow(
+                    "INSERT INTO gaps (id, project_id, gap_id, question, kind, severity, area, status, "
+                    " source_quote, source_person, source_doc_id, blocked_reqs) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'open', $7, $8, $9, $10::jsonb) "
+                    "RETURNING id",
+                    pid, gap_id, title, kind, priority or "medium",
+                    source or "general", source_quote or "",
+                    (source_person if source_person and source_person != "unknown" else None),
+                    source_doc_uuid, json.dumps(blocked_reqs),
                 )
+                finding_uuid = str(row["id"])
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New gap {gap_id} ({kind}): {title}", json.dumps({"type": "gap", "gap_id": gap_id, "kind": kind})
+                )
+                await _dual_write_relationships(
+                    conn, pid=pid,
+                    finding_type="gap", finding_uuid=finding_uuid,
+                    blocks_ids=blocked_reqs,
+                    source_doc_id=str(source_doc_uuid) if source_doc_uuid else None,
+                    source_person_name=(source_person if source_person and source_person != "unknown" else None),
+                    source_quote=source_quote,
                 )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "gap", "gap_id": gap_id, "kind": kind, "question": title, "readiness": new_score})
@@ -1305,6 +1749,160 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"error": "no discovery vault for this project yet — upload a document first"})
             graph = gp.parse_knowledge_graph(ddir)
             return _json_result(_graph_stats(graph["nodes"], graph["edges"], top_n))
+
+        if name == "propose_relationship":
+            from_id = arguments.get("from_id") or ""
+            to_id = arguments.get("to_id") or ""
+            rel_type = arguments.get("rel_type") or ""
+            source_quote = arguments.get("source_quote") or None
+            rationale_text = arguments.get("rationale") or None
+            doc_id_raw = arguments.get("source_doc_id") or None
+
+            if not (from_id and to_id and rel_type):
+                return _json_result({"error": "from_id, to_id, rel_type are all required"})
+
+            frm = await _resolve_finding_uuid(conn, pid, from_id)
+            to = await _resolve_finding_uuid(conn, pid, to_id)
+            if frm is None:
+                return _json_result({"error": f"from_id {from_id!r} not found in project"})
+            if to is None:
+                return _json_result({"error": f"to_id {to_id!r} not found in project"})
+
+            doc_uuid = None
+            if doc_id_raw:
+                try:
+                    doc_uuid = str(uuid.UUID(str(doc_id_raw)))
+                except (ValueError, TypeError):
+                    doc_uuid = None
+
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=frm[0], from_uuid=frm[1],
+                to_type=to[0], to_uuid=to[1],
+                rel_type=rel_type,
+                confidence="proposed",
+                created_by="propose_update",
+                source_doc_id=doc_uuid,
+                source_quote=source_quote,
+                rationale=rationale_text,
+            )
+            return _json_result({
+                "success": True,
+                "from": {"id": from_id, "kind": frm[0]},
+                "to": {"id": to_id, "kind": to[0]},
+                "rel_type": rel_type,
+                "status": "proposed",
+            })
+
+        if name == "get_connections":
+            finding_id = arguments.get("finding_id") or ""
+            rel_types_filter = arguments.get("rel_types")
+            include_derived = bool(arguments.get("include_derived", True))
+            max_edges = int(arguments.get("max_edges") or 60)
+
+            if not finding_id:
+                return _json_result({"error": "finding_id is required"})
+            center = await _resolve_finding_uuid(conn, pid, finding_id)
+            if center is None:
+                return _json_result({"error": f"finding_id {finding_id!r} not found"})
+
+            # Explicit edges — both directions in one query; project into
+            # outgoing/incoming from the center's perspective.
+            params: list = [pid, center[0], center[1]]
+            q = (
+                "SELECT id, from_type, from_uuid, to_type, to_uuid, "
+                "       rel_type, confidence, source_doc_id, "
+                "       source_quote, rationale, created_by "
+                "FROM relationships "
+                "WHERE project_id = $1 AND status = 'active' "
+                "  AND ((from_type = $2 AND from_uuid = $3::uuid) "
+                "    OR (to_type = $2 AND to_uuid = $3::uuid))"
+            )
+            if rel_types_filter:
+                q += f" AND rel_type = ANY(${len(params) + 1}::text[])"
+                params.append(list(rel_types_filter))
+            q += f" LIMIT ${len(params) + 1}"
+            params.append(max_edges)
+
+            rows = await conn.fetch(q, *params)
+
+            # Batch-resolve neighbours to display ids — one query per kind.
+            neighbours: dict[str, set] = {}
+            for r in rows:
+                if str(r["from_uuid"]) == center[1] and r["from_type"] == center[0]:
+                    neighbours.setdefault(r["to_type"], set()).add(str(r["to_uuid"]))
+                else:
+                    neighbours.setdefault(r["from_type"], set()).add(str(r["from_uuid"]))
+
+            ref_map: dict[tuple[str, str], dict] = {}
+            for kind, uuids in neighbours.items():
+                if not uuids:
+                    continue
+                refs = await _fetch_finding_refs(conn, kind, list(uuids))
+                for ref in refs:
+                    ref_map[(kind, ref["uuid"])] = ref
+
+            # Resolve source doc filenames for cited edges.
+            doc_ids = {str(r["source_doc_id"]) for r in rows if r["source_doc_id"]}
+            doc_name_by_id: dict[str, str] = {}
+            if doc_ids:
+                doc_rows = await conn.fetch(
+                    "SELECT id, filename FROM documents WHERE id = ANY($1::uuid[])",
+                    list(doc_ids),
+                )
+                doc_name_by_id = {str(dr["id"]): dr["filename"] for dr in doc_rows}
+
+            INVERSE = {
+                "blocks": "blocked_by", "blocked_by": "blocks",
+                "affects": "affected_by", "affected_by": "affects",
+                "raised_by": "raised", "raised": "raised_by",
+                "derived_from": "source_of", "source_of": "derived_from",
+                "co_extracted": "co_extracted", "contradicts": "contradicts",
+                "mentions": "mentions",
+            }
+
+            outgoing: list[dict] = []
+            incoming: list[dict] = []
+            for r in rows:
+                if str(r["from_uuid"]) == center[1] and r["from_type"] == center[0]:
+                    n_key = (r["to_type"], str(r["to_uuid"]))
+                    direction = "outgoing"
+                    rtype = r["rel_type"]
+                else:
+                    n_key = (r["from_type"], str(r["from_uuid"]))
+                    direction = "incoming"
+                    rtype = INVERSE.get(r["rel_type"], r["rel_type"])
+                neighbour = ref_map.get(n_key)
+                if neighbour is None:
+                    continue
+                edge = {
+                    "rel_type": rtype,
+                    "confidence": r["confidence"],
+                    "direction": direction,
+                    "source_doc": doc_name_by_id.get(str(r["source_doc_id"])) if r["source_doc_id"] else None,
+                    "source_quote": r["source_quote"],
+                    "rationale": r["rationale"],
+                    "created_by": r["created_by"],
+                    "neighbor": neighbour,
+                }
+                (outgoing if direction == "outgoing" else incoming).append(edge)
+
+            # Derived groups: same source_doc_id, same source_person.
+            derived_groups: list[dict] = []
+            if include_derived:
+                derived_groups = await _derived_connections(conn, pid, center)
+
+            center_ref = await _fetch_finding_refs(conn, center[0], [center[1]])
+            center_dict = center_ref[0] if center_ref else {
+                "uuid": center[1], "kind": center[0],
+                "display_id": finding_id, "label": "",
+            }
+            return _json_result({
+                "center": center_dict,
+                "outgoing": outgoing,
+                "incoming": incoming,
+                "derived": derived_groups,
+            })
 
         if name == "get_current_time":
             import datetime as _dt

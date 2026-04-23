@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships
 
 
 @asynccontextmanager
@@ -122,6 +122,7 @@ app.include_router(review.router)
 app.include_router(meeting.router)
 app.include_router(reminders.router)
 app.include_router(vault.router)
+app.include_router(api_relationships.router)
 
 
 @app.get("/health")
