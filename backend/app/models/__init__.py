@@ -8,8 +8,9 @@ from app.models.extraction import (
 from app.models.control import ControlPointTemplate, ReadinessHistory
 from app.models.operational import (
     Conversation, ActivityLog, LLMCall,
-    PipelineCheckpoint, Learning, PipelineSync,
+    PipelineCheckpoint, PipelineSync,
 )
+from app.models.learning import Learning
 from app.models.slack import SlackChannelLink, SlackThreadSession
 from app.models.finding_view import FindingView
 from app.models.reminder import Reminder

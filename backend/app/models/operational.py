@@ -58,17 +58,10 @@ class PipelineCheckpoint(Base, IdMixin, TimestampMixin):
     data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
-class Learning(Base, IdMixin, TimestampMixin):
-    __tablename__ = "learnings"
-    __table_args__ = (UniqueConstraint("project_id", "key", "type"),)
-
-    project_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
-    skill: Mapped[str] = mapped_column(String, nullable=False)
-    type: Mapped[str] = mapped_column(String, nullable=False)
-    key: Mapped[str] = mapped_column(String, nullable=False)
-    insight: Mapped[str] = mapped_column(Text, nullable=False)
-    confidence: Mapped[int] = mapped_column(Integer, nullable=False)
-    source: Mapped[str] = mapped_column(String, nullable=False)
+# The heartbeat-era Learning model lives in app.models.learning. This
+# placeholder comment replaces the pre-heartbeat Learning class that
+# migration 034 dropped. Leaving the namespace free so the new class
+# (imported from app.models.learning) doesn't collide on import.
 
 
 class Notification(Base, IdMixin, TimestampMixin):
