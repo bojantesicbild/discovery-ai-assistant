@@ -37,19 +37,6 @@ _LIVE_UPDATE_THROTTLE_MS = 700
 log = structlog.get_logger()
 
 
-async def _resolve_session_id(db: AsyncSession, reminder: Reminder) -> uuid.UUID:
-    """The chat session this reminder's lifecycle card lands in.
-    Reads reminder.chat_session_id; falls back to project default for
-    legacy rows where it's NULL. Stage 5 starts populating the column
-    via the MCP schedule_reminder path; this fallback keeps pre-Stage-5
-    rows routing into Default forever."""
-    sid = getattr(reminder, "chat_session_id", None)
-    if sid:
-        return sid
-    default = await conversation_store.get_default_session(db, reminder.project_id)
-    return default.id
-
-
 def _filename_slug(reminder: Reminder) -> str:
     """Unique-per-reminder filename stem. Includes reminder_id[:8] so two
     reminders with the same (date, person, subject) can never collide."""
@@ -180,8 +167,7 @@ async def _post_chat(
     if extra:
         msg.update(extra)
     try:
-        session_id = await _resolve_session_id(db, reminder)
-        await conversation_store.append_message(db, reminder.project_id, session_id, msg)
+        await conversation_store.append_message(db, reminder.project_id, msg)
     except Exception as e:
         # Chat surfacing is best-effort — never let it block prep/deliver.
         log.warning("reminder.chat.post.failed", id=str(reminder.id), kind=kind, error=str(e))
@@ -292,10 +278,6 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     prompt = _build_prompt(reminder)
     label = _subject_label(reminder)
     due_local = reminder.due_at.astimezone().strftime("%a %Y-%m-%d %H:%M %Z")
-    # Reminder cards land in the session that created the reminder
-    # (or default for legacy NULL rows). Resolved once up front and
-    # threaded through every conversation_store call below.
-    session_id = await _resolve_session_id(db, reminder)
 
     kind = _output_kind(reminder)
 
@@ -303,7 +285,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     if kind == "notification":
         try:
             await conversation_store.append_message(
-                db, reminder.project_id, session_id,
+                db, reminder.project_id,
                 {
                     "role": "assistant",
                     "source": "reminder",
@@ -344,7 +326,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
             log.warning("reminder.status.subject_missing", id=str(reminder_id), subject=reminder.subject_id)
             try:
                 await conversation_store.append_message(
-                    db, reminder.project_id, session_id,
+                    db, reminder.project_id,
                     {
                         "role": "assistant", "source": "reminder",
                         "kind": "reminder_prep_done", "reminder_id": str(reminder.id),
@@ -375,7 +357,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
         )
         try:
             await conversation_store.append_message(
-                db, reminder.project_id, session_id,
+                db, reminder.project_id,
                 {
                     "role": "assistant", "source": "reminder",
                     "kind": "reminder_prep_done", "reminder_id": str(reminder.id),
@@ -411,7 +393,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     placeholder_id: str | None = None
     try:
         placeholder_id = await conversation_store.append_message(
-            db, reminder.project_id, session_id,
+            db, reminder.project_id,
             {
                 "role": "assistant",
                 "source": "reminder",
@@ -481,7 +463,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
         last_update_ms = now_ms
         try:
             await conversation_store.update_message_by_id(
-                db, reminder.project_id, session_id, placeholder_id,
+                db, reminder.project_id, placeholder_id,
                 {
                     "segments": _snapshot_segments(),
                     "toolCalls": list(tool_calls),
@@ -494,8 +476,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     try:
         async for event in claude_runner.run_stream(
             project_id=reminder.project_id,
-            ephemeral_key=f"reminder-prep:{reminder.id}",
-            mcp_user_id=reminder.created_by_user_id,
+            user_id=reminder.created_by_user_id,
             message=prompt,
             agent=reminder.prep_agent,
         ):
@@ -531,7 +512,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 # the failed state when we've exhausted retries.
                 card_state = "failed" if new_status == "failed" else "running"
                 await conversation_store.update_message_by_id(
-                    db, reminder.project_id, session_id, placeholder_id,
+                    db, reminder.project_id, placeholder_id,
                     {
                         "kind": "reminder_prep_failed" if new_status == "failed" else "reminder_prep",
                         "content": render_reminder_card(
@@ -568,7 +549,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
             try:
                 card_state = "failed" if new_status == "failed" else "running"
                 await conversation_store.update_message_by_id(
-                    db, reminder.project_id, session_id, placeholder_id,
+                    db, reminder.project_id, placeholder_id,
                     {
                         "kind": "reminder_prep_failed" if new_status == "failed" else "reminder_prep",
                         "content": render_reminder_card(
@@ -635,7 +616,7 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     if placeholder_id:
         try:
             await conversation_store.update_message_by_id(
-                db, reminder.project_id, session_id, placeholder_id,
+                db, reminder.project_id, placeholder_id,
                 {
                     "kind": "reminder_prep_done",
                     "content": chat_content,

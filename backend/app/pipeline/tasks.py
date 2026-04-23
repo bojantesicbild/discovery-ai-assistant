@@ -210,14 +210,8 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     from app.services.storage import read_upload_text
     from app.agent.claude_runner import claude_runner
     from app.services import conversation_store
-    from app.services.conversation_store import get_default_session
+    from app.services.conversation_store import PROJECT_SHARED_USER
     from app.services.tool_labels import tool_label as _tool_label
-
-    # Extraction is a project-level event — its streaming card lives on
-    # the default session's timeline (the same place doc-ingestion notices
-    # land). Resolve once up front and thread through every chat write.
-    default = await get_default_session(db, doc.project_id)
-    default_session_id = default.id
 
     file_path = (doc.classification or {}).get("file_path")
     if not file_path:
@@ -261,7 +255,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     placeholder_id: str | None = None
     try:
         placeholder_id = await conversation_store.append_message(
-            db, doc.project_id, default_session_id,
+            db, doc.project_id,
             {
                 "role": "assistant",
                 "source": "pipeline",
@@ -318,7 +312,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
         last_update_ms = now_ms
         try:
             await conversation_store.update_message_by_id(
-                db, doc.project_id, default_session_id, placeholder_id,
+                db, doc.project_id, placeholder_id,
                 {
                     "segments": _snapshot_segments(),
                     "toolCalls": list(tool_calls),
@@ -331,8 +325,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     try:
         async for event in claude_runner.run_stream(
             project_id=doc.project_id,
-            chat_session_id=default_session_id,
-            mcp_user_id=None,  # pipeline run — MCP attribution falls back to project lead
+            user_id=PROJECT_SHARED_USER,
             message=message,
             agent="discovery-extraction-agent",
             model="sonnet",  # extraction benefits from the stronger model
@@ -365,7 +358,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
         if placeholder_id:
             try:
                 await conversation_store.update_message_by_id(
-                    db, doc.project_id, default_session_id, placeholder_id,
+                    db, doc.project_id, placeholder_id,
                     {
                         "kind": "extraction_failed",
                         "content": f"⚠️ Extraction failed for **{doc.filename}**: `{e}`",
@@ -387,7 +380,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     if placeholder_id:
         try:
             await conversation_store.update_message_by_id(
-                db, doc.project_id, default_session_id, placeholder_id,
+                db, doc.project_id, placeholder_id,
                 {
                     "kind": "extraction_done",
                     "content": f"📄 **{doc.filename}**\n\n{summary}",

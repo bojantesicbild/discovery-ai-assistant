@@ -7,7 +7,7 @@ from app.models.extraction import (
 )
 from app.models.control import ControlPointTemplate, ReadinessHistory
 from app.models.operational import (
-    ChatSession, Conversation, ActivityLog, LLMCall,
+    Conversation, ActivityLog, LLMCall,
     PipelineCheckpoint, Learning, PipelineSync,
 )
 from app.models.slack import SlackChannelLink, SlackThreadSession
@@ -19,7 +19,7 @@ __all__ = [
     "Requirement", "Constraint", "Stakeholder",
     "Contradiction", "ChangeHistory",
     "ControlPointTemplate", "ReadinessHistory",
-    "ChatSession", "Conversation", "ActivityLog", "LLMCall",
+    "Conversation", "ActivityLog", "LLMCall",
     "PipelineCheckpoint", "Learning", "PipelineSync",
     "SlackChannelLink", "SlackThreadSession",
     "FindingView",

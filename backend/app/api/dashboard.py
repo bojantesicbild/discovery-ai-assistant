@@ -325,8 +325,7 @@ async def trigger_gap_analysis(
     result_text = ""
     async for event in claude_runner.run_stream(
         project_id=project_id,
-        ephemeral_key=f"gap-analysis:{project_id}:{user.id}",
-        mcp_user_id=user.id,
+        user_id=user.id,
         message="Run a full gap analysis on all control points. Classify each gap as AUTO-RESOLVE, ASK-CLIENT, or ASK-PO.",
         agent="discovery-gap-agent",
     ):
