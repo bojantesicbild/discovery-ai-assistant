@@ -58,6 +58,151 @@ if USER_ID == "00000000-0000-0000-0000-000000000000":
 _SCHEMAS_CACHE: dict | None = None
 
 
+def _find_repo_root() -> Path | None:
+    """Walk up from this file looking for the repo's `.runtime/` dir so we
+    can find per-project discovery vaults without hardcoding a path."""
+    here = Path(__file__).resolve()
+    for parent in [here.parent, *here.parents]:
+        if (parent / ".runtime" / "projects").is_dir():
+            return parent
+        # Some layouts don't pre-create .runtime; fall back to "mcp-server's
+        # parent is the repo root" which is the actual convention.
+        if (parent / "mcp-server").is_dir() and (parent / "backend").is_dir():
+            return parent
+    return None
+
+
+def _discovery_dir_for(pid: str) -> Path | None:
+    """Resolve the discovery vault directory for a given project id.
+    Returns None when the project hasn't been ingested yet (empty vault)."""
+    root = _find_repo_root()
+    if root is None:
+        return None
+    d = root / ".runtime" / "projects" / pid / ".memory-bank" / "docs" / "discovery"
+    return d if d.exists() else None
+
+
+# Load the backend's graph_parser via importlib so we can reuse the exact
+# parsing logic the web UI uses, without importing the whole backend
+# package (which has many transitive dependencies the MCP venv doesn't need).
+# Falls back gracefully if the file is missing — the graph tools return
+# an error instead of crashing.
+_GRAPH_PARSER = None
+
+def _load_graph_parser():
+    global _GRAPH_PARSER
+    if _GRAPH_PARSER is not None:
+        return _GRAPH_PARSER
+    root = _find_repo_root()
+    if root is None:
+        return None
+    candidate = root / "backend" / "app" / "services" / "graph_parser.py"
+    if not candidate.exists():
+        return None
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("_graph_parser", candidate)
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _GRAPH_PARSER = mod
+        return mod
+    except Exception:
+        return None
+
+
+def _bfs_related(nodes: list[dict], edges: list[dict], start_id: str,
+                 radius: int, edge_type_filter: list[str] | None) -> dict:
+    """Breadth-first traversal from `start_id` up to `radius` hops.
+
+    Treats edges as undirected because the graph's edges are symmetric in
+    practice (a `constrained` edge means "this BR is constrained by that
+    constraint" AND "that constraint affects this BR" — both directions).
+
+    `edge_type_filter` is a list of substrings matched against edge labels.
+    Example: `["constrained"]` keeps only constraint/BR edges."""
+    node_by_id = {n["id"]: n for n in nodes}
+    if start_id not in node_by_id:
+        # Case-insensitive retry — the parser sometimes normalises IDs
+        # (br-001 vs BR-001). Fall back to prefix match.
+        lower = start_id.lower()
+        for nid in node_by_id:
+            if nid.lower() == lower:
+                start_id = nid
+                break
+        else:
+            return {"start": start_id, "found": False, "nodes": [], "edges": []}
+
+    adj: dict[str, list[tuple[str, dict]]] = {}
+    for e in edges:
+        if edge_type_filter:
+            label = (e.get("label") or "").lower()
+            if not any(t.lower() in label for t in edge_type_filter):
+                continue
+        adj.setdefault(e["source"], []).append((e["target"], e))
+        adj.setdefault(e["target"], []).append((e["source"], e))
+
+    visited = {start_id}
+    traversed_edges: list[dict] = []
+    seen_edge_keys: set[tuple] = set()
+    frontier = [start_id]
+    for _ in range(max(0, radius)):
+        next_frontier: list[str] = []
+        for nid in frontier:
+            for neighbor, edge in adj.get(nid, []):
+                key = (edge["source"], edge["target"], edge.get("label", ""))
+                if key not in seen_edge_keys:
+                    seen_edge_keys.add(key)
+                    traversed_edges.append(edge)
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    next_frontier.append(neighbor)
+        frontier = next_frontier
+        if not frontier:
+            break
+
+    return {
+        "start": start_id,
+        "found": True,
+        "nodes": [node_by_id[nid] for nid in visited if nid in node_by_id],
+        "edges": traversed_edges,
+    }
+
+
+def _graph_stats(nodes: list[dict], edges: list[dict], top_n: int) -> dict:
+    """Degree rankings + per-type counts. Useful for 'which BR is most
+    connected?' / 'which doc spawned the most findings?' questions."""
+    degree: dict[str, int] = {}
+    for e in edges:
+        degree[e["source"]] = degree.get(e["source"], 0) + 1
+        degree[e["target"]] = degree.get(e["target"], 0) + 1
+
+    nodes_by_type: dict[str, list[dict]] = {}
+    for n in nodes:
+        nodes_by_type.setdefault(n["type"], []).append(n)
+
+    def _ranked(node_list: list[dict]) -> list[dict]:
+        scored = [
+            {"id": n["id"], "label": n["label"], "type": n["type"], "degree": degree.get(n["id"], 0)}
+            for n in node_list
+        ]
+        return sorted(scored, key=lambda x: -x["degree"])[:top_n]
+
+    return {
+        "total_nodes": len(nodes),
+        "total_edges": len(edges),
+        "nodes_by_type": {t: len(ns) for t, ns in nodes_by_type.items()},
+        "most_connected_overall": _ranked(nodes),
+        "most_connected_requirements": _ranked(nodes_by_type.get("requirement", [])),
+        "most_connected_constraints": _ranked(nodes_by_type.get("constraint", [])),
+        "most_connected_gaps": _ranked(nodes_by_type.get("gap", [])),
+        "most_connected_contradictions": _ranked(nodes_by_type.get("contradiction", [])),
+        "most_connected_documents": _ranked(nodes_by_type.get("document", [])),
+        "most_connected_people": _ranked(nodes_by_type.get("stakeholder", [])),
+    }
+
+
 def _find_schemas_dir() -> Path | None:
     """Locate assistants/.claude/schemas/ relative to this file.
 
@@ -405,6 +550,52 @@ async def list_tools() -> list[Tool]:
                     "target_req_id": {"type": "string", "description": "Filter to a specific BR id. Optional — omit to see all recent rejections across the project."},
                     "field": {"type": "string", "description": "Filter to a specific field. Optional."},
                     "limit": {"type": "integer", "description": "Max rows to return (default 20)."},
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="get_related",
+            description=(
+                "Traverse the Knowledge Base graph and return the items connected "
+                "to a given node within `radius` hops. Use this whenever the PM "
+                "asks a traversal question — 'what gap is impacting BR-004 most', "
+                "'which docs contradict BR-006', 'who touches the technology "
+                "constraints', 'what's blocked by GAP-003' — instead of guessing "
+                "from content overlap. The graph already encodes explicit edges "
+                "(constrained, co-extracted, derived-from, mentions) that aren't "
+                "in the structured tables.\n\n"
+                "Pass the node's visible id (BR-001 / GAP-012 / CON-003 / CTR-004 / "
+                "doc filename / stakeholder slug). Pass `radius` 1 for direct "
+                "neighbours, 2 for the neighbours-of-neighbours. Optional "
+                "`edge_types` filter matches substrings of edge labels, e.g. "
+                "['constrained'] or ['co-extracted']."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "node_id": {"type": "string", "description": "Starting node id (BR-001, GAP-003, CON-002, CTR-005, doc stem, or stakeholder slug)."},
+                    "radius": {"type": "integer", "description": "Hops to traverse (1-3). Default 1."},
+                    "edge_types": {"type": "array", "items": {"type": "string"}, "description": "Optional substring match on edge labels — e.g. ['constrained'] keeps only BR↔constraint edges."},
+                    "max_nodes": {"type": "integer", "description": "Cap on nodes returned (default 40). Large results get truncated."},
+                },
+                "required": ["node_id"],
+            },
+        ),
+        Tool(
+            name="get_graph_stats",
+            description=(
+                "Return overall Knowledge Base graph shape: total node / edge "
+                "counts, nodes grouped by type, and degree-ranked top-N lists "
+                "per type. Use when the PM asks ranking questions — 'which BR "
+                "is most connected', 'which doc spawned the most findings', "
+                "'who touches the most constraints'. Cheap to call; parses the "
+                "vault fresh each time."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "top_n": {"type": "integer", "description": "How many items per ranking list (default 10)."},
                 },
                 "required": [],
             },
@@ -1077,6 +1268,43 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 }
                 for r in rows
             ])
+
+        if name == "get_related":
+            node_id = arguments.get("node_id") or ""
+            radius = int(arguments.get("radius") or 1)
+            edge_types = arguments.get("edge_types")
+            max_nodes = int(arguments.get("max_nodes") or 40)
+            if not node_id:
+                return _json_result({"error": "node_id is required"})
+            gp = _load_graph_parser()
+            if gp is None:
+                return _json_result({"error": "graph parser not available in this environment"})
+            ddir = _discovery_dir_for(pid)
+            if ddir is None:
+                return _json_result({"error": "no discovery vault for this project yet — upload a document first"})
+            graph = gp.parse_knowledge_graph(ddir)
+            result = _bfs_related(graph["nodes"], graph["edges"], node_id, radius, edge_types)
+            if not result["found"]:
+                return _json_result({"error": f"Node '{node_id}' not found in the graph"})
+            # Truncate node list to max_nodes, keep all traversed edges so
+            # the relationship story stays intact even if some endpoints
+            # fell off the node list.
+            if len(result["nodes"]) > max_nodes:
+                kept = {n["id"] for n in result["nodes"][:max_nodes]}
+                result["nodes"] = [n for n in result["nodes"] if n["id"] in kept]
+                result["truncated"] = True
+            return _json_result(result)
+
+        if name == "get_graph_stats":
+            top_n = int(arguments.get("top_n") or 10)
+            gp = _load_graph_parser()
+            if gp is None:
+                return _json_result({"error": "graph parser not available in this environment"})
+            ddir = _discovery_dir_for(pid)
+            if ddir is None:
+                return _json_result({"error": "no discovery vault for this project yet — upload a document first"})
+            graph = gp.parse_knowledge_graph(ddir)
+            return _json_result(_graph_stats(graph["nodes"], graph["edges"], top_n))
 
         if name == "get_current_time":
             import datetime as _dt

@@ -271,9 +271,10 @@ Only reset the archived domain — never touch the others.
 **Tool inheritance.** Sub-agents do not declare `tools:` in their frontmatter — they inherit every tool and MCP server from this orchestrator session. This prevents namespace drift when MCP configurations change and keeps a single source of truth for what's available.
 
 **Discovery MCP** (`mcp-server/db_server.py`) — the project's own server:
-- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_stakeholders`, `get_contradictions`, `get_control_points`, `get_readiness`, `get_gaps`, `search_documents`, `get_current_time`, `list_reminders`.
+- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_stakeholders`, `get_contradictions`, `get_control_points`, `get_readiness`, `get_gaps`, `get_related`, `get_graph_stats`, `search_documents`, `get_current_time`, `list_reminders`.
 - Write: `store_finding` (requirement, constraint, stakeholder, gap, contradiction) (decision-like info goes on BR as `rationale` + `alternatives_considered`; scope boundaries go on BR as `scope_note`; imposed assumptions → `constraint`; unvalidated assumptions → `gap` with `kind='unvalidated_assumption'`), `update_requirement_status`, `schedule_reminder`, `cancel_reminder`, `reschedule_reminder`.
 - All writes auto-sync DB → markdown files and recalculate readiness. `get_readiness` / `get_control_points` return the 4-component shape: Coverage (0.35), Clarity (0.25), Alignment (0.20), Context (0.20).
+- **Graph-first traversal.** For any question that requires walking relationships ("what gap impacts BR-004 most", "which docs contradict BR-006", "who touches the technology constraints"), reach for `get_related(node_id, radius)` or `get_graph_stats()` before guessing from content overlap. The graph encodes edges (constrained, co-extracted, derived-from, mentions) that aren't in the structured tables — ignoring it degrades answers to "likely", "probably", "in general".
 
 **Optional integrations** (if configured in user-level Claude Code): `context7` (library docs), `figma` (design), `mcp-atlassian` (Jira / Confluence), `playwright` (browser), `reportportal` (test runs), `chrome-devtools` (debugging).
 

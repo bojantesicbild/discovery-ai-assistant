@@ -225,7 +225,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     }
   }, [initialTab]);
 
-  // Auto-open highlighted item after data loads.
+  // Auto-open highlighted item after data loads. BR / gap / constraint
+  // all open the detail panel (same behavior users get from clicking a
+  // finding-id chip in chat); contradiction falls back to inline-expand
+  // because there's no detail-panel builder for it yet.
   useEffect(() => {
     if (!highlightId) return;
 
@@ -233,11 +236,27 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       const req = requirements.find((r) => r.req_id === highlightId);
       if (req) openRequirement(req);
     } else if (initialTab === "gaps") {
-      const gap = gaps.find((g) => g.gap_id === highlightId);
-      if (gap) setExpandedRow(gap.id);
+      // highlightId can be either GAP-NNN or CON-NNN or CTR-NNN since
+      // all three live under tab=gaps via sub-sections. Dispatch by prefix.
+      if (highlightId.startsWith("GAP-")) {
+        const gap = gaps.find((g) => g.gap_id === highlightId);
+        if (gap) openGap(gap);
+      } else if (highlightId.startsWith("CON-")) {
+        // CON ids are positional (CON-NNN = row index N). Grab the
+        // matching constraint by parsing the number.
+        const idx = parseInt(highlightId.slice(4), 10) - 1;
+        const con = Number.isFinite(idx) ? constraints[idx] : undefined;
+        if (con) openConstraint(con, idx);
+      } else if (highlightId.startsWith("CTR-")) {
+        const ct = contradictions.find((c) => String(c.id).startsWith(highlightId));
+        if (ct) setExpandedRow(ct.id);
+      }
     } else if (initialTab === "constraints") {
-      const con = constraints.find((c) => String(c.id).startsWith(highlightId));
-      if (con) setExpandedRow(con.id);
+      const idx = highlightId.startsWith("CON-")
+        ? parseInt(highlightId.slice(4), 10) - 1
+        : constraints.findIndex((c) => String(c.id).startsWith(highlightId));
+      const con = idx >= 0 ? constraints[idx] : undefined;
+      if (con) openConstraint(con, idx);
     } else if (initialTab === "contradictions" || initialTab === "conflicts") {
       const ct = contradictions.find((c) => String(c.id).startsWith(highlightId));
       if (ct) setExpandedRow(ct.id);
