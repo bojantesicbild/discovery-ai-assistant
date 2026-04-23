@@ -26,6 +26,7 @@ interface RequirementDetailViewProps {
   onAction?: (value: string) => void;
   history?: { projectId: string; itemType: string; itemId: string };
   slotTop?: React.ReactNode;
+  slotBottom?: React.ReactNode;
   onAccept: (proposalId: string) => void | Promise<void>;
   onReject: (proposalId: string, reason: string) => void | Promise<void>;
   /** Optional — same contract as MarkdownPanel's onLinkClick. Consumed by
@@ -265,6 +266,7 @@ export default function RequirementDetailView({
   onAction,
   history,
   slotTop,
+  slotBottom,
   onAccept,
   onReject,
   onLinkClick,
@@ -885,6 +887,7 @@ export default function RequirementDetailView({
                 );
               })()}
             </div>
+            {slotBottom}
           </>
         )}
       </div>

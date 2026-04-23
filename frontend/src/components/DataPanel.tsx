@@ -28,6 +28,7 @@ import {
 } from "./datapanel/feedback-cards";
 import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import RequirementDetailView from "./datapanel/requirement-detail-view";
+import ConnectionsSection from "./datapanel/connections-section";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { RemindersTab } from "./datapanel/reminders-tab";
@@ -386,6 +387,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             onAction={detail.onAction}
             history={detail.history}
             slotTop={slotTopContent}
+            slotBottom={
+              <ConnectionsSection
+                projectId={projectId}
+                displayId={reqForDetail.req_id}
+                onNavigate={onNavigate}
+              />
+            }
             onAccept={async (id) => {
               try {
                 await acceptProposal(projectId, id);
@@ -420,32 +428,56 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           history={detail.history}
           slotTop={slotTopContent}
           slotBottom={(() => {
-            // Retained for non-requirement kinds — inline tracked-changes
-            // only supersedes the bottom card for requirements.
-            if (detail.itemKind !== "requirement" || !detail.itemKey) return undefined;
-            const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
-            if (pendingProps.length === 0) return undefined;
-            return (
-              <ProposedUpdatesSection
-                proposals={pendingProps}
-                onAccept={async (id) => {
-                  try {
-                    await acceptProposal(projectId, id);
-                    await loadData();
-                  } catch (e) {
-                    console.error("Proposal accept failed", e);
-                  }
-                }}
-                onReject={async (id, reason) => {
-                  try {
-                    await rejectProposal(projectId, id, reason || undefined);
-                    await loadData();
-                  } catch (e) {
-                    console.error("Proposal reject failed", e);
-                  }
-                }}
-              />
-            );
+            // Non-requirement kinds get:
+            //   1. ProposedUpdatesSection (legacy gap-driven proposals)
+            //   2. ConnectionsSection (new — graph neighbourhood)
+            // Both render only when there's data to show.
+            const parts: React.ReactNode[] = [];
+            if (detail.itemKind === "requirement" && detail.itemKey) {
+              const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
+              if (pendingProps.length > 0) {
+                parts.push(
+                  <ProposedUpdatesSection
+                    key="props"
+                    proposals={pendingProps}
+                    onAccept={async (id) => {
+                      try {
+                        await acceptProposal(projectId, id);
+                        await loadData();
+                      } catch (e) {
+                        console.error("Proposal accept failed", e);
+                      }
+                    }}
+                    onReject={async (id, reason) => {
+                      try {
+                        await rejectProposal(projectId, id, reason || undefined);
+                        await loadData();
+                      } catch (e) {
+                        console.error("Proposal reject failed", e);
+                      }
+                    }}
+                  />
+                );
+              }
+            }
+            // Connections section for gap / constraint — BRs use the
+            // RequirementDetailView branch above. itemKey is the display id.
+            if (detail.itemKey
+                && (detail.itemKind === "gap" || (detail.meta?.id && String(detail.meta.id).startsWith("CON-")))) {
+              const displayId =
+                detail.itemKind === "gap"
+                  ? detail.itemKey
+                  : String(detail.meta?.id || detail.itemKey);
+              parts.push(
+                <ConnectionsSection
+                  key="connections"
+                  projectId={projectId}
+                  displayId={displayId}
+                  onNavigate={onNavigate}
+                />
+              );
+            }
+            return parts.length > 0 ? <>{parts}</> : undefined;
           })()}
           onLinkClick={handleLinkClick}
         />

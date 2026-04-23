@@ -232,6 +232,74 @@ export interface ApiListResponse<T> {
 }
 
 
+// ── Relationships / connections ──────────────────────────────────────
+// Mirrors app/api/relationships.py response. `center`, `outgoing`,
+// `incoming`, `derived` come straight from get_connections.
+
+export type ConnectionKind =
+  | "requirement" | "gap" | "constraint"
+  | "contradiction" | "stakeholder" | "document";
+
+export type ConnectionConfidence = "explicit" | "derived" | "proposed";
+
+export interface ConnectionRef {
+  uuid: string;
+  kind: ConnectionKind;
+  display_id: string;
+  label: string;
+}
+
+export interface ConnectionEdge {
+  rel_type: string;
+  confidence: ConnectionConfidence;
+  direction: "outgoing" | "incoming";
+  source_doc: string | null;
+  source_quote: string | null;
+  rationale: string | null;
+  created_by: string;
+  neighbor: ConnectionRef;
+}
+
+export interface DerivedConnectionGroup {
+  kind: "shared_source_doc" | "shared_stakeholder";
+  key: string;
+  members: ConnectionRef[];
+}
+
+export interface ConnectionsResponse {
+  center: ConnectionRef;
+  outgoing: ConnectionEdge[];
+  incoming: ConnectionEdge[];
+  derived: DerivedConnectionGroup[];
+}
+
+export async function getConnections(
+  projectId: string,
+  displayId: string,
+  opts: { relTypes?: string[]; includeDerived?: boolean; maxEdges?: number } = {},
+): Promise<ConnectionsResponse> {
+  const params = new URLSearchParams();
+  if (opts.relTypes && opts.relTypes.length) params.set("rel_types", opts.relTypes.join(","));
+  if (opts.includeDerived === false) params.set("include_derived", "false");
+  if (opts.maxEdges) params.set("max_edges", String(opts.maxEdges));
+  const qs = params.toString();
+  return fetchAPI(
+    `/api/projects/${projectId}/findings/${encodeURIComponent(displayId)}/connections${qs ? "?" + qs : ""}`,
+  );
+}
+
+export async function retractRelationship(
+  projectId: string,
+  relationshipId: string,
+  reason?: string,
+): Promise<{ id: string; status: string; retraction_reason: string | null }> {
+  return fetchAPI(
+    `/api/projects/${projectId}/relationships/${relationshipId}/retract`,
+    { method: "POST", body: JSON.stringify({ reason: reason || null }) },
+  );
+}
+
+
 // Client review feedback (aggregated per item across all submissions)
 export interface ReqClientFeedback {
   action: "confirm" | "discuss";
