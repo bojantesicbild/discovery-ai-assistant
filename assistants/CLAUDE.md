@@ -80,6 +80,13 @@ Applies to chat output on both surfaces.
 7. **Ask once, execute.** After the user answers a clarification, commit to that interpretation. Don't re-confirm.
 8. **Finish with prose, not forms.** One to three sentences: what you did, where it landed, anything the next step should know. Mention the next agent by name if the hand-off is non-obvious. If blocked, say so plainly — *"Blocked on X. Need Y."* No tables, no status codes, no scaffolding.
 
+#### Chat output conventions
+
+Replies render in both the web UI (markdown) and the Claude Code terminal (plain text). Write so the same text works in both.
+
+- Mention finding IDs as plain prose — write BR-001, GAP-003, CON-002, or CTR-004 directly, no wrapping. The web UI auto-links each one to its detail panel; the terminal shows it as-is. Only wrap an ID in backticks when you literally mean "this is code" (e.g. inside a tool-call example where you don't want the UI to linkify it).
+- Standard markdown (bullets, tables, code fences, bold) renders in both surfaces. Pick the form that fits the message — no enforced templates, no decorative emojis.
+
 ### 2. Workflow Contract
 
 Every agent declares its workflow position and next step.

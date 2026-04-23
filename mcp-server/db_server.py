@@ -969,7 +969,27 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             if not br:
                 return _json_result({"error": f"Requirement {target_req_id} not found"})
 
-            current = br[field] if field in br.keys() else None
+            # asyncpg returns JSONB columns as the raw JSON string (no
+            # codec registered on this connection), so list-typed BR
+            # fields come back as a JSON-encoded string like
+            # '["ac1", "ac2"]' rather than a Python list. Decode before
+            # comparing / echoing into current_value — otherwise `list()`
+            # on a string would split it into one entry per character.
+            raw = br[field] if field in br.keys() else None
+            current: Any
+            if field in list_fields:
+                if isinstance(raw, str):
+                    try:
+                        current = json.loads(raw)
+                    except (TypeError, ValueError):
+                        current = []
+                elif isinstance(raw, list):
+                    current = raw
+                else:
+                    current = []
+            else:
+                current = raw
+
             # No-op guard: don't stage a proposal that reproduces the
             # existing value. For lists: skip when every new entry is
             # already present.

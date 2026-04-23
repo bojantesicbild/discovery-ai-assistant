@@ -27,6 +27,7 @@ import {
   type GapResolution,
 } from "./datapanel/feedback-cards";
 import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
+import RequirementDetailView from "./datapanel/requirement-detail-view";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { RemindersTab } from "./datapanel/reminders-tab";
@@ -296,46 +297,112 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   // If detail view is open
   if (detail) {
+    const handleClose = () => {
+      if (detailStack.length > 1) {
+        popDetail();
+      } else {
+        setDetail(null);
+        onNavigate?.(activeTab);
+      }
+    };
+    const handleLinkClick = (href: string) => {
+      // In-app links push onto the detail stack so the close
+      // button returns to the caller's view (e.g., the gap that
+      // linked to a BR) instead of the table.
+      if (href.startsWith("doc://")) {
+        const docId = href.slice("doc://".length);
+        const doc = documents.find((d) => d.id === docId);
+        if (doc) openDocument(doc, "push");
+        // Fallback stub when the doc isn't in local state — openDocument
+        // hits the API and updates the panel with the real fields.
+        else openDocument({ id: docId, filename: "document" } as ApiDocument, "push");
+        return true;
+      }
+      if (href.startsWith("br://")) {
+        const key = href.slice("br://".length);
+        const req = requirements.find((r) => r.id === key || r.req_id === key);
+        if (req) openRequirement(req, "push");
+        return true;
+      }
+      return false;
+    };
+    const slotTopContent = (() => {
+      if (!detail.itemKey || !detail.itemKind) return undefined;
+      const reqFb = detail.itemKind === "requirement" ? clientFeedback.requirements[detail.itemKey] : undefined;
+      const gapFb = detail.itemKind === "gap" ? clientFeedback.gaps[detail.itemKey] : undefined;
+      const hasAnything = reqFb || gapFb || detail.gapResolution;
+      if (!hasAnything) return undefined;
+      const combinedGapClosure = detail.gapResolution && gapFb?.answer;
+      return (
+        <>
+          {detail.gapResolution && (
+            <GapResolutionCard
+              r={detail.gapResolution}
+              clientAnswer={combinedGapClosure ? gapFb : undefined}
+            />
+          )}
+          {reqFb && <ClientFeedbackCard kind="requirement" fb={reqFb} />}
+          {gapFb && !combinedGapClosure && <ClientFeedbackCard kind="gap" fb={gapFb} />}
+        </>
+      );
+    })();
+
+    // For requirements, the ApiRequirement lookup drives the inline
+    // tracked-changes view; fall back to MarkdownPanel when the record
+    // can't be found in local state (shouldn't happen, but harmless).
+    const reqForDetail = detail.itemKind === "requirement" && detail.itemKey
+      ? requirements.find((r) => r.req_id === detail.itemKey)
+      : undefined;
+
+    if (detail.itemKind === "requirement" && reqForDetail) {
+      const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
+      return (
+        <div className="data-panel" style={{ flex: 1, width: "100%" }}>
+          <RequirementDetailView
+            req={reqForDetail}
+            projectId={projectId}
+            proposals={pendingProps}
+            onClose={handleClose}
+            actions={detail.actions}
+            onAction={detail.onAction}
+            history={detail.history}
+            slotTop={slotTopContent}
+            onAccept={async (id) => {
+              try {
+                await acceptProposal(projectId, id);
+                await loadData();
+              } catch (e) {
+                console.error("Proposal accept failed", e);
+              }
+            }}
+            onReject={async (id, reason) => {
+              try {
+                await rejectProposal(projectId, id, reason || undefined);
+                await loadData();
+              } catch (e) {
+                console.error("Proposal reject failed", e);
+              }
+            }}
+            onLinkClick={handleLinkClick}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="data-panel" style={{ flex: 1, width: "100%" }}>
         <MarkdownPanel
           title={detail.title}
           content={detail.content}
           meta={detail.meta}
-          onClose={() => {
-            if (detailStack.length > 1) {
-              popDetail();
-            } else {
-              setDetail(null);
-              onNavigate?.(activeTab);
-            }
-          }}
+          onClose={handleClose}
           actions={detail.actions}
           onAction={detail.onAction}
           history={detail.history}
-          slotTop={(() => {
-            if (!detail.itemKey || !detail.itemKind) return undefined;
-            const reqFb = detail.itemKind === "requirement" ? clientFeedback.requirements[detail.itemKey] : undefined;
-            const gapFb = detail.itemKind === "gap" ? clientFeedback.gaps[detail.itemKey] : undefined;
-            const hasAnything = reqFb || gapFb || detail.gapResolution;
-            if (!hasAnything) return undefined;
-            // Gap closure + client answer → single combined card.
-            // Everything else stays independent.
-            const combinedGapClosure = detail.gapResolution && gapFb?.answer;
-            return (
-              <>
-                {detail.gapResolution && (
-                  <GapResolutionCard
-                    r={detail.gapResolution}
-                    clientAnswer={combinedGapClosure ? gapFb : undefined}
-                  />
-                )}
-                {reqFb && <ClientFeedbackCard kind="requirement" fb={reqFb} />}
-                {gapFb && !combinedGapClosure && <ClientFeedbackCard kind="gap" fb={gapFb} />}
-              </>
-            );
-          })()}
+          slotTop={slotTopContent}
           slotBottom={(() => {
+            // Retained for non-requirement kinds — inline tracked-changes
+            // only supersedes the bottom card for requirements.
             if (detail.itemKind !== "requirement" || !detail.itemKey) return undefined;
             const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
             if (pendingProps.length === 0) return undefined;
@@ -361,27 +428,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               />
             );
           })()}
-          onLinkClick={(href: string) => {
-            // In-app links push onto the detail stack so the close
-            // button returns to the caller's view (e.g., the gap that
-            // linked to a BR) instead of the table.
-            if (href.startsWith("doc://")) {
-              const docId = href.slice("doc://".length);
-              const doc = documents.find((d) => d.id === docId);
-              if (doc) openDocument(doc, "push");
-              // Fallback stub when the doc isn't in local state — openDocument
-              // hits the API and updates the panel with the real fields.
-              else openDocument({ id: docId, filename: "document" } as ApiDocument, "push");
-              return true;
-            }
-            if (href.startsWith("br://")) {
-              const key = href.slice("br://".length);
-              const req = requirements.find((r) => r.id === key || r.req_id === key);
-              if (req) openRequirement(req, "push");
-              return true;
-            }
-            return false;
-          }}
+          onLinkClick={handleLinkClick}
         />
       </div>
     );

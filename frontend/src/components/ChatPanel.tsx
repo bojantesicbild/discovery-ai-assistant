@@ -506,6 +506,13 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
             router.push(route);
             return;
           }
+          const findingId = anchor.getAttribute("data-finding-id");
+          const findingTab = anchor.getAttribute("data-finding-tab");
+          if (findingId && findingTab) {
+            e.preventDefault();
+            router.push(`/projects/${projectId}/chat?tab=${findingTab}&highlight=${findingId}`);
+            return;
+          }
           const file = anchor.getAttribute("data-file");
           if (file) {
             e.preventDefault();
@@ -1839,6 +1846,30 @@ function renderInline(text: string): string {
   });
   // Wikilinks
   t = t.replace(/\[\[([^\]]+)\]\]/g, (_m, target) => slot(`<a ${WS} data-wiki="${target}">${target}</a>`));
+  // Bare finding IDs in prose → clickable chips that open the detail panel.
+  // Backticked IDs (`BR-001`) and markdown links ([BR-001](br://…)) are
+  // already slotted above, so this pass only sees remaining plain text —
+  // that's the "escape hatch" the agent uses when it wants a literal
+  // non-linked reference. Requires 3+ digits to avoid version strings.
+  // Colors mirror Topbar TYPE_COLORS so auto-linked IDs match the rest of
+  // the UI (search results, type badges, graph nodes).
+  t = t.replace(/\b(BR|GAP|CON|CTR)-\d{3,}\b/g, (id, prefix) => {
+    const kindMeta: Record<string, { tab: string; color: string }> = {
+      BR:  { tab: "reqs",           color: "#059669" },  // requirement green
+      GAP: { tab: "gaps",           color: "#F59E0B" },  // gap amber
+      CON: { tab: "constraints",    color: "#F97316" },  // constraint orange
+      CTR: { tab: "contradictions", color: "#EF4444" },  // contradiction red
+    };
+    const { tab, color } = kindMeta[prefix];
+    return slot(
+      `<a data-finding-id="${id}" data-finding-tab="${tab}" ` +
+      `style="display:inline-block;white-space:nowrap;` +
+      `padding:1px 7px;border-radius:10px;font-size:0.88em;` +
+      `font-weight:600;cursor:pointer;text-decoration:none;` +
+      `background:${color}15;color:${color};` +
+      `border:1px solid ${color}30">${id}</a>`
+    );
+  });
   // Bold / italic
   t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');

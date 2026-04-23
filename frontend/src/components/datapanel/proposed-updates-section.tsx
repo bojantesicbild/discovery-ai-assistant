@@ -80,42 +80,47 @@ function DiffView({ p }: { p: ProposedUpdate }) {
 
   const currentEmpty = currentList.length === 0;
 
+  // Stack vertically — side-by-side columns get unreadably narrow
+  // inside the detail panel, especially when list entries have no
+  // whitespace short enough for flexbox to break on. When current is
+  // empty, skip the Current block entirely and let the proposed block
+  // render at full width with a neutral "New value" label.
   return (
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
-      <div style={{ flex: 1, minWidth: 200 }}>
-        <div style={{
-          fontSize: 10, color: "var(--gray-500)", marginBottom: 4,
-          fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5,
-        }}>Current</div>
-        {currentEmpty ? (
-          <div style={{ fontSize: 12, color: "var(--gray-400)", fontStyle: "italic" }}>—</div>
-        ) : isList ? (
-          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--gray-600)", fontStyle: "italic" }}>
-            {currentList.map((v, i) => <li key={i}>{v}</li>)}
-          </ul>
-        ) : (
-          <div style={{ fontSize: 12, color: "var(--gray-600)", fontStyle: "italic", whiteSpace: "pre-wrap" }}>
-            {currentList[0]}
-          </div>
-        )}
-      </div>
-      <div style={{ flex: 1, minWidth: 200 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}>
+      {!currentEmpty && (
+        <div>
+          <div style={{
+            fontSize: 10, color: "var(--gray-500)", marginBottom: 4,
+            fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5,
+          }}>Current</div>
+          {isList ? (
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--gray-600)", fontStyle: "italic", lineHeight: 1.5 }}>
+              {currentList.map((v, i) => <li key={i}>{v}</li>)}
+            </ul>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--gray-600)", fontStyle: "italic", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
+              {currentList[0]}
+            </div>
+          )}
+        </div>
+      )}
+      <div>
         <div style={{
           fontSize: 10, color: "#059669", marginBottom: 4,
           fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
         }}>
-          {isList ? "+ Adding" : "Replacing with"}
+          {currentEmpty ? "New value" : isList ? "+ Adding" : "Replacing with"}
         </div>
         {isList ? (
-          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#047857", fontWeight: 500 }}>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#047857", fontWeight: 500, lineHeight: 1.5 }}>
             {proposedList.map((v, i) => <li key={i}>{v}</li>)}
           </ul>
         ) : (
           <div style={{
             fontSize: 12, color: "#047857", fontWeight: 500,
             whiteSpace: "pre-wrap", background: "var(--green-light)",
-            padding: "6px 10px", borderRadius: 6,
-            border: "1px solid var(--green-mid)",
+            padding: "8px 12px", borderRadius: 6,
+            border: "1px solid var(--green-mid)", lineHeight: 1.5,
           }}>
             {proposedList[0] || "—"}
           </div>
@@ -165,7 +170,9 @@ function SourceChips({ p }: { p: ProposedUpdate }) {
 }
 
 
-function RejectModal({
+// Shared across ProposedUpdatesSection and RequirementDetailView — inline
+// tracked-changes rows reuse the same modal so reject UX stays identical.
+export function RejectModal({
   onCancel,
   onConfirm,
 }: {
