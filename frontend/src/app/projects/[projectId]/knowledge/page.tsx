@@ -413,8 +413,10 @@ export default function KnowledgeGraphPage() {
         </div>
       </div>
 
-      {/* Main area */}
-      <div style={{ flex: 1, display: "flex", position: "relative", overflow: "hidden" }}>
+      {/* Main area — minWidth:0 + maxWidth:100% so this flex child of
+          the outer column can't widen past the viewport regardless of
+          what the graph column's content wants to be. */}
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", position: "relative", overflow: "hidden" }}>
         {/* Empty state */}
         {nodes.length === 0 && (
           <div
@@ -438,9 +440,12 @@ export default function KnowledgeGraphPage() {
           </div>
         )}
 
-        {/* Graph view */}
+        {/* Graph view. minWidth:0 is critical here — without it, the
+            toolbar/scrubber intrinsic min-content pushes this flex
+            column wider than available, shoving the side panel past
+            the viewport's right edge. */}
         {viewMode === "graph" && (
-          <div style={{ flex: 1, position: "relative", transition: "all 0.25s ease", display: "flex", flexDirection: "column" }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative", transition: "all 0.25s ease", display: "flex", flexDirection: "column" }}>
             <GraphToolbar
               graphLayout={graphLayout}
               changeLayout={changeLayout}
@@ -498,11 +503,17 @@ export default function KnowledgeGraphPage() {
           }} />
         )}
 
-        {/* Side panel — slides in/out */}
+        {/* Side panel — slides in/out. flexShrink:0 + maxWidth pin the
+            width at 380; inner content uses minWidth:0 so long strings
+            (descriptions, chip values) wrap instead of pushing the
+            panel past the viewport. */}
         <div
           style={{
-            width: selectedNode ? 380 : 0,
-            minWidth: selectedNode ? 380 : 0,
+            width: selectedNode ? 440 : 0,
+            minWidth: selectedNode ? 440 : 0,
+            maxWidth: selectedNode ? 440 : 0,
+            flexShrink: 0,
+            boxSizing: "border-box",
             borderLeft: selectedNode ? "1px solid var(--gray-200)" : "none",
             background: "var(--white)",
             overflowY: selectedNode ? "auto" : "hidden",

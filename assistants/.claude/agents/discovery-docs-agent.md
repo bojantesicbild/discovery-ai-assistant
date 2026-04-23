@@ -1,6 +1,6 @@
 ---
 name: discovery-docs-agent
-description: Discovery deliverables specialist. Synthesizes extracted requirements, decisions, stakeholders, assumptions, and scope into three self-contained handoff documents — discovery brief, MVP scope freeze, and functional requirements. Every claim is attributed as [CONFIRMED] or [ASSUMED]; every gap is explicit. Use proactively when the user asks for "discovery deliverables", "discovery brief", "MVP scope", "functional requirements", or "ready to hand off to dev". Required before the tech-stories chain can start.
+description: Discovery deliverables specialist. Synthesizes extracted requirements, constraints, stakeholders, gaps, and contradictions into three self-contained handoff documents — discovery brief, MVP scope freeze, and functional requirements. Decision context comes from BR `rationale` + `alternatives_considered`; scope boundaries from BR `scope_note`; unvalidated assumptions from gaps with `kind='unvalidated_assumption'`. Every claim is attributed as [CONFIRMED] or [ASSUMED]; every gap is explicit. Use proactively when the user asks for "discovery deliverables", "discovery brief", "MVP scope", "functional requirements", or "ready to hand off to dev". Required before the tech-stories chain can start.
 model: inherit
 color: blue
 workflow: discovery · stage 4 of 4 · next-> story-tech-agent (tech-stories chain)
@@ -35,7 +35,7 @@ You are in **DELEGATED MODE**: the orchestrator has already approved this work. 
    - `.claude/templates/discovery-brief.template.md`
    - `.claude/templates/mvp-scope-freeze.template.md`
    - `.claude/templates/functional-requirements.template.md`
-3. **Load everything in parallel via MCP** — `get_project_context`, `get_requirements`, `get_stakeholders`, `get_assumptions`, `get_decisions`, `get_scope`, `get_contradictions`, `get_gaps`.
+3. **Load everything in parallel via MCP** — `get_project_context`, `get_requirements`, `get_stakeholders`, `get_constraints`, `get_contradictions`, `get_gaps`. Decisions → each BR's `rationale` + `alternatives_considered` fields (populated when the source explained WHY). Scope boundaries → each BR's `scope_note` + any BR with `priority='wont'` + constraints table. Assumptions → gaps where `kind='unvalidated_assumption'` (unvalidated, surface them so the dev team can decide) plus constraints (imposed assumptions we must accept). Dependencies between BRs → `blocked_by` on each BR.
 4. **Synthesize and write three documents** to `.memory-bank/docs/discovery/`:
    - `discovery-brief.md`
    - `mvp-scope-freeze.md`

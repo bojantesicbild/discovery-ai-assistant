@@ -20,8 +20,13 @@ interface Message {
   activityLog?: { type: string; content?: string; tool?: string }[];
   stats?: { numTurns?: number; durationMs?: number };
   segments?: Segment[];
-  // Source attribution — "web" or "slack" or "pipeline"
-  source?: "web" | "slack" | "pipeline";
+  // Source attribution — where the message was initiated from. "web" =
+  // typed by the PM in the chat; "slack" = inbound Slack; "pipeline" =
+  // auto-triggered by the document pipeline (extraction, ingest notices);
+  // "reminder" = auto-triggered by the reminder scanner when a reminder
+  // fires. Any non-"web" source is something the PM didn't start, so the
+  // UI labels them with a TriggerBadge so it's obvious.
+  source?: "web" | "slack" | "pipeline" | "reminder";
   slack_user_name?: string;
   slack_user_id?: string;
   slack_channel_id?: string;
@@ -565,6 +570,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   ? (msg.source === "slack" ? (msg.slack_user_name || "Slack user") : "You")
                   : "Discovery Assistant"}
                 {msg.source === "slack" && <SlackBadge msg={msg} />}
+                {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
+                {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
                 {msg.role === "assistant" && msg.thinkingCount ? (
                   <span style={{
                     fontSize: 9, fontWeight: 600, padding: "1px 7px",
@@ -645,8 +652,17 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           );
         })}
 
-        {/* Suggestions after AI response */}
-        {messages.length > 0 && !isStreaming && messages[messages.length - 1]?.role === "assistant" && (
+        {/* Suggestions appear only after a user-initiated assistant reply.
+            Hiding them after automated trigger messages (pipeline extraction,
+            reminder fires, Slack inbound) avoids the trap of "I didn't ask
+            anything — why are there follow-up chips?" and prevents one stray
+            click from posting a fake user turn into the conversation. */}
+        {messages.length > 0 && !isStreaming && (() => {
+          const last = messages[messages.length - 1];
+          if (last?.role !== "assistant") return false;
+          if (last.source === "pipeline" || last.source === "reminder" || last.source === "slack") return false;
+          return true;
+        })() && (
           <div className="msg-suggestions">
             {suggestions.map((s) => (
               <button key={s} className="msg-suggestion" onClick={() => sendMessage(s)}>
@@ -1233,7 +1249,6 @@ function SystemNotice({
   if (counts.gaps) chips.push({ short: `+${counts.gaps} gaps`, full: `${counts.gaps} gap${counts.gaps !== 1 ? "s" : ""}`, tab: "gaps", color: "#d97706" });
   if (counts.constraints) chips.push({ short: `+${counts.constraints} cons`, full: `${counts.constraints} constraint${counts.constraints !== 1 ? "s" : ""}`, tab: "constraints", color: "#0891b2" });
   if (counts.contradictions) chips.push({ short: `+${counts.contradictions} ctra`, full: `${counts.contradictions} contradiction${counts.contradictions !== 1 ? "s" : ""}`, tab: "contradictions", color: "#dc2626" });
-  if (counts.decisions) chips.push({ short: `+${counts.decisions} dec`, full: `${counts.decisions} decision${counts.decisions !== 1 ? "s" : ""}`, tab: "reqs", color: "#2563eb" });
   if (counts.stakeholders) chips.push({ short: `+${counts.stakeholders} ppl`, full: `${counts.stakeholders} ${counts.stakeholders !== 1 ? "people" : "person"}`, tab: "reqs", color: "#7c3aed" });
 
   const hasDetails = (gapIds.length + reqIds.length) > 0 ||
@@ -1571,6 +1586,69 @@ function ClientReviewNotice({
       </div>
 
     </div>
+  );
+}
+
+
+// Badge that surfaces "this message was NOT typed by you" — for pipeline
+// extractions (document upload → agent runs) and reminder fires (scanner
+// → prep agent runs). Puts the trigger source next to the Discovery
+// Assistant label so the PM can tell at a glance that an assistant
+// message came from an automated path rather than their own chat turn.
+//
+// Inline SVGs (not emoji) so the badges match the rest of the app's icon
+// language — same 24-viewBox, stroke-based style used in Topbar + Sidebar.
+function TriggerBadge({ source, kind }: { source: "pipeline" | "reminder"; kind?: string }) {
+  const theme = source === "pipeline"
+    ? { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe", fallback: "Upload" }
+    : { bg: "#fffbeb", fg: "#92400e", border: "#fde68a", fallback: "Reminder" };
+
+  const label = (() => {
+    if (source === "pipeline") {
+      if (kind === "extraction_running") return "Extracting";
+      if (kind === "extraction_done") return "Upload";
+      if (kind === "extraction_failed") return "Upload failed";
+      return theme.fallback;
+    }
+    if (kind === "reminder_prep") return "Reminder prep";
+    if (kind === "reminder_prep_done") return "Reminder";
+    if (kind === "reminder_delivered") return "Reminder";
+    if (kind === "reminder_prep_failed") return "Reminder failed";
+    return theme.fallback;
+  })();
+
+  const tooltip = source === "pipeline"
+    ? "Auto-triggered by a document upload. Extraction runs without your input."
+    : "Auto-triggered by a reminder firing. Scheduled by you earlier.";
+
+  // pipeline  = upload-to-cloud glyph (points at "data coming in")
+  // reminder  = clock glyph (points at "scheduled time")
+  const iconPath = source === "pipeline"
+    ? ["M16 16l-4-4-4 4", "M12 12v9", "M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"]
+    : ["M12 8v5l3 2"];
+  const iconCircle = source === "reminder";
+
+  return (
+    <span
+      title={tooltip}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 9, fontWeight: 600, padding: "2px 7px",
+        borderRadius: 10, background: theme.bg, color: theme.fg,
+        border: `1px solid ${theme.border}`,
+        whiteSpace: "nowrap", flexShrink: 0,
+      }}
+    >
+      <svg
+        width="11" height="11" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        style={{ flexShrink: 0 }}
+      >
+        {iconCircle && <circle cx="12" cy="12" r="9" />}
+        {iconPath.map((d, i) => <path key={i} d={d} />)}
+      </svg>
+      {label}
+    </span>
   );
 }
 

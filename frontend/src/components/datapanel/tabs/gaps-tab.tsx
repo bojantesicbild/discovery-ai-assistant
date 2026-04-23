@@ -13,6 +13,7 @@ import {
 } from "../pills";
 import { TableSearch, SortableHeader, Pagination } from "../../TableControls";
 import { applyTableState, type TableState } from "@/lib/tableState";
+import { formatAge } from "@/lib/dates";
 import { resolveContradiction, type FindingType } from "@/lib/api";
 import type {
   ApiGap, ApiConstraint, ApiContradiction,
@@ -169,6 +170,12 @@ export function GapsTab({
                       }}>
                         <div style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)" }}>{gap.gap_id}</div>
                         <div style={{ marginTop: 2 }}><SevBadge severity={gap.severity} /></div>
+                        {gap.created_at && (
+                          <div
+                            style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2 }}
+                            title={new Date(gap.created_at).toLocaleString()}
+                          >{formatAge(gap.created_at)}</div>
+                        )}
                       </td>
                       <td style={{ fontWeight: 500 }} title={gap.question}>
                         <div className="cell-title">{gap.question}</div>
@@ -256,7 +263,15 @@ export function GapsTab({
                           <td className="chevron-cell" style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}>
                             <Chevron />
                           </td>
-                          <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap" }}>{conId}</td>
+                          <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                            {conId}
+                            {c.created_at && (
+                              <div
+                                style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2, fontFamily: "var(--font)" }}
+                                title={new Date(c.created_at).toLocaleString()}
+                              >{formatAge(c.created_at)}</div>
+                            )}
+                          </td>
                           <td>
                             <span className="sev-badge" style={{
                               background: c.type === "budget" ? "#EF444420" : c.type === "technology" ? "#3B82F620" : "#F59E0B20",
@@ -349,10 +364,20 @@ export function GapsTab({
                           </td>
                           <td><SevBadge severity="high" /></td>
                           <td>
-                            <div style={{ fontWeight: 600, fontSize: 12 }}>{c.item_a_ref?.slice(0, 50) || "Requirement conflict"}</div>
-                            <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>vs: {_extractConflictDetail(c.explanation).slice(0, 60)}...</div>
+                            <div style={{ fontWeight: 600, fontSize: 12 }}>{_contraTitle(c)}</div>
+                            <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>
+                              {_contraSubtitle(c).slice(0, 80)}{_contraSubtitle(c).length > 80 ? "…" : ""}
+                            </div>
                           </td>
-                          <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{c.item_a_type}</td>
+                          <td style={{ color: "var(--gray-500)", fontSize: 11, whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                            {c.area || (c.item_a_type && c.item_a_type !== "unknown" ? c.item_a_type : "—")}
+                            {c.created_at && (
+                              <div
+                                style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2 }}
+                                title={new Date(c.created_at).toLocaleString()}
+                              >{formatAge(c.created_at)}</div>
+                            )}
+                          </td>
                           <td><GapStatusPill status={c.resolved ? "resolved" : "open"} /></td>
                           <td>
                             {!c.resolved && (
@@ -364,26 +389,46 @@ export function GapsTab({
                           <tr className="detail-row">
                             <td colSpan={6}>
                               <div className="contra-detail">
-                                <div className="cd-quotes">
-                                  <div className="cd-quote side-a">
-                                    <div className="cd-quote-header">
-                                      <span className="cd-quote-badge a">Current</span>
-                                      {c.item_a_source && <span className="gap-meta-chip file">{c.item_a_source}</span>}
-                                      {c.item_a_person && <span className="person-chip">{c.item_a_person}</span>}
+                                {(() => {
+                                  // Resolve both sides from whichever source is available —
+                                  // native fields first (side_a / side_b), then the legacy
+                                  // item_a_ref / item_b_ref for ancient rows.
+                                  const sideAText = c.side_a
+                                    || (c.item_a_ref && !c.item_a_ref.startsWith("New ") ? c.item_a_ref : null);
+                                  const sideBText = c.side_b
+                                    || (c.item_b_ref && !c.item_b_ref.startsWith("New ") ? c.item_b_ref : null)
+                                    || (c.explanation ? _extractConflictDetail(c.explanation) : null);
+                                  return (
+                                    <div className="cd-quotes">
+                                      {sideAText && (
+                                        <div className="cd-quote side-a">
+                                          <div className="cd-quote-header">
+                                            <span className="cd-quote-badge a">Side A</span>
+                                            {c.item_a_source && <span className="gap-meta-chip file">{c.item_a_source}</span>}
+                                            {c.item_a_person && <span className="person-chip">{c.item_a_person}</span>}
+                                          </div>
+                                          <div className="cd-quote-text">{sideAText}</div>
+                                        </div>
+                                      )}
+                                      {sideAText && sideBText && <div className="cd-quote-vs">VS</div>}
+                                      {sideBText && (
+                                        <div className="cd-quote side-b">
+                                          <div className="cd-quote-header">
+                                            <span className="cd-quote-badge b">Side B</span>
+                                            {c.item_b_source && <span className="gap-meta-chip" style={{ background: "#fee2e2", color: "#EF4444" }}>{c.item_b_source}</span>}
+                                            {c.item_b_person && <span className="person-chip">{c.item_b_person}</span>}
+                                          </div>
+                                          <div className="cd-quote-text">{sideBText}</div>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div className="cd-quote-text">{c.item_a_ref || "Existing requirement"}</div>
-                                  </div>
-                                  <div className="cd-quote-vs">VS</div>
-                                  <div className="cd-quote side-b">
-                                    <div className="cd-quote-header">
-                                      <span className="cd-quote-badge b">Conflicting</span>
-                                      {c.item_b_source && <span className="gap-meta-chip" style={{ background: "#fee2e2", color: "#EF4444" }}>{c.item_b_source}</span>}
-                                      {c.item_b_person && <span className="person-chip">{c.item_b_person}</span>}
-                                    </div>
-                                    <div className="cd-quote-text">{c.item_b_ref && !c.item_b_ref.includes("from uploaded") ? c.item_b_ref : _extractConflictDetail(c.explanation)}</div>
-                                  </div>
-                                </div>
-                                <div className="cd-explanation">{c.explanation}</div>
+                                  );
+                                })()}
+                                {/* Raw explanation shown ONLY on ancient rows where
+                                    neither side_a/side_b nor item_*_ref resolved. */}
+                                {!c.side_a && !c.side_b && !c.item_a_ref && !c.item_b_ref && c.explanation && (
+                                  <div className="cd-explanation">{c.explanation}</div>
+                                )}
                                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                                   {c.created_at && (
                                     <span className="gap-meta-chip">Detected {new Date(c.created_at).toLocaleDateString()}</span>
@@ -440,6 +485,38 @@ function _extractConflictDetail(explanation: string): string {
   const m4 = explanation.match(/(?:New|but)\s+(.{20,120})/i);
   if (m4) return m4[1].trim().replace(/\.$/, "");
   return explanation.slice(0, 120);
+}
+
+
+// Contradictions have first-class fields (title / side_a / side_b /
+// area) since migration 025. Most rows read straight from those. The
+// fallbacks below handle:
+//   - pre-025 rows that haven't been re-extracted (title NULL)
+//   - rows where the agent mapped to real DB rows via item_a_ref
+function _contraTitle(c: ApiContradiction): string {
+  if (c.title) return c.title.slice(0, 60);
+  if (c.item_a_ref && !c.item_a_ref.startsWith("New ")) {
+    return c.item_a_ref.slice(0, 60);
+  }
+  const expl = (c.explanation || "").trim();
+  if (!expl) return "Contradiction";
+  // Legacy pre-025 fallback — old MCP wrote "<title>: <body>" here.
+  const colon = expl.indexOf(":");
+  if (colon > 0 && colon < 80) return expl.slice(0, colon).trim();
+  return expl.slice(0, 60);
+}
+
+function _contraSubtitle(c: ApiContradiction): string {
+  // Combine the two sides when both present — "X  ↔  Y".
+  if (c.side_a && c.side_b) return `${c.side_a}  ↔  ${c.side_b}`;
+  if (c.side_b) return c.side_b;
+  if (c.side_a) return c.side_a;
+  // Legacy fallback for pre-025 rows.
+  if (c.item_b_ref && !c.item_b_ref.startsWith("New ")) return `vs ${c.item_b_ref}`;
+  const expl = (c.explanation || "").trim();
+  const colon = expl.indexOf(":");
+  const body = colon > 0 && colon < 80 ? expl.slice(colon + 1).trim() : expl;
+  return body || "Conflict detected";
 }
 
 

@@ -64,8 +64,11 @@ export function NodeDetailPanel({
         </button>
       </div>
 
-      <div style={{ padding: 16, flex: 1, overflow: "auto" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)", margin: "0 0 8px", lineHeight: 1.3 }}>
+      {/* minWidth:0 lets this flex child shrink below its content's
+          intrinsic width so long words/URLs wrap instead of forcing
+          the panel wider. overflowWrap covers the same for text. */}
+      <div style={{ padding: 16, flex: 1, overflow: "auto", minWidth: 0, overflowWrap: "break-word" }}>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--dark)", margin: "0 0 8px", lineHeight: 1.3, overflowWrap: "break-word" }}>
           {node.label}
         </h2>
 
@@ -123,6 +126,9 @@ export function NodeDetailPanel({
                 <span key={key} style={{
                   fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
                   background: `${chipColor}15`, color: chipColor,
+                  // Prevent long values (e.g., "date: 2026-04-22T09:13:42Z")
+                  // from producing a chip wider than the panel.
+                  maxWidth: "100%", overflowWrap: "anywhere",
                 }}>
                   {key.replace(/_/g, " ")}: {value}
                 </span>
@@ -169,8 +175,8 @@ export function NodeDetailPanel({
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--gray-200)"; e.currentTarget.style.background = "var(--gray-50)"; }}
             >
               <span style={{ width: 8, height: 8, borderRadius: "50%", background: TYPE_COLORS[cn.type] || "#6b7280", flexShrink: 0 }} />
-              <span style={{ flex: 1 }}>{cn.label}</span>
-              <span style={{ fontSize: 9, color: TYPE_COLORS[cn.type], fontWeight: 600, textTransform: "uppercase" }}>{cn.type}</span>
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{cn.label}</span>
+              <span style={{ fontSize: 9, color: TYPE_COLORS[cn.type], fontWeight: 600, textTransform: "uppercase", flexShrink: 0 }}>{cn.type}</span>
             </button>
           ))}
         </div>

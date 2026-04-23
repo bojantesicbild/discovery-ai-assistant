@@ -24,8 +24,7 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["history"])
 
 VALID_TYPES = {
-    "requirement", "constraint", "decision", "stakeholder",
-    "assumption", "scope_item", "gap", "contradiction",
+    "requirement", "constraint", "stakeholder", "gap", "contradiction",
 }
 
 

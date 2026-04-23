@@ -23,13 +23,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.extraction import (
-    Assumption,
     Constraint,
     Contradiction,
-    Decision,
     Gap,
     Requirement,
-    ScopeItem,
     Stakeholder,
 )
 from app.models.finding_view import FindingView
@@ -42,10 +39,7 @@ FINDING_MODELS: dict[str, Any] = {
     "requirement": Requirement,
     "gap": Gap,
     "constraint": Constraint,
-    "decision": Decision,
     "contradiction": Contradiction,
-    "assumption": Assumption,
-    "scope": ScopeItem,
     "stakeholder": Stakeholder,
 }
 

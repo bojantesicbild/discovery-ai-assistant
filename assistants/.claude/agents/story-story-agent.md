@@ -38,6 +38,15 @@ Read these first, in parallel:
 - `.memory-bank/active-tasks/tech-stories.md` — current focus
 - The input source (tech doc path, epic, or Jira reference)
 
+### Using discovery BR fields
+
+When the source is a discovery BR (or references one), pull these fields via MCP:
+
+- **`BR.rationale`** — WHY the requirement exists. Surface in the story's Description when the rationale matters to the dev's implementation choices. Never copy into ACs.
+- **`BR.alternatives_considered`** — options the client rejected. Use to avoid re-litigating in the story; cite only when the dev might otherwise propose a rejected option.
+- **`BR.blocked_by`** — list of BR ids that must ship first. **This drives PBI ordering** — when building the breakdown table (Mode A), sort PBIs so that stories blocked by BR-X come after stories that deliver BR-X, and populate the Dependencies column with those ids.
+- **`BR.scope_note`** — boundary clarifier (e.g. `MVP only`). Fold into the story's Narrative so the dev knows the scope.
+
 ## Two modes
 
 ### Mode A — Story breakdown

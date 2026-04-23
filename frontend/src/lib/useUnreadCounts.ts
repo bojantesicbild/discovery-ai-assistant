@@ -7,10 +7,7 @@ const ZERO: UnreadCounts = {
   requirement: 0,
   gap: 0,
   constraint: 0,
-  decision: 0,
   contradiction: 0,
-  assumption: 0,
-  scope: 0,
   stakeholder: 0,
   total: 0,
 };

@@ -29,7 +29,6 @@ def write_dashboard(
     reqs_rows,
     constraints,
     gaps_rows,
-    decisions,
     stakeholders,
     readiness: dict,
     lint_summary: dict | None = None,
@@ -77,7 +76,6 @@ def write_dashboard(
         f"- **Requirements:** {len(reqs_rows)} total · {must_haves} must-have · **{unconfirmed} unconfirmed**",
         f"- **Gaps:** {len(gaps_rows)} total · **{open_gaps} open** · {high_gaps} high-severity",
         f"- **Constraints:** {len(constraints)}",
-        f"- **Decisions:** {len(decisions)}",
         f"- **Stakeholders:** {len(stakeholders)}",
         "",
         "---",
@@ -162,7 +160,7 @@ def write_dashboard(
     (vault_root / "dashboard.md").write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_hot(vault_root, doc: "Document", reqs_rows, gaps_rows, decisions, readiness: dict):
+def write_hot(vault_root, doc: "Document", reqs_rows, gaps_rows, readiness: dict):
     """Generate `.memory-bank/hot.md` — the warm-context carry-over file
     that the next agent session loads on startup.
 
@@ -187,13 +185,6 @@ def write_hot(vault_root, doc: "Document", reqs_rows, gaps_rows, decisions, read
     must_unconfirmed = [r for r, _, _ in reqs_rows if r.priority == "must" and r.status != "confirmed"]
     must_unconfirmed.sort(key=lambda r: r.req_id)
     top_must = must_unconfirmed[:3]
-
-    # Top 3 most recent confirmed decisions (sorted by decided_date desc, fall back to id)
-    recent_decisions = sorted(
-        decisions,
-        key=lambda d: (d.decided_date or "", d.title),
-        reverse=True,
-    )[:3]
 
     lines = [
         "---",
@@ -229,15 +220,6 @@ def write_hot(vault_root, doc: "Document", reqs_rows, gaps_rows, decisions, read
         lines.append("")
         for r in top_must:
             lines.append(f"- [[{r.req_id}]] — {r.title} _({r.status}, {r.confidence})_")
-        lines.append("")
-
-    if recent_decisions:
-        lines.append("## Recent decisions")
-        lines.append("")
-        for d in recent_decisions:
-            who = f" — {d.decided_by}" if d.decided_by else ""
-            when = f" ({d.decided_date})" if d.decided_date else ""
-            lines.append(f"- **{d.title}**{who}{when}")
         lines.append("")
 
     lines.extend([
@@ -384,7 +366,7 @@ def write_schema_md(vault_root):
         "1. Add `assistants/.claude/schemas/{new_kind}.yaml` (model after existing schemas)",
         "2. Add the SQLAlchemy model in `backend/app/models/extraction.py`",
         "3. Add an Alembic migration for the table",
-        "4. Add a per-row writer in `backend/app/pipeline/tasks.py` (mirror `_decision_to_payload` + `render_decision_text`)",
+        "4. Add a per-row writer in `backend/app/pipeline/tasks.py` (mirror `requirement_to_payload` + `render_requirement_text`)",
         "5. Add an MCP store_finding branch in `mcp-server/db_server.py`",
         "6. Run `tests.check_schemas` and `tests.check_mcp_inserts` to verify",
         "",
@@ -489,6 +471,13 @@ def requirement_to_payload(
         "business_rules": list(r.business_rules or []),
         "edge_cases": list(r.edge_cases or []),
         "acceptance_criteria": list(r.acceptance_criteria or []),
+        # Session-2 additions: absorb decision/scope info that used to
+        # live in separate kinds. All optional — missing fields render
+        # as empty sections and the markdown stays clean.
+        "rationale": r.rationale or "",
+        "alternatives_considered": list(r.alternatives_considered or []),
+        "scope_note": r.scope_note or "",
+        "blocked_by": list(r.blocked_by or []),
         "source_quote": r.source_quote or "",
         "sources": list(r.sources or []),
         "co_extracted": co_extracted,
@@ -523,6 +512,7 @@ def gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None =
     return {
         "id": g.gap_id,
         "question": g.question or "",
+        "kind": getattr(g, "kind", None) or "missing_info",
         "severity": g.severity or "medium",
         "area": g.area or "general",
         "status": g.status or "open",
@@ -539,21 +529,6 @@ def gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None =
         "assignee": g.assignee,
         "date": today,
         "_doc_class": doc_class or {},
-    }
-
-
-def decision_to_payload(d, dec_id: str, today: str) -> dict:
-    """Build the writer-input payload from a Decision SQLAlchemy row."""
-    return {
-        "id": dec_id,
-        "title": d.title or "",
-        "status": d.status or "tentative",
-        "decided_by": d.decided_by or "",
-        "decided_date": d.decided_date.isoformat() if d.decided_date else "",
-        "rationale": d.rationale or "",
-        "alternatives": list(d.alternatives or []),
-        "impacts": list(d.impacts or []),
-        "date": today,
     }
 
 
@@ -577,34 +552,23 @@ def stakeholder_to_payload(
     }
 
 
-def assumption_to_payload(asm, asm_id: str, today: str) -> dict:
-    """Build the writer-input payload from an Assumption SQLAlchemy row."""
-    return {
-        "id": asm_id,
-        "statement": asm.statement or "",
-        "basis": asm.basis or "",
-        "risk_if_wrong": asm.risk_if_wrong or "",
-        "needs_validation_by": asm.needs_validation_by or "",
-        "validated": bool(asm.validated),
-        "date": today,
-    }
-
-
-def scope_to_payload(sc, sc_id: str, today: str) -> dict:
-    """Build the writer-input payload from a ScopeItem SQLAlchemy row."""
-    return {
-        "id": sc_id,
-        "description": sc.description or "",
-        "in_scope": bool(sc.in_scope),
-        "rationale": sc.rationale or "",
-        "date": today,
-    }
-
-
 def contradiction_to_payload(ctr, ctr_id: str, today: str) -> dict:
-    """Build the writer-input payload from a Contradiction SQLAlchemy row."""
+    """Build the writer-input payload from a Contradiction SQLAlchemy row.
+
+    Since migration 025 the first-class fields (title / side_a / side_b /
+    area) are the canonical story. Legacy item_a_* / item_b_* are kept
+    for the rare case where the agent mapped to real DB rows, but the
+    renderer prefers the native fields."""
     return {
         "id": ctr_id,
+        "title": ctr.title or "",
+        "side_a": ctr.side_a or "",
+        "side_b": ctr.side_b or "",
+        "area": ctr.area or "",
+        "side_a_source": ctr.side_a_source or "",
+        "side_a_person": ctr.side_a_person or "",
+        "side_b_source": ctr.side_b_source or "",
+        "side_b_person": ctr.side_b_person or "",
         "item_a_type": ctr.item_a_type or "",
         "item_a_id": str(ctr.item_a_id) if ctr.item_a_id else "",
         "item_b_type": ctr.item_b_type or "",
@@ -710,6 +674,29 @@ def render_requirement_text(
         lines += ["", "## Edge Cases"]
         for ec in edge_cases:
             lines.append(f"- {ec}")
+
+    # Session-2 BR sections: rationale + alternatives + scope_note +
+    # blocked_by absorb what used to live in decisions / scope / assumptions.
+    # All optional — we only emit the header when there's content.
+    rationale = payload.get("rationale") or ""
+    if rationale:
+        lines += ["", "## Rationale", rationale]
+
+    alternatives = payload.get("alternatives_considered") or []
+    if alternatives:
+        lines += ["", "## Alternatives considered"]
+        for alt in alternatives:
+            lines.append(f"- {alt}")
+
+    scope_note = payload.get("scope_note") or ""
+    if scope_note:
+        lines += ["", "## Scope note", scope_note]
+
+    blocked_by = payload.get("blocked_by") or []
+    if blocked_by:
+        lines += ["", "## Blocked by"]
+        for br in blocked_by:
+            lines.append(f"- [[{br}]]")
 
     lines += [
         "",
@@ -838,10 +825,22 @@ def render_gap_text(
 
     fm_block = schema_lib.render_frontmatter("gap", payload)
 
+    # Surface gap.kind as a subtitle when it's not the default, so
+    # "unvalidated assumption" vs "missing info" reads at a glance.
+    kind = payload.get("kind") or "missing_info"
+    kind_labels = {
+        "missing_info": "",
+        "unvalidated_assumption": "_Unvalidated assumption_",
+        "undecided": "_Undecided — needs a call_",
+    }
+    kind_line = kind_labels.get(kind, "")
+
     lines: list[str] = [
         f"# {gid}: {question}",
         "",
     ]
+    if kind_line:
+        lines += [kind_line, ""]
     if suggested:
         lines.append(suggested)
         lines.append("")
@@ -899,49 +898,6 @@ def render_gap_text(
     return fm_block + "\n".join(lines)
 
 
-def render_decision_text(payload: dict, *, original_text: str | None = None) -> str:
-    """Render a single decision note as markdown.
-
-    Frontmatter from `schema_lib.render_frontmatter("decision", payload)`.
-    Body sections (Rationale, Alternatives, Impacts) hand-built."""
-    did = payload["id"]
-    title = payload.get("title", "")
-    rationale = payload.get("rationale") or ""
-    alternatives = payload.get("alternatives") or []
-    impacts = payload.get("impacts") or []
-    decided_by = payload.get("decided_by") or ""
-
-    fm_block = schema_lib.render_frontmatter("decision", payload)
-
-    lines: list[str] = [
-        f"# {did}: {title}",
-        "",
-        "## Rationale",
-        "",
-        rationale or "_(no rationale provided)_",
-        "",
-    ]
-    if alternatives:
-        lines.append("## Alternatives")
-        lines.append("")
-        for alt in alternatives:
-            lines.append(f"- {alt}")
-        lines.append("")
-    if impacts:
-        lines.append("## Impacts")
-        lines.append("")
-        for imp in impacts:
-            lines.append(f"- {imp}")
-        lines.append("")
-    if decided_by:
-        lines.append("## Decided By")
-        lines.append("")
-        lines.append(decided_by)
-        lines.append("")
-
-    return fm_block + "\n".join(lines)
-
-
 def render_stakeholder_text(payload: dict, *, original_text: str | None = None) -> str:
     """Render a single stakeholder note as markdown.
 
@@ -979,77 +935,19 @@ def render_stakeholder_text(payload: dict, *, original_text: str | None = None) 
     return fm_block + "\n".join(lines)
 
 
-def render_assumption_text(payload: dict, *, original_text: str | None = None) -> str:
-    """Render a single assumption note as markdown.
-
-    Frontmatter from `schema_lib.render_frontmatter("assumption", payload)`.
-    Body sections (Basis, Risk if wrong, Validation) hand-built."""
-    aid = payload["id"]
-    statement = payload.get("statement", "")
-    basis = payload.get("basis", "")
-    risk = payload.get("risk_if_wrong", "")
-    validation_by = payload.get("needs_validation_by", "")
-
-    fm_block = schema_lib.render_frontmatter("assumption", payload)
-
-    lines: list[str] = [
-        f"# {aid}: {statement[:80]}",
-        "",
-        statement,
-        "",
-        "## Basis",
-        "",
-        basis or "_(no basis recorded)_",
-        "",
-        "## Risk if wrong",
-        "",
-        risk or "_(risk not specified)_",
-        "",
-    ]
-    if validation_by:
-        lines.append("## Validation")
-        lines.append("")
-        lines.append(f"Needs validation by: {validation_by}")
-        lines.append("")
-
-    return fm_block + "\n".join(lines)
-
-
-def render_scope_text(payload: dict, *, original_text: str | None = None) -> str:
-    """Render a single scope item note as markdown.
-
-    Frontmatter from `schema_lib.render_frontmatter("scope", payload)`.
-    Body sections (description paragraph + Rationale) hand-built."""
-    sid = payload["id"]
-    description = payload.get("description", "")
-    rationale = payload.get("rationale", "")
-    in_scope = payload.get("in_scope", False)
-    badge = "IN SCOPE" if in_scope else "OUT OF SCOPE"
-
-    fm_block = schema_lib.render_frontmatter("scope", payload)
-
-    lines: list[str] = [
-        f"# {sid}: {description[:80]}",
-        "",
-        f"**{badge}**",
-        "",
-        description,
-        "",
-        "## Rationale",
-        "",
-        rationale or "_(no rationale provided)_",
-        "",
-    ]
-
-    return fm_block + "\n".join(lines)
-
-
 def render_contradiction_text(payload: dict, *, original_text: str | None = None) -> str:
     """Render a single contradiction note as markdown.
 
-    Frontmatter from `schema_lib.render_frontmatter("contradiction", payload)`.
-    Body sections (Explanation, Items in conflict, Resolution) hand-built."""
+    Uses the first-class fields (title / side_a / side_b / area) since
+    migration 025. Legacy item_a_*/item_b_* render only when side_a/side_b
+    aren't populated (pre-025 data). explanation section appears only as
+    a fallback when the native side fields are missing, to avoid doubling
+    the same content once the agent writes both."""
     cid = payload["id"]
+    title = payload.get("title") or ""
+    side_a = payload.get("side_a") or ""
+    side_b = payload.get("side_b") or ""
+    area = payload.get("area") or ""
     explanation = payload.get("explanation", "")
     item_a_type = payload.get("item_a_type", "")
     item_a_id = payload.get("item_a_id", "")
@@ -1061,26 +959,41 @@ def render_contradiction_text(payload: dict, *, original_text: str | None = None
     fm_block = schema_lib.render_frontmatter("contradiction", payload)
 
     status_badge = "✓ RESOLVED" if resolved else "⚠ UNRESOLVED"
+    headline = title or (explanation[:80] if explanation else "Contradiction")
 
     lines: list[str] = [
-        f"# {cid}: {explanation[:80]}",
+        f"# {cid}: {headline}",
         "",
-        f"**{status_badge}**",
-        "",
-        "## Explanation",
-        "",
-        explanation or "_(no explanation provided)_",
-        "",
-        "## Items in conflict",
-        "",
-        f"- {item_a_type}: `{item_a_id}`",
-        f"- {item_b_type}: `{item_b_id}`",
+        f"**{status_badge}**" + (f"  ·  _{area}_" if area else ""),
         "",
     ]
+
+    if side_a or side_b:
+        lines += ["## Conflicting statements", ""]
+        if side_a:
+            src_a = payload.get("side_a_source") or ""
+            per_a = payload.get("side_a_person") or ""
+            meta_a = " · ".join(p for p in [per_a, src_a] if p)
+            lines += ["**Side A**" + (f" — {meta_a}" if meta_a else ""), "", side_a, ""]
+        if side_b:
+            src_b = payload.get("side_b_source") or ""
+            per_b = payload.get("side_b_person") or ""
+            meta_b = " · ".join(p for p in [per_b, src_b] if p)
+            lines += ["**Side B**" + (f" — {meta_b}" if meta_b else ""), "", side_b, ""]
+    elif explanation:
+        lines += ["## Explanation", "", explanation, ""]
+    else:
+        lines += ["## Explanation", "", "_(no explanation provided)_", ""]
+
+    if (item_a_type or item_b_type) and (item_a_id or item_b_id):
+        lines += ["## Items in conflict", ""]
+        if item_a_type and item_a_id:
+            lines.append(f"- {item_a_type}: `{item_a_id}`")
+        if item_b_type and item_b_id:
+            lines.append(f"- {item_b_type}: `{item_b_id}`")
+        lines.append("")
+
     if resolved and resolution:
-        lines.append("## Resolution")
-        lines.append("")
-        lines.append(resolution)
-        lines.append("")
+        lines += ["## Resolution", "", resolution, ""]
 
     return fm_block + "\n".join(lines)

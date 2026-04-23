@@ -46,6 +46,31 @@ fields:
     required: true
     description: "Body of the requirement — also rendered as the H1 paragraph"
 
+  - key: rationale
+    type: text
+    required: false
+    frontmatter: false
+    description: "Why this requirement over alternatives — absorbs decision info. Populate when the source explains WHY, not just WHAT."
+
+  - key: alternatives_considered
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "Options weighed and rejected, one per entry. Format: '<option> — <reason rejected>'. Skip if only one path was ever on the table."
+
+  - key: scope_note
+    type: string
+    required: false
+    description: "Short boundary clarifier if this BR doesn't apply everywhere. E.g. 'iOS only', 'MVP — not post-launch'. Skip for most BRs."
+
+  - key: blocked_by
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "BR ids that must ship before this one (e.g. ['BR-001', 'BR-004']). Story-story-agent uses this to sequence PBIs."
+
   - key: user_perspective
     type: text
     required: false
@@ -143,6 +168,26 @@ sections:
     source_field: user_perspective
     required: false
 
+  - name: Rationale
+    format: paragraphs
+    source_field: rationale
+    required: false
+
+  - name: Alternatives Considered
+    format: bullets
+    generated_from: alternatives_considered
+    required: false
+
+  - name: Scope Note
+    format: paragraphs
+    source_field: scope_note
+    required: false
+
+  - name: Blocked by
+    format: wikilinks
+    generated_from: blocked_by
+    required: false
+
   - name: Business Rules
     format: bullets
     generated_from: business_rules
@@ -216,6 +261,16 @@ extraction_prompt: |
   - source_quote: EXACT verbatim quote from the document (≥10 chars)
   - status: proposed (default), discussed (mentioned in multiple docs), confirmed (client EXPLICITLY confirmed)
   - confidence: high (explicit), medium (implied), low (inferred)
+  - rationale: populate when the source explains WHY this BR is the way it is,
+               not just what it does. Absorbs decision-style content ("we chose X
+               because Y"). Skip when the source only states the requirement flatly.
+  - alternatives_considered: options weighed and rejected, one per entry as
+                             '<option> — <reason rejected>'. Skip if only one path
+                             was ever on the table.
+  - scope_note: short boundary clarifier when the BR doesn't apply everywhere
+                (e.g. 'iOS only', 'MVP — not post-launch'). Skip for most BRs.
+  - blocked_by: BR ids that must ship before this one (e.g. ['BR-001']). Use when
+                the source explicitly sequences work. Leave empty otherwise.
 
   Avoid extracting:
   - Already-existing requirements (return existing_match: BR-XXX instead)

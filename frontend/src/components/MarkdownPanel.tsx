@@ -158,6 +158,8 @@ export default function MarkdownPanel({
                     case "resolved":   return { background: "var(--green-light)", color: "#059669" };
                     case "open":       return { background: "#FEF3C7",            color: "#B45309" };
                     case "dismissed":  return { background: "var(--gray-100)",    color: "var(--gray-400)" };
+                    case "Unvalidated assumption": return { background: "#FEF3C7", color: "#B45309" };
+                    case "Undecided":  return { background: "#dbeafe",            color: "#1d4ed8" };
                     default:           return { background: "var(--gray-100)",    color: "var(--gray-600)" };
                   }
                 })(),

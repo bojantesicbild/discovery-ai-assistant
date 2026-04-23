@@ -4,8 +4,8 @@ Builds a knowledge graph from the file-based knowledge layer.
 
 Fixes:
 - Case-insensitive ID matching (BR-005 == br-005)
-- Skip index files (requirements.md, decisions.md) as edge sources
-- Only link requirements to THEIR stakeholders/decisions, not all
+- Skip index files (requirements.md, stakeholders.md) as edge sources
+- Only link requirements to THEIR stakeholders/constraints, not all
 """
 
 import re
@@ -36,7 +36,7 @@ CATEGORY_TYPE_MAP = {
 }
 
 # Index files to skip as edge sources (they link to everything)
-INDEX_CATEGORIES = {"requirements-index", "decisions-index", "stakeholders-index",
+INDEX_CATEGORIES = {"requirements-index", "stakeholders-index",
                     "contradictions-index", "readiness", "constraints-index"}
 
 

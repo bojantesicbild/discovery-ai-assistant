@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { listRepos, addRepo, removeRepo, getRepoPulls, getRepoCommits, getRepoInfo, getRepoBranches, getRepoWorkflows, listRequirements, listConstraints, listDecisions } from "@/lib/api";
+import { listRepos, addRepo, removeRepo, getRepoPulls, getRepoCommits, getRepoInfo, getRepoBranches, getRepoWorkflows, listRequirements, listConstraints } from "@/lib/api";
 import BrandLoader from "@/components/BrandLoader";
 
 interface Repo {
@@ -66,8 +66,6 @@ export default function CodePage() {
   const [activeTab, setActiveTab] = useState("prs");
   const [showAddRepo, setShowAddRepo] = useState(false);
   const [newRepo, setNewRepo] = useState({ name: "", url: "", access_token: "" });
-  const [decisions, setDecisions] = useState<any[]>([]);
-  const [decisionItems, setDecisionItems] = useState<any[]>([]);
   const [requirements, setRequirements] = useState<any[]>([]);
   const [constraints, setConstraints] = useState<any[]>([]);
   const [dlFilter, setDlFilter] = useState("all");
@@ -111,14 +109,12 @@ export default function CodePage() {
 
   async function loadDecisions() {
     try {
-      const [reqs, cons, decs] = await Promise.all([
+      const [reqs, cons] = await Promise.all([
         listRequirements(projectId),
         listConstraints(projectId),
-        listDecisions(projectId),
       ]);
       setRequirements(reqs.items || []);
       setConstraints(cons.items || []);
-      setDecisionItems(decs.items || []);
     } catch {}
   }
 
@@ -803,7 +799,7 @@ export default function CodePage() {
         {activeTab === "decisions" && (
           <div>
             <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-              {["all", "requirement", "constraint", "decision"].map((f) => (
+              {["all", "requirement", "constraint"].map((f) => (
                 <button
                   key={f}
                   onClick={() => setDlFilter(f)}
@@ -822,7 +818,6 @@ export default function CodePage() {
               {[
                 ...(dlFilter === "all" || dlFilter === "requirement" ? requirements.map((r: any) => ({ ...r, _type: "requirement", _title: r.title, _desc: r.description, _status: r.status })) : []),
                 ...(dlFilter === "all" || dlFilter === "constraint" ? constraints.map((c: any) => ({ ...c, _type: "constraint", _title: `${c.type}: ${c.description?.slice(0, 60)}`, _desc: c.impact, _status: c.status })) : []),
-                ...(dlFilter === "all" || dlFilter === "decision" ? decisionItems.map((d: any) => ({ ...d, _type: "decision", _title: d.title, _desc: d.rationale, _status: d.status })) : []),
               ].map((item, i) => (
                 <div key={item.id || i} style={{
                   padding: 16, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff",
@@ -830,8 +825,8 @@ export default function CodePage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4,
-                      background: item._type === "requirement" ? "#d1fae520" : item._type === "constraint" ? "#fef3c720" : "#dbeafe20",
-                      color: item._type === "requirement" ? "#059669" : item._type === "constraint" ? "#d97706" : "#2563eb",
+                      background: item._type === "requirement" ? "#d1fae520" : "#fef3c720",
+                      color: item._type === "requirement" ? "#059669" : "#d97706",
                       textTransform: "uppercase",
                     }}>
                       {item._type}
@@ -854,7 +849,7 @@ export default function CodePage() {
         {activeTab === "context" && (
           <div>
             <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20, lineHeight: 1.6 }}>
-              Inputs from the Discovery phase that inform code implementation. These requirements, constraints, and decisions were captured during client discovery and should guide technical decisions.
+              Inputs from the Discovery phase that inform code implementation. These requirements and constraints were captured during client discovery and should guide technical decisions.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               <div style={{ padding: 20, borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff" }}>

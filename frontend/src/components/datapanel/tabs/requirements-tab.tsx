@@ -14,6 +14,7 @@ import type {
 } from "@/lib/api";
 import type { FindingType } from "@/lib/api";
 import { applyTableState, type TableState } from "@/lib/tableState";
+import { formatAge } from "@/lib/dates";
 import { TableSearch, SortableHeader, Pagination } from "../../TableControls";
 
 
@@ -117,8 +118,12 @@ export function RequirementsTab({
                       borderLeft: !req.seen_at ? "3px solid var(--green)" : undefined,
                     }}>
                       <div style={{ fontWeight: 700, color: "var(--green)", fontSize: 12 }}>{req.req_id}</div>
-                      {req.version > 1 && (
-                        <div style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 600 }}>v{req.version}</div>
+                      <div style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 600 }}>v{req.version || 1}</div>
+                      {req.created_at && (
+                        <div
+                          style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500 }}
+                          title={new Date(req.created_at).toLocaleString()}
+                        >{formatAge(req.created_at)}</div>
                       )}
                     </td>
                     <td>

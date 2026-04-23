@@ -30,11 +30,8 @@ FOLDER_TO_KIND = {
     "requirements": "requirement",
     "constraints": "constraint",
     "gaps": "gap",
-    "decisions": "decision",
     "people": "stakeholder",
     "stakeholders": "stakeholder",
-    "assumptions": "assumption",
-    "scope": "scope",
     "contradictions": "contradiction",
 }
 

@@ -7,12 +7,44 @@ from app.db.session import get_db
 from app.deps import get_current_user
 from app.models.auth import User
 from app.models.document import Document
-from app.models.extraction import Requirement, Constraint, Decision, Stakeholder, Assumption, ScopeItem, Contradiction
+from app.models.extraction import Requirement, Constraint, Stakeholder, Contradiction, Gap
 from app.models.control import ReadinessHistory
 from app.models.operational import ActivityLog
-from app.schemas.dashboard import DashboardResponse, ReadinessResponse, ReadinessBreakdown
+from app.schemas.dashboard import DashboardResponse, ReadinessResponse, ReadinessComponent
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["dashboard"])
+
+
+def _status_band(score: float) -> str:
+    return "ready" if score >= 85 else "conditional" if score >= 65 else "not_ready"
+
+
+def _readiness_from_row(row: ReadinessHistory | None) -> ReadinessResponse:
+    if not row:
+        return ReadinessResponse(score=0, status="not_ready", components={})
+
+    breakdown = row.breakdown or {}
+    components_raw = breakdown.get("components", {}) if isinstance(breakdown, dict) else {}
+
+    # Breakdown is stored as {name: {score, weight}} by the evaluator; the
+    # response shape wants {name: ReadinessComponent}. Anything missing
+    # (older history rows from before S2.6) gets a neutral default so the
+    # frontend can render without null-checking every component.
+    components: dict[str, ReadinessComponent] = {}
+    for name in ("coverage", "clarity", "alignment", "context"):
+        raw = components_raw.get(name) or {}
+        components[name] = ReadinessComponent(
+            score=float(raw.get("score", 0.0)),
+            label=name.capitalize(),
+            summary=raw.get("summary", ""),
+            details=raw.get("details", {}) or {},
+        )
+
+    return ReadinessResponse(
+        score=row.score,
+        status=_status_band(row.score),
+        components=components,
+    )
 
 
 @router.get("/dashboard", response_model=DashboardResponse)
@@ -21,48 +53,25 @@ async def get_dashboard(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Readiness
     readiness_row = await db.scalar(
         select(ReadinessHistory)
         .where(ReadinessHistory.project_id == project_id)
         .order_by(ReadinessHistory.created_at.desc())
         .limit(1)
     )
+    readiness = _readiness_from_row(readiness_row)
 
-    if readiness_row:
-        breakdown = readiness_row.breakdown or {}
-        score = readiness_row.score
-    else:
-        breakdown = {}
-        score = 0
-
-    status = "ready" if score >= 85 else "conditional" if score >= 65 else "not_ready"
-    readiness = ReadinessResponse(
-        score=score,
-        status=status,
-        breakdown=ReadinessBreakdown(**breakdown) if breakdown else ReadinessBreakdown(),
-    )
-
-    # Counts
     req_count = await db.scalar(select(func.count()).where(Requirement.project_id == project_id)) or 0
     req_confirmed = await db.scalar(
         select(func.count()).where(Requirement.project_id == project_id, Requirement.status == "confirmed")
     ) or 0
     con_count = await db.scalar(select(func.count()).where(Constraint.project_id == project_id)) or 0
-    dec_count = await db.scalar(select(func.count()).where(Decision.project_id == project_id)) or 0
     stk_count = await db.scalar(select(func.count()).where(Stakeholder.project_id == project_id)) or 0
-    asm_count = await db.scalar(select(func.count()).where(Assumption.project_id == project_id)) or 0
-    asm_validated = await db.scalar(
-        select(func.count()).where(Assumption.project_id == project_id, Assumption.validated == True)
-    ) or 0
-    scope_in = await db.scalar(
-        select(func.count()).where(ScopeItem.project_id == project_id, ScopeItem.in_scope == True)
-    ) or 0
-    scope_out = await db.scalar(
-        select(func.count()).where(ScopeItem.project_id == project_id, ScopeItem.in_scope == False)
+    gaps_open = await db.scalar(
+        select(func.count()).where(Gap.project_id == project_id, Gap.status == "open")
     ) or 0
     contradictions = await db.scalar(
-        select(func.count()).where(Contradiction.project_id == project_id, Contradiction.resolved == False)
+        select(func.count()).where(Contradiction.project_id == project_id, Contradiction.resolved == False)  # noqa: E712
     ) or 0
     doc_count = await db.scalar(select(func.count()).where(Document.project_id == project_id)) or 0
     doc_processing = await db.scalar(
@@ -72,7 +81,6 @@ async def get_dashboard(
         )
     ) or 0
 
-    # Recent activity
     activity_result = await db.execute(
         select(ActivityLog)
         .where(ActivityLog.project_id == project_id)
@@ -91,12 +99,8 @@ async def get_dashboard(
         requirements_count=req_count,
         requirements_confirmed=req_confirmed,
         constraints_count=con_count,
-        decisions_count=dec_count,
         stakeholders_count=stk_count,
-        assumptions_count=asm_count,
-        assumptions_validated=asm_validated,
-        scope_in=scope_in,
-        scope_out=scope_out,
+        gaps_open=gaps_open,
         contradictions_unresolved=contradictions,
         documents_count=doc_count,
         documents_processing=doc_processing,
@@ -121,7 +125,7 @@ async def get_readiness(
         return {"score": 0, "status": "not_ready", "breakdown": {}}
     return {
         "score": row.score,
-        "status": "ready" if row.score >= 85 else "conditional" if row.score >= 65 else "not_ready",
+        "status": _status_band(row.score),
         "breakdown": row.breakdown or {},
         "triggered_by": row.triggered_by,
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -238,8 +242,6 @@ async def list_notifications(
     """
     from app.models.operational import Notification
 
-    # Total count for "load more" UI logic (so the button hides when
-    # we've fetched everything).
     total_result = await db.execute(
         select(func.count()).select_from(Notification).where(
             Notification.project_id == project_id,
@@ -248,7 +250,6 @@ async def list_notifications(
     )
     total = total_result.scalar() or 0
 
-    # Cap limit so a malicious caller can't ask for everything at once.
     capped_limit = max(1, min(limit, 100))
 
     result = await db.execute(
@@ -284,7 +285,7 @@ async def notification_count(
         select(func.count()).where(
             Notification.project_id == project_id,
             Notification.user_id == user.id,
-            Notification.read == False,
+            Notification.read == False,  # noqa: E712
         )
     ) or 0
     return {"count": count}

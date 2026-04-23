@@ -10,8 +10,8 @@ from app.db.session import get_db
 from app.deps import get_current_user
 from app.models.auth import User
 from app.models.extraction import (
-    Requirement, Constraint, Decision, Stakeholder,
-    Assumption, ScopeItem, Contradiction, Gap,
+    Requirement, Constraint, Stakeholder,
+    Contradiction, Gap,
 )
 from app.models.document import Document
 from app.services.finding_views import get_seen_map
@@ -181,29 +181,6 @@ async def update_requirement(
     return _req_dict(item)
 
 
-@router.patch("/assumptions/{assumption_id}/validate")
-async def validate_assumption(
-    project_id: uuid.UUID,
-    assumption_id: uuid.UUID,
-    validated: bool = Query(True),
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Assumption).where(Assumption.id == assumption_id, Assumption.project_id == project_id)
-    )
-    item = result.scalar_one_or_none()
-    if not item:
-        return {"error": "Not found"}
-    item.validated = validated
-    await db.flush()
-
-    from app.services.evaluator import evaluator
-    await evaluator.evaluate(project_id, db, triggered_by=f"user:{user.id}")
-    await _sync_markdown(project_id, db)
-    return {"id": str(item.id), "validated": item.validated}
-
-
 # ── Gaps ──────────────────────────────────────────────
 
 @router.get("/gaps")
@@ -227,6 +204,7 @@ async def list_gaps(
         "id": str(g.id),
         "gap_id": g.gap_id,
         "question": g.question,
+        "kind": getattr(g, "kind", None) or "missing_info",
         "severity": g.severity,
         "area": g.area,
         "source_doc": doc_name,
@@ -320,6 +298,11 @@ def _req_dict(r: Requirement, source_doc_name: str = None) -> dict:
         "user_perspective": r.user_perspective, "business_rules": r.business_rules,
         "edge_cases": r.edge_cases,
         "acceptance_criteria": r.acceptance_criteria or [],
+        # Session-2 fields: absorb decision/scope signals into BR.
+        "rationale": r.rationale,
+        "alternatives_considered": r.alternatives_considered or [],
+        "scope_note": r.scope_note,
+        "blocked_by": r.blocked_by or [],
         "source_doc": source_doc_name,
         "source_doc_id": str(r.source_doc_id) if r.source_doc_id else None,
         "source_quote": r.source_quote,
@@ -392,27 +375,6 @@ async def update_constraint_status(
     return {"id": str(con.id), "status": con.status}
 
 
-# ── Decisions ─────────────────────────────────────────
-
-@router.get("/decisions")
-async def list_decisions(
-    project_id: uuid.UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Decision).where(Decision.project_id == project_id).order_by(Decision.created_at.desc())
-    )
-    items = result.scalars().all()
-    out = [{"id": str(d.id), "title": d.title, "decided_by": d.decided_by,
-             "date": str(d.decided_date) if d.decided_date else None,
-             "rationale": d.rationale, "alternatives": d.alternatives,
-             "impacts": d.impacts, "status": d.status}
-            for d in items]
-    await _attach_seen(out, db, user.id, project_id, "decision")
-    return {"items": out, "total": len(items)}
-
-
 # ── Stakeholders ──────────────────────────────────────
 
 @router.get("/stakeholders")
@@ -434,50 +396,6 @@ async def list_stakeholders(
     return {"items": out, "total": len(items)}
 
 
-# ── Assumptions ───────────────────────────────────────
-
-@router.get("/assumptions")
-async def list_assumptions(
-    project_id: uuid.UUID,
-    validated: Optional[bool] = None,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    query = select(Assumption).where(Assumption.project_id == project_id)
-    if validated is not None:
-        query = query.where(Assumption.validated == validated)
-    result = await db.execute(query)
-    items = result.scalars().all()
-    out = [{"id": str(a.id), "statement": a.statement, "basis": a.basis,
-             "risk_if_wrong": a.risk_if_wrong,
-             "needs_validation_by": a.needs_validation_by,
-             "validated": a.validated}
-            for a in items]
-    await _attach_seen(out, db, user.id, project_id, "assumption")
-    return {"items": out, "total": len(items)}
-
-
-# ── Scope Items ───────────────────────────────────────
-
-@router.get("/scope")
-async def list_scope_items(
-    project_id: uuid.UUID,
-    in_scope: Optional[bool] = None,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    query = select(ScopeItem).where(ScopeItem.project_id == project_id)
-    if in_scope is not None:
-        query = query.where(ScopeItem.in_scope == in_scope)
-    result = await db.execute(query)
-    items = result.scalars().all()
-    out = [{"id": str(s.id), "description": s.description,
-             "in_scope": s.in_scope, "rationale": s.rationale}
-            for s in items]
-    await _attach_seen(out, db, user.id, project_id, "scope")
-    return {"items": out, "total": len(items)}
-
-
 # ── Contradictions ────────────────────────────────────
 
 @router.get("/contradictions")
@@ -493,15 +411,25 @@ async def list_contradictions(
     result = await db.execute(query)
     items = result.scalars().all()
 
-    # Look up referenced items and source docs
+    # Shape the response to carry first-class fields (title / side_a /
+    # side_b / area — the agent's native output) alongside the legacy
+    # ref fields (only populated when the agent explicitly maps to DB
+    # rows, which is rare in practice). Consumers read title first and
+    # fall back to item_a_ref / explanation for historical rows.
     contra_list = []
     for c in items:
-        item_a_ref = await _lookup_item_ref(db, c.item_a_type, c.item_a_id)
-        item_b_ref = await _lookup_item_ref(db, c.item_b_type, c.item_b_id)
+        # Legacy refs still resolved when item_a_type/id are real.
+        item_a_ref = (
+            await _lookup_item_ref(db, c.item_a_type, c.item_a_id)
+            if c.item_a_type and c.item_a_id else None
+        )
+        item_b_ref = (
+            await _lookup_item_ref(db, c.item_b_type, c.item_b_id)
+            if c.item_b_type and c.item_b_id else None
+        )
 
-        # Look up source document for item_a and for the contradiction itself
         source_a_doc = None
-        if c.item_a_type == "requirement":
+        if c.item_a_type == "requirement" and c.item_a_id:
             r = await db.execute(
                 select(Requirement, Document.filename)
                 .outerjoin(Document, Requirement.source_doc_id == Document.id)
@@ -520,14 +448,34 @@ async def list_contradictions(
 
         contra_list.append({
             "id": str(c.id),
+            # First-class agent-authored fields.
+            "title": c.title,
+            "side_a": c.side_a,
+            "side_b": c.side_b,
+            "area": c.area,
+            # Per-side provenance — what the UI renders as source/person
+            # chips. Preferred over the legacy item_a_source lookups.
+            "side_a_source": c.side_a_source,
+            "side_a_person": c.side_a_person,
+            "side_b_source": c.side_b_source,
+            "side_b_person": c.side_b_person,
+            # Legacy fields — optional; nullable since 025. Null when
+            # the agent didn't map to specific DB rows.
             "item_a_type": c.item_a_type,
-            "item_a_id": str(c.item_a_id),
+            "item_a_id": str(c.item_a_id) if c.item_a_id else None,
             "item_a_ref": item_a_ref,
-            "item_a_source": source_a_doc,
+            # For back-compat, prefer side_a_source (agent-authored)
+            # over source_a_doc (computed from item_a FK). If both are
+            # null, the UI simply won't render a source chip.
+            "item_a_source": c.side_a_source or source_a_doc,
+            "item_a_person": c.side_a_person,
             "item_b_type": c.item_b_type,
-            "item_b_id": str(c.item_b_id),
+            "item_b_id": str(c.item_b_id) if c.item_b_id else None,
             "item_b_ref": item_b_ref,
-            "item_b_source": source_b_doc,
+            "item_b_source": c.side_b_source or source_b_doc,
+            "item_b_person": c.side_b_person,
+            # Explanation kept for legacy readers (agent-level search) —
+            # UI prefers the structured fields above.
             "explanation": c.explanation,
             "resolved": c.resolved,
             "resolution_note": c.resolution_note,
@@ -550,16 +498,6 @@ async def _lookup_item_ref(db: AsyncSession, item_type: str, item_id: uuid.UUID)
             con = r.scalar_one_or_none()
             if con:
                 return f"{con.type}: {con.description[:60]}"
-        elif item_type == "decision":
-            r = await db.execute(select(Decision).where(Decision.id == item_id))
-            dec = r.scalar_one_or_none()
-            if dec:
-                return dec.title
-        elif item_type == "assumption":
-            r = await db.execute(select(Assumption).where(Assumption.id == item_id))
-            asm = r.scalar_one_or_none()
-            if asm:
-                return asm.statement[:60]
     except Exception:
         pass
     return f"New {item_type} (from uploaded document)"
@@ -617,16 +555,6 @@ async def search_all(
     )
     for c in cons.scalars():
         results.append({"type": "constraint", "id": str(c.id)[:8], "title": f"{c.type}: {c.description[:80]}", "status": c.status})
-
-    # Decisions — match on title or rationale
-    decs = await db.execute(
-        select(Decision).where(
-            Decision.project_id == project_id,
-            (Decision.title.ilike(pattern) | Decision.rationale.ilike(pattern)),
-        ).limit(5)
-    )
-    for d in decs.scalars():
-        results.append({"type": "decision", "id": str(d.id)[:8], "title": d.title, "status": d.status})
 
     # Contradictions — match on explanation
     contras = await db.execute(

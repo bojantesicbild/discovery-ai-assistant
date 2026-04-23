@@ -1,6 +1,6 @@
 import uuid
-from datetime import date, datetime
-from sqlalchemy import String, Integer, Boolean, Text, Date, ForeignKey, DateTime, func
+from datetime import datetime
+from sqlalchemy import String, Integer, Boolean, Text, ForeignKey, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, IdMixin, TimestampMixin
@@ -19,6 +19,10 @@ class Requirement(Base, IdMixin, TimestampMixin):
     business_rules: Mapped[list] = mapped_column(JSONB, default=list)
     edge_cases: Mapped[list] = mapped_column(JSONB, default=list)
     acceptance_criteria: Mapped[list] = mapped_column(JSONB, default=list)  # ["AC1: GIVEN... WHEN... THEN...", ...]
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    alternatives_considered: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    scope_note: Mapped[str | None] = mapped_column(String, nullable=True)
+    blocked_by: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")  # ["BR-001", ...]
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     source_quote: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String, default="proposed")
@@ -45,23 +49,6 @@ class Constraint(Base, IdMixin, TimestampMixin):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class Decision(Base, IdMixin, TimestampMixin):
-    __tablename__ = "decisions"
-
-    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    title: Mapped[str] = mapped_column(String, nullable=False)
-    decided_by: Mapped[str | None] = mapped_column(String, nullable=True)
-    decided_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    rationale: Mapped[str] = mapped_column(Text, nullable=False)
-    alternatives: Mapped[list] = mapped_column(JSONB, default=list)
-    impacts: Mapped[list] = mapped_column(JSONB, default=list)
-    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
-    status: Mapped[str] = mapped_column(String, default="tentative")
-    sources: Mapped[list] = mapped_column(JSONB, default=list)
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
 class Stakeholder(Base, IdMixin, TimestampMixin):
     __tablename__ = "stakeholders"
 
@@ -77,40 +64,13 @@ class Stakeholder(Base, IdMixin, TimestampMixin):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class Assumption(Base, IdMixin, TimestampMixin):
-    __tablename__ = "assumptions"
-
-    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    statement: Mapped[str] = mapped_column(Text, nullable=False)
-    basis: Mapped[str] = mapped_column(Text, nullable=False)
-    risk_if_wrong: Mapped[str] = mapped_column(Text, nullable=False)
-    needs_validation_by: Mapped[str | None] = mapped_column(String, nullable=True)
-    validated: Mapped[bool] = mapped_column(Boolean, default=False)
-    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
-    sources: Mapped[list] = mapped_column(JSONB, default=list)
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
-class ScopeItem(Base, IdMixin, TimestampMixin):
-    __tablename__ = "scope_items"
-
-    project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    in_scope: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    rationale: Mapped[str] = mapped_column(Text, nullable=False)
-    source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
-    sources: Mapped[list] = mapped_column(JSONB, default=list)
-    version: Mapped[int] = mapped_column(Integer, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-
 class Gap(Base, IdMixin, TimestampMixin):
     __tablename__ = "gaps"
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     gap_id: Mapped[str] = mapped_column(String, nullable=False)  # GAP-001
     question: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String, default="missing_info", server_default="missing_info")
     severity: Mapped[str] = mapped_column(String, default="medium")  # high, medium, low
     area: Mapped[str] = mapped_column(String, default="general")
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
@@ -132,11 +92,34 @@ class Contradiction(Base, IdMixin, TimestampMixin):
     __tablename__ = "contradictions"
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    item_a_type: Mapped[str] = mapped_column(String, nullable=False)
-    item_a_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    item_b_type: Mapped[str] = mapped_column(String, nullable=False)
-    item_b_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # First-class free-form fields — how the extraction agent actually
+    # produces contradictions. title is the short headline; side_a /
+    # side_b are the two conflicting statements; area is the domain
+    # category (e.g. 'tech-stack', 'scope', 'governance').
+    title: Mapped[str | None] = mapped_column(String, nullable=True)
+    side_a: Mapped[str | None] = mapped_column(Text, nullable=True)
+    side_b: Mapped[str | None] = mapped_column(Text, nullable=True)
+    area: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Per-side provenance — document + person for each side. Populated by
+    # the extraction agent from the source quotes it reads. The UI renders
+    # these as source + person chips next to each side's content.
+    side_a_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    side_a_person: Mapped[str | None] = mapped_column(String, nullable=True)
+    side_b_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    side_b_person: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Legacy pointer fields — kept nullable for the rare case where a
+    # contradiction genuinely references two existing DB rows. Not the
+    # default path. Migration 025 nulled out the 'unknown'/random-UUID
+    # placeholders the old MCP handler was writing.
+    item_a_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    item_a_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    item_b_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    item_b_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)

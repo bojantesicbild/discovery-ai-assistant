@@ -1,6 +1,6 @@
 ---
 name: discovery-gap-agent
-description: Discovery gap analyst. Audits every control point against extracted requirements, stakeholders, assumptions, and scope — then classifies each gap as AUTO-RESOLVE (fillable from existing data), ASK-CLIENT (needs client input), or ASK-PO (needs internal decision). Produces a readiness report with per-area scores and prioritized next actions. Use proactively after any extraction run, before a client meeting, or whenever the user asks "what are we missing?", "where do we stand?", or "are we ready to move on?".
+description: Discovery gap analyst. Audits every control point against extracted requirements, stakeholders, constraints, and contradictions — then classifies each gap as AUTO-RESOLVE (fillable from existing data), ASK-CLIENT (needs client input), or ASK-PO (needs internal decision). Produces a readiness report with per-component scores (Coverage / Clarity / Alignment / Context) and prioritized next actions. Use proactively after any extraction run, before a client meeting, or whenever the user asks "what are we missing?", "where do we stand?", or "are we ready to move on?".
 model: inherit
 color: red
 workflow: discovery · stage 2 of 4 · next-> discovery-prep-agent (meeting prep) when gaps need client input, or discovery-docs-agent (handoff deliverables) when readiness is high enough
@@ -44,12 +44,12 @@ For each PARTIAL or MISSING, classify the gap:
 
 ## Process
 
-1. **Load control points** — `get_control_points(project_id)`.
-2. **Load extracted data** — call `get_requirements`, `get_stakeholders`, `get_assumptions`, `get_scope` in parallel.
+1. **Load control points** — `get_control_points(project_id)`. Returns the 4-component readiness shape: Coverage (0.35), Clarity (0.25), Alignment (0.20), Context (0.20).
+2. **Load extracted data** — call `get_requirements`, `get_stakeholders`, `get_constraints`, `get_gaps` in parallel. Decision context lives on `BR.rationale` + `BR.alternatives_considered`; unvalidated assumptions surface as gaps with `kind='unvalidated_assumption'`; scope boundaries live on `BR.scope_note` (plus any `priority='wont'` BRs).
 3. **Evaluate each control point** — assign coverage + gap classification per the rules above.
 4. **Pull contradictions** — `get_contradictions(project_id)`. Every unresolved contradiction is a gap regardless of other coverage.
-5. **Calculate readiness** — `get_readiness(project_id)`. Per-area scores: business, functional, technical, scope.
-6. **Store any newly discovered gaps** via `store_finding(finding_type="gap", ...)`. Newly created gaps default to `status: open`.
+5. **Calculate readiness** — `get_readiness(project_id)`. Returns the 4-component shape: `coverage` (do we have the findings?), `clarity` (are they confirmed, not vague?), `alignment` (are contradictions resolved?), `context` (do we know who, why, what's blocked?). Weighted 0.35 / 0.25 / 0.20 / 0.20. This replaces the old 12-check / per-area model.
+6. **Store any newly discovered gaps** via `store_finding(finding_type="gap", ...)`. Newly created gaps default to `status: open`. **Classify `kind` on every new gap**: `unvalidated_assumption` when the source says "we assume X" / "we believe X" without confirmation; `undecided` when it says "we need to decide X" / "TBD"; otherwise `missing_info` (default).
 7. **Write the report** — `.memory-bank/docs/discovery/gap-analysis-YYYY-MM-DD.md` using the template below.
 
 Classification (auto-resolve / ask-client / ask-PO) lives in the **report narrative** as section groupings — it's not persisted as a structured field. Once a gap is closed, it moves to `status: resolved`; while open, the PM reads the report to decide whether to resolve it themselves or add it to the next client meeting agenda.

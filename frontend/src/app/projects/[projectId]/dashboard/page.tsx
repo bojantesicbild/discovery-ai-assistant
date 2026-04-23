@@ -2,33 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getDashboard } from "@/lib/api";
-
-interface DashboardData {
-  readiness: {
-    score: number;
-    status: string;
-    breakdown: { business: number; functional: number; technical: number; scope: number };
-  };
-  requirements_count: number;
-  requirements_confirmed: number;
-  constraints_count: number;
-  decisions_count: number;
-  stakeholders_count: number;
-  assumptions_count: number;
-  assumptions_validated: number;
-  scope_in: number;
-  scope_out: number;
-  contradictions_unresolved: number;
-  documents_count: number;
-  documents_processing: number;
-  recent_activity: { action: string; summary: string; created_at: string }[];
-}
+import { getDashboard, type DashboardResponse } from "@/lib/api";
 
 export default function DashboardPage() {
   const params = useParams();
   const projectId = params.projectId as string;
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [data, setData] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -53,6 +32,7 @@ export default function DashboardPage() {
   const r = data.readiness;
   const statusColor = r.status === "ready" ? "text-green-600" : r.status === "conditional" ? "text-yellow-600" : "text-red-600";
   const statusBg = r.status === "ready" ? "bg-green-50" : r.status === "conditional" ? "bg-yellow-50" : "bg-red-50";
+  const components = Object.entries(r.components || {});
 
   return (
     <div className="p-6 max-w-5xl">
@@ -60,25 +40,30 @@ export default function DashboardPage() {
 
       {/* Readiness */}
       <div className={`rounded-xl border p-6 mb-6 ${statusBg}`}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-6">
           <div>
             <div className="text-sm font-medium text-gray-500 uppercase tracking-wide">Readiness</div>
             <div className={`text-4xl font-bold ${statusColor}`}>{r.score}%</div>
             <div className={`text-sm font-medium mt-1 capitalize ${statusColor}`}>{r.status.replace("_", " ")}</div>
           </div>
-          <div className="text-right space-y-1">
-            {Object.entries(r.breakdown || {}).map(([area, score]) => (
-              <div key={area} className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 w-20 text-right capitalize">{area}</span>
-                <div className="w-32 h-2 bg-gray-200 rounded-full">
-                  <div
-                    className="h-2 bg-blue-500 rounded-full"
-                    style={{ width: `${Math.min(score as number, 100)}%` }}
-                  />
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {components.map(([key, c]) => {
+              const pct = Math.round((c.score || 0) * 100);
+              return (
+                <div key={key} className="bg-white/60 rounded-lg border border-gray-100 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-gray-700 capitalize">{c.label || key}</span>
+                    <span className="text-xs font-bold text-gray-900">{pct}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-200 rounded-full mb-2">
+                    <div className="h-2 bg-blue-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                  {c.summary && (
+                    <div className="text-xs text-gray-500 leading-relaxed">{c.summary}</div>
+                  )}
                 </div>
-                <span className="text-xs font-medium w-8">{Math.round(score as number)}%</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -87,10 +72,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Requirements" value={data.requirements_count} sub={`${data.requirements_confirmed} confirmed`} />
         <StatCard label="Constraints" value={data.constraints_count} />
-        <StatCard label="Decisions" value={data.decisions_count} />
         <StatCard label="People" value={data.stakeholders_count} />
-        <StatCard label="Assumptions" value={data.assumptions_count} sub={`${data.assumptions_validated} validated`} />
-        <StatCard label="Scope (in/out)" value={`${data.scope_in}/${data.scope_out}`} />
+        <StatCard label="Open Gaps" value={data.gaps_open} color={data.gaps_open > 0 ? "red" : undefined} />
         <StatCard label="Contradictions" value={data.contradictions_unresolved} color={data.contradictions_unresolved > 0 ? "red" : undefined} />
         <StatCard label="Documents" value={data.documents_count} sub={data.documents_processing > 0 ? `${data.documents_processing} processing` : undefined} />
       </div>

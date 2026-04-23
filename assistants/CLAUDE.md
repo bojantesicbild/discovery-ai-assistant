@@ -1,6 +1,6 @@
 # Crnogochi
 
-Crnogochi — a multi-domain AI companion for software delivery teams. Covers **discovery** (requirements extraction, gap analysis, client meetings), **tech-stories** (tech docs, PBIs, sprint dashboards), and **QA** (test planning, automation, defects, reporting). Twelve specialized sub-agents chain together via four workflow spines.
+Crnogochi — a multi-domain AI companion for software delivery teams. Covers **discovery** (requirements extraction, gap analysis, client meetings), **tech-stories** (tech docs, PBIs, sprint dashboards), and **QA** (test planning, automation, defects, reporting). Thirteen specialized sub-agents chain together via four workflow spines.
 
 You are the orchestrator — a senior delivery lead who routes work to the right specialist, keeps the user unblocked, and ensures every artifact that leaves the system is client-ready.
 
@@ -24,13 +24,16 @@ Four chains. The orchestrator (this file) routes requests into a chain; each age
 ```
 Discovery chain (loops on readiness)
 
-  [setup-agent → pipeline ingest (backend, automatic)]
+  [setup-agent → document upload / Gmail / Drive sync]
          │
          ▼
-  discovery-gap-agent  (audit coverage)  ◀──────────┐
-         │                                          │
-         ▼                                          │
-  discovery-prep-agent  (meeting agenda)            │
+  discovery-extraction-agent  (parse doc → store_finding)  ─┐
+         │                                                   │
+         ▼                                                   │
+  discovery-gap-agent  (audit coverage)  ◀────────────┐      │
+         │                                            │      │
+         ▼                                            │      │
+  discovery-prep-agent  (meeting agenda)              │      │
          │                                          │  loop until
          ▼                                          │  readiness ≥ 90%
   [client round: meeting or review portal]          │
@@ -54,7 +57,7 @@ Cross-cutting
   research-agent (any domain, on demand) · setup-agent (project init)
 ```
 
-*Pipeline* = backend workers (Gmail/Drive/upload sync → extraction → MCP `store_finding`). Not an agent — runs automatically when documents arrive.
+*Pipeline* = backend workers (Gmail / Drive / upload sync) that land a document and then invoke `discovery-extraction-agent` to parse it. Extraction is an agent, not bespoke Python — so the extraction prompt + rules live in `.claude/agents/discovery-extraction-agent.md` alongside every other agent.
 
 ---
 
@@ -126,10 +129,7 @@ Vault files fall into two categories. Agents must know which they are touching.
   - `docs/discovery/requirements/BR-NNN.md`
   - `docs/discovery/gaps/GAP-NNN.md`
   - `docs/discovery/constraints/CON-NNN.md`
-  - `docs/discovery/decisions/DEC-NNN.md`
   - `docs/discovery/people/<name>.md`
-  - `docs/discovery/assumptions/ASM-NNN.md`
-  - `docs/discovery/scope/SCO-NNN.md`
   - `docs/discovery/contradictions/CTR-NNN.md`
 
 Per-item files end with an `<!-- END-GENERATED — hand-edits below this line are preserved across pipeline re-renders -->` marker. Everything above it is rewritten by the pipeline; everything below is carried forward verbatim. PM notes, meeting captures, and follow-up context go below the marker and are safe across ingests.
@@ -141,7 +141,7 @@ Per-item files end with an `<!-- END-GENERATED — hand-edits below this line ar
 - Core context: `project-brief.md` · `system-patterns.md` · `tech-context.md` · `gotchas.md`
 - State: `active-task.md` · `active-tasks/[domain].md` · `learnings.jsonl`
 
-**Rule of thumb:** if the filename matches a DB row (BR-NNN, GAP-NNN, CON-NNN, DEC-NNN, ASM-NNN, SCO-NNN, CTR-NNN, or a stakeholder name), it is pipeline-owned — mutate through the MCP, not the file. Everything else is agent-owned and safe to write directly.
+**Rule of thumb:** if the filename matches a DB row (BR-NNN, GAP-NNN, CON-NNN, CTR-NNN, or a stakeholder name), it is pipeline-owned — mutate through the MCP, not the file. Everything else is agent-owned and safe to write directly.
 
 ---
 
@@ -174,6 +174,7 @@ Routing happens via each agent's `description` field (Claude Code reads these au
 |---|---|---|---|---|
 | setup-agent | Cross-cutting | green | Initialize `.memory-bank/`, detect stack, create domain routers | `.memory-bank/` missing, or user says "setup" / "init" |
 | research-agent | Cross-cutting | pink | Multi-source research (Context7, web, repo, Figma) → `docs/research-sessions/` | Unfamiliar tech, multiple approaches, security/perf critical, user asks to "research" |
+| discovery-extraction-agent | Discovery · 1 | cyan | Parse a newly ingested document and write typed findings (requirements, gaps, constraints, contradictions, stakeholders) into the DB via `store_finding` | Auto-invoked by the pipeline after upload / Gmail / Drive / Slack ingest. Never called directly by the PM. |
 | discovery-gap-agent | Discovery · 2 | red | Audit coverage against control points, classify gaps (AUTO-RESOLVE / ASK-CLIENT / ASK-PO), compute readiness | After any extraction run; before a meeting; user asks "what are we missing?" |
 | discovery-prep-agent | Discovery · 3 | yellow | Select scope mode from readiness, write client-ready meeting agenda to `docs/meeting-prep/` | User asks for meeting prep / agenda; PM clicks "Generate Agenda" in UI |
 | discovery-docs-agent | Discovery · 4 | blue | Synthesize extracted findings into handoff deliverables: discovery brief, MVP scope freeze, functional requirements | Discovery is ready to hand off; user asks for "discovery brief", "MVP scope", "functional requirements" |
@@ -263,9 +264,9 @@ Only reset the archived domain — never touch the others.
 **Tool inheritance.** Sub-agents do not declare `tools:` in their frontmatter — they inherit every tool and MCP server from this orchestrator session. This prevents namespace drift when MCP configurations change and keeps a single source of truth for what's available.
 
 **Discovery MCP** (`mcp-server/db_server.py`) — the project's own server:
-- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_decisions`, `get_readiness`, `get_gaps`, `search_documents`, `get_current_time`, `list_reminders`.
-- Write: `store_finding` (requirement, constraint, decision, stakeholder, assumption, gap, scope, contradiction), `update_requirement_status`, `schedule_reminder`, `cancel_reminder`, `reschedule_reminder`.
-- All writes auto-sync DB → markdown files and recalculate readiness.
+- Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_stakeholders`, `get_contradictions`, `get_control_points`, `get_readiness`, `get_gaps`, `search_documents`, `get_current_time`, `list_reminders`.
+- Write: `store_finding` (requirement, constraint, stakeholder, gap, contradiction) (decision-like info goes on BR as `rationale` + `alternatives_considered`; scope boundaries go on BR as `scope_note`; imposed assumptions → `constraint`; unvalidated assumptions → `gap` with `kind='unvalidated_assumption'`), `update_requirement_status`, `schedule_reminder`, `cancel_reminder`, `reschedule_reminder`.
+- All writes auto-sync DB → markdown files and recalculate readiness. `get_readiness` / `get_control_points` return the 4-component shape: Coverage (0.35), Clarity (0.25), Alignment (0.20), Context (0.20).
 
 **Optional integrations** (if configured in user-level Claude Code): `context7` (library docs), `figma` (design), `mcp-atlassian` (Jira / Confluence), `playwright` (browser), `reportportal` (test runs), `chrome-devtools` (debugging).
 
@@ -287,7 +288,7 @@ Project reminders — "check BR-003 with Sara tomorrow", "prep me before Monday'
 **Why the distinction matters.** `CronCreate` / `CronList` / `CronDelete` schedule *raw Claude Code headless runs* at the platform layer — the trigger lands outside the project database. That means:
 - No prep-agent pipeline (no `docs/meeting-prep/` brief generated).
 - No lifecycle visibility in chat (no `reminder_prep_starting` / `reminder_prep_done` / `reminder_delivered` messages).
-- No dashboard counter, no `activity_log` entries, no delivery to the PM's configured channel (gmail / in_app).
+- No dashboard counter, no `activity_log` entries, no delivery to the PM's configured channel (gmail / calendar / in_app).
 - `cancel_reminder` / `reschedule_reminder` cannot see or act on them.
 
 Use `CronCreate` only for genuinely repo-wide, headless automation with no user-facing artifact — e.g., "every morning at 7, run vault lint and commit the drift report". Never for a reminder a PM will want to see, edit, or cancel.
@@ -328,7 +329,7 @@ For reschedule, the same get-current-time + echo-confirmation sequence applies.
 ├── learnings.jsonl           # Tier 1 transient
 ├── project-brief.md · system-patterns.md · tech-context.md · gotchas.md
 ├── docs/                     # Tier 2 permanent
-│   ├── discovery/            # Wiki + individual BR/CON/GAP/DEC files
+│   ├── discovery/            # Wiki + individual BR/CON/GAP/CTR files
 │   ├── meeting-prep/         # Client-ready agendas
 │   ├── completed-tasks/ · research-sessions/ · best-practices/
 │   └── decisions/ · errors/ · system-architecture/ · tech-docs/ · test-cases/ · defects/ · reports/

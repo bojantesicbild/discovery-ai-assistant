@@ -172,7 +172,10 @@ export function MeetingPrepTab({ projectId, contradictions, gaps, requirements, 
 
     if (selectedContras.length > 0) {
       message += `**Decisions (${selectedContras.length})**\n`;
-      selectedContras.forEach((c: any) => { message += `- ${c.explanation?.slice(0, 80)}\n`; });
+      selectedContras.forEach((c: any) => {
+        const headline = c.title || c.explanation?.slice(0, 80) || "Contradiction";
+        message += `- ${headline}\n`;
+      });
       message += `\n`;
     }
     if (selectedReqs.length > 0) {
@@ -461,8 +464,8 @@ Best regards`;
                 return (
                   <div key={c.id} className="mp-item" style={{ border: "1px solid var(--gray-100)", borderLeftWidth: 3, borderLeftColor: st === "approved" ? "#059669" : "transparent", padding: "10px 12px", borderRadius: 8, marginBottom: 6, display: "flex", alignItems: "center", gap: 10, background: st === "approved" ? "#f0fdf4" : "#fff" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{c.explanation?.slice(0, 80)}</div>
-                      <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>~10 min · affects {c.item_a_type || "requirement"}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{c.title || c.explanation?.slice(0, 80) || "Contradiction"}</div>
+                      <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>~10 min · {c.area || c.item_a_type || "requirement"}</div>
                     </div>
                     <ItemActions id={c.id} />
                   </div>

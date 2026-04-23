@@ -1,31 +1,31 @@
 """
-Pipeline task — 5-stage document processing.
+Pipeline task — agent-driven document processing.
 
-Stages: classify → parse → extract → dedup → store → evaluate
+Stages: classify → parse → extract (agent) → evaluate → export_markdown
+
+The extract stage invokes `discovery-extraction-agent` (in `assistants/.claude/agents/`)
+which reads the document and calls `store_finding` via the Discovery MCP for
+each finding it identifies. Dedup + storage live inside `store_finding`, so
+the pipeline no longer has its own parse/dedup/store stages — those were
+duplicate logic the agent now owns.
 
 Per-project sequential processing. Stage checkpoints for retry.
 """
 
 import uuid
+import time
 import structlog
 from datetime import datetime, timezone
+from pathlib import Path
+
 from sqlalchemy import select
 
 from app.models.document import Document
 from app.models.operational import PipelineCheckpoint, ActivityLog
 from app.models.extraction import (
-    Requirement, Constraint, Decision, Stakeholder,
-    Assumption, ScopeItem, Contradiction, ChangeHistory, Gap,
+    Requirement, Constraint, Stakeholder,
+    Contradiction, Gap,
 )
-from app.schemas.extraction import DiscoveryExtraction
-from pydantic import ValidationError
-
-# Narrow exception tuple for the per-item LLM-output parsers below.
-# These dicts come from untrusted model output, so we expect any combo of
-# missing keys, wrong types, and Pydantic validation failures. Anything
-# else escaping here is a real bug we want to surface, not swallow.
-_PARSE_ERRORS = (KeyError, TypeError, ValueError, ValidationError)
-from sqlalchemy import func as sa_func
 
 log = structlog.get_logger()
 
@@ -47,8 +47,8 @@ async def process_document(ctx, document_id: str):
 
         # Idempotency guard: arq occasionally re-delivers the same job
         # (retry after transient failure, duplicate enqueue during a flaky
-        # upload burst). Without this, a "completed" doc gets re-extracted
-        # — BR versions churn upward and the chat shows one
+        # upload burst). Without this, a "completed" doc gets re-extracted —
+        # BR versions churn upward and the chat shows one
         # `document_ingested` notice per re-run. Terminal states mean we're
         # done; an explicit DB flip back to "queued" is required to
         # re-process (e.g. via a future re-ingest endpoint).
@@ -64,13 +64,13 @@ async def process_document(ctx, document_id: str):
         project_id = doc.project_id
 
         try:
-            # Stage 1: Classify
+            # Stage 1: Classify — decide the chunking template.
             await _update_stage(db, doc, "classifying")
             template = await _stage_classify(doc)
             doc.chunking_template = template
             await _save_checkpoint(db, doc.id, "classify", {"template": template})
 
-            # Stage 2: Parse (RAGFlow — optional, skip if not running)
+            # Stage 2: Parse with RAGFlow (optional — skip if RAGFlow down).
             await _update_stage(db, doc, "parsing")
             try:
                 ragflow_result = await _stage_parse(doc, project_id, ragflow)
@@ -81,83 +81,56 @@ async def process_document(ctx, document_id: str):
                 ragflow_result = {"status": "skipped", "reason": str(e)}
             await _save_checkpoint(db, doc.id, "parse", ragflow_result)
 
-            # Stage 3: Extract (Claude Code)
+            # Stage 3: Extract via discovery-extraction-agent. Agent reads
+            # the document, calls store_finding for each finding it
+            # identifies, and posts live progress into the project's chat.
+            # No separate validate / dedup / store stages — they're absorbed
+            # into the agent + MCP layer now.
             await _update_stage(db, doc, "extracting")
             from app.models.project import Project
-            from app.models.extraction import Requirement as ReqModel
             project = await db.get(Project, project_id)
+            extract_result = await _stage_extract(db, doc, project)
+            await _save_checkpoint(db, doc.id, "extract", extract_result)
 
-            # Build compact summary of existing requirements for dedup context
-            existing_reqs = await db.execute(
-                select(ReqModel).where(ReqModel.project_id == project_id)
-            )
-            existing_list = existing_reqs.scalars().all()
-            existing_summary = "\n".join(
-                f"- {r.req_id}: {r.title}" for r in existing_list
-            ) if existing_list else ""
-
-            extraction = await _stage_extract(doc, project, existing_summary)
-            await _save_checkpoint(db, doc.id, "extract", {"summary": extraction.document_summary})
-
-            # Stage 3.5: Validate extraction against schemas
-            await _update_stage(db, doc, "validating")
-            extraction, validation_report = _validate_extraction(extraction)
-            await _save_checkpoint(db, doc.id, "validate_extraction", validation_report)
-
-            # Stage 4: Dedup
-            await _update_stage(db, doc, "deduplicating")
-            from app.pipeline.stages.dedup import dedup_requirements, apply_dedup_actions
-            dedup_actions = await dedup_requirements(db, project_id, extraction.requirements)
-            dedup_counts = await apply_dedup_actions(db, project_id, doc.id, dedup_actions, doc_filename=doc.filename)
-            # Filter out duplicates before storing
-            non_dup_reqs = [a["item"] for a in dedup_actions if a["action"] == "ADD"]
-            extraction.requirements = non_dup_reqs
-            await _save_checkpoint(db, doc.id, "dedup", dedup_counts)
-
-            # Stage 5: Store
-            await _update_stage(db, doc, "storing")
-            counts = await _stage_store(db, project_id, doc.id, extraction, doc_filename=doc.filename)
-            counts["duplicates_skipped"] = dedup_counts.get("duplicates", 0)
-            counts["contradictions"] += dedup_counts.get("contradictions", 0)
-            doc.items_extracted = counts["total"]
-            doc.contradictions_found = counts["contradictions"]
-            await _save_checkpoint(db, doc.id, "store", counts)
-
-            # Stage 6: Evaluate readiness
+            # Stage 4: Evaluate readiness.
             await _update_stage(db, doc, "evaluating")
             from app.services.evaluator import evaluator
             readiness = await evaluator.evaluate(project_id, db, triggered_by=f"pipeline:doc:{doc.id}")
             await _save_checkpoint(db, doc.id, "evaluate", readiness)
 
-            # Stage 7: Export markdown to memory bank
+            # Stage 5: Export per-item markdown files to the vault.
             await _update_stage(db, doc, "exporting")
             try:
                 await _stage_export_markdown(db, project_id, doc)
             except Exception as e:
                 log.warning("Markdown export failed (non-fatal)", error=str(e))
 
-            # Done
+            # Done.
             doc.pipeline_stage = "completed"
             doc.pipeline_completed_at = datetime.now(timezone.utc)
             doc.pipeline_error = None
 
-            # Activity log
+            # Activity log entry. The per-kind counts aren't tracked here
+            # anymore (the agent did the storing) — readiness is the
+            # portable summary the dashboard listens for.
             db.add(ActivityLog(
                 project_id=project_id,
                 action="document_processed",
-                summary=f"Processed {doc.filename}: {counts['total']} items, readiness {readiness['score']}%",
-                details={"document_id": str(doc.id), "counts": counts, "readiness": readiness["score"]},
+                summary=f"Processed {doc.filename}: readiness {readiness['score']}%",
+                details={
+                    "document_id": str(doc.id),
+                    "tool_calls": extract_result.get("tool_calls", 0),
+                    "readiness": readiness["score"],
+                },
             ))
 
             await db.commit()
-            log.info("Pipeline completed", document_id=str(doc.id), items=counts["total"], readiness=readiness["score"])
-
-            # Post a system notice in the project chat + notify members.
-            # Wrapped so a chat/notification failure can never break the pipeline.
-            try:
-                await _post_completion_notice(project_id, doc, counts, readiness)
-            except Exception as e:
-                log.warning("Failed to post completion notice", error=str(e))
+            log.info(
+                "Pipeline completed",
+                document_id=str(doc.id),
+                tool_calls=extract_result.get("tool_calls", 0),
+                readiness=readiness["score"],
+            )
 
         except Exception as e:
             doc.pipeline_stage = "failed"
@@ -198,20 +171,15 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     dataset_name = f"project-{project_id}-documents"
     dataset_id = await ragflow.get_or_create_dataset(dataset_name, doc.chunking_template or "naive")
 
-    # Read file from storage and upload to RAGFlow
     file_path = (doc.classification or {}).get("file_path")
     if file_path:
         from app.services.storage import read_upload
-        from pathlib import Path
         try:
             content = await read_upload(Path(file_path))
             result = await ragflow.upload_document(dataset_id, doc.filename, content)
-            doc_id = result.get("data", {}).get("id", "unknown")
-
-            # Trigger parsing
-            await ragflow.parse_document(dataset_id, [doc_id])
-
-            return {"dataset_id": dataset_id, "doc_id": doc_id, "status": "parsing"}
+            rf_doc_id = result.get("data", {}).get("id", "unknown")
+            await ragflow.parse_document(dataset_id, [rf_doc_id])
+            return {"dataset_id": dataset_id, "doc_id": rf_doc_id, "status": "parsing"}
         except Exception as e:
             log.warning("RAGFlow upload failed, continuing without", error=str(e))
             return {"dataset_id": dataset_id, "doc_id": "ragflow-unavailable", "status": "skipped"}
@@ -219,733 +187,250 @@ async def _stage_parse(doc: Document, project_id: uuid.UUID, ragflow) -> dict:
     return {"dataset_id": dataset_id, "doc_id": "no-file", "status": "skipped"}
 
 
-async def _stage_extract(doc: Document, project=None, existing_summary: str = "") -> DiscoveryExtraction:
-    """Extract typed business data using Claude Code. Returns structured JSON."""
+# ── Extraction stage — invokes discovery-extraction-agent ─────────────
+
+# Max frequency of in-flight conversation updates while the agent streams.
+# Mirrors the reminder_prep throttle; lower = more real-time in chat but
+# more DB traffic.
+_LIVE_UPDATE_THROTTLE_MS = 700
+
+
+async def _stage_extract(db, doc: Document, project=None) -> dict:
+    """Invoke discovery-extraction-agent on the document.
+
+    The agent reads the parsed document text, calls `store_finding` via the
+    Discovery MCP for each finding, and produces a short chat summary at
+    the end. This function drains the agent's event stream, persists a
+    live chat card into the project's shared conversation (so the PM sees
+    extraction happen in real time), and returns aggregate counters for
+    the pipeline checkpoint.
+
+    Returns {summary, tool_calls, thinking_count, status}.
+    """
     from app.services.storage import read_upload_text
     from app.agent.claude_runner import claude_runner
-    from pathlib import Path
+    from app.services import conversation_store
+    from app.services.conversation_store import PROJECT_SHARED_USER
+    from app.services.tool_labels import tool_label as _tool_label
 
     file_path = (doc.classification or {}).get("file_path")
     if not file_path:
-        return DiscoveryExtraction(document_summary=f"No file content for {doc.filename}")
+        log.warning("extraction.no_file", document_id=str(doc.id), filename=doc.filename)
+        return {"status": "skipped", "reason": "no file content", "tool_calls": 0}
+
+    text = await read_upload_text(Path(file_path))
+    if len(text.strip()) < 20:
+        log.info("extraction.too_short", document_id=str(doc.id), filename=doc.filename)
+        return {"status": "skipped", "reason": "document too short", "tool_calls": 0}
+
+    # Build the extraction message. The agent's own frontmatter carries
+    # the extraction rules (source_quote law, dedup guidance, 5 kinds);
+    # we just hand it the document + light project context and let it run.
+    project_context = ""
+    if project:
+        project_context = (
+            f"Project: {project.name}\n"
+            f"Client: {project.client_name}\n"
+            f"Type: {project.project_type}\n"
+        )
+
+    message = (
+        "You have a document to extract findings from. Follow your extraction "
+        "process: dedup-check first (get_requirements, get_gaps), then call "
+        "store_finding per finding, then close with a 2-3 sentence chat summary.\n\n"
+        f"{project_context}"
+        f"Filename: {doc.filename}\n"
+        f"Document ID: {doc.id}\n"
+        "IMPORTANT: pass `source_doc_id` = \"" + str(doc.id) + "\" on EVERY "
+        "store_finding call so the Source column in the UI links back to this "
+        "document. This is non-optional for pipeline extractions.\n\n"
+        "DOCUMENT CONTENT:\n"
+        "---\n"
+        f"{text[:12000]}\n"
+        "---\n"
+    )
+
+    # Post a streaming placeholder to chat so the PM sees extraction live.
+    # Same pattern as reminder_prep — one evolving card vs. two messages.
+    placeholder_id: str | None = None
+    try:
+        placeholder_id = await conversation_store.append_message(
+            db, doc.project_id,
+            {
+                "role": "assistant",
+                "source": "pipeline",
+                "kind": "extraction_running",
+                "document_id": str(doc.id),
+                "content": f"📄 Extracting findings from **{doc.filename}**…",
+                "segments": [],
+                "toolCalls": [],
+                "thinkingCount": 0,
+                "_processing": True,
+            },
+        )
+        await db.commit()
+    except Exception as e:
+        log.warning("extraction.chat.placeholder.failed", id=str(doc.id), error=str(e))
+
+    text_chunks: list[str] = []
+    tool_calls: list[str] = []
+    thinking_count = 0
+    segments: list[dict] = []
+    activity_tools: list[str] = []
+    activity_thinking = 0
+    last_phase: str | None = None
+    last_update_ms = 0.0
+
+    def _flush_activity() -> None:
+        nonlocal activity_tools, activity_thinking
+        if activity_tools or activity_thinking > 0:
+            segments.append({
+                "type": "activity",
+                "tools": list(activity_tools),
+                "thinkingCount": activity_thinking,
+            })
+            activity_tools = []
+            activity_thinking = 0
+
+    def _snapshot_segments() -> list[dict]:
+        snap = list(segments)
+        if activity_tools or activity_thinking > 0:
+            snap.append({
+                "type": "activity",
+                "tools": list(activity_tools),
+                "thinkingCount": activity_thinking,
+            })
+        return snap
+
+    async def _maybe_live_update() -> None:
+        nonlocal last_update_ms
+        if not placeholder_id:
+            return
+        now_ms = time.time() * 1000
+        if now_ms - last_update_ms < _LIVE_UPDATE_THROTTLE_MS:
+            return
+        last_update_ms = now_ms
+        try:
+            await conversation_store.update_message_by_id(
+                db, doc.project_id, placeholder_id,
+                {
+                    "segments": _snapshot_segments(),
+                    "toolCalls": list(tool_calls),
+                    "thinkingCount": thinking_count,
+                },
+            )
+        except Exception as e:
+            log.warning("extraction.chat.live.failed", id=str(doc.id), error=str(e))
 
     try:
-        text = await read_upload_text(Path(file_path))
-        if len(text.strip()) < 20:
-            return DiscoveryExtraction(document_summary=f"File too short for extraction: {doc.filename}")
-
-        project_context = ""
-        if project:
-            project_context = f"""Project: {project.name}
-Client: {project.client_name}
-Type: {project.project_type}
-
-Extract business requirements relevant to this project for the client."""
-
-        existing_context = ""
-        if existing_summary:
-            existing_context = f"""
-EXISTING REQUIREMENTS (already extracted from other documents):
-{existing_summary}
-
-IMPORTANT: If the document mentions something already covered above, return it with "existing_match": "BR-XXX" so we can merge sources. Only create genuinely NEW requirements."""
-
-        prompt = f"""You are extracting business requirements from a client discovery document.
-
-{project_context}
-Document: {doc.filename}
-{existing_context}
----
-{text[:12000]}
----
-
-RULES:
-- Extract ONLY distinct, unique items. NO DUPLICATES.
-- SEPARATE requirements from gaps/open questions:
-  - REQUIREMENT = something the system SHALL do (a concrete capability or behavior)
-  - GAP = something UNKNOWN or UNDEFINED (an open question, missing info, unclear scope)
-- If an item matches an existing requirement, include "existing_match": "BR-XXX".
-- If it CONTRADICTS an existing requirement, still include "existing_match": "BR-XXX" and set confidence to "low".
-- Be selective: extract the most important items, not every detail.
-- Keep titles concise (under 60 chars).
-- ASSUMPTIONS: only extract HIGH-RISK assumptions that would force major rework if wrong (2-5 per document max, not every inference). Skip obvious things like "users have internet" or "standard browser support".
-- SCOPE: do NOT extract individual scope items. Include any in/out-of-scope boundaries in the document_summary field instead.
-
-Return ONLY valid JSON (no markdown, no code fences):
-{{
-  "document_summary": "one sentence summary of the document",
-  "requirements": [
-    {{
-      "id": "BR-001",
-      "title": "concise title of what system shall do",
-      "existing_match": "BR-XXX or null",
-      "type": "functional",
-      "priority": "must|should|could|wont",
-      "description": "what the system shall do",
-      "user_perspective": "As a [role], I want [X] so that [Y]",
-      "business_rules": [],
-      "edge_cases": [],
-      "acceptance_criteria": [
-        "AC1: Title — GIVEN precondition WHEN action THEN outcome",
-        "AC2: Title — GIVEN precondition WHEN action THEN outcome"
-      ],
-      "source_doc": "{doc.filename}",
-      "source_quote": "exact quote from document (min 10 chars)",
-      "source_person": "person name who said/requested this, or unknown",
-      "status": "proposed|discussed|confirmed",
-      "confidence": "high|medium|low"
-    }}
-  ],
-  "gaps": [
-    {{
-      "id": "GAP-001",
-      "question": "the open question or undefined area",
-      "severity": "high|medium|low",
-      "area": "which domain this gap affects",
-      "source_doc": "{doc.filename}",
-      "source_quote": "exact quote showing the gap",
-      "source_person": "who raised this or who should answer",
-      "blocked_reqs": ["BR-XXX"],
-      "suggested_action": "what to do to close this gap"
-    }}
-  ],
-  "constraints": [
-    {{
-      "type": "budget|timeline|technology|regulatory|organizational",
-      "description": "the constraint",
-      "impact": "how it limits the project",
-      "source_doc": "{doc.filename}",
-      "source_quote": "exact quote",
-      "status": "confirmed|assumed|negotiable"
-    }}
-  ],
-  "decisions": [
-    {{
-      "title": "what was decided",
-      "decided_by": "person name or unknown",
-      "rationale": "why this was chosen",
-      "alternatives_considered": [],
-      "source_doc": "{doc.filename}",
-      "status": "confirmed|tentative"
-    }}
-  ],
-  "stakeholders": [
-    {{
-      "name": "person name",
-      "role": "their role",
-      "organization": "company name",
-      "decision_authority": "final|recommender|informed",
-      "interests": []
-    }}
-  ],
-  "assumptions": [
-    {{
-      "statement": "HIGH-RISK assumption only (if wrong, forces major rework)",
-      "basis": "why we believe this",
-      "risk_if_wrong": "what breaks or what rework is needed"
-    }}
-  ]
-}}
-
-Return ONLY the JSON. No duplicates. Be concise and selective."""
-
-        result_text = ""
         async for event in claude_runner.run_stream(
             project_id=doc.project_id,
-            user_id=uuid.UUID("00000000-0000-0000-0000-000000000000"),
-            message=prompt,
-            system_prompt="You are a JSON extraction engine. Return ONLY valid JSON. No markdown, no explanation, no code fences. Just the raw JSON object.",
-            model="sonnet",
+            user_id=PROJECT_SHARED_USER,
+            message=message,
+            agent="discovery-extraction-agent",
+            model="sonnet",  # extraction benefits from the stronger model
         ):
-            if event["type"] == "text":
-                result_text += event["content"]
-            elif event["type"] == "result":
-                if not result_text:
-                    result_text = event.get("content", "")
-
-        # Parse JSON response
-        log.info("Extraction raw response", filename=doc.filename, length=len(result_text), preview=result_text[:200])
-        extraction = _parse_extraction_json(result_text, doc.filename)
-
-        # Post-extraction dedup: remove duplicates within this extraction
-        extraction = _dedup_within_extraction(extraction)
-
-        log.info("Extraction complete",
-                 document=doc.filename,
-                 requirements=len(extraction.requirements),
-                 constraints=len(extraction.constraints),
-                 decisions=len(extraction.decisions),
-                 stakeholders=len(extraction.stakeholders))
-        return extraction
-
+            etype = event.get("type")
+            if etype == "thinking":
+                thinking_count += 1
+                activity_thinking += 1
+                last_phase = "activity"
+                await _maybe_live_update()
+            elif etype == "text":
+                if last_phase == "activity":
+                    _flush_activity()
+                last_phase = "text"
+                chunk = event.get("content", "")
+                text_chunks.append(chunk)
+                if segments and segments[-1]["type"] == "text":
+                    segments[-1]["content"] = segments[-1].get("content", "") + chunk
+                else:
+                    segments.append({"type": "text", "content": chunk})
+                await _maybe_live_update()
+            elif etype == "tool_use":
+                last_phase = "activity"
+                tlabel = _tool_label(event.get("tool", "unknown"), event.get("input", {}) or {})
+                tool_calls.append(tlabel)
+                activity_tools.append(tlabel)
+                await _maybe_live_update()
     except Exception as e:
-        log.error("Extraction failed", error=str(e), document=doc.filename)
-        return DiscoveryExtraction(document_summary=f"Extraction failed for {doc.filename}: {str(e)}")
+        log.exception("extraction.agent.failed", id=str(doc.id))
+        if placeholder_id:
+            try:
+                await conversation_store.update_message_by_id(
+                    db, doc.project_id, placeholder_id,
+                    {
+                        "kind": "extraction_failed",
+                        "content": f"⚠️ Extraction failed for **{doc.filename}**: `{e}`",
+                        "_processing": False,
+                        "segments": _snapshot_segments(),
+                        "toolCalls": list(tool_calls),
+                        "thinkingCount": thinking_count,
+                    },
+                )
+                await db.commit()
+            except Exception:
+                pass
+        raise
 
+    _flush_activity()
+    summary = ("".join(text_chunks)).strip() or f"Extracted from {doc.filename}."
 
-def _parse_extraction_json(text: str, filename: str) -> "DiscoveryExtraction":
-    """Parse Claude's JSON response into a DiscoveryExtraction model."""
-    from app.schemas.extraction import (
-        DiscoveryExtraction, Requirement, Constraint, Decision,
-        Stakeholder, Assumption, ScopeItem, GapItem,
-    )
-    import json as _json
-
-    # Strip markdown code fences if present
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        # Remove first and last lines (```json and ```)
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        cleaned = "\n".join(lines)
-
-    # Find the JSON object in the text
-    start = cleaned.find("{")
-    end = cleaned.rfind("}") + 1
-    if start == -1 or end <= start:
-        return DiscoveryExtraction(document_summary=f"No JSON found in extraction for {filename}")
-
-    json_str = cleaned[start:end]
-
-    try:
-        data = _json.loads(json_str)
-    except _json.JSONDecodeError as e:
-        log.warning("JSON parse failed, attempting repair", error=str(e))
-        return DiscoveryExtraction(document_summary=f"JSON parse error for {filename}: {str(e)}")
-
-    # Build the extraction with validation
-    requirements = []
-    for i, r in enumerate(data.get("requirements", [])):
+    # Finalize the chat card with the agent's summary + final activity state.
+    if placeholder_id:
         try:
-            req = Requirement(
-                id=r.get("id", f"BR-{i+1:03d}"),
-                title=r.get("title", "Untitled"),
-                type=r.get("type", "functional"),
-                priority=r.get("priority", "should"),
-                description=r.get("description", ""),
-                user_perspective=r.get("user_perspective"),
-                business_rules=r.get("business_rules", []),
-                edge_cases=r.get("edge_cases", []),
-                acceptance_criteria=r.get("acceptance_criteria", []),
-                source_doc=r.get("source_doc", filename),
-                source_quote=r.get("source_quote", "extracted from document")[:500] or "extracted from document",
-                status=r.get("status", "proposed"),
-                confidence=r.get("confidence", "medium"),
+            await conversation_store.update_message_by_id(
+                db, doc.project_id, placeholder_id,
+                {
+                    "kind": "extraction_done",
+                    "content": f"📄 **{doc.filename}**\n\n{summary}",
+                    "segments": segments,
+                    "toolCalls": tool_calls,
+                    "thinkingCount": thinking_count,
+                    "_processing": False,
+                },
             )
-            # Carry source_person for storage
-            if r.get("source_person") and r["source_person"] != "unknown":
-                req._source_person = r["source_person"]
-            # Carry existing_match for dedup merge
-            if r.get("existing_match"):
-                req._existing_match = r["existing_match"]
-            requirements.append(req)
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid requirement", error=str(e), data=r)
-
-    constraints = []
-    for c in data.get("constraints", []):
-        try:
-            constraints.append(Constraint(
-                type=c.get("type", "technology"),
-                description=c.get("description", ""),
-                impact=c.get("impact", ""),
-                source_doc=c.get("source_doc", filename),
-                source_quote=c.get("source_quote", "extracted from document")[:500] or "extracted from document",
-                status=c.get("status", "assumed"),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid constraint", error=str(e))
-
-    decisions = []
-    for d in data.get("decisions", []):
-        try:
-            decisions.append(Decision(
-                title=d.get("title", ""),
-                decided_by=d.get("decided_by", "unknown"),
-                rationale=d.get("rationale", ""),
-                alternatives_considered=d.get("alternatives_considered", []),
-                source_doc=d.get("source_doc", filename),
-                status=d.get("status", "tentative"),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid decision", error=str(e))
-
-    stakeholders = []
-    for s in data.get("stakeholders", []):
-        try:
-            stakeholders.append(Stakeholder(
-                name=s.get("name", ""),
-                role=s.get("role", ""),
-                organization=s.get("organization", "unknown"),
-                decision_authority=s.get("decision_authority", "informed"),
-                interests=s.get("interests", []),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid stakeholder", error=str(e))
-
-    assumptions = []
-    for a in data.get("assumptions", []):
-        try:
-            assumptions.append(Assumption(
-                statement=a.get("statement", ""),
-                basis=a.get("basis", ""),
-                risk_if_wrong=a.get("risk_if_wrong", ""),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid assumption", error=str(e))
-
-    scope_items = []
-    for s in data.get("scope_items", []):
-        try:
-            scope_items.append(ScopeItem(
-                description=s.get("description", ""),
-                in_scope=s.get("in_scope", True),
-                rationale=s.get("rationale", ""),
-                source_doc=s.get("source_doc", filename),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid scope item", error=str(e))
-
-    # Parse gaps
-    gaps = []
-    for g in data.get("gaps", []):
-        try:
-            gaps.append(GapItem(
-                id=g.get("id", f"GAP-{len(gaps)+1:03d}"),
-                question=g.get("question", ""),
-                severity=g.get("severity", "medium"),
-                area=g.get("area", "general"),
-                source_doc=g.get("source_doc", filename),
-                source_quote=g.get("source_quote", ""),
-                source_person=g.get("source_person", "unknown"),
-                blocked_reqs=g.get("blocked_reqs", []),
-                suggested_action=g.get("suggested_action", ""),
-            ))
-        except _PARSE_ERRORS as e:
-            log.warning("Skipping invalid gap", error=str(e))
-
-    return DiscoveryExtraction(
-        document_summary=data.get("document_summary", f"Processed {filename}"),
-        requirements=requirements,
-        gaps=gaps,
-        constraints=constraints,
-        decisions=decisions,
-        stakeholders=stakeholders,
-        assumptions=assumptions,
-        scope_items=scope_items,
-    )
-
-
-def _dedup_within_extraction(extraction: "DiscoveryExtraction") -> "DiscoveryExtraction":
-    """Remove duplicates within a single extraction by comparing titles/descriptions."""
-
-    def _dedup_list(items, key_fn):
-        seen = set()
-        unique = []
-        for item in items:
-            key = key_fn(item).lower().strip()[:50]
-            if key not in seen:
-                seen.add(key)
-                unique.append(item)
-        return unique
-
-    extraction.requirements = _dedup_list(extraction.requirements, lambda r: r.title)
-    extraction.constraints = _dedup_list(extraction.constraints, lambda c: c.description)
-    extraction.decisions = _dedup_list(extraction.decisions, lambda d: d.title)
-    extraction.stakeholders = _dedup_list(extraction.stakeholders, lambda s: s.name)
-    extraction.assumptions = _dedup_list(extraction.assumptions, lambda a: a.statement)
-    extraction.scope_items = _dedup_list(extraction.scope_items, lambda s: s.description)
-    return extraction
-
-
-def _validate_extraction(extraction: "DiscoveryExtraction") -> tuple["DiscoveryExtraction", dict]:
-    """Validate every extracted item against its YAML schema.
-
-    Runs between extraction and dedup/store. Catches:
-    - Empty titles/descriptions (Pydantic defaults mask these)
-    - Enum values not in the schema (LLM hallucinations)
-    - Fake source quotes (the "extracted from document" placeholder)
-    - Fields the schema marks as required but the extraction omitted
-
-    Returns (filtered_extraction, report). Items that fail validation
-    are logged and dropped — they never reach the DB. The report
-    summarizes pass/fail counts per kind for the pipeline checkpoint."""
-    from app.services import schema_lib
-
-    report: dict = {"passed": 0, "rejected": 0, "details": []}
-
-    def _check_item(kind: str, payload: dict, label: str) -> bool:
-        """Validate one item. Returns True if it passes."""
-        # Reject items with no meaningful identity. Each kind has a
-        # specific "what is this item about" field — not a generic
-        # fallback chain, because a requirement with empty title but
-        # non-empty description should still be rejected.
-        IDENTITY_FIELD: dict[str, str] = {
-            "requirement": "title",
-            "gap": "question",
-            "constraint": "description",
-            "decision": "title",
-            "stakeholder": "name",
-            "assumption": "statement",
-            "scope": "description",
-            "contradiction": "explanation",
-        }
-        id_field = IDENTITY_FIELD.get(kind, "title")
-        identity = str(payload.get(id_field, "")).strip()
-        if not identity or identity.lower() in ("untitled", "unknown"):
-            report["rejected"] += 1
-            report["details"].append({"kind": kind, "label": label, "reason": "empty identity field"})
-            log.warning("Validation rejected: empty identity", kind=kind, label=label)
-            return False
-
-        # Reject fake source quotes (the default placeholder)
-        quote = payload.get("source_quote", "")
-        if kind in ("requirement", "constraint") and quote in ("extracted from document", ""):
-            # Downgrade to warning, don't reject — many valid items have inferred quotes
-            pass
-
-        # Schema validation (enum values, required fields, types)
-        try:
-            result = schema_lib.validate(kind, payload)
-            if not result.ok:
-                # Log but don't reject for missing non-critical fields — the store
-                # stage fills in defaults. Only reject for bad enum values.
-                enum_errors = [e for e in result.errors if "expected one of" in e]
-                if enum_errors:
-                    report["rejected"] += 1
-                    report["details"].append({"kind": kind, "label": label, "reason": enum_errors[0]})
-                    log.warning("Validation rejected: bad enum", kind=kind, label=label, errors=enum_errors)
-                    return False
-                # Other errors (missing fields) are warnings, not rejections
-                for err in result.errors:
-                    if "unknown field" not in err:
-                        log.debug("Validation warning", kind=kind, label=label, error=err)
-        except KeyError:
-            # Schema not found for this kind — skip validation, allow through
-            pass
-
-        report["passed"] += 1
-        return True
-
-    def _to_payload(item, extra: dict | None = None) -> dict:
-        """Convert a Pydantic model to a dict, merging any extra fields."""
-        d = item.model_dump() if hasattr(item, "model_dump") else dict(item)
-        if extra:
-            d.update(extra)
-        return d
-
-    # Validate each kind
-    valid_reqs = []
-    for r in extraction.requirements:
-        payload = _to_payload(r)
-        # Map source_person from private attr if present
-        if hasattr(r, "_source_person"):
-            payload["source_person"] = r._source_person
-        if _check_item("requirement", payload, payload.get("title", "?")):
-            valid_reqs.append(r)
-    extraction.requirements = valid_reqs
-
-    valid_cons = []
-    for c in extraction.constraints:
-        if _check_item("constraint", _to_payload(c), c.description[:50]):
-            valid_cons.append(c)
-    extraction.constraints = valid_cons
-
-    valid_gaps = []
-    for g in extraction.gaps:
-        payload = _to_payload(g)
-        payload["id"] = payload.pop("id", "")  # GapItem uses 'id' not 'gap_id'
-        if _check_item("gap", payload, g.question[:50]):
-            valid_gaps.append(g)
-    extraction.gaps = valid_gaps
-
-    valid_decs = []
-    for d in extraction.decisions:
-        if _check_item("decision", _to_payload(d), d.title[:50]):
-            valid_decs.append(d)
-    extraction.decisions = valid_decs
-
-    valid_stk = []
-    for s in extraction.stakeholders:
-        if _check_item("stakeholder", _to_payload(s), s.name):
-            valid_stk.append(s)
-    extraction.stakeholders = valid_stk
-
-    valid_asm = []
-    for a in extraction.assumptions:
-        if _check_item("assumption", _to_payload(a), a.statement[:50]):
-            valid_asm.append(a)
-    extraction.assumptions = valid_asm
-
-    valid_sco = []
-    for s in extraction.scope_items:
-        if _check_item("scope", _to_payload(s), s.description[:50]):
-            valid_sco.append(s)
-    extraction.scope_items = valid_sco
+            await db.commit()
+        except Exception as e:
+            log.warning("extraction.chat.final.failed", id=str(doc.id), error=str(e))
 
     log.info(
-        "Extraction validation complete",
-        passed=report["passed"],
-        rejected=report["rejected"],
-        details_count=len(report["details"]),
+        "extraction.done",
+        document=doc.filename,
+        tool_calls=len(tool_calls),
+        thinking=thinking_count,
     )
-    return extraction, report
-
-
-async def _merge_or_create(
-    db,
-    *,
-    project_id: uuid.UUID,
-    doc_id: uuid.UUID,
-    doc_filename: str,
-    model_cls,
-    item_type: str,
-    match_filters: list,
-    new_kwargs: dict,
-    tracked_fields: tuple[str, ...],
-    history_label: dict,
-) -> tuple[bool, object]:
-    """Find an existing row matching the filters or create a new one.
-
-    Returns (created, row). On match: appends source, bumps version, and
-    logs a ChangeHistory entry for any tracked field that changed. On miss:
-    inserts the row and logs a 'create' history entry.
-    """
-    result = await db.execute(
-        select(model_cls).where(model_cls.project_id == project_id, *match_filters)
-    )
-    existing = result.scalars().first()
-    now = datetime.now(timezone.utc).isoformat()
-
-    if existing is not None:
-        sources = list(existing.sources or [])
-        sources.append({
-            "doc_id": str(doc_id),
-            "filename": doc_filename,
-            "added_at": now,
-        })
-        existing.sources = sources
-        existing.version = (existing.version or 1) + 1
-
-        changes_old: dict = {}
-        changes_new: dict = {}
-        for field in tracked_fields:
-            new_val = new_kwargs.get(field)
-            old_val = getattr(existing, field, None)
-            if new_val and new_val != old_val:
-                changes_old[field] = old_val
-                changes_new[field] = new_val
-                setattr(existing, field, new_val)
-
-        if changes_old:
-            changes_new["source"] = str(doc_id)
-            db.add(ChangeHistory(
-                project_id=project_id, item_type=item_type,
-                item_id=existing.id, action="update",
-                old_value=changes_old, new_value=changes_new,
-                triggered_by="pipeline",
-            ))
-        return False, existing
-
-    row = model_cls(project_id=project_id, **new_kwargs)
-    db.add(row)
-    await db.flush()
-    db.add(ChangeHistory(
-        project_id=project_id, item_type=item_type,
-        item_id=row.id, action="create",
-        new_value={**history_label, "source": str(doc_id)},
-        triggered_by="pipeline",
-    ))
-    return True, row
-
-
-async def _stage_store(db, project_id: uuid.UUID, doc_id: uuid.UUID, extraction, doc_filename: str = "") -> dict:
-    """Store extracted items in PostgreSQL typed tables."""
-    counts = {
-        "requirements": 0, "constraints": 0, "decisions": 0,
-        "stakeholders": 0, "assumptions": 0, "scope_items": 0,
-        "contradictions": 0, "total": 0,
+    return {
+        "status": "done",
+        "summary": summary,
+        "tool_calls": len(tool_calls),
+        "thinking_count": thinking_count,
     }
 
-    # Store requirements
-    for i, req in enumerate(extraction.requirements):
-        db_req = Requirement(
-            project_id=project_id,
-            req_id=req.id,
-            title=req.title,
-            type=req.type,
-            priority=req.priority,
-            description=req.description,
-            user_perspective=req.user_perspective,
-            business_rules=req.business_rules,
-            edge_cases=req.edge_cases,
-            acceptance_criteria=req.acceptance_criteria,
-            source_doc_id=doc_id,
-            source_quote=req.source_quote,
-            status=req.status,
-            confidence=req.confidence,
-            source_person=getattr(req, '_source_person', None),
-        )
-        db.add(db_req)
-        await db.flush()  # Generate ID before referencing it
-        db.add(ChangeHistory(
-            project_id=project_id, item_type="requirement",
-            item_id=db_req.id, action="create",
-            new_value={"title": req.title, "priority": req.priority},
-            triggered_by="pipeline",
-        ))
-        counts["requirements"] += 1
 
-    # Store constraints (dedup by lowercased description)
-    for con in extraction.constraints:
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=Constraint, item_type="constraint",
-            match_filters=[sa_func.lower(Constraint.description) == (con.description or "").lower()],
-            new_kwargs=dict(
-                type=con.type, description=con.description, impact=con.impact,
-                source_doc_id=doc_id, source_quote=con.source_quote, status=con.status,
-            ),
-            tracked_fields=("type", "impact", "status"),
-            history_label={"description": (con.description or "")[:120]},
-        )
-        if created:
-            counts["constraints"] += 1
-
-    # Store decisions (dedup by lowercased title).
-    # decision.impacts carries BR ids the decision affects; like gap.blocked_reqs
-    # it can contain LLM-hallucinated refs. Filter to real ids up front.
-    existing_req_ids_for_decisions = {
-        r for (r,) in (await db.execute(
-            select(Requirement.req_id).where(Requirement.project_id == project_id)
-        )).all()
-    }
-    for dec in extraction.decisions:
-        raw_impacts = list(dec.impacts or [])
-        valid_impacts = [i for i in raw_impacts if i in existing_req_ids_for_decisions]
-        dropped_impacts = [i for i in raw_impacts if i not in existing_req_ids_for_decisions]
-        if dropped_impacts:
-            log.warning(
-                "Dropped stale impacts on decision",
-                decision_title=(dec.title or "")[:80],
-                dropped=dropped_impacts,
-            )
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=Decision, item_type="decision",
-            match_filters=[sa_func.lower(Decision.title) == (dec.title or "").lower()],
-            new_kwargs=dict(
-                title=dec.title, decided_by=dec.decided_by, rationale=dec.rationale,
-                alternatives=dec.alternatives_considered, impacts=valid_impacts,
-                source_doc_id=doc_id, status=dec.status,
-            ),
-            tracked_fields=("decided_by", "rationale", "status"),
-            history_label={"title": dec.title},
-        )
-        if created:
-            counts["decisions"] += 1
-
-    # Store stakeholders (dedup by lowercased name + organization)
-    for stk in extraction.stakeholders:
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=Stakeholder, item_type="stakeholder",
-            match_filters=[
-                sa_func.lower(Stakeholder.name) == (stk.name or "").lower(),
-                sa_func.lower(Stakeholder.organization) == (stk.organization or "").lower(),
-            ],
-            new_kwargs=dict(
-                name=stk.name, role=stk.role, organization=stk.organization,
-                decision_authority=stk.decision_authority, interests=stk.interests,
-                source_doc_id=doc_id,
-            ),
-            tracked_fields=("role", "decision_authority"),
-            history_label={"name": stk.name},
-        )
-        if created:
-            counts["stakeholders"] += 1
-
-    # Store assumptions (dedup by lowercased statement)
-    for asm in extraction.assumptions:
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=Assumption, item_type="assumption",
-            match_filters=[sa_func.lower(Assumption.statement) == (asm.statement or "").lower()],
-            new_kwargs=dict(
-                statement=asm.statement, basis=asm.basis, risk_if_wrong=asm.risk_if_wrong,
-                needs_validation_by=asm.needs_validation_by, source_doc_id=doc_id,
-            ),
-            tracked_fields=("basis", "risk_if_wrong", "needs_validation_by"),
-            history_label={"statement": (asm.statement or "")[:120]},
-        )
-        if created:
-            counts["assumptions"] += 1
-
-    # Store scope items (dedup by lowercased description)
-    for scp in extraction.scope_items:
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=ScopeItem, item_type="scope_item",
-            match_filters=[sa_func.lower(ScopeItem.description) == (scp.description or "").lower()],
-            new_kwargs=dict(
-                description=scp.description, in_scope=scp.in_scope,
-                rationale=scp.rationale, source_doc_id=doc_id,
-            ),
-            tracked_fields=("in_scope", "rationale"),
-            history_label={"description": (scp.description or "")[:120]},
-        )
-        if created:
-            counts["scope_items"] += 1
-
-    # Store gaps (dedup by lowercased question)
-    max_gap = await db.execute(
-        select(sa_func.count()).where(Gap.project_id == project_id)
-    )
-    next_gap_num = (max_gap.scalar() or 0) + 1
-
-    # Load the project's current BR id set so gap.blocked_reqs can be
-    # filtered to real references. The LLM sometimes hallucinates ids
-    # like BR-012 when none exists — we'd otherwise render phantom nodes
-    # in the knowledge graph and emit broken wikilinks into the vault.
-    existing_req_ids = {
-        r for (r,) in (await db.execute(
-            select(Requirement.req_id).where(Requirement.project_id == project_id)
-        )).all()
-    }
-
-    for gap in extraction.gaps:
-        gap_id = f"GAP-{next_gap_num:03d}"
-        raw_blocked = list(gap.blocked_reqs or [])
-        valid_blocked = [b for b in raw_blocked if b in existing_req_ids]
-        dropped = [b for b in raw_blocked if b not in existing_req_ids]
-        if dropped:
-            log.warning(
-                "Dropped stale blocked_reqs on gap",
-                gap_question=(gap.question or "")[:80],
-                dropped=dropped,
-            )
-        created, _ = await _merge_or_create(
-            db, project_id=project_id, doc_id=doc_id, doc_filename=doc_filename,
-            model_cls=Gap, item_type="gap",
-            match_filters=[sa_func.lower(Gap.question) == (gap.question or "").lower()],
-            new_kwargs=dict(
-                gap_id=gap_id, question=gap.question, severity=gap.severity, area=gap.area,
-                source_doc_id=doc_id, source_quote=gap.source_quote,
-                source_person=gap.source_person if gap.source_person != "unknown" else None,
-                blocked_reqs=valid_blocked, suggested_action=gap.suggested_action, status="open",
-            ),
-            tracked_fields=("severity", "area", "suggested_action"),
-            history_label={"question": (gap.question or "")[:120]},
-        )
-        if created:
-            next_gap_num += 1
-            counts["gaps"] = counts.get("gaps", 0) + 1
-
-    counts["contradictions"] = len(extraction.contradictions)
-    counts["total"] = sum(v for k, v in counts.items() if k != "total" and k != "contradictions" and k != "gaps")
-
-    await db.flush()
-    return counts
+# ─────────────────────────────────────────────────────────────────────────────
+# Markdown writers — extracted to markdown_writer.py for readability.
+# Every render_*_text, _*_to_payload, write_dashboard, write_hot,
+# write_schema_md, and stakeholder_filename_safe now live there.
+# Session 2 will trim the decision/scope/assumption renderers when those
+# kinds are formally dropped.
+# ─────────────────────────────────────────────────────────────────────────────
+from app.pipeline.markdown_writer import (  # noqa: E402
+    write_dashboard,
+    write_hot,
+    write_schema_md,
+    render_requirement_text,
+    render_constraint_text,
+    render_gap_text,
+    render_stakeholder_text,
+    render_contradiction_text,
+    requirement_to_payload,
+    constraint_to_payload,
+    gap_to_payload,
+    stakeholder_to_payload,
+    contradiction_to_payload,
+    write_with_hand_edits,
+)
 
 
 async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
@@ -977,11 +462,6 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     )
     contras = contras_result.scalars().all()
 
-    decisions_result = await db.execute(
-        select(Decision).where(Decision.project_id == project_id)
-    )
-    decisions = decisions_result.scalars().all()
-
     stakeholders_result = await db.execute(
         select(Stakeholder).where(Stakeholder.project_id == project_id)
     )
@@ -1001,16 +481,6 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     )
     gaps_rows = gaps_result.all()
 
-    assumptions_result = await db.execute(
-        select(Assumption).where(Assumption.project_id == project_id)
-    )
-    assumptions = assumptions_result.scalars().all()
-
-    scope_items_result = await db.execute(
-        select(ScopeItem).where(ScopeItem.project_id == project_id)
-    )
-    scope_items = scope_items_result.scalars().all()
-
     # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
     for r, doc_name, doc_class in reqs_rows:
         # Pre-compute co-extracted siblings (other requirements from the
@@ -1023,15 +493,6 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         payload = requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
         text = render_requirement_text(payload, reqs_dir=reqs_dir)
         write_with_hand_edits(reqs_dir / f"{r.req_id}.md", text)
-
-    # --- decisions/ individual files (Phase 4d: per-row split) ---
-    decisions_dir = discovery_dir / "decisions"
-    decisions_dir.mkdir(parents=True, exist_ok=True)
-    for i, d in enumerate(decisions, 1):
-        dec_id = f"DEC-{i:03d}"
-        payload = decision_to_payload(d, dec_id, today)
-        text = render_decision_text(payload)
-        write_with_hand_edits(decisions_dir / f"{dec_id}.md", text)
 
     # --- people/ individual stakeholder files (Phase 4d: per-row split) ---
     people_dir = discovery_dir / "people"
@@ -1046,29 +507,18 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         safe_name = _re.sub(r"[^\w\s-]", "_", s.name).strip().replace(" ", "_")[:80] or "unnamed"
         write_with_hand_edits(people_dir / f"{safe_name}.md", text)
 
-    # Clean up legacy single-file aggregates from earlier exports
+    # Clean up legacy single-file aggregates AND the three dropped-kind
+    # directories from earlier exports (decisions/assumptions/scope were
+    # removed in Session 2 — migration 027 drops the underlying tables).
+    import shutil as _shutil
     for legacy in ("decisions.md", "people.md"):
         legacy_path = discovery_dir / legacy
         if legacy_path.exists():
             legacy_path.unlink()
-
-    # --- assumptions/ individual files (Phase 4d) ---
-    assumptions_dir = discovery_dir / "assumptions"
-    assumptions_dir.mkdir(parents=True, exist_ok=True)
-    for i, asm in enumerate(assumptions, 1):
-        asm_id = f"ASM-{i:03d}"
-        payload = assumption_to_payload(asm, asm_id, today)
-        text = render_assumption_text(payload)
-        write_with_hand_edits(assumptions_dir / f"{asm_id}.md", text)
-
-    # --- scope/ individual files (Phase 4d) ---
-    scope_dir = discovery_dir / "scope"
-    scope_dir.mkdir(parents=True, exist_ok=True)
-    for i, sc in enumerate(scope_items, 1):
-        sc_id = f"SCO-{i:03d}"
-        payload = scope_to_payload(sc, sc_id, today)
-        text = render_scope_text(payload)
-        write_with_hand_edits(scope_dir / f"{sc_id}.md", text)
+    for legacy_dir in ("decisions", "assumptions", "scope"):
+        legacy_dir_path = discovery_dir / legacy_dir
+        if legacy_dir_path.exists():
+            _shutil.rmtree(legacy_dir_path, ignore_errors=True)
 
     # --- contradictions/ individual files (Phase 4d) ---
     contradictions_dir = discovery_dir / "contradictions"
@@ -1131,12 +581,6 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         for i, c in enumerate(constraints, 1):
             idx_lines.append(f"| [[CON-{i:03d}]] | {c.type} | {c.status} |")
         idx_lines.append("")
-    if decisions:
-        idx_lines += [f"## Decisions ({len(decisions)})", "",
-            "| ID | Title | Status |", "|---|---|---|"]
-        for i, d in enumerate(decisions):
-            idx_lines.append(f"| DEC-{i+1:03d} | {d.title} | {d.status} |")
-        idx_lines.append("")
     if gaps_rows:
         idx_lines += [f"## Gaps ({len(gaps_rows)})", "",
             "| ID | Question | Severity | Status |", "|---|---|---|---|"]
@@ -1189,7 +633,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     entry = (
         f"\n## [INGEST] {timestamp} — {doc_name}\n"
         f"Extracted: {len(reqs_rows)} requirements, {len(constraints)} constraints, "
-        f"{len(decisions)} decisions, {len(gaps_rows)} gaps, {len(stakeholders)} stakeholders\n"
+        f"{len(gaps_rows)} gaps, {len(stakeholders)} stakeholders\n"
         f"Readiness: {readiness.get('score', 0)}%\n"
     )
     if lint_summary is not None:
@@ -1209,7 +653,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     # outside docs/discovery/ so it doesn't pollute the discovery wiki.
     try:
         write_dashboard(
-            vault_root, reqs_rows, constraints, gaps_rows, decisions,
+            vault_root, reqs_rows, constraints, gaps_rows,
             stakeholders, readiness, lint_summary=lint_summary,
         )
     except Exception as e:
@@ -1218,7 +662,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     # hot.md at vault root — short distilled "what's hot right now"
     # carry-over for the next agent session. Cheap to load into context.
     try:
-        write_hot(vault_root, doc, reqs_rows, gaps_rows, decisions, readiness)
+        write_hot(vault_root, doc, reqs_rows, gaps_rows, readiness)
     except Exception as e:
         log.warning("hot.md generation failed (non-fatal)", error=str(e))
 
@@ -1233,166 +677,3 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
              project_id=str(project_id),
              requirements=len(reqs_rows),
              path=str(discovery_dir))
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Markdown writers — extracted to markdown_writer.py for readability.
-# Every render_*_text, _*_to_payload, write_dashboard, write_hot,
-# write_schema_md, and stakeholder_filename_safe now live there.
-# ─────────────────────────────────────────────────────────────────────────────
-from app.pipeline.markdown_writer import (  # noqa: E402
-    write_dashboard,
-    write_hot,
-    write_schema_md,
-    render_requirement_text,
-    render_constraint_text,
-    render_gap_text,
-    render_decision_text,
-    render_stakeholder_text,
-    render_assumption_text,
-    render_scope_text,
-    render_contradiction_text,
-    requirement_to_payload,
-    constraint_to_payload,
-    gap_to_payload,
-    decision_to_payload,
-    stakeholder_to_payload,
-    assumption_to_payload,
-    scope_to_payload,
-    contradiction_to_payload,
-    write_with_hand_edits,
-)
-
-
-async def _post_completion_notice(project_id, doc: Document, counts: dict, readiness: dict):
-    """Post a structured system message in chat + create notifications when
-    a document finishes processing. The agent picks this up via context
-    injection on the user's next chat turn (chat.py)."""
-    from app.db.session import async_session
-    from app.services.conversation_store import append_system_message
-    from app.models.operational import Notification
-    from app.models.project import ProjectMember
-    from sqlalchemy import select
-
-    classification = doc.classification or {}
-    source = classification.get("source") or "upload"
-    auto_synced = classification.get("auto_synced", False)
-    source_label = {
-        "gmail": "Gmail",
-        "google_drive": "Drive",
-        "slack": "Slack",
-        "upload": "upload",
-    }.get(source, source)
-
-    total = counts.get("total", 0)
-    reqs = counts.get("requirements", 0)
-    gaps = counts.get("gaps", 0)
-    cons = counts.get("constraints", 0)
-    contradictions = counts.get("contradictions", 0)
-    score = readiness.get("score", 0)
-
-    # Compose the chat notice (visible to user + agent context)
-    parts = [f"**{doc.filename}** processed"]
-    if source != "upload":
-        parts.append(f"({source_label}{' · auto-sync' if auto_synced else ''})")
-    parts.append("—")
-    bits: list[str] = []
-    if reqs:
-        bits.append(f"{reqs} requirement{'s' if reqs != 1 else ''}")
-    if gaps:
-        bits.append(f"{gaps} gap{'s' if gaps != 1 else ''}")
-    if cons:
-        bits.append(f"{cons} constraint{'s' if cons != 1 else ''}")
-    if contradictions:
-        bits.append(f"{contradictions} contradiction{'s' if contradictions != 1 else ''}")
-    if not bits:
-        bits.append(f"{total} item{'s' if total != 1 else ''}")
-    parts.append(", ".join(bits))
-    parts.append(f"· readiness {score}%")
-    notice_text = " ".join(parts)
-
-    # Enrich data with readiness delta and the IDs of items this document
-    # actually created. Used by the chat SystemNotice to show clickable
-    # links straight to the new requirements/gaps.
-    from app.models.control import ReadinessHistory
-    from app.models.extraction import Requirement, Gap
-
-    readiness_before: float | None = None
-    gap_ids: list[str] = []
-    req_ids: list[str] = []
-
-    async with async_session() as db:
-        # Find the readiness score from BEFORE this document was processed.
-        # We've already written one history row for the post-doc score, so
-        # the second-most-recent row is the previous state.
-        prev_result = await db.execute(
-            select(ReadinessHistory.score)
-            .where(ReadinessHistory.project_id == project_id)
-            .order_by(ReadinessHistory.created_at.desc())
-            .offset(1)
-            .limit(1)
-        )
-        prev_row = prev_result.scalar_one_or_none()
-        if prev_row is not None:
-            readiness_before = prev_row
-
-        # Gaps created by this specific document
-        gap_result = await db.execute(
-            select(Gap.gap_id)
-            .where(Gap.project_id == project_id, Gap.source_doc_id == doc.id)
-            .order_by(Gap.gap_id)
-        )
-        gap_ids = [r[0] for r in gap_result.fetchall() if r[0]]
-
-        # Requirements created by this specific document
-        req_result = await db.execute(
-            select(Requirement.req_id)
-            .where(Requirement.project_id == project_id, Requirement.source_doc_id == doc.id)
-            .order_by(Requirement.req_id)
-        )
-        req_ids = [r[0] for r in req_result.fetchall() if r[0]]
-
-    delta: float | None = None
-    if readiness_before is not None and score is not None:
-        delta = round(score - readiness_before, 1)
-
-    async with async_session() as db:
-        await append_system_message(
-            db, project_id, notice_text,
-            kind="document_ingested",
-            data={
-                "document_id": str(doc.id),
-                "filename": doc.filename,
-                "source": source,
-                "auto_synced": auto_synced,
-                "counts": counts,
-                "readiness": score,
-                "readiness_before": readiness_before,
-                "readiness_after": score,
-                "readiness_delta": delta,
-                "gap_ids": gap_ids,
-                "req_ids": req_ids,
-            },
-        )
-
-        # Notifications fan-out
-        result = await db.execute(
-            select(ProjectMember.user_id).where(ProjectMember.project_id == project_id)
-        )
-        for (uid,) in result.fetchall():
-            db.add(Notification(
-                project_id=project_id,
-                user_id=uid,
-                type="document_processed",
-                title=f"{doc.filename} processed",
-                body=notice_text,
-                data={
-                    "document_id": str(doc.id),
-                    "source": source,
-                    "auto_synced": auto_synced,
-                    "counts": counts,
-                    "readiness": score,
-                    "readiness_delta": delta,
-                },
-            ))
-        await db.commit()

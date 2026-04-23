@@ -12,28 +12,54 @@ fields:
     db_column: null
     description: "CTR-NNN — assigned by writer"
 
-  - key: item_a_type
+  - key: title
     type: string
     required: true
-    description: "Kind of the first item (requirement, constraint, …)"
+    description: "Short headline for the contradiction (≤60 chars) — e.g. 'MVP handoff documents', 'Extraction model'."
 
-  - key: item_a_id
-    type: string
-    required: true
-    description: "Display ID of the first item (BR-001, CON-002, …)"
-
-  - key: item_b_type
-    type: string
-    required: true
-
-  - key: item_b_id
-    type: string
-    required: true
-
-  - key: explanation
+  - key: side_a
     type: text
     required: true
     frontmatter: false
+    description: "First conflicting statement — what one source/person said."
+
+  - key: side_b
+    type: text
+    required: true
+    frontmatter: false
+    description: "Second conflicting statement — what the other source/person said."
+
+  - key: area
+    type: enum
+    required: false
+    values: [tech-stack, scope, governance, timeline, budget, other]
+    description: "Domain category."
+
+  - key: side_a_source
+    type: string
+    required: false
+    description: "Document / source reference for side A (filename or vault path)."
+
+  - key: side_a_person
+    type: string
+    required: false
+    description: "Person who holds side A."
+
+  - key: side_b_source
+    type: string
+    required: false
+    description: "Document / source reference for side B."
+
+  - key: side_b_person
+    type: string
+    required: false
+    description: "Person who holds side B."
+
+  - key: explanation
+    type: text
+    required: false
+    frontmatter: false
+    description: "Optional context composed from title + side_a + side_b. Populated server-side; agents usually don't need to set this."
 
   - key: resolved
     type: bool
@@ -60,14 +86,9 @@ fields:
     default: today
 
 sections:
-  - name: Explanation
+  - name: Conflicting statements
     format: paragraphs
-    source_field: explanation
-    required: true
-
-  - name: Items in conflict
-    format: wikilinks
-    generated_from: relationships.conflicting
+    generated_from: side_a_and_side_b
     required: true
 
   - name: Resolution
@@ -77,27 +98,24 @@ sections:
 
 classification:
   cssclasses: [contradiction, "node-red"]
-  default_tags: [contradiction, "resolved:{{resolved}}"]
+  default_tags: [contradiction, "resolved:{{resolved}}", "area:{{area}}"]
 
 view:
-  dataview_columns: [resolved, item_a_id, item_b_id, explanation]
+  dataview_columns: [resolved, area, title]
   default_sort: [resolved asc, date desc]
-  group_by: resolved
-
-relationships:
-  - name: conflicting
-    target: any
-    derived: from item_a_id and item_b_id
+  group_by: area
 
 extraction_prompt: |
-  A contradiction is when two existing items disagree. The agent does NOT
-  extract contradictions from raw text — they are produced by the dedup
-  stage of the pipeline when a new extraction conflicts with an existing
-  item.
+  A contradiction is when two statements can't both be true. The
+  discovery-extraction-agent captures them as free-form two-sided
+  disagreements:
+  - title: short headline ("MVP handoff documents", "Extraction model")
+  - side_a: first conflicting statement, what one source/person said
+  - side_b: second conflicting statement, what the other source/person said
+  - area: tech-stack / scope / governance / timeline / budget / other
+  - resolved: false until a human picks a side
+  - resolution_note: how it was resolved (when resolved)
 
-  Manual contradictions (logged by humans) capture:
-  - item_a_type / item_a_id: first item kind + display id
-  - item_b_type / item_b_id: second item kind + display id
-  - explanation: why they conflict (1-2 sentences)
-  - resolved: false until a human chooses a winner
-  - resolution_note: how it was resolved (if resolved)
+  Extract contradictions both WITHIN a document (one person says X, another
+  says Y) and ACROSS documents (this doc contradicts an earlier one — the
+  agent reads existing data via get_requirements / get_gaps to cross-check).

@@ -8,6 +8,7 @@
 import type {
   ApiRequirement, ApiConstraint, ApiGap, ApiDocument,
 } from "@/lib/api";
+import { formatRaisedMeta } from "@/lib/dates";
 import type { GapResolution } from "./feedback-cards";
 
 
@@ -64,11 +65,18 @@ export function reqActionsForStatus(status: string): Action[] {
 
 export function buildRequirementView(req: ApiRequirement, projectId: string): DetailViewBase {
   const sourceLines = _sourceLines(req.source_doc, req.source_doc_id, req.sources);
+  const scopeNote = (req.scope_note || "").trim();
+  const rationale = (req.rationale || "").trim();
+  const alternatives = req.alternatives_considered || [];
+  const blockedBy = req.blocked_by || [];
 
   const md = [
     `# ${req.req_id}: ${req.title}`,
+    scopeNote ? `\n*${scopeNote}*` : "",
     "", "## Description", req.description || "No description",
     req.user_perspective ? `\n## User Perspective\n${req.user_perspective}` : "",
+    rationale ? `\n## Rationale\n${rationale}` : "",
+    alternatives.length ? `\n## Alternatives Considered\n${alternatives.map((a) => `- ${a}`).join("\n")}` : "",
     `\n## Business Rules\n${req.business_rules?.length
       ? req.business_rules.map((r: string) => `- ${r}`).join("\n")
       : "*None captured.*"}`,
@@ -78,6 +86,7 @@ export function buildRequirementView(req: ApiRequirement, projectId: string): De
     `\n## Edge Cases\n${req.edge_cases?.length
       ? req.edge_cases.map((e: string) => `- ${e}`).join("\n")
       : "*None captured.*"}`,
+    blockedBy.length ? `\n## Blocked By\n${blockedBy.map((b) => `- [${b}](br://${b})`).join("\n")}` : "",
     sourceLines.length ? `\n## Sources\n${sourceLines.join("\n")}` : "",
   ].filter(Boolean).join("\n");
 
@@ -88,6 +97,8 @@ export function buildRequirementView(req: ApiRequirement, projectId: string): De
     version: `v${req.version || 1}${req.version > 1 ? ` · merged from ${1 + (req.sources?.length || 0)} docs` : ""}`,
     source: req.source_doc || "unknown",
   };
+  const raised = formatRaisedMeta(req.created_at);
+  if (raised) meta.raised = raised;
   if (req.source_person) meta.requested_by = req.source_person;
 
   return {
@@ -118,14 +129,7 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
     sourceLines.push(`- ${con.source_doc}`);
   }
 
-  let raisedValue: string | null = null;
-  if (con.created_at) {
-    const raised = new Date(con.created_at);
-    const days = Math.max(0, Math.floor((Date.now() - raised.getTime()) / 86_400_000));
-    const raisedDate = raised.toISOString().slice(0, 10);
-    const ageText = days === 0 ? "today" : `${days}d old`;
-    raisedValue = `${raisedDate} · ${ageText}`;
-  }
+  const raisedValue = formatRaisedMeta(con.created_at);
 
   const md = [
     `# ${conId}: ${headerTitle}`,
@@ -183,17 +187,7 @@ export function buildGapView(
   }
 
   // Age info: raise date + age for open, or time-to-close for closed.
-  let raisedValue: string | null = null;
-  if (gap.created_at) {
-    const raised = new Date(gap.created_at);
-    const endPoint = gap.closed_at ? new Date(gap.closed_at) : new Date();
-    const days = Math.max(0, Math.floor((endPoint.getTime() - raised.getTime()) / 86_400_000));
-    const raisedDate = raised.toISOString().slice(0, 10);
-    const ageText = gap.closed_at
-      ? (days === 0 ? "closed same day" : `${days}d open before close`)
-      : (days === 0 ? "today" : `${days}d old`);
-    raisedValue = `${raisedDate} · ${ageText}`;
-  }
+  const raisedValue = formatRaisedMeta(gap.created_at, gap.closed_at);
 
   // "Suggested Action" reframes to historical once the gap is closed.
   const suggestedActionHeading = (gap.status === "resolved" || gap.status === "dismissed")
@@ -224,6 +218,9 @@ export function buildGapView(
     status: gap.status,
     area: gap.area || "general",
   };
+  // Kind badge — only shown for non-default kinds (missing_info stays boring).
+  if (gap.kind === "unvalidated_assumption") meta.kind = "Unvalidated assumption";
+  else if (gap.kind === "undecided") meta.kind = "Undecided";
   if (raisedValue) meta.raised = raisedValue;
   if (gap.assignee) meta.owner = gap.assignee;
   if (gap.source_person) meta.ask = gap.source_person;

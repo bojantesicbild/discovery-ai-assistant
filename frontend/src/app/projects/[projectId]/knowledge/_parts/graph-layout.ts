@@ -28,7 +28,6 @@ export interface GraphEdge {
 /* ---------- constants ---------- */
 export const TYPE_COLORS: Record<string, string> = {
   requirement: "#00E5A0",
-  decision: "#2563eb",
   stakeholder: "#7c3aed",
   contradiction: "#EF4444",
   constraint: "#0891b2",
@@ -38,7 +37,6 @@ export const TYPE_COLORS: Record<string, string> = {
 
 export const TYPE_LABELS: Record<string, string> = {
   requirement: "Requirement",
-  decision: "Decision",
   stakeholder: "People",
   contradiction: "Contradiction",
   constraint: "Constraint",

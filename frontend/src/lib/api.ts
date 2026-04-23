@@ -108,6 +108,10 @@ export interface ApiRequirement {
   business_rules: string[];
   edge_cases: string[];
   acceptance_criteria: string[];
+  rationale?: string | null;
+  alternatives_considered?: string[];
+  scope_note?: string | null;
+  blocked_by?: string[];
   source_doc: string | null;
   source_doc_id: string | null;
   source_quote: string | null;
@@ -126,6 +130,7 @@ export interface ApiGap {
   question: string;
   severity: string;            // high | medium | low
   area: string;
+  kind?: "missing_info" | "unvalidated_assumption" | "undecided";
   source_doc: string | null;
   source_doc_id: string | null;
   source_quote: string | null;
@@ -156,18 +161,6 @@ export interface ApiConstraint {
   seen_at: string | null;
 }
 
-export interface ApiDecision {
-  id: string;
-  title: string;
-  decided_by: string | null;
-  date: string | null;
-  rationale: string;
-  alternatives: string[];
-  impacts: string[];           // BR ids the decision affects
-  status: string;
-  seen_at: string | null;
-}
-
 export interface ApiStakeholder {
   id: string;
   name: string;
@@ -178,37 +171,34 @@ export interface ApiStakeholder {
   seen_at: string | null;
 }
 
-export interface ApiAssumption {
-  id: string;
-  statement: string;
-  basis: string;
-  risk_if_wrong: string;
-  needs_validation_by: string | null;
-  validated: boolean;
-  seen_at: string | null;
-}
-
-export interface ApiScope {
-  id: string;
-  description: string;
-  in_scope: boolean;
-  rationale: string;
-  seen_at: string | null;
-}
-
 export interface ApiContradiction {
   id: string;
-  item_a_type: string;
-  item_a_id: string;
-  item_a_ref: string;
+  // First-class fields — populated by the extraction agent from migration
+  // 025 onward. Read these directly; they're what the UI should display.
+  title: string | null;
+  side_a: string | null;
+  side_b: string | null;
+  area: string | null;
+  // Per-side provenance, added in migration 026. Renders as source +
+  // person chips under each side in the contradiction detail view.
+  side_a_source: string | null;
+  side_a_person: string | null;
+  side_b_source: string | null;
+  side_b_person: string | null;
+  // Legacy pointer fields — only populated when the agent mapped to
+  // real DB rows (rare). Nullable since migration 025 nulled out the
+  // 'unknown'/random-UUID placeholders the old MCP handler was writing.
+  item_a_type: string | null;
+  item_a_id: string | null;
+  item_a_ref: string | null;
   item_a_source: string | null;
   item_a_person?: string | null;
-  item_b_type: string;
-  item_b_id: string;
-  item_b_ref: string;
+  item_b_type: string | null;
+  item_b_id: string | null;
+  item_b_ref: string | null;
   item_b_source: string | null;
   item_b_person?: string | null;
-  explanation: string;
+  explanation: string | null;
   resolved: boolean;
   resolution_note: string | null;
   suggested_resolution?: string | null;
@@ -351,10 +341,6 @@ export async function updateRequirement(projectId: string, reqId: string, params
   return fetchAPI(`/api/projects/${projectId}/requirements/${reqId}?${qs}`, { method: "PATCH" });
 }
 
-export async function validateAssumption(projectId: string, assumptionId: string, validated: boolean) {
-  return fetchAPI(`/api/projects/${projectId}/assumptions/${assumptionId}/validate?validated=${validated}`, { method: "PATCH" });
-}
-
 export async function resolveContradiction(projectId: string, contradictionId: string, note: string) {
   return fetchAPI(`/api/projects/${projectId}/contradictions/${contradictionId}/resolve?resolution_note=${encodeURIComponent(note)}`, { method: "PATCH" });
 }
@@ -363,20 +349,8 @@ export async function listConstraints(projectId: string): Promise<ApiListRespons
   return fetchAPI(`/api/projects/${projectId}/constraints`);
 }
 
-export async function listDecisions(projectId: string): Promise<ApiListResponse<ApiDecision>> {
-  return fetchAPI(`/api/projects/${projectId}/decisions`);
-}
-
 export async function listStakeholders(projectId: string): Promise<ApiListResponse<ApiStakeholder>> {
   return fetchAPI(`/api/projects/${projectId}/stakeholders`);
-}
-
-export async function listAssumptions(projectId: string): Promise<ApiListResponse<ApiAssumption>> {
-  return fetchAPI(`/api/projects/${projectId}/assumptions`);
-}
-
-export async function listScope(projectId: string): Promise<ApiListResponse<ApiScope>> {
-  return fetchAPI(`/api/projects/${projectId}/scope`);
 }
 
 export async function listContradictions(projectId: string): Promise<ApiListResponse<ApiContradiction>> {
@@ -409,7 +383,31 @@ export async function updateConstraintStatus(
 }
 
 // Dashboard
-export async function getDashboard(projectId: string) {
+export interface ReadinessComponent {
+  score: number;
+  label: string;
+  summary: string;
+  details?: string | null;
+}
+export interface Readiness {
+  score: number;
+  status: string;
+  components: Record<string, ReadinessComponent>;
+}
+export interface DashboardResponse {
+  readiness: Readiness;
+  requirements_count: number;
+  requirements_confirmed: number;
+  constraints_count: number;
+  stakeholders_count: number;
+  contradictions_unresolved: number;
+  gaps_open: number;
+  documents_count: number;
+  documents_processing: number;
+  recent_activity: { action: string; summary: string; created_at: string }[];
+  project_name?: string;
+}
+export async function getDashboard(projectId: string): Promise<DashboardResponse> {
   return fetchAPI(`/api/projects/${projectId}/dashboard`);
 }
 
@@ -862,20 +860,14 @@ export type FindingType =
   | "requirement"
   | "gap"
   | "constraint"
-  | "decision"
   | "contradiction"
-  | "assumption"
-  | "scope"
   | "stakeholder";
 
 export interface UnreadCounts {
   requirement: number;
   gap: number;
   constraint: number;
-  decision: number;
   contradiction: number;
-  assumption: number;
-  scope: number;
   stakeholder: number;
   total: number;
 }

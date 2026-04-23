@@ -43,7 +43,7 @@ Duration estimate by mode: Expansion 60–90 min · Selective 45–60 min · Hol
 
 1. **Get readiness** — call `get_readiness(project_id)`. Pick scope mode.
 2. **Get gaps** — call `get_gaps(project_id)` (mandatory per Iron Law).
-3. **Get context** — call `get_contradictions`, `get_assumptions`, `get_project_context` in parallel.
+3. **Get context** — call `get_contradictions`, `get_requirements`, `get_constraints`, `get_project_context` in parallel. Decision context lives on BR `rationale` + `alternatives_considered`; unvalidated assumptions surface as gaps with `kind='unvalidated_assumption'` (already in step 2); imposed assumptions are constraints.
 4. **Respect user selections** — if the user's message lists specific items to focus on, build the agenda around those. The user's editorial judgment wins. Still pull full MCP context for framing, but the structure follows their picks.
 5. **Write the file** — `.memory-bank/docs/meeting-prep/YYYY-MM-DD-agenda.md`. Use the template below.
 6. **Frame every question** with all five elements: *why it matters*, *what we know*, *what to ask*, *who to ask*, *how to confirm interpretation*.

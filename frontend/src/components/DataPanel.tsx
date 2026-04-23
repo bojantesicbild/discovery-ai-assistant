@@ -203,12 +203,27 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     setShowReadiness(true);
   }
 
-  // React to external tab/highlight changes
+  // React to external tab/highlight changes. `initialTab` comes from the
+  // ?tab=… URL param; several legacy callers still emit "constraints" /
+  // "contradictions" but those aren't real tabs — they're subsections of
+  // the gaps tab. Map them into (activeTab, gapSection) before setting.
   useEffect(() => {
-    if (initialTab) setActiveTab(initialTab);
+    if (!initialTab) return;
+    if (initialTab === "constraints") {
+      setActiveTab("gaps");
+      setGapSection("constraints");
+    } else if (initialTab === "contradictions" || initialTab === "conflicts") {
+      setActiveTab("gaps");
+      setGapSection("conflicts");
+    } else if (initialTab === "decisions" || initialTab === "scope" || initialTab === "assumptions") {
+      // Legacy taxonomy — these kinds no longer exist. Fall back to gaps.
+      setActiveTab("gaps");
+    } else {
+      setActiveTab(initialTab);
+    }
   }, [initialTab]);
 
-  // Auto-open highlighted item after data loads
+  // Auto-open highlighted item after data loads.
   useEffect(() => {
     if (!highlightId) return;
 
@@ -221,7 +236,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     } else if (initialTab === "constraints") {
       const con = constraints.find((c) => String(c.id).startsWith(highlightId));
       if (con) setExpandedRow(con.id);
-    } else if (initialTab === "contradictions") {
+    } else if (initialTab === "contradictions" || initialTab === "conflicts") {
       const ct = contradictions.find((c) => String(c.id).startsWith(highlightId));
       if (ct) setExpandedRow(ct.id);
     } else if (initialTab === "docs") {

@@ -32,7 +32,6 @@ const TYPE_ICONS: Record<string, string> = {
   requirement: "BR",
   gap: "GAP",
   constraint: "CON",
-  decision: "DEC",
   contradiction: "CTD",
   stakeholder: "STK",
 };
@@ -41,7 +40,6 @@ const TYPE_COLORS: Record<string, string> = {
   requirement: "#059669",
   gap: "#F59E0B",
   constraint: "#F97316",
-  decision: "#2563eb",
   contradiction: "#EF4444",
   stakeholder: "#7c3aed",
 };
@@ -276,7 +274,6 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
     gap: "gaps",
     constraint: "constraints",
     contradiction: "contradictions",
-    decision: "reqs",
     stakeholder: "reqs",
   };
 

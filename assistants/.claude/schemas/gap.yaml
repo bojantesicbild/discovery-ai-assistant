@@ -17,6 +17,13 @@ fields:
     required: true
     description: "What we don't know yet"
 
+  - key: kind
+    type: enum
+    values: [missing_info, unvalidated_assumption, undecided]
+    required: false
+    default: missing_info
+    description: "Kind of gap: missing_info (default) = client never told us; unvalidated_assumption = we're assuming X but nothing confirms it; undecided = a call that needs to be made but hasn't been."
+
   - key: severity
     type: enum
     values: [low, medium, high]
@@ -148,6 +155,12 @@ extraction_prompt: |
 
   For each gap, capture:
   - question: the missing information, phrased as a question
+  - kind: classification of the gap. Pick one:
+      - missing_info (default) — the client simply never told us.
+      - unvalidated_assumption — the source says "we assume X" / "we believe X"
+        without confirmation; nothing in the record validates it.
+      - undecided — the source says "we need to decide X" / "TBD" / "still
+        open" — a call that must be made but hasn't been.
   - severity: high (blocks major work), medium (slows work), low (cosmetic)
   - area: which domain it lives in (business / functional / technical / scope)
   - blocked_reqs: BR-NNN ids that can't be confirmed without this answer
@@ -155,4 +168,5 @@ extraction_prompt: |
   - source_quote: if the gap was raised by a client statement, the quote
 
   Gaps drive readiness scoring. Resolving a gap = converting it to a
-  confirmed requirement / decision / constraint.
+  confirmed requirement or constraint, or marking an unvalidated assumption
+  as validated.

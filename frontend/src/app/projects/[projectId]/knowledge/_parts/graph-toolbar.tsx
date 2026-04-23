@@ -32,7 +32,8 @@ export function GraphToolbar({
 }: GraphToolbarProps) {
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 0, padding: "6px 12px",
+      display: "flex", alignItems: "center", flexWrap: "wrap",
+      gap: "4px 0", padding: "6px 12px",
       background: "#f8fafc", borderBottom: "1px solid #e2e8f0",
       zIndex: 2, flexShrink: 0,
     }}>
@@ -67,7 +68,7 @@ export function GraphToolbar({
 
       <div style={{ flex: 1 }} />
 
-      <div style={{ display: "flex", gap: 4 }}>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {Object.entries(TYPE_LABELS).map(([type, label]) => {
           const active = activeFilters.has(type);
           const color = TYPE_COLORS[type];

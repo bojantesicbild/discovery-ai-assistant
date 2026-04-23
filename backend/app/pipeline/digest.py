@@ -6,7 +6,7 @@ from sqlalchemy import select, func, text
 import structlog
 
 from app.db.session import async_session
-from app.models.extraction import Requirement, Constraint, Decision, Gap
+from app.models.extraction import Requirement, Constraint, Gap
 from app.models.control import ReadinessHistory
 from app.models.operational import Digest, ActivityLog
 from app.services.evaluator import compute_trajectory
@@ -113,12 +113,6 @@ async def generate_digest(project_id: uuid.UUID) -> dict:
                 Requirement.created_at >= yesterday,
             )
         ) or 0
-        new_decisions = await db.scalar(
-            select(func.count()).where(
-                Decision.project_id == project_id,
-                Decision.created_at >= yesterday,
-            )
-        ) or 0
         new_constraints = await db.scalar(
             select(func.count()).where(
                 Constraint.project_id == project_id,
@@ -162,9 +156,8 @@ async def generate_digest(project_id: uuid.UUID) -> dict:
             "check_changes": check_changes,
             "new_items": {
                 "requirements": new_reqs,
-                "decisions": new_decisions,
                 "constraints": new_constraints,
-                "total": new_reqs + new_decisions + new_constraints,
+                "total": new_reqs + new_constraints,
             },
             "stale_gaps": stale,
             "priorities": [{"check": p["check"], "status": p["status"]} for p in priorities],
@@ -202,7 +195,6 @@ tags: [digest, daily, readiness]
             ni = digest_data["new_items"]
             md += f"## New Items ({ni['total']})\n"
             if ni["requirements"]: md += f"- {ni['requirements']} requirements\n"
-            if ni["decisions"]: md += f"- {ni['decisions']} decisions\n"
             if ni["constraints"]: md += f"- {ni['constraints']} constraints\n"
             md += "\n"
         if check_changes:
@@ -270,7 +262,6 @@ async def generate_weekly_summary(project_id: uuid.UUID) -> dict:
 
         # Items added this week
         new_reqs = await db.scalar(select(func.count()).where(Requirement.project_id == project_id, Requirement.created_at >= week_ago)) or 0
-        new_decisions = await db.scalar(select(func.count()).where(Decision.project_id == project_id, Decision.created_at >= week_ago)) or 0
         new_constraints = await db.scalar(select(func.count()).where(Constraint.project_id == project_id, Constraint.created_at >= week_ago)) or 0
         new_gaps = await db.scalar(select(func.count()).where(Gap.project_id == project_id, Gap.created_at >= week_ago)) or 0
 
@@ -293,7 +284,7 @@ async def generate_weekly_summary(project_id: uuid.UUID) -> dict:
             "score_start": start_score,
             "score_end": end_score,
             "score_delta": round(end_score - start_score, 1),
-            "new_items": {"requirements": new_reqs, "decisions": new_decisions, "constraints": new_constraints, "gaps": new_gaps},
+            "new_items": {"requirements": new_reqs, "constraints": new_constraints, "gaps": new_gaps},
             "totals": {"requirements": total_reqs, "confirmed": confirmed_reqs, "open_gaps": open_gaps},
             "activity": activity_list,
         }
@@ -320,7 +311,6 @@ tags: [digest, weekly, readiness]
 
 ## This Week
 - **{new_reqs}** new requirements ({confirmed_reqs}/{total_reqs} confirmed)
-- **{new_decisions}** new decisions
 - **{new_constraints}** new constraints
 - **{new_gaps}** new gaps ({open_gaps} still open)
 
@@ -334,7 +324,7 @@ tags: [digest, weekly, readiness]
         await _create_notifications(
             project_id, "weekly-summary",
             f"Weekly Summary — {end_score}% ({delta_str}%)",
-            f"This week: {new_reqs} reqs, {new_decisions} decisions, {new_gaps} gaps. Readiness {start_score}% → {end_score}%",
+            f"This week: {new_reqs} reqs, {new_constraints} constraints, {new_gaps} gaps. Readiness {start_score}% → {end_score}%",
             {"digest_type": "weekly", "score": end_score, "delta": summary_data['score_delta']},
         )
 
