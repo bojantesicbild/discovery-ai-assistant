@@ -14,6 +14,7 @@ from app.models.slack import SlackChannelLink, SlackThreadSession
 from app.models.finding_view import FindingView
 from app.models.reminder import Reminder
 from app.models.relationship import Relationship
+from app.models.session import Session, SessionEvent
 
 __all__ = [
     "User", "Project", "ProjectMember", "Document",
@@ -26,4 +27,5 @@ __all__ = [
     "FindingView",
     "Reminder",
     "Relationship",
+    "Session", "SessionEvent",
 ]
