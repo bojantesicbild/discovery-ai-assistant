@@ -73,7 +73,8 @@ async def generate_handoff(
         result_text = ""
         async for event in claude_runner.run_stream(
             project_id=project_id,
-            user_id=user.id,
+            ephemeral_key=f"handoff-generate:{project_id}:{user.id}",
+            mcp_user_id=user.id,
             message="Generate all 3 handoff documents: Discovery Brief, MVP Scope Freeze, and Functional Requirements. "
                     "Read the templates from .claude/templates/. Read all data from MCP tools or from .memory-bank/docs/discovery/ files. "
                     "Apply source attribution on every claim: [CONFIRMED] or [ASSUMED]. "

@@ -154,6 +154,9 @@ export interface ApiConstraint {
   impact: string;
   status: string;
   source_quote: string | null;
+  source_person?: string | null;
+  affects_reqs?: string[];
+  workaround?: string | null;
   source_doc?: string | null;
   source_doc_id?: string | null;
   sources?: ApiSourceRef[];

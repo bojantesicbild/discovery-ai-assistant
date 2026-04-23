@@ -130,12 +130,16 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
   }
 
   const raisedValue = formatRaisedMeta(con.created_at);
+  const workaround = (con.workaround || "").trim();
+  const affects = con.affects_reqs || [];
 
   const md = [
     `# ${conId}: ${headerTitle}`,
     desc && desc.length > 80 ? `\n${desc}` : "",
     con.impact ? `\n## Impact\n${con.impact}` : "",
     con.source_quote ? `\n## Source Quote\n> ${con.source_quote}` : "",
+    workaround ? `\n## Workaround\n${workaround}` : "",
+    affects.length ? `\n## Affected Requirements\n${affects.map((r) => `- [${r}](br://${r})`).join("\n")}` : "",
     sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
   ].filter(Boolean).join("\n");
 
@@ -148,6 +152,7 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
 
   const meta: Record<string, string> = { id: conId, type: con.type, status: con.status };
   if (raisedValue) meta.raised = raisedValue;
+  if (con.source_person) meta.raised_by = con.source_person;
 
   return {
     title: `${conId}: ${headerTitle}`,

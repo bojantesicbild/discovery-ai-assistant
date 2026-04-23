@@ -187,9 +187,12 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
     label = " ".join(label_parts) or reminder.raw_request[:60]
 
     try:
-        from app.services.reminder_prep import render_reminder_card
+        from app.services.reminder_prep import render_reminder_card, _resolve_session_id
+        # Where the prep card was originally posted — same session is the
+        # only place we should look for it (and patch back into).
+        session_id = await _resolve_session_id(db, reminder)
         prep_msg_id = await conversation_store.find_latest_message_by(
-            db, reminder.project_id,
+            db, reminder.project_id, session_id,
             lambda m: (
                 m.get("reminder_id") == str(reminder.id)
                 and m.get("kind") in {"reminder_prep", "reminder_prep_done"}
@@ -198,9 +201,11 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
         if prep_msg_id:
             # Prefer the structured fields we stamped on the message; fall
             # back to recomputed defaults if they're missing (older rows).
-            conv = await conversation_store.get_shared(db, reminder.project_id)
+            existing_messages = await conversation_store.get_messages(
+                db, reminder.project_id, session_id, limit=200,
+            )
             existing = next(
-                (m for m in (conv.messages or []) if isinstance(m, dict) and m.get("id") == prep_msg_id),
+                (m for m in existing_messages if isinstance(m, dict) and m.get("id") == prep_msg_id),
                 {},
             )
             new_content = render_reminder_card(
@@ -215,7 +220,7 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
                 output_kind=reminder.output_kind or "agenda",
             )
             await conversation_store.update_message_by_id(
-                db, reminder.project_id, prep_msg_id,
+                db, reminder.project_id, session_id, prep_msg_id,
                 {
                     "kind": "reminder_delivered",
                     "content": new_content,
@@ -227,7 +232,7 @@ async def deliver_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder
             # Edge case: no prep card (e.g., prep was skipped or pre-dates
             # streaming). Post a compact standalone delivery note.
             ref_link = f" ([open draft]({reminder.external_ref}))" if reminder.external_ref else ""
-            await conversation_store.append_message(db, reminder.project_id, {
+            await conversation_store.append_message(db, reminder.project_id, session_id, {
                 "role": "assistant",
                 "source": "reminder",
                 "kind": "reminder_delivered",

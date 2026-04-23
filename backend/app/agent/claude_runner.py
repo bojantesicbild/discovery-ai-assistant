@@ -62,12 +62,25 @@ def _resolve_env_template(
 
 
 class ClaudeCodeRunner:
-    """Runs Claude Code per-project with full assistants context and native sessions."""
+    """Runs Claude Code per-project with full assistants context and native sessions.
+
+    Two flavors of session keying:
+    - chat_session_id: a real chat tab. The captured Claude --resume id is
+      persisted to chat_sessions.claude_session_id so it survives backend
+      restarts without re-priming from messages JSONB.
+    - ephemeral_key: an opaque string for non-chat runs (extraction prep,
+      reminder prep, gap analysis, handoff generation). In-memory only —
+      these flows want their own --resume thread but don't need it to
+      persist past a restart.
+    """
 
     def __init__(self):
-        self._sessions: dict[str, str] = {}  # "project:user" -> session_id
-        # Per-project lock — prevents concurrent --resume runs against the same
-        # shared session (web user typing while Slack inbound is processing).
+        # Keys: "chat:<uuid>" or "eph:<arbitrary>" → claude --resume id
+        self._sessions: dict[str, str] = {}
+        # Per-project lock — prevents concurrent --resume runs against the
+        # same project CWD. v1 keeps this serialization across all sessions
+        # of a project (matches today's behavior) since the project dir +
+        # MCP env are project-scoped.
         self._project_locks: dict[uuid.UUID, asyncio.Lock] = {}
 
     def get_project_lock(self, project_id: uuid.UUID) -> asyncio.Lock:
@@ -81,8 +94,13 @@ class ClaudeCodeRunner:
         lock = self._project_locks.get(project_id)
         return lock.locked() if lock else False
 
-    def _session_key(self, project_id: uuid.UUID, user_id: uuid.UUID) -> str:
-        return f"{project_id}:{user_id}"
+    @staticmethod
+    def _chat_key(chat_session_id: uuid.UUID) -> str:
+        return f"chat:{chat_session_id}"
+
+    @staticmethod
+    def _eph_key(ephemeral_key: str) -> str:
+        return f"eph:{ephemeral_key}"
 
     def get_project_dir(self, project_id: uuid.UUID) -> Path:
         """Get or create the per-project Claude Code environment."""
@@ -251,13 +269,18 @@ class ClaudeCodeRunner:
         mcp_path = project_dir / ".mcp.json"
         mcp_path.write_text(json.dumps(config, indent=2))
 
-    async def refresh_mcp_config(self, project_id: uuid.UUID, user_id: uuid.UUID | None = None):
+    async def refresh_mcp_config(
+        self,
+        project_id: uuid.UUID,
+        mcp_user_id: uuid.UUID | None = None,
+    ):
         """Rewrite .mcp.json merging the base discovery server with any enabled
         project integrations (Gmail, Drive, Slack, …). Called before each run.
 
-        `user_id` is threaded into the MCP env as DISCOVERY_USER_ID so write
-        tools (schedule_reminder, …) can attribute rows without needing a
-        project lead fallback when the caller is known."""
+        `mcp_user_id` is threaded into the MCP env as DISCOVERY_USER_ID so
+        write tools (schedule_reminder, …) can attribute rows to a real
+        user. Pass None for non-interactive flows (Slack inbound, pipeline,
+        reminder fire) — the MCP server falls back to the project lead."""
         from sqlalchemy import select
         from app.db.session import async_session
         from app.models.operational import ProjectIntegration
@@ -275,12 +298,8 @@ class ClaudeCodeRunner:
             ),
             "DISCOVERY_PROJECT_ID": str(project_id),
         }
-        # Skip the PROJECT_SHARED_USER sentinel — it's a session-sharing
-        # marker, not a real user. Letting it through as DISCOVERY_USER_ID
-        # would produce FK violations when the MCP tries to attribute rows
-        # to 00000000-0000-0000-0000-000000000000.
-        if user_id is not None and str(user_id) != "00000000-0000-0000-0000-000000000000":
-            discovery_env["DISCOVERY_USER_ID"] = str(user_id)
+        if mcp_user_id is not None:
+            discovery_env["DISCOVERY_USER_ID"] = str(mcp_user_id)
 
         servers: dict = {
             "discovery": {
@@ -359,24 +378,55 @@ class ClaudeCodeRunner:
     async def run_stream(
         self,
         project_id: uuid.UUID,
-        user_id: uuid.UUID,
         message: str,
+        *,
+        chat_session_id: uuid.UUID | None = None,
+        ephemeral_key: str | None = None,
+        mcp_user_id: uuid.UUID | None = None,
         system_prompt: Optional[str] = None,
         allowed_tools: Optional[list[str]] = None,
         agent: Optional[str] = None,
         model: Optional[str] = None,
     ) -> AsyncGenerator[dict, None]:
-        """Stream Claude Code response. Resumes session if one exists."""
+        """Stream Claude Code response. Resumes session if one exists.
+
+        Provide exactly one of `chat_session_id` (persistent chat tab —
+        --resume id is mirrored to chat_sessions.claude_session_id) or
+        `ephemeral_key` (in-memory-only key for non-chat flows like
+        extraction or handoff generation).
+        """
+        if (chat_session_id is None) == (ephemeral_key is None):
+            raise ValueError(
+                "run_stream requires exactly one of chat_session_id or ephemeral_key"
+            )
 
         project_dir = self.get_project_dir(project_id)
         # Refresh .mcp.json with enabled integrations (Gmail, Slack, ...)
         try:
-            await self.refresh_mcp_config(project_id, user_id)
+            await self.refresh_mcp_config(project_id, mcp_user_id)
         except Exception as e:
             log.warning("refresh_mcp_config failed, continuing with existing config", error=str(e))
 
-        session_key = self._session_key(project_id, user_id)
+        if chat_session_id is not None:
+            session_key = self._chat_key(chat_session_id)
+        else:
+            session_key = self._eph_key(ephemeral_key)  # type: ignore[arg-type]
+
         session_id = self._sessions.get(session_key)
+        # For chat sessions, fall back to the persisted resume id on the
+        # ChatSession row (covers backend restart — the in-memory map is
+        # empty, but the DB still has the last --resume id).
+        if session_id is None and chat_session_id is not None:
+            try:
+                from app.db.session import async_session
+                from app.services.conversation_store import get_session
+                async with async_session() as db:
+                    cs = await get_session(db, chat_session_id)
+                    if cs and cs.claude_session_id:
+                        session_id = cs.claude_session_id
+                        self._sessions[session_key] = session_id
+            except Exception as e:
+                log.warning("failed to load claude_session_id from DB", error=str(e))
 
         cmd = [
             "claude",
@@ -433,6 +483,12 @@ class ClaudeCodeRunner:
                     new_session_id = event.get("session_id")
                     if new_session_id:
                         self._sessions[session_key] = new_session_id
+                        # Mirror to DB for chat sessions so backend restart
+                        # doesn't lose the --resume thread.
+                        if chat_session_id is not None:
+                            await self._persist_chat_session_id(
+                                chat_session_id, new_session_id,
+                            )
                         log.info("Session", session_id=new_session_id, resumed=bool(session_id))
                     yield {"type": "session", "session_id": new_session_id}
                     continue
@@ -474,6 +530,10 @@ class ClaudeCodeRunner:
                     result_session = event.get("session_id")
                     if result_session:
                         self._sessions[session_key] = result_session
+                        if chat_session_id is not None:
+                            await self._persist_chat_session_id(
+                                chat_session_id, result_session,
+                            )
                     yield {
                         "type": "result",
                         "content": event.get("result", ""),
@@ -536,17 +596,52 @@ class ClaudeCodeRunner:
         except Exception as e:
             yield {"type": "error", "content": f"Runner error: {str(e)}"}
 
-    def get_session_id(self, project_id: uuid.UUID, user_id: uuid.UUID) -> Optional[str]:
-        """Get the current session ID for a project/user."""
-        return self._sessions.get(self._session_key(project_id, user_id))
+    def get_chat_session_id(self, chat_session_id: uuid.UUID) -> Optional[str]:
+        """In-memory lookup of the current --resume id for a chat tab.
+        Returns None if not seen this process; callers can fall back to
+        chat_sessions.claude_session_id in the DB."""
+        return self._sessions.get(self._chat_key(chat_session_id))
 
-    def set_session_id(self, project_id: uuid.UUID, user_id: uuid.UUID, session_id: str):
-        """Set session ID (loaded from DB on startup)."""
-        self._sessions[self._session_key(project_id, user_id)] = session_id
+    async def clear_chat_session(self, chat_session_id: uuid.UUID) -> None:
+        """Forget the --resume id for a chat tab (in memory + DB).
+        Next run on this tab starts a fresh Claude Code session."""
+        self._sessions.pop(self._chat_key(chat_session_id), None)
+        try:
+            from app.db.session import async_session
+            from app.services.conversation_store import get_session
+            async with async_session() as db:
+                cs = await get_session(db, chat_session_id)
+                if cs and cs.claude_session_id:
+                    cs.claude_session_id = None
+                    await db.commit()
+        except Exception as e:
+            log.warning("failed to clear claude_session_id in DB", error=str(e))
 
-    async def clear_session(self, project_id: uuid.UUID, user_id: uuid.UUID):
-        """Clear session — next message starts a new conversation."""
-        self._sessions.pop(self._session_key(project_id, user_id), None)
+    def is_chat_session_busy(self, chat_session_id: uuid.UUID) -> bool:
+        """v1: project lock is shared across all sessions of a project,
+        so this is just a more honest name when the caller cares about
+        a specific tab. If we ever introduce per-session locks, this is
+        the seam."""
+        # No per-session lock yet — a busy project means any session in
+        # it is effectively busy.
+        return False  # presence in _sessions is not the same as 'currently running'
+
+    @staticmethod
+    async def _persist_chat_session_id(
+        chat_session_id: uuid.UUID, claude_session_id: str,
+    ) -> None:
+        try:
+            from app.db.session import async_session
+            from app.services.conversation_store import update_claude_session_id
+            async with async_session() as db:
+                await update_claude_session_id(
+                    db, chat_session_id, claude_session_id,
+                )
+        except Exception as e:
+            log.warning(
+                "failed to persist claude_session_id to DB",
+                chat_session_id=str(chat_session_id), error=str(e),
+            )
 
     @staticmethod
     def _copy_obsidian_seed(seed_dir: Path, dest_dir: Path) -> None:

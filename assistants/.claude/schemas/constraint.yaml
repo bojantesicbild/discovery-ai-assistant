@@ -44,6 +44,24 @@ fields:
     required: true
     frontmatter: false
 
+  - key: source_person
+    type: string
+    required: false
+    description: "Stakeholder who imposed or stated the constraint. Lets the PM know who to ask for a workaround."
+
+  - key: affects_reqs
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "BR ids this constraint shapes, e.g. ['BR-004', 'BR-007']. Explicit link to the requirements at risk if this constraint stays."
+
+  - key: workaround
+    type: text
+    required: false
+    frontmatter: false
+    description: "Short mitigation note — the negotiation lever when pushing back. Skip if the source has no workaround discussion."
+
   - key: source_doc
     type: string
     required: false
@@ -79,6 +97,16 @@ sections:
     source_field: source_quote
     required: false
 
+  - name: Workaround
+    format: paragraphs
+    source_field: workaround
+    required: false
+
+  - name: Affected Requirements
+    format: wikilinks
+    generated_from: affects_reqs
+    required: false
+
 classification:
   cssclasses: [constraint, "node-cyan"]
   default_tags: [constraint, "{{type}}", "{{status}}"]
@@ -96,6 +124,12 @@ extraction_prompt: |
   - description: what the constraint is (1 sentence)
   - impact: how it limits the project (1-2 sentences)
   - source_quote: verbatim quote (≥10 chars)
+  - source_person: stakeholder who imposed / stated it, when named in the source
+  - affects_reqs: list of BR ids this constraint shapes (e.g. ['BR-004']).
+                  Only include when the source explicitly links the constraint
+                  to specific requirements — don't guess.
+  - workaround: short mitigation note when the source discusses one.
+                Format: 'option considered — reason it fails'. Skip otherwise.
   - status: confirmed (client stated as fact), assumed (we inferred),
             negotiable (client open to changing it)
 

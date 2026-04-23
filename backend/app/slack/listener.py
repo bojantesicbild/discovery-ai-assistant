@@ -10,8 +10,8 @@ Handles app_mention events with the OpenClaw-ported guards:
 - emoji ack (eyes) as instant receipt
 - placeholder "Working on it..." message + throttled chat.update streaming
 - debouncer combining consecutive short messages
-- shared Claude Code session via PROJECT_SHARED_USER
-- shared conversation persistence (web + slack history merged)
+- pinned to the project's default chat session (one chat tab — the same
+  one the web UI shows as 'Default' — receives all Slack inbound)
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ from app.agent.claude_runner import claude_runner
 from app.db.session import async_session
 from app.models.slack import SlackChannelLink
 from app.services.conversation_store import (
-    PROJECT_SHARED_USER,
     append_assistant_placeholder,
     append_user_message_slack,
+    get_default_session,
     update_message_by_id,
 )
 from app.slack.cache import AppMentionRetryCache, DedupeCache
@@ -232,7 +232,18 @@ class SlackListener:
         if not channel or not thread_key or not text:
             return
 
-        # Persist user message to shared conversation immediately so the web
+        # Resolve the project's default chat session — Slack inbound is
+        # permanently pinned here. If the project has somehow never had
+        # one (race with project creation), get_default_session creates it.
+        try:
+            async with async_session() as db:
+                default = await get_default_session(db, self.project_id)
+                default_session_id = default.id
+        except Exception as e:
+            log.error("Failed to resolve default chat session for Slack", error=str(e))
+            return
+
+        # Persist user message to the default session immediately so the web
         # UI sees it within one poll interval, even before Claude responds.
         # Also create an assistant placeholder right away so the web UI can
         # show "Thinking…" instead of a black hole until the run completes.
@@ -240,7 +251,7 @@ class SlackListener:
         try:
             async with async_session() as db:
                 await append_user_message_slack(
-                    db, self.project_id,
+                    db, self.project_id, default_session_id,
                     text=text,
                     slack_user_name=slack_user_name,
                     slack_user_id=slack_user_id,
@@ -249,7 +260,7 @@ class SlackListener:
                     slack_thread_ts=thread_key,
                 )
                 assistant_msg_id = await append_assistant_placeholder(
-                    db, self.project_id,
+                    db, self.project_id, default_session_id,
                     source="slack",
                     slack_channel_id=channel,
                     slack_channel_name=slack_channel_name,
@@ -268,29 +279,9 @@ class SlackListener:
             )
             placeholder_ts = placeholder.get("ts")
 
-            # Prime the shared session from the conversation history if it
-            # isn't in claude_runner's in-memory map yet (e.g. after a
-            # backend restart). This is what makes the cross-channel memory
-            # feature actually work — without this, every Slack message
-            # starts a fresh session.
-            if not claude_runner.get_session_id(self.project_id, PROJECT_SHARED_USER):
-                try:
-                    from app.services.conversation_store import get_shared
-                    async with async_session() as db:
-                        conv = await get_shared(db, self.project_id)
-                        if conv and conv.messages:
-                            for prev in reversed(conv.messages):
-                                sid = prev.get("session_id")
-                                if sid:
-                                    claude_runner.set_session_id(
-                                        self.project_id, PROJECT_SHARED_USER, sid,
-                                    )
-                                    break
-                except Exception as e:
-                    log.warning("Failed to prime Slack session from DB", error=str(e))
-
-            # Use the project-shared sentinel user so we share the same
-            # Claude Code --resume session with the web chat.
+            # claude_runner falls back to chat_sessions.claude_session_id
+            # when its in-memory map is empty (e.g. after backend restart),
+            # so we no longer need to prime from the messages JSONB here.
             project_lock = claude_runner.get_project_lock(self.project_id)
             accumulated = ""
             captured_session_id: str | None = None
@@ -304,7 +295,8 @@ class SlackListener:
             async with project_lock:
                 async for event in claude_runner.run_stream(
                     project_id=self.project_id,
-                    user_id=PROJECT_SHARED_USER,
+                    chat_session_id=default_session_id,
+                    mcp_user_id=None,  # Slack inbound has no real user; MCP falls back to project lead
                     message=text,
                 ):
                     et = event.get("type")
@@ -334,7 +326,7 @@ class SlackListener:
                                     "thinkingCount": current_thinking,
                                 })
                             asyncio.create_task(self._partial_db_update(
-                                assistant_msg_id, accumulated, snap_segments, tool_calls, thinking_count,
+                                default_session_id, assistant_msg_id, accumulated, snap_segments, tool_calls, thinking_count,
                             ))
                     elif et == "text":
                         if last_phase == "activity" and (current_tools or current_thinking > 0):
@@ -355,7 +347,7 @@ class SlackListener:
                         if assistant_msg_id and (now_ms - last_db_update_ms) >= DB_UPDATE_THROTTLE_MS:
                             last_db_update_ms = now_ms
                             asyncio.create_task(self._partial_db_update(
-                                assistant_msg_id, accumulated, segments, tool_calls, thinking_count,
+                                default_session_id, assistant_msg_id, accumulated, segments, tool_calls, thinking_count,
                             ))
                     elif et == "result":
                         final = event.get("content") or accumulated
@@ -376,7 +368,7 @@ class SlackListener:
                 try:
                     async with async_session() as db:
                         await update_message_by_id(
-                            db, self.project_id, assistant_msg_id,
+                            db, self.project_id, default_session_id, assistant_msg_id,
                             {
                                 "content": accumulated,
                                 "segments": segments,
@@ -408,7 +400,7 @@ class SlackListener:
                 try:
                     async with async_session() as db:
                         await update_message_by_id(
-                            db, self.project_id, assistant_msg_id,
+                            db, self.project_id, default_session_id, assistant_msg_id,
                             {
                                 "content": "⚠️ Backend restarted mid-response.",
                                 "_processing": False,
@@ -432,7 +424,7 @@ class SlackListener:
                 try:
                     async with async_session() as db:
                         await update_message_by_id(
-                            db, self.project_id, assistant_msg_id,
+                            db, self.project_id, default_session_id, assistant_msg_id,
                             {
                                 "content": f"❌ Error: {str(e)[:500]}",
                                 "_processing": False,
@@ -451,6 +443,7 @@ class SlackListener:
 
     async def _partial_db_update(
         self,
+        session_id: uuid.UUID,
         message_id: str,
         content: str,
         segments: list[dict],
@@ -463,7 +456,7 @@ class SlackListener:
         try:
             async with async_session() as db:
                 await update_message_by_id(
-                    db, self.project_id, message_id,
+                    db, self.project_id, session_id, message_id,
                     {
                         "content": content,
                         "segments": segments,

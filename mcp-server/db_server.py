@@ -336,6 +336,8 @@ async def list_tools() -> list[Tool]:
                     "alternatives_considered": {"type": "array", "items": {"type": "string"}, "description": "Requirement-only. Options weighed and rejected, one per entry, format '<option> — <reason rejected>'. Skip if only one path was ever on the table."},
                     "scope_note": {"type": "string", "description": "Requirement-only. Short boundary clarifier if this BR doesn't apply everywhere (e.g. 'MVP only', 'iOS only'). Skip for most BRs."},
                     "blocked_by": {"type": "array", "items": {"type": "string"}, "description": "Requirement-only. BR ids that must ship before this one (e.g. ['BR-001', 'BR-004']). Used by story-story-agent to sequence PBIs in Phase 2."},
+                    "affects_reqs": {"type": "array", "items": {"type": "string"}, "description": "Constraint-only. BR ids this constraint shapes (e.g. ['BR-004', 'BR-007']). Gives the PM a one-click 'what's at risk if this constraint stays' view. Include only when the source document clearly links the constraint to specific requirements."},
+                    "workaround": {"type": "string", "description": "Constraint-only. Short mitigation note — the negotiation lever the PM can use when pushing back on an assumed constraint. Format: 'option considered — reason it fails' or just a free-text sentence. Skip when no workaround is discussed in the source."},
                     "kind": {"type": "string", "enum": ["missing_info", "unvalidated_assumption", "undecided"], "description": "Gap-only. Kind of gap: 'missing_info' (default) = client never told us; 'unvalidated_assumption' = we're assuming X but nothing confirms it; 'undecided' = a call that needs to be made but hasn't been."},
                     "side_a": {"type": "string", "description": "Contradiction-only. The FIRST conflicting statement — what one source/person said. E.g. 'David says 2 handoff docs'."},
                     "side_b": {"type": "string", "description": "Contradiction-only. The SECOND conflicting statement — what the other source/person said. E.g. 'Sarah says 3 handoff docs are required'."},
@@ -777,10 +779,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 # piggyback on the existing tool arg until 2C-2 adds
                 # a proper kind_subtype field).
                 con_type = coerce_enum("constraint", "type", priority, "technology")
+                affects = arguments.get("affects_reqs") or []
+                workaround = arguments.get("workaround") or None
                 await conn.execute(
-                    "INSERT INTO constraints (id, project_id, type, description, impact, source_quote, source_doc_id, status) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'assumed')",
-                    pid, con_type, title, description or "", source_quote or "", source_doc_uuid
+                    "INSERT INTO constraints (id, project_id, type, description, impact, "
+                    " source_quote, source_person, source_doc_id, affects_reqs, workaround, status) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'assumed')",
+                    pid, con_type, title, description or "", source_quote or "",
+                    source_person, source_doc_uuid, json.dumps(affects), workaround
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",

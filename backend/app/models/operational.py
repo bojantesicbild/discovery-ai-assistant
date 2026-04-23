@@ -1,20 +1,49 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, Integer, Text, Boolean, ForeignKey, UniqueConstraint, LargeBinary, DateTime
+from sqlalchemy import String, Integer, Text, Boolean, ForeignKey, UniqueConstraint, LargeBinary, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, IdMixin, TimestampMixin
 
 
+class ChatSession(Base, IdMixin, TimestampMixin):
+    """One chat tab per row. Every project has exactly one is_default=true
+    (and is_pinned_slack=true on the same row) — Slack inbound + project-
+    level events route there. Users create extra sessions for side-topics;
+    each carries its own claude_session_id so a fresh tab starts a fresh
+    --resume thread."""
+    __tablename__ = "chat_sessions"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_pinned_slack: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    claude_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_active_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(),
+    )
+    # TimestampMixin only provides created_at; we want updated_at on this row
+    # so the UI can sort tabs by recent activity if/when we expose that.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        server_default=func.now(), onupdate=func.now(),
+    )
+
+
 class Conversation(Base, IdMixin, TimestampMixin):
+    """One row per (project, chat_session). The messages JSONB holds the
+    rolling timeline for that session; project-level events (doc ingestion,
+    reminder lifecycle cards) live in the default session's row."""
     __tablename__ = "conversations"
-    # user_id is nullable: rows with user_id IS NULL are project-shared
-    # conversations (one per project) used by both web chat and Slack inbound.
-    # Uniqueness is enforced via a partial index in migration 006.
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
-    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    chat_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False,
+    )
     messages: Mapped[list] = mapped_column(JSONB, default=list)
 
 

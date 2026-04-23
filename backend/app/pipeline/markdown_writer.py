@@ -493,7 +493,13 @@ def constraint_to_payload(
     today: str,
     affected_reqs: list[str],
 ) -> dict:
-    """Build the writer-input payload from a Constraint SQLAlchemy row."""
+    """Build the writer-input payload from a Constraint SQLAlchemy row.
+
+    `affected_reqs` is the derived (same-source-doc) list. The explicit
+    `affects_reqs` stored by the agent takes precedence when present — if
+    the agent linked the constraint to specific BRs, we trust that over
+    the ambient co-source heuristic."""
+    explicit = list(getattr(con, "affects_reqs", None) or [])
     return {
         "id": con_id,
         "title": f"{con.type}: {(con.description or '')[:50]}",
@@ -502,8 +508,10 @@ def constraint_to_payload(
         "impact": con.impact or "",
         "status": con.status or "assumed",
         "source_quote": con.source_quote or "",
+        "source_person": getattr(con, "source_person", None) or "",
+        "workaround": getattr(con, "workaround", None) or "",
         "date": today,
-        "affected_reqs": affected_reqs,
+        "affected_reqs": explicit or affected_reqs,
     }
 
 
@@ -754,6 +762,8 @@ def render_constraint_text(
     description = payload.get("description") or ""
     impact = payload.get("impact") or "Not specified"
     source_quote = payload.get("source_quote") or ""
+    source_person = payload.get("source_person") or ""
+    workaround = payload.get("workaround") or ""
     affected = payload.get("affected_reqs") or []
 
     fm_block = schema_lib.render_frontmatter("constraint", payload)
@@ -770,6 +780,13 @@ def render_constraint_text(
     if source_quote:
         lines.append("## Source")
         lines.append(f'> "{source_quote}"')
+        lines.append("")
+    if source_person:
+        lines.append(f"## Raised by\n- [[{stakeholder_filename_safe(source_person)}|{source_person}]]")
+        lines.append("")
+    if workaround:
+        lines.append("## Workaround")
+        lines.append(workaround)
         lines.append("")
     lines.append("## Affected Requirements")
     for rid in affected:

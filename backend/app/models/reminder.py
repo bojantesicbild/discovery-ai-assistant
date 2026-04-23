@@ -11,6 +11,13 @@ class Reminder(Base, IdMixin, TimestampMixin):
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    # Which chat tab the reminder was created from. NULL = legacy row;
+    # delivery + prep fall back to the project's default session for those.
+    # Set to NULL (rather than cascading) when the originating session is
+    # deleted so the reminder still fires (just routes to default).
+    chat_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True,
+    )
 
     subject_type: Mapped[str] = mapped_column(String, nullable=False)
     subject_id: Mapped[str | None] = mapped_column(String, nullable=True)
