@@ -28,6 +28,7 @@ from app.models.auth import User
 from app.models.project import Project
 from app.models.review import ReviewToken, ReviewSubmission, ProposedUpdate
 from app.models.extraction import Requirement, Gap
+from app.services.sessions import record_event_for_user
 from app.models.operational import ActivityLog, Notification
 from app.schemas.review import (
     ReviewTokenCreate,
@@ -444,6 +445,20 @@ async def accept_proposal(
         details={"proposal_id": str(p.id), "req_id": req.req_id, "field": p.proposed_field, "edited": body.override_value is not None},
     ))
 
+    await record_event_for_user(
+        db,
+        project_id=project_id, user_id=user.id,
+        event_type="proposal_accepted",
+        payload={
+            "proposal_id": str(p.id),
+            "target_req_id": p.target_req_id,
+            "field": p.proposed_field,
+            "edited": body.override_value is not None,
+        },
+        artifact_updates={"proposals_accepted": [str(p.id)]},
+        domain="discovery",
+    )
+
     await db.commit()
     return {"id": str(p.id), "status": p.status, "req_id": req.req_id}
 
@@ -492,6 +507,20 @@ async def reject_proposal(
             "reason": reason,
         },
     ))
+
+    await record_event_for_user(
+        db,
+        project_id=project_id, user_id=user.id,
+        event_type="proposal_rejected",
+        payload={
+            "proposal_id": str(p.id),
+            "target_req_id": p.target_req_id,
+            "field": p.proposed_field,
+            "reason": reason,
+        },
+        artifact_updates={"proposals_rejected": [str(p.id)]},
+        domain="discovery",
+    )
 
     await db.commit()
     return {"id": str(p.id), "status": p.status, "rejection_reason": reason}

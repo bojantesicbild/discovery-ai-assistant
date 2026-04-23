@@ -15,6 +15,7 @@ from app.models.extraction import (
 )
 from app.models.document import Document
 from app.services.finding_views import get_seen_map
+from app.services.sessions import record_event_for_user
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["extracted-items"])
 
@@ -255,6 +256,21 @@ async def resolve_gap(
         gap.closed_at = None
         gap.closed_by = None
     await db.flush()
+
+    event_type = "gap_resolved" if status == "resolved" else ("gap_dismissed" if status == "dismissed" else "gap_reopened")
+    await record_event_for_user(
+        db,
+        project_id=project_id, user_id=user.id,
+        event_type=event_type,
+        payload={
+            "gap_id": gap_id,
+            "resolution": resolution,
+            "closed_by": gap.closed_by,
+        },
+        artifact_updates={"gaps_touched": [gap_id]},
+        domain="discovery",
+    )
+
     await _sync_markdown(project_id, db)
     return {"id": str(gap.id), "status": gap.status, "closed_at": gap.closed_at.isoformat() if gap.closed_at else None}
 
@@ -276,6 +292,20 @@ async def resolve_contradiction(
     item.resolved = True
     item.resolution_note = resolution_note
     await db.flush()
+
+    await record_event_for_user(
+        db,
+        project_id=project_id, user_id=user.id,
+        event_type="contradiction_resolved",
+        payload={
+            "contradiction_id": str(item.id),
+            "resolution_note": resolution_note,
+            "title": item.title,
+        },
+        artifact_updates={"contradictions_resolved": [str(item.id)]},
+        domain="discovery",
+    )
+
     await _sync_markdown(project_id, db)
     return {"id": str(item.id), "resolved": True}
 

@@ -28,6 +28,7 @@ from app.models.auth import User
 from app.services.relationships import (
     get_connections, retract_relationship, ConnectionsResult,
 )
+from app.services.sessions import record_event_for_user
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["relationships"])
 
@@ -152,6 +153,22 @@ async def retract(
         raise HTTPException(404, "Relationship not found")
     if rel.project_id != project_id:
         raise HTTPException(404, "Relationship not found in project")
+
+    await record_event_for_user(
+        db,
+        project_id=project_id, user_id=user.id,
+        event_type="relationship_retracted",
+        payload={
+            "relationship_id": str(rel.id),
+            "from_type": rel.from_type,
+            "from_uuid": str(rel.from_uuid),
+            "to_type": rel.to_type,
+            "to_uuid": str(rel.to_uuid),
+            "rel_type": rel.rel_type,
+            "reason": rel.retraction_reason,
+        },
+    )
+
     await db.commit()
     return {
         "id": str(rel.id),

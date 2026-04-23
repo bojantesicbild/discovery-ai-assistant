@@ -548,6 +548,107 @@ async def _upsert_relationship(
     )
 
 
+async def _active_session_id(conn, pid: str, uid: str | None) -> str:
+    """Find or create the 'active' session row for (project, user).
+
+    Matches the race-safe pattern in app.services.sessions — select
+    first, insert if missing, fall back to re-select if a concurrent
+    insert won the partial unique index."""
+    q_user = "user_id = $2::uuid" if uid else "user_id IS NULL"
+    params = [pid] + ([uid] if uid else [])
+    row = await conn.fetchrow(
+        f"SELECT id FROM sessions "
+        f"WHERE project_id = $1 AND status = 'active' AND {q_user} "
+        f"LIMIT 1",
+        *params,
+    )
+    if row:
+        # Keep the heartbeat fresh so the idle reaper doesn't flip it.
+        await conn.execute(
+            "UPDATE sessions SET last_event_at = NOW() WHERE id = $1",
+            row["id"],
+        )
+        return str(row["id"])
+    try:
+        row = await conn.fetchrow(
+            "INSERT INTO sessions (project_id, user_id, status) "
+            "VALUES ($1, $2::uuid, 'active') RETURNING id",
+            pid, uid,
+        )
+        return str(row["id"])
+    except Exception:
+        row = await conn.fetchrow(
+            f"SELECT id FROM sessions "
+            f"WHERE project_id = $1 AND status = 'active' AND {q_user} "
+            f"LIMIT 1",
+            *params,
+        )
+        if row:
+            return str(row["id"])
+        raise
+
+
+async def _emit_event(
+    conn, *, pid: str, event_type: str,
+    payload: dict | None = None,
+    artifact_updates: dict | None = None,
+) -> None:
+    """Fire-and-forget event emission from MCP write paths. Resolves
+    the active session for the current user (via USER_ID env or fallback
+    chain), inserts one session_events row, bumps session.last_event_at.
+
+    Artifact merge matches the backend service semantics: list values
+    extend with dedup, scalars replace."""
+    uid = await get_user_id(conn)
+    try:
+        sid = await _active_session_id(conn, pid, uid)
+    except Exception as e:
+        # Silent swallow — event emission must never break the main
+        # MCP call. Diagnostic via stderr for ops.
+        print(f"[mcp] session lookup failed ({event_type}): {e}", file=sys.stderr)
+        return
+
+    try:
+        await conn.execute(
+            "INSERT INTO session_events "
+            "(session_id, project_id, event_type, payload) "
+            "VALUES ($1::uuid, $2::uuid, $3, $4::jsonb)",
+            sid, pid, event_type, json.dumps(payload or {}),
+        )
+    except Exception as e:
+        print(f"[mcp] session_events insert failed ({event_type}): {e}", file=sys.stderr)
+        return
+
+    if artifact_updates:
+        try:
+            # Read current, merge, write back. Small payload, one row,
+            # fine without a row-lock for now.
+            cur = await conn.fetchval(
+                "SELECT artifacts_produced FROM sessions WHERE id = $1::uuid",
+                sid,
+            )
+            current = json.loads(cur) if isinstance(cur, str) else (cur or {})
+            for key, val in artifact_updates.items():
+                if isinstance(val, list):
+                    existing = current.get(key) or []
+                    if not isinstance(existing, list):
+                        existing = [existing]
+                    for item in val:
+                        if item not in existing:
+                            existing.append(item)
+                    current[key] = existing
+                else:
+                    current[key] = val
+            await conn.execute(
+                "UPDATE sessions SET artifacts_produced = $1::jsonb WHERE id = $2::uuid",
+                json.dumps(current), sid,
+            )
+        except Exception:
+            # Artifact bookkeeping is a nice-to-have; never let it
+            # take down the main MCP call.
+            pass
+
+
 async def _fetch_finding_refs(conn, kind: str, uuids: list[str]) -> list[dict]:
     """Resolve a batch of (kind, uuid) pairs back to {uuid, kind,
     display_id, label}. Used by get_connections to render neighbours.
@@ -1437,6 +1538,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     source_person_name=(source_person if source_person and source_person != "unknown" else None),
                     source_quote=source_quote,
                 )
+                await _emit_event(
+                    conn, pid=pid, event_type="finding_stored",
+                    payload={"kind": "requirement", "id": new_req_id, "title": title},
+                    artifact_updates={"findings_created": [new_req_id]},
+                )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "requirement", "req_id": new_req_id, "title": title, "readiness": new_score})
 
@@ -1469,6 +1575,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     source_person_name=(source_person if source_person and source_person != "unknown" else None),
                     source_quote=source_quote,
                 )
+                await _emit_event(
+                    conn, pid=pid, event_type="finding_stored",
+                    payload={"kind": "constraint", "title": title, "type": con_type},
+                    artifact_updates={"findings_created": [f"CON:{title[:40]}"]},
+                )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "constraint", "title": title, "readiness": new_score})
 
@@ -1481,6 +1592,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New stakeholder: {title}", json.dumps({"type": "stakeholder"})
+                )
+                await _emit_event(
+                    conn, pid=pid, event_type="finding_stored",
+                    payload={"kind": "stakeholder", "name": title, "role": description},
+                    artifact_updates={"findings_created": [f"STK:{title}"]},
                 )
                 return _json_result({"success": True, "type": "stakeholder", "name": title})
 
@@ -1521,6 +1637,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     source_person_name=(source_person if source_person and source_person != "unknown" else None),
                     source_quote=source_quote,
                 )
+                await _emit_event(
+                    conn, pid=pid, event_type="finding_stored",
+                    payload={"kind": "gap", "id": gap_id, "gap_kind": kind, "question": title},
+                    artifact_updates={"findings_created": [gap_id]},
+                )
                 new_score = await _recalculate_readiness(conn, pid)
                 return _json_result({"success": True, "type": "gap", "gap_id": gap_id, "kind": kind, "question": title, "readiness": new_score})
 
@@ -1559,6 +1680,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New contradiction: {title}",
                     json.dumps({"type": "contradiction", "area": area}),
+                )
+                await _emit_event(
+                    conn, pid=pid, event_type="finding_stored",
+                    payload={"kind": "contradiction", "title": title, "area": area},
+                    artifact_updates={"findings_created": [f"CTR:{title[:40]}"]},
                 )
                 return _json_result({"success": True, "type": "contradiction", "title": title})
 
@@ -1673,6 +1799,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 pid, f"Proposed update to {target_req_id} ({field})",
                 json.dumps({"req_id": target_req_id, "field": field, "source": "extraction"}),
             )
+            await _emit_event(
+                conn, pid=pid, event_type="proposal_created",
+                payload={"target_req_id": target_req_id, "field": field, "source": "extraction"},
+                artifact_updates={"proposals_created": [target_req_id]},
+            )
             return _json_result({
                 "success": True,
                 "target_req_id": target_req_id,
@@ -1785,6 +1916,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 source_doc_id=doc_uuid,
                 source_quote=source_quote,
                 rationale=rationale_text,
+            )
+            await _emit_event(
+                conn, pid=pid, event_type="relationship_proposed",
+                payload={
+                    "from_id": from_id, "to_id": to_id, "rel_type": rel_type,
+                    "source": source_quote,
+                },
             )
             return _json_result({
                 "success": True,
