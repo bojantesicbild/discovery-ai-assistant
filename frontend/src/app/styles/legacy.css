@@ -28,22 +28,29 @@
   flex-shrink: 0;
 }
 
-/* Project selector pill — v2 treatment (pill-shape, surface bg) */
+/* Project selector — v2 pill (matches .project-pill in the mock) */
 .project-selector {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px 8px 10px;
+  gap: 10px;
+  padding: 8px 12px 8px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
   cursor: pointer;
   background: var(--surface);
   color: var(--ink);
-  transition: border-color .15s;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition: border-color .15s, background .15s;
   flex-shrink: 0;
+  min-height: 40px;
 }
-
-.project-selector:hover { border-color: var(--line-strong); }
+.project-selector:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+}
 .project-dot {
   width: 8px; height: 8px;
   background: var(--accent);
@@ -51,7 +58,23 @@
   flex-shrink: 0;
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.project-name { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
+.project-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+/* Chevron ships from the component as an inline <svg> — tokenize
+ * its size + color so it matches the pill size regardless of what
+ * inline style the component defaults to. */
+.project-selector svg {
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--ink-3) !important;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
 
 .project-selector-wrapper {
   position: relative;
@@ -139,7 +162,7 @@
   text-overflow: ellipsis;
 }
 
-/* Search bar — v2 (surface bg, soft rounded, ink focus ring) */
+/* Search bar — v2 (surface bg, soft rounded, ink focus ring, kbd hint) */
 .search-bar {
   flex: 1;
   max-width: 520px;
@@ -147,7 +170,7 @@
 }
 .search-bar input {
   width: 100%;
-  padding: 10px 14px 10px 38px;
+  padding: 10px 52px 10px 38px;
   border: 1px solid var(--line);
   border-radius: 12px;
   font-size: 14px;
@@ -162,6 +185,31 @@
   border-color: var(--ink);
   box-shadow: 0 0 0 3px rgba(10,10,11,.06);
 }
+
+/* ⌘K shortcut hint — subtle kbd pill on the right of the search
+ * field. Hidden when the input is focused so it doesn't compete
+ * with the user's typing. */
+.search-kbd {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  pointer-events: none;
+  user-select: none;
+  transition: opacity .15s;
+}
+.search-bar:focus-within .search-kbd { opacity: 0; }
 
 .search-dropdown {
   position: absolute;

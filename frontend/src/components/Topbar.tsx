@@ -354,9 +354,9 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
       </div>
 
       <div className="search-bar" ref={searchRef}>
-        <svg viewBox="0 0 24 24" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "var(--gray-400)", stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        <svg viewBox="0 0 24 24" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "var(--ink-4)", stroke: "currentColor", fill: "none", strokeWidth: 2, strokeLinecap: "round" }}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.5-3.5" />
         </svg>
         <input
           type="text"
@@ -365,10 +365,12 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
           onChange={(e) => handleSearchChange(e.target.value)}
           onFocus={() => { if (searchResults.length > 0) setSearchOpen(true); }}
         />
-        {searchLoading && (
-          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--gray-400)" }}>
+        {searchLoading ? (
+          <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--ink-4)" }}>
             ...
           </div>
+        ) : (
+          <kbd className="search-kbd" aria-hidden="true">⌘K</kbd>
         )}
 
         {searchOpen && (
