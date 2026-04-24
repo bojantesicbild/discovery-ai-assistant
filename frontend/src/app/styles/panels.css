@@ -555,28 +555,26 @@
   background: var(--bg);
   transition: padding .25s var(--ease-smooth);
 }
-/* Collapsed state — hero shrinks to a single pill row */
+/* Collapsed state — hero fully hides. Tabs rise to the top, readiness
+ * returns on scroll-to-top or when the PM expands manually. */
 .data-panel.hero-collapsed .dp-header {
-  padding: 10px 32px;
-  gap: 14px;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-bottom-color: transparent;
+  transition: max-height .25s var(--ease-smooth),
+              padding .25s var(--ease-smooth),
+              opacity .2s var(--ease-smooth),
+              border-bottom-color .2s var(--ease-smooth);
 }
-.data-panel.hero-collapsed .dp-rb-ring { width: 28px; height: 28px; }
-.data-panel.hero-collapsed .dp-rb-ring svg { width: 28px; height: 28px; }
-.data-panel.hero-collapsed .dp-rb-val { font-size: 10px; }
-.data-panel.hero-collapsed .dp-rb-label { display: none; }
-.data-panel.hero-collapsed .dp-rb-sub {
-  font-size: 14px; font-weight: 700; margin-bottom: 0;
-  display: inline-block;
-}
-.data-panel.hero-collapsed .dp-rb-stats {
-  display: inline-block;
-  margin-left: 12px;
-  font-size: 12px;
-}
-.data-panel.hero-collapsed .dp-readiness { flex-direction: row; align-items: center; gap: 12px; }
-.data-panel.hero-collapsed .dp-readiness > div:last-child {
-  display: flex; align-items: center; gap: 12px;
-  flex: 1;
+.dp-header {
+  max-height: 140px;
+  transition: max-height .25s var(--ease-smooth),
+              padding .25s var(--ease-smooth),
+              opacity .2s var(--ease-smooth);
 }
 
 .hero-collapse-btn {
