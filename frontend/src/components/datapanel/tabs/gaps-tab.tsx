@@ -21,6 +21,9 @@ import type {
 } from "@/lib/api";
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SetterFn = (updater: (prev: any[]) => any[]) => void;
+
 interface GapsTabProps {
   projectId: string;
   gaps: ApiGap[];
@@ -39,8 +42,8 @@ interface GapsTabProps {
   contraFilter: string;
   setContraFilter: (v: string) => void;
   unreadCounts: { gap: number; constraint: number; contradiction: number };
-  markTabSeenAll: (findingType: FindingType, setter?: (updater: (prev: any[]) => any[]) => void) => Promise<void>;
-  markRowSeen: (findingType: FindingType, findingId: string, setter?: (updater: (prev: any[]) => any[]) => void) => Promise<void>;
+  markTabSeenAll: (findingType: FindingType, setter?: SetterFn) => Promise<void>;
+  markRowSeen: (findingType: FindingType, findingId: string, setter?: SetterFn) => Promise<void>;
   openGap: (gap: ApiGap) => void;
   openConstraint: (c: ApiConstraint, index: number) => void;
   clientFeedback: {
@@ -66,36 +69,20 @@ export function GapsTab({
   return (
     <div className="dp-tab-content active">
       {/* Section pills: Gaps | Constraints | Conflicts */}
-      <div style={{ display: "flex", gap: 4, padding: 3, background: "var(--gray-50)", borderRadius: 10, marginBottom: 12 }}>
+      <div className="dp-subtabs">
         {([
-          { id: "gaps" as const, label: "Gaps", count: gaps.length, color: "#F59E0B" },
-          { id: "constraints" as const, label: "Constraints", count: constraints.length, color: "#d97706" },
-          { id: "conflicts" as const, label: "Conflicts", count: contradictions.length, color: "#EF4444" },
+          { id: "gaps" as const, label: "Gaps", count: gaps.length },
+          { id: "constraints" as const, label: "Constraints", count: constraints.length },
+          { id: "conflicts" as const, label: "Conflicts", count: contradictions.length },
         ]).map((sec) => (
           <button
             key={sec.id}
+            type="button"
+            className={`dp-subtab${gapSection === sec.id ? " active" : ""}`}
             onClick={() => setGapSection(sec.id)}
-            style={{
-              flex: 1, padding: "7px 12px", borderRadius: 7, border: "none",
-              background: gapSection === sec.id ? "#fff" : "transparent",
-              color: gapSection === sec.id ? "var(--dark)" : "var(--gray-500)",
-              fontSize: 12, fontWeight: 600, cursor: "pointer",
-              fontFamily: "var(--font)",
-              boxShadow: gapSection === sec.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-              transition: "all 0.15s",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}
           >
             {sec.label}
-            {sec.count > 0 && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
-                background: gapSection === sec.id ? `${sec.color}20` : "var(--gray-100)",
-                color: gapSection === sec.id ? sec.color : "var(--gray-500)",
-              }}>
-                {sec.count}
-              </span>
-            )}
+            {sec.count > 0 && <span className="count-pill">{sec.count}</span>}
           </button>
         ))}
       </div>
@@ -103,7 +90,7 @@ export function GapsTab({
       {/* ── Gaps sub-section ── */}
       {gapSection === "gaps" && (<>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginRight: 2 }}>Status</span>
+        <span className="panel-filter-label">Status</span>
         {["all", "open", "resolved", "dismissed"].map((f) => (
           <FilterChip key={`gs-${f}`} value={f} label={f === "all" ? "All" : f.replace("-", " ")} active={gapStatusFilter === f} onClick={() => setGapStatusFilter(f)} />
         ))}
@@ -111,16 +98,7 @@ export function GapsTab({
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
         <TableSearch state={gapsTable} placeholder="Search gaps…" />
         {unreadCounts.gap > 0 && (
-          <button
-            onClick={() => markTabSeenAll("gap", setGaps)}
-            title="Mark all gaps as read"
-            style={{
-              marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
-              background: "var(--green-light)", color: "#059669",
-              border: "1px solid var(--green-mid)",
-              fontSize: 11, fontWeight: 600, cursor: "pointer",
-            }}
-          >
+          <button type="button" className="btn-mark-all" onClick={() => markTabSeenAll("gap", setGaps as SetterFn)} title="Mark all gaps as read">
             ✓ Mark all read ({unreadCounts.gap})
           </button>
         )}
@@ -156,23 +134,19 @@ export function GapsTab({
                 {visible.map((gap) => (
                   <Fragment key={gap.id}>
                     <tr
-                      className="clickable-row"
-                      style={!gap.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
+                      className={`clickable-row${!gap.seen_at ? " row-unread" : ""}`}
                       onClick={() => {
                         onNavigate?.("gaps", gap.gap_id);
-                        if (gap.id && !gap.seen_at) markRowSeen("gap", gap.id, setGaps);
+                        if (gap.id && !gap.seen_at) markRowSeen("gap", gap.id, setGaps as SetterFn);
                         openGap(gap);
                       }}
                     >
-                      <td style={{
-                        whiteSpace: "nowrap", lineHeight: 1.2,
-                        borderLeft: !gap.seen_at ? "3px solid var(--green)" : undefined,
-                      }}>
-                        <div style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)" }}>{gap.gap_id}</div>
+                      <td style={{ whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-2)" }}>{gap.gap_id}</div>
                         <div style={{ marginTop: 2 }}><SevBadge severity={gap.severity} /></div>
                         {gap.created_at && (
                           <div
-                            style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2 }}
+                            style={{ fontSize: 9, color: "var(--ink-4)", fontWeight: 500, marginTop: 2 }}
                             title={new Date(gap.created_at).toLocaleString()}
                           >{formatAge(gap.created_at)}</div>
                         )}
@@ -180,11 +154,10 @@ export function GapsTab({
                       <td style={{ fontWeight: 500 }} title={gap.question}>
                         <div className="cell-title">{gap.question}</div>
                       </td>
-                      <td style={{ color: "var(--gray-500)", fontSize: 11 }}>{gap.area}</td>
+                      <td style={{ color: "var(--ink-3)", fontSize: 11 }}>{gap.area}</td>
                       <td>
                         {(() => {
                           const fb = clientFeedback.gaps[gap.gap_id];
-                          // Collapse when PM has resolved AND client has answered.
                           const aligned = fb && gap.status === "resolved";
                           if (fb && aligned) return <GapClientBadge fb={fb} />;
                           return (
@@ -212,16 +185,7 @@ export function GapsTab({
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
             <TableSearch state={consTable} placeholder="Search constraints…" />
             {unreadCounts.constraint > 0 && (
-              <button
-                onClick={() => markTabSeenAll("constraint", setConstraints)}
-                title="Mark all constraints as read"
-                style={{
-                  marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
-                  background: "var(--green-light)", color: "#059669",
-                  border: "1px solid var(--green-mid)",
-                  fontSize: 11, fontWeight: 600, cursor: "pointer",
-                }}
-              >
+              <button type="button" className="btn-mark-all" onClick={() => markTabSeenAll("constraint", setConstraints as SetterFn)} title="Mark all constraints as read">
                 ✓ Mark all read ({unreadCounts.constraint})
               </button>
             )}
@@ -249,39 +213,32 @@ export function GapsTab({
                     {visible.map((c, i) => {
                       const absoluteIndex = constraints.findIndex((x) => x.id === c.id);
                       const conId = `CON-${String(absoluteIndex + 1).padStart(3, "0")}`;
+                      const typeVariant = c.type === "budget" ? "red" : c.type === "technology" ? "blue" : "amber";
                       return (
                         <tr
                           key={c.id || i}
-                          className="clickable-row"
-                          style={!c.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
+                          className={`clickable-row${!c.seen_at ? " row-unread" : ""}`}
                           onClick={() => {
                             openConstraint(c, absoluteIndex);
                             onNavigate?.("constraints", conId);
-                            if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints);
+                            if (c.id && !c.seen_at) markRowSeen("constraint", c.id, setConstraints as SetterFn);
                           }}
                         >
-                          <td className="chevron-cell" style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}>
-                            <Chevron />
-                          </td>
-                          <td style={{ fontFamily: "'SF Mono', 'Fira Code', monospace", fontSize: 11, color: "var(--gray-600)", whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                          <td className="chevron-cell"><Chevron /></td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--ink-2)", whiteSpace: "nowrap", lineHeight: 1.2 }}>
                             {conId}
                             {c.created_at && (
                               <div
-                                style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2, fontFamily: "var(--font)" }}
+                                style={{ fontSize: 9, color: "var(--ink-4)", fontWeight: 500, marginTop: 2, fontFamily: "inherit" }}
                                 title={new Date(c.created_at).toLocaleString()}
                               >{formatAge(c.created_at)}</div>
                             )}
                           </td>
-                          <td>
-                            <span className="sev-badge" style={{
-                              background: c.type === "budget" ? "#EF444420" : c.type === "technology" ? "#3B82F620" : "#F59E0B20",
-                              color: c.type === "budget" ? "#EF4444" : c.type === "technology" ? "#3B82F6" : "#F59E0B",
-                            }}>{c.type}</span>
-                          </td>
+                          <td><span className={`chip xs uppercase ${typeVariant}`}>{c.type}</span></td>
                           <td>
                             <div style={{ fontWeight: 500, fontSize: 12 }}>{c.description?.slice(0, 80)}{c.description?.length > 80 ? "..." : ""}</div>
                           </td>
-                          <td style={{ fontSize: 11, color: "var(--gray-500)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
+                          <td style={{ fontSize: 11, color: "var(--ink-3)", maxWidth: 200 }}>{c.impact?.slice(0, 60)}</td>
                           <td><StatusPill status={c.status} /></td>
                         </tr>
                       );
@@ -302,22 +259,13 @@ export function GapsTab({
             <TableSearch state={contraTable} placeholder="Search contradictions…" />
             <div className="panel-filter" style={{ marginBottom: 0 }}>
               {["all", "open", "resolved"].map((f) => (
-                <button key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
+                <button type="button" key={f} className={`panel-filter-btn${contraFilter === f ? " active" : ""}`} onClick={() => setContraFilter(f)} style={{ textTransform: "capitalize" }}>
                   {f}
                 </button>
               ))}
             </div>
             {unreadCounts.contradiction > 0 && (
-              <button
-                onClick={() => markTabSeenAll("contradiction", setContradictions)}
-                title="Mark all contradictions as read"
-                style={{
-                  marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
-                  background: "var(--green-light)", color: "#059669",
-                  border: "1px solid var(--green-mid)",
-                  fontSize: 11, fontWeight: 600, cursor: "pointer",
-                }}
-              >
+              <button type="button" className="btn-mark-all" onClick={() => markTabSeenAll("contradiction", setContradictions as SetterFn)} title="Mark all contradictions as read">
                 ✓ Mark all read ({unreadCounts.contradiction})
               </button>
             )}
@@ -350,30 +298,27 @@ export function GapsTab({
                     {visible.map((c) => (
                       <Fragment key={c.id}>
                         <tr
-                          className="clickable-row"
-                          style={!c.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
+                          className={`clickable-row${!c.seen_at ? " row-unread" : ""}`}
                           onClick={() => {
                             const next = expandedRow === c.id ? null : c.id;
                             setExpandedRow(next);
                             onNavigate?.("contradictions", next ? String(c.id).slice(0, 8) : undefined);
-                            if (c.id && !c.seen_at) markRowSeen("contradiction", c.id, setContradictions);
+                            if (c.id && !c.seen_at) markRowSeen("contradiction", c.id, setContradictions as SetterFn);
                           }}
                         >
-                          <td className="chevron-cell" style={!c.seen_at ? { borderLeft: "4px solid var(--green)" } : undefined}>
-                            <Chevron open={expandedRow === c.id} />
-                          </td>
+                          <td className="chevron-cell"><Chevron open={expandedRow === c.id} /></td>
                           <td><SevBadge severity="high" /></td>
                           <td>
                             <div style={{ fontWeight: 600, fontSize: 12 }}>{_contraTitle(c)}</div>
-                            <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>
+                            <div style={{ fontSize: 11, color: "var(--ink-3)", marginTop: 2 }}>
                               {_contraSubtitle(c).slice(0, 80)}{_contraSubtitle(c).length > 80 ? "…" : ""}
                             </div>
                           </td>
-                          <td style={{ color: "var(--gray-500)", fontSize: 11, whiteSpace: "nowrap", lineHeight: 1.2 }}>
+                          <td style={{ color: "var(--ink-3)", fontSize: 11, whiteSpace: "nowrap", lineHeight: 1.2 }}>
                             {c.area || (c.item_a_type && c.item_a_type !== "unknown" ? c.item_a_type : "—")}
                             {c.created_at && (
                               <div
-                                style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500, marginTop: 2 }}
+                                style={{ fontSize: 9, color: "var(--ink-4)", fontWeight: 500, marginTop: 2 }}
                                 title={new Date(c.created_at).toLocaleString()}
                               >{formatAge(c.created_at)}</div>
                             )}
@@ -381,18 +326,15 @@ export function GapsTab({
                           <td><GapStatusPill status={c.resolved ? "resolved" : "open"} /></td>
                           <td>
                             {!c.resolved && (
-                              <button className="inline-action" onClick={(e) => { e.stopPropagation(); setExpandedRow(c.id); }} title="Resolve">&#10003;</button>
+                              <button type="button" className="inline-action" onClick={(e) => { e.stopPropagation(); setExpandedRow(c.id); }} title="Resolve">&#10003;</button>
                             )}
                           </td>
                         </tr>
                         {expandedRow === c.id && (
                           <tr className="detail-row">
                             <td colSpan={6}>
-                              <div className="contra-detail">
+                              <div className="finding-detail">
                                 {(() => {
-                                  // Resolve both sides from whichever source is available —
-                                  // native fields first (side_a / side_b), then the legacy
-                                  // item_a_ref / item_b_ref for ancient rows.
                                   const sideAText = c.side_a
                                     || (c.item_a_ref && !c.item_a_ref.startsWith("New ") ? c.item_a_ref : null);
                                   const sideBText = c.side_b
@@ -415,7 +357,7 @@ export function GapsTab({
                                         <div className="cd-quote side-b">
                                           <div className="cd-quote-header">
                                             <span className="cd-quote-badge b">Side B</span>
-                                            {c.item_b_source && <span className="gap-meta-chip" style={{ background: "#fee2e2", color: "#EF4444" }}>{c.item_b_source}</span>}
+                                            {c.item_b_source && <span className="gap-meta-chip" style={{ background: "var(--must-soft)", color: "var(--must)" }}>{c.item_b_source}</span>}
                                             {c.item_b_person && <span className="person-chip">{c.item_b_person}</span>}
                                           </div>
                                           <div className="cd-quote-text">{sideBText}</div>
@@ -424,8 +366,6 @@ export function GapsTab({
                                     </div>
                                   );
                                 })()}
-                                {/* Raw explanation shown ONLY on ancient rows where
-                                    neither side_a/side_b nor item_*_ref resolved. */}
                                 {!c.side_a && !c.side_b && !c.item_a_ref && !c.item_b_ref && c.explanation && (
                                   <div className="cd-explanation">{c.explanation}</div>
                                 )}
@@ -433,7 +373,7 @@ export function GapsTab({
                                   {c.created_at && (
                                     <span className="gap-meta-chip">Detected {new Date(c.created_at).toLocaleDateString()}</span>
                                   )}
-                                  <span className="gap-meta-chip" style={{ background: "#EF444415", color: "#EF4444" }}>
+                                  <span className="gap-meta-chip" style={{ background: "var(--must-soft)", color: "var(--must)" }}>
                                     {c.resolved ? "Resolved" : "Unresolved"}
                                   </span>
                                 </div>
@@ -488,11 +428,6 @@ function _extractConflictDetail(explanation: string): string {
 }
 
 
-// Contradictions have first-class fields (title / side_a / side_b /
-// area) since migration 025. Most rows read straight from those. The
-// fallbacks below handle:
-//   - pre-025 rows that haven't been re-extracted (title NULL)
-//   - rows where the agent mapped to real DB rows via item_a_ref
 function _contraTitle(c: ApiContradiction): string {
   if (c.title) return c.title.slice(0, 60);
   if (c.item_a_ref && !c.item_a_ref.startsWith("New ")) {
@@ -500,18 +435,15 @@ function _contraTitle(c: ApiContradiction): string {
   }
   const expl = (c.explanation || "").trim();
   if (!expl) return "Contradiction";
-  // Legacy pre-025 fallback — old MCP wrote "<title>: <body>" here.
   const colon = expl.indexOf(":");
   if (colon > 0 && colon < 80) return expl.slice(0, colon).trim();
   return expl.slice(0, 60);
 }
 
 function _contraSubtitle(c: ApiContradiction): string {
-  // Combine the two sides when both present — "X  ↔  Y".
   if (c.side_a && c.side_b) return `${c.side_a}  ↔  ${c.side_b}`;
   if (c.side_b) return c.side_b;
   if (c.side_a) return c.side_a;
-  // Legacy fallback for pre-025 rows.
   if (c.item_b_ref && !c.item_b_ref.startsWith("New ")) return `vs ${c.item_b_ref}`;
   const expl = (c.explanation || "").trim();
   const colon = expl.indexOf(":");
@@ -532,8 +464,8 @@ function ContraResolveForm({ onResolve }: { onResolve: (note: string) => void })
         className="gap-resolve-input"
       />
       <div className="cd-decision-actions">
-        <button className="cd-action-btn primary" disabled={!note.trim()} onClick={() => onResolve(note)}>Resolve</button>
-        <button className="cd-action-btn info">Add to Meeting</button>
+        <button type="button" className="cd-action-btn primary" disabled={!note.trim()} onClick={() => onResolve(note)}>Resolve</button>
+        <button type="button" className="cd-action-btn info">Add to Meeting</button>
       </div>
     </div>
   );
