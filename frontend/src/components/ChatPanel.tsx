@@ -656,36 +656,37 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   </div>
                 </>
               ) : msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
-                // Interleaved segments path — activity blocks sit ABOVE
-                // .msg-content (flush with the card top/edge like the
-                // design mock), text blocks render inside .msg-content.
-                // Within each bucket we preserve source order.
+                // Interleaved segments — preserve source order. Activity
+                // segments render as flush card-level siblings (.msg-card-
+                // tools); text segments each get their own .msg-content
+                // block so padding lands per-text-chunk, not around the
+                // whole conversation body. Activity blocks' bottom
+                // border visually separates them from adjacent content.
                 <>
-                  {msg.segments
-                    .filter((s) => s.type === "activity")
-                    .map((seg, si) => (
+                  {msg.segments.map((seg, si) =>
+                    seg.type === "activity" ? (
                       <InlineActivity
-                        key={`act-${si}`}
+                        key={si}
                         tools={seg.tools || []}
                         thinkingCount={seg.thinkingCount}
                         isLive={false}
                       />
-                    ))}
-                  <div className="msg-content">
-                    {msg.segments
-                      .filter((s) => s.type !== "activity")
-                      .map((seg, si) => (
-                        <div key={`txt-${si}`} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
-                      ))}
-                    {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
-                      <div style={{ marginTop: 4 }}>
-                        <ActiveIndicator status={status} />
+                    ) : (
+                      <div key={si} className="msg-content">
+                        <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
                       </div>
-                    )}
-                    {msg._processing && !isLiveStreamTarget && (
+                    )
+                  )}
+                  {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
+                    <div className="msg-content">
+                      <ActiveIndicator status={status} />
+                    </div>
+                  )}
+                  {msg._processing && !isLiveStreamTarget && (
+                    <div className="msg-content">
                       <ProcessingIndicator source={msg.source} />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </>
               ) : msg.role === "assistant" ? (
                 // Non-segment assistant — ActivityPanel (if any) sits as
@@ -1710,46 +1711,38 @@ function ClientReviewNotice({
 // Inline SVGs (not emoji) so the badges match the rest of the app's icon
 // language — same 24-viewBox, stroke-based style used in Topbar + Sidebar.
 function TriggerBadge({ source, kind }: { source: "pipeline" | "reminder"; kind?: string }) {
-  const theme = source === "pipeline"
-    ? { bg: "#eff6ff", fg: "#1e40af", border: "#bfdbfe", fallback: "Upload" }
-    : { bg: "#fffbeb", fg: "#92400e", border: "#fde68a", fallback: "Reminder" };
-
+  // Maps source + kind → tokenized .chip variant + label + icon.
+  // Colors come from chat.css so badges live inside the same palette
+  // as other inline chips (.chip.green / .chip.amber / .chip.red).
   const label = (() => {
     if (source === "pipeline") {
       if (kind === "extraction_running") return "Extracting";
       if (kind === "extraction_done") return "Upload";
       if (kind === "extraction_failed") return "Upload failed";
-      return theme.fallback;
+      return "Upload";
     }
     if (kind === "reminder_prep") return "Reminder prep";
     if (kind === "reminder_prep_done") return "Reminder";
     if (kind === "reminder_delivered") return "Reminder";
     if (kind === "reminder_prep_failed") return "Reminder failed";
-    return theme.fallback;
+    return "Reminder";
   })();
+
+  const variant = source === "pipeline"
+    ? (kind === "extraction_failed" ? "red" : "green")
+    : (kind === "reminder_prep_failed" ? "red" : "amber");
 
   const tooltip = source === "pipeline"
     ? "Auto-triggered by a document upload. Extraction runs without your input."
     : "Auto-triggered by a reminder firing. Scheduled by you earlier.";
 
-  // pipeline  = upload-to-cloud glyph (points at "data coming in")
-  // reminder  = clock glyph (points at "scheduled time")
   const iconPath = source === "pipeline"
     ? ["M16 16l-4-4-4 4", "M12 12v9", "M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"]
     : ["M12 8v5l3 2"];
   const iconCircle = source === "reminder";
 
   return (
-    <span
-      title={tooltip}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        fontSize: 9, fontWeight: 600, padding: "2px 7px",
-        borderRadius: 10, background: theme.bg, color: theme.fg,
-        border: `1px solid ${theme.border}`,
-        whiteSpace: "nowrap", flexShrink: 0,
-      }}
-    >
+    <span className={`chip ${variant}`} title={tooltip}>
       <svg
         width="11" height="11" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
