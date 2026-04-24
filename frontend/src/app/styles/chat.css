@@ -193,6 +193,32 @@
 }
 .msg.user .msg-content strong { color: #fff; font-weight: 600; }
 
+/* Markdown tokens rendered inside user's dark bubble need contrast flips
+ * so lists + headings + links stay readable. Legacy md renderer emits
+ * .chat-li / .chat-h2 / etc; we remap colors, not structure. */
+.msg.user .msg-content .chat-li,
+.msg.user .msg-content .chat-oli { color: #E2E8F0; }
+.msg.user .msg-content .chat-li::marker,
+.msg.user .msg-content .chat-oli::marker { color: var(--accent); }
+.msg.user .msg-content .chat-h2,
+.msg.user .msg-content .chat-h3,
+.msg.user .msg-content .chat-h4 { color: #fff; }
+.msg.user .msg-content .chat-inline-code {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.16);
+  color: #A8F5CE;
+}
+.msg.user .msg-content .chat-file-link {
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.16);
+  color: #BFDBFE;
+}
+.msg.user .msg-content .chat-wiki-link {
+  color: #A8F5CE;
+  border-bottom-color: rgba(168,245,206,.6);
+}
+.msg.user .msg-content .chat-hr { border-top-color: rgba(255,255,255,.14); }
+
 /* Tool-call expandable bar inside an assistant message */
 .tools-bar {
   display: flex; align-items: center; gap: 0;

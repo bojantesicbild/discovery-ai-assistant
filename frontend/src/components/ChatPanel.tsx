@@ -494,9 +494,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         </div>
       </header>
 
-      {/* Messages */}
+      {/* Messages — Design v2 .chat-body-wrap + .chat-body with edge fades */}
+      <div className="chat-body-wrap">
       <div
-        className="chat-messages"
+        className="chat-body"
         id="chatMessages"
         onClick={(e) => {
           // Delegate clicks on file chips + internal markdown links.
@@ -575,94 +576,118 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
             }
             return <SystemNoticeGroup key={`sys-${i}`} messages={run} projectId={projectId} />;
           }
+          // Design v2 shell: .msg > .msg-meta + .msg-card > .msg-content.
+          // User messages get right-aligned dark treatment via .msg.user.
+          const senderName =
+            msg.role === "user"
+              ? (msg.source === "slack" ? (msg.slack_user_name || "Slack user") : "You")
+              : "Discovery Assistant";
+          // Empty assistant bubble mid-stream → ghost state (spinner +
+          // skeleton). When content starts arriving we flip to the
+          // normal msg-content render.
+          const isLiveStreamTarget = isStreaming && i === messages.length - 1;
+          const hasContent = Boolean(msg.content) || (msg.segments && msg.segments.length > 0);
+          const showGhost = msg.role === "assistant" && isLiveStreamTarget && !hasContent;
           return (
-          <div key={i} className={`chat-msg ${msg.role === "user" ? "user" : "ai"}`}>
-            <div className={`msg-avatar ${msg.role === "user" ? "user-avatar" : "ai-avatar"}`}>
-              {msg.role === "user" ? "BT" : "AI"}
+          <div key={i} className={`msg ${msg.role === "user" ? "user" : ""}`}>
+            <div className="msg-meta">
+              <strong>{senderName}</strong>
+              {msg.source === "slack" && <SlackBadge msg={msg} />}
+              {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
+              {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
+              {msg.role === "assistant" && msg.thinkingCount ? (
+                <span className="chip purple">{msg.thinkingCount} thinking</span>
+              ) : null}
+              {msg.time && <span className="ts">{msg.time}</span>}
             </div>
-            <div className="msg-body">
-              <div className="msg-sender">
-                {msg.role === "user"
-                  ? (msg.source === "slack" ? (msg.slack_user_name || "Slack user") : "You")
-                  : "Discovery Assistant"}
-                {msg.source === "slack" && <SlackBadge msg={msg} />}
-                {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
-                {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
-                {msg.role === "assistant" && msg.thinkingCount ? (
-                  <span style={{
-                    fontSize: 9, fontWeight: 600, padding: "1px 7px",
-                    borderRadius: 8, background: "#f3e8ff", color: "#7c3aed",
-                    marginLeft: 2,
-                  }}>
-                    {msg.thinkingCount} thinking
-                  </span>
-                ) : null}
-              </div>
-              <div className="msg-bubble">
-                {/* Interleaved segments: text blocks and activity blocks */}
-                {msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
-                  <>
-                    {msg.segments.map((seg, si) => (
-                      seg.type === "activity" ? (
-                        <InlineActivity
-                          key={si}
-                          tools={seg.tools || []}
-                          thinkingCount={seg.thinkingCount}
-                          isLive={false}
-                        />
-                      ) : (
-                        <div key={si} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
-                      )
-                    ))}
-                    {/* Live activity being built (not yet flushed to segments) */}
-                    {isStreaming && i === messages.length - 1 && status.phase !== "idle" && status.phase !== "writing" && (
-                      <div style={{ marginTop: 4 }}>
-                        <ActiveIndicator status={status} />
+            <div className={`msg-card${showGhost ? " ghost" : ""}${isLiveStreamTarget ? " live" : ""}`}>
+              {showGhost ? (
+                <>
+                  <div className="ghost-head">
+                    <span className="ghost-spinner" />
+                    <span className="ghost-status">
+                      {status.detail || "Thinking"}
+                      <span className="cursor" />
+                    </span>
+                    {status.toolCount > 0 && (
+                      <span className="ghost-steps">
+                        <span className="step-dot active" />
+                        {status.toolCount} tool{status.toolCount !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="ghost-body">
+                    <div className="skeleton w1" />
+                    <div className="skeleton w2" />
+                    <div className="skeleton w3" />
+                    {status.phase === "tool" && status.detail && (
+                      <div className="ghost-tool">
+                        <span className="tool-dot" />
+                        <span className="tool-name">{status.detail}</span>
                       </div>
                     )}
-                    {/* Slack-triggered run still in progress (server-side) */}
-                    {msg._processing && !(isStreaming && i === messages.length - 1) && (
-                      <ProcessingIndicator source={msg.source} />
-                    )}
-                  </>
-                ) : msg.role === "assistant" ? (
-                  <>
-                    {/* Fallback for old messages without segments */}
-                    {msg.toolCalls && msg.toolCalls.length > 0 && (
-                      <ActivityPanel
-                        tools={msg.toolCalls}
-                        isLive={isStreaming && i === messages.length - 1}
-                        currentTool={isStreaming && i === messages.length - 1 ? status.detail : undefined}
-                        thinkingCount={msg.thinkingCount}
-                        activityLog={msg.activityLog}
-                      />
-                    )}
-                    {msg.content ? (
-                      <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
-                    ) : (isStreaming && i === messages.length - 1 ? (
-                      <ActiveIndicator status={status} />
-                    ) : msg._processing ? (
-                      <ProcessingIndicator source={msg.source} />
-                    ) : "")}
-                    {isStreaming && i === messages.length - 1 && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
-                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
-                        <ActiveIndicator status={status} />
-                      </div>
-                    )}
-                    {/* Slack-triggered run still in progress (server-side) */}
-                    {msg._processing && msg.content && !(isStreaming && i === messages.length - 1) && (
-                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
+                  </div>
+                </>
+              ) : (
+                <div className="msg-content">
+                  {/* Interleaved segments: text blocks and activity blocks */}
+                  {msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
+                    <>
+                      {msg.segments.map((seg, si) => (
+                        seg.type === "activity" ? (
+                          <InlineActivity
+                            key={si}
+                            tools={seg.tools || []}
+                            thinkingCount={seg.thinkingCount}
+                            isLive={false}
+                          />
+                        ) : (
+                          <div key={si} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
+                        )
+                      ))}
+                      {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
+                        <div style={{ marginTop: 4 }}>
+                          <ActiveIndicator status={status} />
+                        </div>
+                      )}
+                      {msg._processing && !isLiveStreamTarget && (
                         <ProcessingIndicator source={msg.source} />
-                      </div>
-                    )}
-                  </>
-                ) : msg.role === "user" ? (
-                  <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
-                ) : (
-                  msg.content
-                )}
-              </div>
-              {msg.time && <div className="msg-time">{msg.time}</div>}
+                      )}
+                    </>
+                  ) : msg.role === "assistant" ? (
+                    <>
+                      {msg.toolCalls && msg.toolCalls.length > 0 && (
+                        <ActivityPanel
+                          tools={msg.toolCalls}
+                          isLive={isLiveStreamTarget}
+                          currentTool={isLiveStreamTarget ? status.detail : undefined}
+                          thinkingCount={msg.thinkingCount}
+                          activityLog={msg.activityLog}
+                        />
+                      )}
+                      {msg.content ? (
+                        <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
+                      ) : msg._processing ? (
+                        <ProcessingIndicator source={msg.source} />
+                      ) : null}
+                      {isLiveStreamTarget && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
+                        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+                          <ActiveIndicator status={status} />
+                        </div>
+                      )}
+                      {msg._processing && msg.content && !isLiveStreamTarget && (
+                        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+                          <ProcessingIndicator source={msg.source} />
+                        </div>
+                      )}
+                    </>
+                  ) : msg.role === "user" ? (
+                    <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
+                  ) : (
+                    msg.content
+                  )}
+                </div>
+              )}
             </div>
           </div>
           );
@@ -689,6 +714,7 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         )}
 
         <div ref={messagesEndRef} />
+      </div>
       </div>
 
       {/* Design v2 composer — input on top, action footer below with
