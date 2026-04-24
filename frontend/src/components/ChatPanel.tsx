@@ -600,6 +600,13 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           const isLiveStreamTarget = isStreaming && i === messages.length - 1;
           const hasContent = Boolean(msg.content) || (msg.segments && msg.segments.length > 0);
           const showGhost = msg.role === "assistant" && isLiveStreamTarget && !hasContent;
+          // Phase mapping for the 4-dot step indicator in the ghost head.
+          // plan → initial thinking, tools → tool invocation, extract →
+          // intermediate processing, write → response streaming.
+          const PHASES = ["thinking", "tool", "extract", "writing"] as const;
+          const phaseIndex = isLiveStreamTarget
+            ? Math.max(0, PHASES.indexOf(status.phase as any))
+            : 0;
           return (
           <div key={i} className={`msg ${msg.role === "user" ? "user" : ""}`}>
             <div className="msg-meta">
@@ -607,7 +614,18 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
               {msg.source === "slack" && <SlackBadge msg={msg} />}
               {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
               {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
-              {msg.role === "assistant" && msg.thinkingCount ? (
+              {/* Live in-flight state — green pill with streaming dots,
+                  matches the design's "Thinking …" treatment.
+                  Once the stream settles we fall back to the .dot-sep
+                  separator (if there's a sub-label) or nothing. */}
+              {isLiveStreamTarget ? (
+                <span className="chip green">
+                  {status.phase === "writing" ? "Writing" :
+                   status.phase === "tool" ? "Using tools" :
+                   status.phase === "retry" ? "Retrying" : "Thinking"}
+                  <span className="streaming-dots"><span /><span /><span /></span>
+                </span>
+              ) : msg.role === "assistant" && msg.thinkingCount ? (
                 <span className="chip purple">{msg.thinkingCount} thinking</span>
               ) : null}
               {msg.time && <span className="ts">{msg.time}</span>}
@@ -618,26 +636,39 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   <div className="ghost-head">
                     <span className="ghost-spinner" />
                     <span className="ghost-status">
-                      {status.detail || "Thinking"}
+                      {status.detail || (
+                        status.phase === "writing" ? "Writing response" :
+                        status.phase === "tool" ? "Calling tools" :
+                        "Thinking"
+                      )}
                       <span className="cursor" />
                     </span>
-                    {status.toolCount > 0 && (
-                      <span className="ghost-steps">
-                        <span className="step-dot active" />
-                        {status.toolCount} tool{status.toolCount !== 1 ? "s" : ""}
-                      </span>
-                    )}
+                    {/* 4-dot phase indicator → plan · tools · extract · write */}
+                    <span className="ghost-steps" title="plan → tools → extract → write">
+                      {PHASES.map((_, idx) => (
+                        <span
+                          key={idx}
+                          className={`step-dot${idx === phaseIndex ? " active" : ""}`}
+                        />
+                      ))}
+                      <span>step {phaseIndex + 1} / {PHASES.length}</span>
+                    </span>
                   </div>
                   <div className="ghost-body">
-                    <div className="skeleton w1" />
-                    <div className="skeleton w2" />
-                    <div className="skeleton w3" />
+                    {/* When a tool is actively running, show its name +
+                        elapsed time at the top of the body */}
                     {status.phase === "tool" && status.detail && (
                       <div className="ghost-tool">
                         <span className="tool-dot" />
-                        <span className="tool-name">{status.detail}</span>
+                        <span><span className="tool-name">{status.detail}</span></span>
+                        {status.toolCount > 0 && (
+                          <span className="tool-elapsed">{status.toolCount} call{status.toolCount !== 1 ? "s" : ""}</span>
+                        )}
                       </div>
                     )}
+                    <div className="skeleton w1" />
+                    <div className="skeleton w2" />
+                    <div className="skeleton w3" />
                   </div>
                 </>
               ) : (
