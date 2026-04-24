@@ -16,11 +16,11 @@
  * rules from here and add the new tokenized version to a feature
  * module. This file should shrink to zero.
  */
-/* TOPBAR */
+/* TOPBAR — v2 tokens (background matches body --bg, not stark white) */
 .topbar {
   height: var(--topbar-height);
-  background: var(--white);
-  border-bottom: 1px solid var(--gray-200);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   padding: 0 32px;
@@ -28,20 +28,30 @@
   flex-shrink: 0;
 }
 
+/* Project selector pill — v2 treatment (pill-shape, surface bg) */
 .project-selector {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
+  padding: 8px 14px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   cursor: pointer;
-  background: var(--white);
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color .15s;
+  flex-shrink: 0;
 }
 
-.project-selector:hover { border-color: var(--gray-400); }
-.project-dot { width: 8px; height: 8px; background: var(--green); border-radius: 50%; flex-shrink: 0; }
-.project-name { font-size: 14px; font-weight: 600; }
+.project-selector:hover { border-color: var(--line-strong); }
+.project-dot {
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.project-name { font-size: 14px; font-weight: 600; letter-spacing: -0.005em; }
 
 .project-selector-wrapper {
   position: relative;
@@ -129,30 +139,28 @@
   text-overflow: ellipsis;
 }
 
+/* Search bar — v2 (surface bg, soft rounded, ink focus ring) */
 .search-bar {
   flex: 1;
-  max-width: 400px;
+  max-width: 520px;
   position: relative;
 }
-
 .search-bar input {
   width: 100%;
-  padding: 8px 12px 8px 36px;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-family: var(--font);
-  background: var(--gray-50);
-  color: var(--dark);
+  padding: 10px 14px 10px 38px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--surface);
+  color: var(--ink);
   outline: none;
-  transition: all 0.15s;
+  transition: border-color .15s, box-shadow .15s;
 }
-
-.search-bar input::placeholder { color: var(--gray-400); }
+.search-bar input::placeholder { color: var(--ink-4); }
 .search-bar input:focus {
-  border-color: var(--green);
-  background: var(--white);
-  box-shadow: 0 0 0 3px var(--green-light);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(10,10,11,.06);
 }
 
 .search-dropdown {
@@ -240,57 +248,72 @@
   margin-left: auto;
 }
 
+/* Primary action button — v2 treatment.
+ * Was: green bg + dark text
+ * Now: black bg + white text. Uses --ink so it inherits any future
+ * dark-theme remap. Subtle lift on hover matches the design mock. */
 .btn-primary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--green);
-  color: var(--dark);
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
+  gap: 8px;
+  padding: 10px 16px;
+  background: var(--ink);
+  color: #fff;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
   font-weight: 600;
-  font-family: var(--font);
+  letter-spacing: -0.005em;
+  font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background .15s, transform .12s, box-shadow .15s;
 }
-
 .btn-primary:hover {
-  background: var(--green-hover);
-  box-shadow: 0 2px 8px rgba(0,229,160,0.3);
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
-
+.btn-primary:active { transform: none; }
 .btn-primary svg {
   width: 16px; height: 16px;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
+/* Icon button — v2 (borderless until hover, subtle surface tint) */
 .icon-btn {
-  width: 36px; height: 36px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
-  background: var(--white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  transition: all 0.15s;
+  color: var(--ink-2);
+  position: relative;
+  transition: background .15s, color .15s;
 }
-
 .icon-btn:hover {
-  border-color: var(--gray-300);
-  background: var(--gray-50);
+  background: var(--surface);
+  color: var(--ink);
 }
-
 .icon-btn svg {
   width: 18px; height: 18px;
-  color: var(--gray-600);
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.8;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Notification dot — repositioned against the new borderless btn */
+.icon-btn .notif {
+  position: absolute; top: 8px; right: 8px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--must);
+  border: 2px solid var(--bg);
 }
 
 /* CONTENT AREA — split layout */
