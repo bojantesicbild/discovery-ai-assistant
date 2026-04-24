@@ -1589,3 +1589,400 @@ body {
   border-radius: 6px; background: #ede9fe; color: #7c3aed;
   white-space: nowrap;
 }
+
+
+/* ============================================================
+ * Design System — Pass 2: chat, message cards, composer
+ * ------------------------------------------------------------
+ * Drop-in classes for the Discovery Redesign v2 chat surface.
+ * Opt-in: legacy .chat-panel/.chat-msg/.chat-input-box styles
+ * above are untouched so existing screens keep working. New or
+ * retrofitted screens should use the classes in this block.
+ *
+ * Family:
+ *   .chat-header + .chat-title/.bubble/.tools-chip + .ghost-btn
+ *   .chat-body-wrap > .chat-body  (with edge fades)
+ *   .msg, .msg.user + .msg-meta/.msg-card/.msg-content
+ *   .chat-ref (inline finding-id pill, e.g. BR-004)
+ *   .msg-card.ghost (thinking state)
+ *   .tools-bar + .tools-toggle + .tools-detail (expandable tool calls)
+ *   .composer + .composer-box + .composer-footer
+ *     .composer-tray/.tray-btn
+ *     .ctx-chip (context file chip)
+ *     .model-pill + .send-btn
+ * ============================================================ */
+
+.chat-header {
+  padding: 16px 32px 12px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.chat-title { display: flex; align-items: center; gap: 12px; }
+.chat-title .bubble {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0A0A0B, #2B2B30);
+  display: grid; place-items: center;
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 12px;
+}
+.chat-title h2 {
+  margin: 0; font-size: 16px; font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.chat-title p {
+  margin: 0; font-size: 12px; color: var(--ink-3);
+  display: flex; align-items: center; gap: 6px;
+}
+.chat-title .tools-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: -0.005em;
+}
+.chat-title .tools-chip svg { width: 11px; height: 11px; color: var(--ink-3); }
+.chat-title .tools-chip .dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.chat-actions { display: flex; gap: 6px; }
+
+/* Ghost button — low-emphasis text button used for header actions */
+.ghost-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.ghost-btn:hover { background: var(--surface); }
+.ghost-btn svg { width: 14px; height: 14px; }
+
+.chat-body-wrap {
+  flex: 1 1 0;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-body-wrap::before,
+.chat-body-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.chat-body-wrap::before {
+  top: 0; height: 24px;
+  background: linear-gradient(to bottom, var(--bg) 10%, rgba(247,247,244,0));
+}
+.chat-body-wrap::after {
+  bottom: 0; height: 28px;
+  background: linear-gradient(to top, var(--bg) 10%, rgba(247,247,244,0));
+}
+.chat-body {
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px 32px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.chat-body::-webkit-scrollbar { width: 8px; }
+.chat-body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
+
+.msg { margin-bottom: 18px; }
+.msg-meta {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px; color: var(--ink-3);
+  flex-wrap: wrap;
+}
+.msg-meta strong { color: var(--ink); font-weight: 600; font-size: 13px; }
+.msg-meta .dot-sep { color: var(--ink-4); }
+.msg-meta .ts { margin-left: auto; font-weight: 500; color: var(--ink-4); font-size: 11px; }
+
+.msg-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow .2s, border-color .2s;
+}
+.msg-card.live {
+  border-color: rgba(94,106,210,.35);
+  box-shadow: 0 0 0 4px rgba(94,106,210,.08);
+}
+
+.msg-content {
+  padding: 14px 18px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+/* Finding-id pill (BR-004, GAP-007 …). Kept under a scoped class so
+ * it doesn't collide with the legacy `.ref` used elsewhere. */
+.msg-content .chat-ref {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px; font-weight: 700;
+  padding: 2px 7px;
+  background: var(--accent);
+  color: #0A1A10;
+  border-radius: 5px;
+  margin: 0 2px;
+  vertical-align: 1px;
+  letter-spacing: -0.01em;
+}
+.msg-content em { font-style: normal; font-weight: 600; color: var(--must); }
+
+/* User message — right-aligned dark bubble with shadow lift */
+.msg.user { display: flex; flex-direction: column; align-items: flex-end; }
+.msg.user .msg-meta { justify-content: flex-end; }
+.msg.user .msg-meta strong { color: var(--ink); }
+.msg.user .msg-card {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  max-width: 82%;
+  box-shadow: 0 10px 28px -14px rgba(10,10,11,.35),
+              0 1px 2px rgba(10,10,11,.08);
+}
+.msg.user .msg-content {
+  color: #fff; font-size: 14px; line-height: 1.55;
+  padding: 12px 16px;
+}
+.msg.user .msg-content .chat-ref {
+  background: rgba(0,255,157,.22);
+  color: #A8F5CE;
+}
+.msg.user .msg-content strong { color: #fff; font-weight: 600; }
+
+/* Tool-call expandable bar inside an assistant message */
+.tools-bar {
+  display: flex; align-items: center; gap: 0;
+  padding: 0;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.tools-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  flex: 1;
+  text-align: left;
+  justify-content: flex-start;
+  transition: color .12s, background .12s;
+}
+.tools-toggle:hover { color: var(--ink); background: rgba(0,0,0,.02); }
+.tools-toggle .tt-icon { width: 14px; height: 14px; color: var(--could); }
+.tools-toggle .tt-count { color: var(--ink); font-weight: 700; }
+.tools-toggle .tt-summary { color: var(--ink-3); font-weight: 500; }
+.tools-toggle .tt-chevron {
+  width: 14px; height: 14px;
+  margin-left: auto;
+  color: var(--ink-3);
+  transition: transform .2s;
+}
+.msg-card.expanded .tools-toggle .tt-chevron { transform: rotate(180deg); }
+.tools-detail {
+  display: none;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.msg-card.expanded .tools-detail { display: flex; }
+.act-chip {
+  padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.act-chip.a-mcp { color: #3730A3; background: #EEF2FF; }
+.act-chip.a-other { color: var(--ink-2); background: var(--bg); }
+.act-chip.a-think { color: #7E22CE; background: #FAF5FF; }
+.act-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .7; }
+
+/* ==== Composer (v2) ==== */
+.composer {
+  border-top: 1px solid var(--line);
+  padding: 14px 20px 18px;
+  background: var(--bg);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+}
+.composer-box {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0;
+  overflow: hidden;
+  transition: border-color .15s, box-shadow .15s;
+}
+.composer-box:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px rgba(10,10,11,.06);
+}
+.composer-box .composer-input-wrap { padding: 12px 14px 8px; }
+.composer-box textarea {
+  width: 100%; resize: none; border: 0; outline: 0;
+  font-family: inherit; font-size: 15px; line-height: 1.5;
+  color: var(--ink); background: transparent;
+  min-height: 24px; max-height: 120px;
+}
+.composer-footer {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 8px 8px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--line);
+}
+
+/* Left tray — compact icon-only actions (attach / commands / etc) */
+.composer-tray {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.tray-btn {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  color: var(--ink-3);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  position: relative;
+  transition: background .12s, color .12s;
+}
+.tray-btn:hover { background: var(--surface-2); color: var(--ink); }
+.tray-btn svg { width: 14px; height: 14px; }
+.tray-btn .tray-kbd {
+  position: absolute; top: -3px; right: -3px;
+  width: 12px; height: 12px;
+  background: var(--ink); color: #fff;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px; font-weight: 800;
+  display: grid; place-items: center;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.tray-btn:hover .tray-kbd { opacity: 1; }
+
+/* Context chip — mid-composer: what the agent is operating on */
+.ctx-chip {
+  flex: 1; min-width: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px 5px 8px;
+  background: var(--surface);
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  font-size: 11.5px; font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.ctx-chip:hover {
+  border-style: solid;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.ctx-chip .ctx-icon {
+  width: 18px; height: 18px;
+  display: grid; place-items: center;
+  border-radius: 4px;
+  background: var(--could-soft);
+  color: var(--could);
+  flex-shrink: 0;
+}
+.ctx-chip .ctx-icon svg { width: 11px; height: 11px; }
+.ctx-chip .ctx-label {
+  color: var(--ink-4);
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ctx-chip .ctx-file {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
+.ctx-chip .ctx-more {
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ink-4);
+  padding: 1px 5px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* Right cluster — model pill + send */
+.composer-right {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+}
+.model-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.model-pill:hover { color: var(--ink); border-color: var(--line-strong); }
+.model-pill .model-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.model-pill svg { width: 12px; height: 12px; color: var(--ink-3); }
+
+/* Send button — new design. Distinct from legacy `.send-btn` above
+ * by living inside .composer-footer; the cascade picks this one. */
+.composer-footer .send-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid; place-items: center;
+  border: 0;
+  cursor: pointer;
+  margin: 0;
+  box-shadow: 0 1px 2px rgba(0,255,157,.2);
+  transition: transform .12s, background .15s, box-shadow .15s;
+}
+.composer-footer .send-btn:hover {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px -4px rgba(0,255,157,.4);
+}
+.composer-footer .send-btn:disabled { opacity: 0.5; transform: none; }
+.composer-footer .send-btn svg { width: 16px; height: 16px; stroke: currentColor; }
