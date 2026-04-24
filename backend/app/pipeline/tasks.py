@@ -229,6 +229,35 @@ async def _build_rejection_context(db, project_id: uuid.UUID, limit: int = 10) -
     return "\n".join(lines) + "\n\n"
 
 
+async def _build_learnings_context(db, project_id: uuid.UUID, limit: int = 10) -> str:
+    """Return a short 'ACTIVE LEARNINGS' block of promoted/transient patterns
+    for this project, or "" when the inbox is empty.
+
+    Phase 3 of the session-heartbeat architecture (see
+    docs/research/2026-04-23-session-heartbeat-plan.md). Top-N by
+    reference_count so the patterns the agent has observed repeatedly
+    surface first. Keep the limit small — the prompt budget matters more
+    than exhaustive recall.
+    """
+    from app.services.learnings import get_active_learnings
+    rows = await get_active_learnings(
+        db, project_id=project_id, limit=limit, include_global=True,
+    )
+    if not rows:
+        return ""
+    lines = [
+        "ACTIVE LEARNINGS for this project (patterns observed across prior sessions — "
+        "respect them unless the current document clearly contradicts them):"
+    ]
+    for lr in rows:
+        content = (lr.content or "").strip().replace("\n", " ")
+        marker = "★" if lr.status == "promoted" else "·"
+        lines.append(
+            f"- [{lr.category}] {marker} {content[:200]} (refs={lr.reference_count})"
+        )
+    return "\n".join(lines) + "\n\n"
+
+
 async def _stage_extract(db, doc: Document, project=None) -> dict:
     """Invoke discovery-extraction-agent on the document.
 
@@ -273,6 +302,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     # on the next run so the agent stops re-proposing the same pattern.
     # No fine-tuning, just growing institutional memory fed back each run.
     rejection_context = await _build_rejection_context(db, doc.project_id, limit=10)
+    learnings_context = await _build_learnings_context(db, doc.project_id, limit=10)
 
     message = (
         "You have a document to extract findings from. Follow your extraction "
@@ -286,6 +316,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
         "IMPORTANT: pass `source_doc_id` = \"" + str(doc.id) + "\" on EVERY "
         "store_finding and propose_update call so the Source column in the UI "
         "links back to this document. This is non-optional for pipeline runs.\n\n"
+        f"{learnings_context}"
         f"{rejection_context}"
         "DOCUMENT CONTENT:\n"
         "---\n"
@@ -473,7 +504,42 @@ from app.pipeline.markdown_writer import (  # noqa: E402
     stakeholder_to_payload,
     contradiction_to_payload,
     write_with_hand_edits,
+    write_learnings_index as _write_learnings_index,
 )
+
+
+async def _fetch_activity_by_display_id(
+    db, project_id: uuid.UUID, display_ids: list[str], limit_per_id: int = 20,
+) -> dict[str, list[dict]]:
+    """Batch-fetch session events that reference any of the given display
+    ids (BR-NNN, GAP-NNN, etc.) and group them by id.
+
+    One query instead of N — the `## Activity` section on per-BR files
+    runs inside a tight loop, so per-row SELECTs would dominate export
+    time. Returns {display_id: [{ts, event_type, payload}, ...]} with
+    events newest-first, capped to `limit_per_id` per finding.
+    """
+    if not display_ids:
+        return {}
+    from sqlalchemy import text as _text
+    rows = (await db.execute(
+        _text(
+            "SELECT ts, event_type, payload, "
+            "       coalesce(payload->>'id', payload->>'target_req_id', payload->>'req_id') as did "
+            "FROM session_events "
+            "WHERE project_id = :pid "
+            "  AND coalesce(payload->>'id', payload->>'target_req_id', payload->>'req_id') = ANY(:dids) "
+            "ORDER BY ts DESC"
+        ).bindparams(pid=project_id, dids=list(display_ids))
+    )).mappings().all()
+    grouped: dict[str, list[dict]] = {d: [] for d in display_ids}
+    for r in rows:
+        did = r["did"]
+        if did and len(grouped.get(did, [])) < limit_per_id:
+            grouped.setdefault(did, []).append({
+                "ts": r["ts"], "event_type": r["event_type"], "payload": r["payload"] or {},
+            })
+    return grouped
 
 
 async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
@@ -524,6 +590,12 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     )
     gaps_rows = gaps_result.all()
 
+    # Batch-fetch session-event activity for every BR + GAP in the project.
+    # Feeds the per-finding ## Activity section — Phase 4 of the
+    # session-heartbeat architecture. One SELECT instead of N per loop.
+    _activity_ids = [r.req_id for r, _, _ in reqs_rows] + [g.gap_id for g, _, _ in gaps_rows]
+    activity_by_id = await _fetch_activity_by_display_id(db, project_id, _activity_ids)
+
     # --- Individual requirement files (no separate requirements.md — index.md covers it) ---
     for r, doc_name, doc_class in reqs_rows:
         # Pre-compute co-extracted siblings (other requirements from the
@@ -534,6 +606,7 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
             if other_r.req_id != r.req_id and other_r.source_doc_id == r.source_doc_id
         ]
         payload = requirement_to_payload(r, doc_name, doc_class, today, co_extracted)
+        payload["activity"] = activity_by_id.get(r.req_id, [])
         text = render_requirement_text(payload, reqs_dir=reqs_dir)
         write_with_hand_edits(reqs_dir / f"{r.req_id}.md", text)
 
@@ -604,8 +677,24 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
     gaps_dir.mkdir(parents=True, exist_ok=True)
     for g, g_doc_name, g_doc_class in gaps_rows:
         payload = gap_to_payload(g, g_doc_name, today, g_doc_class)
+        payload["activity"] = activity_by_id.get(g.gap_id, [])
         text = render_gap_text(payload, gaps_dir=gaps_dir)
         write_with_hand_edits(gaps_dir / f"{g.gap_id}.md", text)
+
+    # --- learnings.md (Phase 4 — session-heartbeat index) ---
+    # One page per project listing active (transient + promoted)
+    # learnings grouped by category. Promoted rows sort first within
+    # each group; dismissed ones never render.
+    try:
+        from app.services.learnings import get_active_learnings
+        learnings_rows = await get_active_learnings(
+            db, project_id=project_id, limit=200, include_global=True,
+        )
+    except Exception as e:
+        log.warning("learnings.md fetch failed (non-fatal)", error=str(e))
+        learnings_rows = []
+    learnings_count = len(learnings_rows)
+    _write_learnings_index(discovery_dir, today, learnings_rows)
 
     # --- index.md (wiki table of contents) ---
     idx_lines = [
@@ -636,6 +725,12 @@ async def _stage_export_markdown(db, project_id: uuid.UUID, doc):
         for s in stakeholders:
             idx_lines.append(f"| [[{s.name}]] | {s.role} | {s.decision_authority} |")
         idx_lines.append("")
+    if learnings_count:
+        idx_lines += [
+            f"## Learnings ({learnings_count})", "",
+            f"Patterns observed across sessions. See [[learnings]] for the full list grouped by category.",
+            "",
+        ]
     # Add Dataview queries for Obsidian users
     idx_lines += [
         "## Dynamic Views (Obsidian Dataview)", "",

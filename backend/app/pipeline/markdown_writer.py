@@ -425,6 +425,131 @@ def write_with_hand_edits(path: Path, generated_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Session timeline helper
+# ---------------------------------------------------------------------------
+
+
+# Human-readable labels for the event types that touch a finding.
+# Unknown event types fall through to the raw string.
+_EVENT_LABELS = {
+    "finding_stored": "extracted",
+    "proposal_created": "update proposed",
+    "proposal_accepted": "update accepted",
+    "proposal_rejected": "update rejected",
+    "req_status_changed": "status changed",
+    "br_confirmed": "confirmed",
+    "br_dropped": "dropped",
+    "relationship_proposed": "relationship proposed",
+    "relationship_retracted": "relationship retracted",
+    "gap_resolved": "gap resolved",
+}
+
+
+def render_activity_lines(activity: list[dict]) -> list[str]:
+    """Render a `## Activity` section from a list of session events.
+
+    Each entry is expected to be `{ts, event_type, payload}`. Rendered
+    as one bullet per event, newest-first, with a short human label +
+    contextual payload bits (field name, proposal target, etc.).
+
+    Returns an empty list when `activity` is empty — caller can splice
+    unconditionally.
+    """
+    if not activity:
+        return []
+    lines = ["", "## Activity"]
+    for e in activity:
+        ts = e.get("ts")
+        ts_label = ""
+        if ts is not None:
+            try:
+                ts_label = ts.date().isoformat() if hasattr(ts, "date") else str(ts)[:10]
+            except Exception:
+                ts_label = str(ts)[:10]
+        event_type = e.get("event_type") or ""
+        label = _EVENT_LABELS.get(event_type, event_type.replace("_", " "))
+        payload = e.get("payload") or {}
+        # Short contextual tail — e.g. the field name on a proposal event.
+        tail_bits = []
+        if event_type.startswith("proposal_"):
+            f = payload.get("field") or payload.get("proposed_field")
+            if f:
+                tail_bits.append(f"field `{f}`")
+            if event_type == "proposal_rejected" and payload.get("reason"):
+                tail_bits.append(f"reason: {str(payload['reason'])[:60]}")
+        elif event_type == "finding_stored":
+            k = payload.get("kind")
+            if k:
+                tail_bits.append(k)
+        tail = (" — " + "; ".join(tail_bits)) if tail_bits else ""
+        lines.append(f"- {ts_label} · {label}{tail}")
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# Learnings index (Phase 4 — session heartbeat)
+# ---------------------------------------------------------------------------
+
+
+_LEARNING_CATEGORY_LABELS = {
+    "pm_preference": "PM Preferences",
+    "domain_fact": "Domain Facts",
+    "workflow_pattern": "Workflow Patterns",
+    "anti_pattern": "Anti-Patterns",
+}
+
+
+def write_learnings_index(discovery_dir: Path, today: str, learnings) -> None:
+    """Render `discovery/learnings.md` — an index of active learnings
+    grouped by category.
+
+    Pipeline-owned file: re-rendered on every ingest from the DB.
+    Hand-edits are NOT preserved here (there's no END-GENERATED marker
+    because the page is 100% derived — anything a PM wants to annotate
+    should live on the learning itself via the UI).
+
+    Promoted learnings sort to the top of each category (★ marker);
+    transient ones follow ordered by reference_count. Empty categories
+    are skipped. If there are zero active learnings we still write a
+    minimal file so the index link doesn't dangle.
+    """
+    lines: list[str] = [
+        "---", "category: learnings-index", f"date: {today}", "---", "",
+        "# Learnings", "",
+        "Patterns the extraction agent observed across sessions. "
+        "★ marks promoted patterns (PM endorsed — Tier 1 context). "
+        "Promote or dismiss candidates from the dashboard.",
+        "",
+    ]
+    if not learnings:
+        lines += ["_No active learnings yet. The agent will start capturing patterns as documents are ingested._", ""]
+        (discovery_dir / "learnings.md").write_text("\n".join(lines))
+        return
+
+    # Bucket by category, promoted-first.
+    buckets: dict[str, list] = {}
+    for lr in learnings:
+        buckets.setdefault(lr.category, []).append(lr)
+
+    for cat, label in _LEARNING_CATEGORY_LABELS.items():
+        rows = buckets.get(cat) or []
+        if not rows:
+            continue
+        rows.sort(key=lambda lr: (0 if lr.status == "promoted" else 1, -lr.reference_count))
+        lines += [f"## {label} ({len(rows)})", ""]
+        for lr in rows:
+            marker = "★ " if lr.status == "promoted" else ""
+            refs = lr.reference_count
+            body = (lr.content or "").strip().replace("\n", " ")
+            quote = (lr.evidence_quote or "").strip().replace("\n", " ")
+            quote_suffix = f" — _“{quote[:140]}”_" if quote else ""
+            lines.append(f"- {marker}{body} (refs: {refs}){quote_suffix}")
+        lines.append("")
+
+    (discovery_dir / "learnings.md").write_text("\n".join(lines))
+
+
+# ---------------------------------------------------------------------------
 # Filename helpers
 # ---------------------------------------------------------------------------
 
@@ -739,6 +864,10 @@ def render_requirement_text(
     if raw_rel:
         lines.append(f"- [Original source]({raw_rel})")
 
+    # Activity timeline (Phase 4 — session heartbeat). Skips cleanly when
+    # the caller didn't attach an `activity` payload (parity tests do).
+    lines += render_activity_lines(payload.get("activity") or [])
+
     lines.append("")
     return fm_block + "\n".join(lines)
 
@@ -911,6 +1040,9 @@ def render_gap_text(
         lines.append("## Owner")
         lines.append(f"- {assignee}")
         lines.append("")
+
+    # Activity timeline (Phase 4 — session heartbeat).
+    lines += render_activity_lines(payload.get("activity") or [])
 
     return fm_block + "\n".join(lines)
 

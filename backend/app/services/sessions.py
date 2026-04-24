@@ -282,3 +282,40 @@ async def recent_events_for_project(
         q = q.where(SessionEvent.ts >= since)
     q = q.order_by(SessionEvent.ts.desc()).limit(limit)
     return list((await db.execute(q)).scalars().all())
+
+
+async def events_for_finding(
+    db: AsyncSession, *,
+    project_id: uuid.UUID,
+    display_id: str,
+    limit: int = 20,
+) -> list[SessionEvent]:
+    """Events that touched a specific finding (BR-NNN or GAP-NNN).
+
+    Scans payload fields that might carry the display id:
+      - finding_stored emits `payload.id` for requirements / gaps
+      - proposal_created/accepted/rejected emits `payload.target_req_id`
+      - update_requirement_status emits `payload.req_id`
+
+    Used by the markdown writer to render an ## Activity section on
+    per-BR / per-GAP files. Limit is intentionally small — old events
+    clutter the vault view.
+    """
+    from sqlalchemy import or_, text
+    if not display_id:
+        return []
+    q = (
+        select(SessionEvent)
+        .where(
+            SessionEvent.project_id == project_id,
+            or_(
+                text("payload->>'id' = :did"),
+                text("payload->>'target_req_id' = :did"),
+                text("payload->>'req_id' = :did"),
+            ),
+        )
+        .params(did=display_id)
+        .order_by(SessionEvent.ts.desc())
+        .limit(limit)
+    )
+    return list((await db.execute(q)).scalars().all())
