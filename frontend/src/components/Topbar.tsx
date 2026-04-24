@@ -6,6 +6,7 @@ import { uploadDocument, listProjects, searchProject, getNotifications, getNotif
 import DirectoryModal from "./DirectoryModal";
 import ClientReviewModal from "./ClientReviewModal";
 import RemindersPanel from "./RemindersPanel";
+import { useSidebar } from "./ProjectShell";
 
 interface Project {
   id: string;
@@ -100,6 +101,7 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
   const [activeReminderCount, setActiveReminderCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const sidebar = useSidebar();
 
   // Let other components (e.g., ChatPanel's review-submitted notice) open
   // the review modal without prop-threading through ProjectShell.
@@ -286,6 +288,20 @@ export default function Topbar({ projectId, projectName = "Project", onDocumentU
 
   return (
     <header className="topbar">
+      <button
+        className="topbar-toggle"
+        onClick={sidebar.toggle}
+        title={sidebar.expanded ? "Collapse sidebar" : "Expand sidebar"}
+        aria-label="Toggle sidebar"
+      >
+        {/* Panel-left icon: container + animated rail. The rail width
+            animates via CSS based on .app.sidebar-expanded. */}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="16" rx="2.5" />
+          <rect className="panel-fill" x="3.5" y="4.5" width="5.5" height="15" rx="2" fill="currentColor" fillOpacity="0.12" stroke="none" />
+          <line className="panel-rail" x1="9" y1="4" x2="9" y2="20" />
+        </svg>
+      </button>
       <div className="project-selector-wrapper" ref={dropdownRef}>
         <button
           className="project-selector"

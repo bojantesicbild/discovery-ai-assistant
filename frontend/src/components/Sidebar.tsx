@@ -4,43 +4,143 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getMe } from "@/lib/api";
-import { useUnreadCounts } from "@/lib/useUnreadCounts";
-import NewProjectModal from "./NewProjectModal";
 
-const NAV_ITEMS = [
-  { label: "Main", items: [
-    { href: "/", label: "Overview", icon: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></> },
-  ]},
-  { label: "Phases", items: [
-    { href: "/discovery", label: "Discovery", icon: <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>, badge: "4" },
-    { href: "/story-tech", label: "Story & Tech", icon: <><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></> },
-    { href: "/code", label: "Code", icon: <><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></> },
-    { href: "/qa", label: "QA", icon: <><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></> },
-  ]},
-  { label: "System", items: [
-    { href: "/documents", label: "Documents", icon: <><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></> },
-    { href: "/knowledge", label: "Knowledge Base", icon: <><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></> },
-    { href: "/settings", label: "Settings", icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></> },
-  ]},
+
+/**
+ * Sidebar — Discovery Redesign v2
+ *
+ * The visual state (collapsed vs expanded) is driven by the parent via
+ * the `.sidebar-expanded` class on the `.app` grid wrapper. This lets
+ * the grid template animate both columns in sync. The Sidebar itself
+ * just renders the markup; parents toggle the class.
+ *
+ * Markup follows the design:
+ *   .sidebar
+ *     .logo-block          two cross-faded marks (compact + brand)
+ *     .section-label       "Main" / "Phases" / "System" caption
+ *     .nav-group           .nav-item* — icon + label + optional badge + tip
+ *     .spacer              pushes the footer down
+ *     .sidebar-footer      .avatar-row — avatar + name/email
+ */
+
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  badge?: string | number;
+};
+
+type NavSection = { label: string; items: NavItem[] };
+
+
+// Icons use strokes on a 24x24 viewBox. Stroke width + colors come from
+// CSS (.nav-item svg) so the icons stay in step with theme tokens.
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "Main",
+    items: [
+      {
+        href: "/",
+        label: "Overview",
+        icon: (
+          <>
+            <path d="M3 11l9-8 9 8" />
+            <path d="M5 10v10h14V10" />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    label: "Phases",
+    items: [
+      {
+        href: "/discovery",
+        label: "Discovery",
+        badge: 29,
+        icon: (
+          <>
+            <circle cx="12" cy="12" r="9" />
+            <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill="currentColor" fillOpacity=".25" />
+          </>
+        ),
+      },
+      {
+        href: "/story-tech",
+        label: "Story & Tech",
+        icon: (
+          <>
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <path d="M3 9h18M9 4v16" />
+          </>
+        ),
+      },
+      {
+        href: "/code",
+        label: "Code",
+        icon: <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />,
+      },
+      {
+        href: "/qa",
+        label: "QA",
+        icon: (
+          <>
+            <circle cx="12" cy="12" r="9" />
+            <path d="M9 12l2 2 4-4" />
+          </>
+        ),
+      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      {
+        href: "/documents",
+        label: "Documents",
+        icon: (
+          <>
+            <path d="M6 3h9l5 5v13H6z" />
+            <path d="M14 3v6h6" />
+            <path d="M9 14h7M9 18h5" />
+          </>
+        ),
+      },
+      {
+        href: "/knowledge",
+        label: "Knowledge",
+        icon: (
+          <>
+            <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
+            <path d="M8 3v18" />
+            <path d="M12 7h4M12 11h4" />
+          </>
+        ),
+      },
+      {
+        href: "/settings/tokens",
+        label: "Settings",
+        icon: (
+          <>
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z" />
+          </>
+        ),
+      },
+    ],
+  },
 ];
 
-interface SidebarProps {
-  collapsed?: boolean;
-  onToggleCollapsed?: () => void;
-}
 
 function getInitials(name: string): string {
   return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
-export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollapsed }: SidebarProps) {
-  const pathname = usePathname();
-  const [internalCollapsed, setInternalCollapsed] = useState(false);
-  const [showNewProject, setShowNewProject] = useState(false);
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
 
-  const collapsed = controlledCollapsed ?? internalCollapsed;
-  const toggleCollapsed = onToggleCollapsed ?? (() => setInternalCollapsed((c) => !c));
+export default function Sidebar() {
+  const pathname = usePathname();
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
     getMe()
@@ -48,122 +148,67 @@ export default function Sidebar({ collapsed: controlledCollapsed, onToggleCollap
       .catch(() => {});
   }, []);
 
-  // Extract projectId from pathname for project-scoped links
-  const projectIdMatch = pathname?.match(/\/projects\/([^/]+)/);
-  const projectId = projectIdMatch ? projectIdMatch[1] : null;
-
-  // Per-user unread counts for the active project. The hook handles the
-  // empty-projectId case gracefully (returns zeros without polling).
-  const { counts: unreadCounts } = useUnreadCounts(projectId || "");
-  const discoveryUnread = projectId ? unreadCounts.total : 0;
+  const isActive = (href: string): boolean => {
+    if (href === "/") return pathname === "/";
+    return pathname.startsWith(href);
+  };
 
   return (
-    <>
-    <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
-      <div className="sidebar-logo">
-        <h1>C{!collapsed && "rnogorchi"}<span></span></h1>
+    <aside className="sidebar" aria-label="Main navigation">
+      <div className="logo-block">
+        <span className="logo-mark" aria-hidden="true">
+          <span className="lm-c">C</span>
+          <span className="lm-dot">.</span>
+        </span>
+        <span className="brand-text" aria-label="Crnogorchi">
+          Crnogorchi<span className="brand-dot">.</span>
+        </span>
       </div>
 
-      <nav className="sidebar-nav">
-        {/* New Project button */}
-        <button
-          onClick={() => setShowNewProject(true)}
-          title={collapsed ? "New Project" : undefined}
-          style={{
-            display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : undefined,
-            gap: 8,
-            width: "100%", padding: "8px 12px", marginBottom: 8,
-            background: "var(--green)", color: "var(--dark)",
-            border: "none", borderRadius: "var(--radius-sm)",
-            fontSize: 13, fontWeight: 600, fontFamily: "var(--font)",
-            cursor: "pointer", transition: "all 0.15s",
-            overflow: "hidden", whiteSpace: "nowrap",
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = "var(--green-hover)")}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "var(--green)")}
-        >
-          <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, flexShrink: 0, stroke: "currentColor", fill: "none", strokeWidth: 2 }}>
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          {!collapsed && "New Project"}
-        </button>
-        {NAV_ITEMS.map((section) => (
-          <div key={section.label}>
-            <div className="nav-label" style={collapsed ? { visibility: "hidden" } : undefined}>{section.label}</div>
+      {NAV_SECTIONS.map((section) => (
+        <div key={section.label} style={{ display: "contents" }}>
+          <div className="section-label">
+            <span className="sl-text">{section.label}</span>
+          </div>
+          <div className="nav-group" role="menu">
             {section.items.map((item) => {
-              // Build the actual href — knowledge and code are project-scoped
-              const projectScoped = ["/knowledge", "/code"];
-              const resolvedHref = projectScoped.includes(item.href) && projectId
-                ? `/projects/${projectId}${item.href}`
-                : item.href;
-
-              const isActive = item.href === "/discovery"
-                ? (pathname?.startsWith("/discovery") || pathname?.startsWith("/projects")) && !pathname?.includes("/knowledge") && !pathname?.includes("/code")
-                : item.href === "/knowledge"
-                  ? pathname?.includes("/knowledge")
-                  : item.href === "/code"
-                    ? pathname?.includes("/code")
-                    : pathname === item.href;
-
-              // Dynamic badge: Discovery shows the live unread count for
-              // the current project (overriding the static placeholder).
-              // Hidden when zero so the icon stays clean.
-              let badge: string | null = null;
-              if (item.href === "/discovery" && discoveryUnread > 0) {
-                badge = String(discoveryUnread);
-              } else if (item.badge && item.href !== "/discovery") {
-                badge = item.badge;
-              }
-
+              const active = isActive(item.href);
+              const badge = item.badge;
               return (
                 <Link
                   key={item.href}
-                  href={resolvedHref}
-                  className={`nav-item${isActive ? " active" : ""}${collapsed ? " collapsed" : ""}`}
-                  title={collapsed ? item.label : undefined}
+                  href={item.href}
+                  className={active ? "nav-item active" : "nav-item"}
+                  title={item.label}
                 >
-                  <div className="nav-icon">
-                    <svg viewBox="0 0 24 24">{item.icon}</svg>
-                  </div>
-                  {!collapsed && item.label}
-                  {!collapsed && badge && <span className="nav-badge">{badge}</span>}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                    {item.icon}
+                  </svg>
+                  <span className="nav-label">{item.label}</span>
+                  {badge !== undefined && badge !== null && badge !== 0 && badge !== "0" ? (
+                    <span className="badge">{badge}</span>
+                  ) : null}
+                  <span className="tip">{item.label}</span>
                 </Link>
               );
             })}
           </div>
-        ))}
+        </div>
+      ))}
 
-      </nav>
+      <div className="spacer" />
 
-      <div className="sidebar-bottom">
-        <button
-          className={`nav-item${collapsed ? " collapsed" : ""}`}
-          onClick={toggleCollapsed}
-          title={collapsed ? "Expand" : undefined}
-          style={{ border: "none", background: "none", fontFamily: "var(--font)", width: "100%", textAlign: "left" }}
-        >
-          <div className="nav-icon">
-            <svg viewBox="0 0 24 24" style={{ transform: collapsed ? "rotate(180deg)" : "none", transition: "transform 0.3s" }}>
-              <polyline points="11 17 6 12 11 7" />
-              <polyline points="18 17 13 12 18 7" />
-            </svg>
+      <div className="sidebar-footer">
+        <div className="avatar-row">
+          <button className="avatar" title={user?.name || "User"}>
+            {user ? getInitials(user.name) : "?"}
+          </button>
+          <div className="avatar-meta">
+            <div className="name">{user?.name || "—"}</div>
+            <div className="email">{user?.email || ""}</div>
           </div>
-          {!collapsed && "Collapse"}
-        </button>
-
-        <div className={`sidebar-user${collapsed ? " collapsed" : ""}`} title={collapsed && user ? user.name : undefined}>
-          <div className="user-avatar">{user ? getInitials(user.name) : "?"}</div>
-          {!collapsed && (
-            <div className="user-info">
-              <div className="user-name">{user?.name || "Loading..."}</div>
-              <div className="user-role">{user?.email || ""}</div>
-            </div>
-          )}
         </div>
       </div>
     </aside>
-    <NewProjectModal open={showNewProject} onClose={() => setShowNewProject(false)} />
-    </>
   );
 }
