@@ -409,3 +409,123 @@
 }
 .composer-footer .send-btn:disabled { opacity: 0.5; transform: none; }
 .composer-footer .send-btn svg { width: 16px; height: 16px; stroke: currentColor; }
+
+
+/* ==== Ghost thinking state — AI working, no content yet ==== */
+.msg-card.ghost {
+  border: 1px dashed var(--line-strong);
+  background: linear-gradient(135deg, rgba(0,255,157,.05), rgba(0,255,157,.015));
+  box-shadow: none;
+}
+.msg-card.ghost .ghost-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px 8px;
+  border-bottom: 1px dashed var(--line);
+}
+.msg-card.ghost .ghost-spinner {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(0,255,157,.18);
+  border-top-color: var(--accent);
+  animation: ghost-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ghost-spin { to { transform: rotate(360deg); } }
+.msg-card.ghost .ghost-status {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ink-2);
+  letter-spacing: -0.005em;
+  flex: 1;
+  display: flex; align-items: center; gap: 6px;
+}
+.msg-card.ghost .ghost-status .cursor {
+  display: inline-block;
+  width: 7px; height: 13px;
+  background: var(--accent);
+  animation: ghost-blink 1s infinite steps(2);
+  border-radius: 1px;
+  vertical-align: middle;
+}
+@keyframes ghost-blink { 50% { opacity: 0; } }
+.msg-card.ghost .ghost-steps {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ink-4);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.01em;
+  padding: 2px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.msg-card.ghost .ghost-steps .step-dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--ink-4);
+}
+.msg-card.ghost .ghost-steps .step-dot.active {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0,255,157,.25);
+  animation: ghost-pulse 1.2s infinite ease-in-out;
+}
+@keyframes ghost-pulse { 50% { transform: scale(1.4); } }
+.msg-card.ghost .ghost-body {
+  padding: 12px 16px 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+/* Skeleton — horizontal shimmer strip for loading rows */
+.msg-card.ghost .skeleton {
+  height: 11px;
+  border-radius: 6px;
+  background: linear-gradient(90deg,
+    var(--surface-2) 0%,
+    rgba(94,106,210,.10) 40%,
+    var(--surface-2) 80%);
+  background-size: 220% 100%;
+  animation: skeleton-sweep 1.6s ease-in-out infinite;
+}
+@keyframes skeleton-sweep {
+  0%   { background-position: 220% 0; }
+  100% { background-position: -20% 0; }
+}
+.msg-card.ghost .skeleton.w1 { width: 88%; }
+.msg-card.ghost .skeleton.w2 { width: 76%; animation-delay: 0.12s; }
+.msg-card.ghost .skeleton.w3 { width: 62%; animation-delay: 0.24s; }
+
+.msg-card.ghost .ghost-tool {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.01em;
+}
+.msg-card.ghost .ghost-tool .tool-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  animation: ghost-pulse 1.2s infinite ease-in-out;
+}
+.msg-card.ghost .ghost-tool .tool-name { color: var(--ink); font-weight: 600; }
+.msg-card.ghost .ghost-tool .tool-elapsed {
+  margin-left: auto;
+  color: var(--ink-4);
+  font-size: 10.5px;
+}
+
+/* Streaming dots — subtle indicator while response streams */
+.streaming-dots { display: inline-flex; align-items: center; gap: 3px; margin-left: 2px; }
+.streaming-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent);
+  animation: streaming 1.2s infinite ease-in-out;
+}
+.streaming-dots span:nth-child(2) { animation-delay: 0.15s; }
+.streaming-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes streaming {
+  0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
