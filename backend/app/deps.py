@@ -35,6 +35,17 @@ async def get_current_user(
         if user:
             return user
 
+    # Personal access token path. Tokens carry the `dsc_` prefix so we
+    # can route them to the PAT verifier without a JWT decode attempt
+    # (JWTs have three dot-separated segments; PATs have none).
+    from app.services.api_tokens import TOKEN_PREFIX, verify_token
+    if credentials.credentials.startswith(TOKEN_PREFIX):
+        result = await verify_token(db, plaintext=credentials.credentials)
+        if result is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or revoked token")
+        _, user = result
+        return user
+
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = payload.get("sub")

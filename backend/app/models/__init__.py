@@ -1,4 +1,4 @@
-from app.models.auth import User
+from app.models.auth import User, ApiToken
 from app.models.project import Project, ProjectMember
 from app.models.document import Document
 from app.models.extraction import (
@@ -18,7 +18,7 @@ from app.models.relationship import Relationship
 from app.models.session import Session, SessionEvent
 
 __all__ = [
-    "User", "Project", "ProjectMember", "Document",
+    "User", "ApiToken", "Project", "ProjectMember", "Document",
     "Requirement", "Constraint", "Stakeholder",
     "Contradiction", "ChangeHistory",
     "ControlPointTemplate", "ReadinessHistory",
