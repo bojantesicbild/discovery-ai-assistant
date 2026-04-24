@@ -322,9 +322,13 @@
   padding: 14px 16px;
   margin-bottom: 10px;
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  /* Fixed id column width — the "auto" default was expanding to the
+   * widest stacked element (sometimes the date 'Apr 22, 2026') and
+   * producing a visible gap before the title. 64px is tight enough
+   * to hug BR-015/v1/Today but still fit Apr 22, 2026. */
+  grid-template-columns: 64px 1fr auto;
   grid-template-rows: auto auto;
-  gap: 2px 14px;
+  gap: 4px 12px;
   align-items: start;
   cursor: pointer;
   position: relative;
@@ -341,7 +345,8 @@
   display: flex; flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding-top: 3px;
+  padding-top: 1px;
+  min-width: 0;
 }
 .req-id .id {
   font-family: 'JetBrains Mono', monospace;

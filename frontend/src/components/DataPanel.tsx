@@ -91,13 +91,44 @@ const TAB_TO_FINDING_TYPE: Record<string, FindingType | undefined> = {
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
   // Active tab persists per-project so each project remembers where you were.
   // initialTab (from URL) overrides the persisted value when present.
-  const [heroCollapsed, setHeroCollapsed] = usePersistedState<boolean>(
+  // Manual collapse (chevron) — persisted so the PM's preference sticks.
+  const [heroManuallyCollapsed, setHeroManuallyCollapsed] = usePersistedState<boolean>(
     "datapanel:heroCollapsed", false,
   );
+  // Scroll-driven collapse — transient, resets on remount/tab swap.
+  // Set by the scroll listener hooked onto .reqs-scroll below.
+  const [heroScrollCollapsed, setHeroScrollCollapsed] = useState(false);
+  const heroCollapsed = heroManuallyCollapsed || heroScrollCollapsed;
+  const setHeroCollapsed = setHeroManuallyCollapsed;
   const [activeTab, setActiveTab] = usePersistedState<string>(
     `datapanel:tab:${projectId}`,
     initialTab || "reqs",
   );
+
+  // Auto-collapse hero when the active tab's scroll surface moves past
+  // a small threshold. Re-attaches when activeTab changes because each
+  // tab mounts its own .reqs-scroll node. Transient — unmount clears.
+  useEffect(() => {
+    setHeroScrollCollapsed(false);
+    // Next tick so the tab's DOM has mounted.
+    const timer = setTimeout(() => {
+      const panel = document.querySelector(".data-panel");
+      const scroller = panel?.querySelector(".reqs-scroll") as HTMLElement | null;
+      if (!scroller) return;
+      const THRESHOLD = 40;
+      const onScroll = () => setHeroScrollCollapsed(scroller.scrollTop > THRESHOLD);
+      onScroll();
+      scroller.addEventListener("scroll", onScroll, { passive: true });
+      (scroller as any)._collapseCleanup = () => scroller.removeEventListener("scroll", onScroll);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      const panel = document.querySelector(".data-panel");
+      const scroller = panel?.querySelector(".reqs-scroll") as any;
+      scroller?._collapseCleanup?.();
+    };
+  }, [activeTab]);
+
   const [dashboard, setDashboard] = useState<any>(null);
   const [requirements, setRequirements] = useState<ApiRequirement[]>([]);
   const [contradictions, setContradictions] = useState<ApiContradiction[]>([]);
