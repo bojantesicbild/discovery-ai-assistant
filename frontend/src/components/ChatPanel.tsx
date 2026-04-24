@@ -655,65 +655,76 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                     <div className="skeleton w3" />
                   </div>
                 </>
-              ) : (
-                <div className="msg-content">
-                  {/* Interleaved segments: text blocks and activity blocks */}
-                  {msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
-                    <>
-                      {msg.segments.map((seg, si) => (
-                        seg.type === "activity" ? (
-                          <InlineActivity
-                            key={si}
-                            tools={seg.tools || []}
-                            thinkingCount={seg.thinkingCount}
-                            isLive={false}
-                          />
-                        ) : (
-                          <div key={si} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
-                        )
+              ) : msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
+                // Interleaved segments path — activity blocks sit ABOVE
+                // .msg-content (flush with the card top/edge like the
+                // design mock), text blocks render inside .msg-content.
+                // Within each bucket we preserve source order.
+                <>
+                  {msg.segments
+                    .filter((s) => s.type === "activity")
+                    .map((seg, si) => (
+                      <InlineActivity
+                        key={`act-${si}`}
+                        tools={seg.tools || []}
+                        thinkingCount={seg.thinkingCount}
+                        isLive={false}
+                      />
+                    ))}
+                  <div className="msg-content">
+                    {msg.segments
+                      .filter((s) => s.type !== "activity")
+                      .map((seg, si) => (
+                        <div key={`txt-${si}`} dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
                       ))}
-                      {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
-                        <div style={{ marginTop: 4 }}>
-                          <ActiveIndicator status={status} />
-                        </div>
-                      )}
-                      {msg._processing && !isLiveStreamTarget && (
-                        <ProcessingIndicator source={msg.source} />
-                      )}
-                    </>
-                  ) : msg.role === "assistant" ? (
-                    <>
-                      {msg.toolCalls && msg.toolCalls.length > 0 && (
-                        <ActivityPanel
-                          tools={msg.toolCalls}
-                          isLive={isLiveStreamTarget}
-                          currentTool={isLiveStreamTarget ? status.detail : undefined}
-                          thinkingCount={msg.thinkingCount}
-                          activityLog={msg.activityLog}
-                        />
-                      )}
-                      {msg.content ? (
-                        <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
-                      ) : msg._processing ? (
-                        <ProcessingIndicator source={msg.source} />
-                      ) : null}
-                      {isLiveStreamTarget && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
-                        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
-                          <ActiveIndicator status={status} />
-                        </div>
-                      )}
-                      {msg._processing && msg.content && !isLiveStreamTarget && (
-                        <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
-                          <ProcessingIndicator source={msg.source} />
-                        </div>
-                      )}
-                    </>
-                  ) : msg.role === "user" ? (
-                    <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
-                  ) : (
-                    msg.content
+                    {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
+                      <div style={{ marginTop: 4 }}>
+                        <ActiveIndicator status={status} />
+                      </div>
+                    )}
+                    {msg._processing && !isLiveStreamTarget && (
+                      <ProcessingIndicator source={msg.source} />
+                    )}
+                  </div>
+                </>
+              ) : msg.role === "assistant" ? (
+                // Non-segment assistant — ActivityPanel (if any) sits as
+                // a sibling above .msg-content for the same flush-top
+                // treatment.
+                <>
+                  {msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <ActivityPanel
+                      tools={msg.toolCalls}
+                      isLive={isLiveStreamTarget}
+                      currentTool={isLiveStreamTarget ? status.detail : undefined}
+                      thinkingCount={msg.thinkingCount}
+                      activityLog={msg.activityLog}
+                    />
                   )}
+                  <div className="msg-content">
+                    {msg.content ? (
+                      <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
+                    ) : msg._processing ? (
+                      <ProcessingIndicator source={msg.source} />
+                    ) : null}
+                    {isLiveStreamTarget && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
+                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+                        <ActiveIndicator status={status} />
+                      </div>
+                    )}
+                    {msg._processing && msg.content && !isLiveStreamTarget && (
+                      <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
+                        <ProcessingIndicator source={msg.source} />
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : msg.role === "user" ? (
+                <div className="msg-content">
+                  <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
                 </div>
+              ) : (
+                <div className="msg-content">{msg.content}</div>
               )}
             </div>
           </div>
@@ -1132,7 +1143,7 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
   const summary = summaryParts.length ? `· ${summaryParts.join(", ")}` : "";
 
   return (
-    <div className={`msg-card-tools inline${expanded ? " expanded" : ""}`}>
+    <div className={`msg-card-tools${expanded ? " expanded" : ""}`}>
       <div className="tools-bar">
         <button className="tools-toggle" type="button" onClick={() => setExpanded(!expanded)}>
           <svg className="tt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
