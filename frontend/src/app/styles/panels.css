@@ -1047,3 +1047,196 @@
   display: flex; justify-content: flex-end; gap: 8px;
   margin-bottom: 12px;
 }
+
+/* ==== Empty state (pills.tsx) ==== */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ink-4);
+}
+.empty-state-icon {
+  width: 32px; height: 32px;
+  margin: 0 auto 12px;
+  stroke: var(--ink-4);
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.empty-state-text {
+  font-size: 13px;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+/* Compact dash placeholder for "no data yet" inline states */
+.empty-dash { color: var(--ink-4); font-size: 11px; }
+
+/* ==== Reminders tab ==== */
+.rem-filters {
+  display: flex; gap: 8px; margin-bottom: 12px;
+  flex-wrap: wrap; align-items: center;
+}
+.panel-filter-btn .count-pill {
+  display: inline-flex; align-items: center;
+  margin-left: 5px;
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.panel-filter-btn.active .count-pill {
+  background: rgba(255,255,255,0.35);
+  color: var(--accent-ink);
+}
+
+.rem-list {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.rem-row {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: border-color .15s, box-shadow .15s;
+}
+.rem-row:hover { border-color: var(--line-strong); }
+.rem-row.expanded { box-shadow: var(--shadow-md); }
+
+.rem-head {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 12px 14px;
+  background: transparent;
+  border: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  font-family: inherit;
+}
+.rem-head-row { display: flex; align-items: center; gap: 8px; }
+
+.rem-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ink-4);
+}
+.rem-status-dot.pending { background: var(--should); }
+.rem-status-dot.processing { background: var(--could); }
+.rem-status-dot.prepared { background: var(--accent); }
+.rem-status-dot.delivered { background: var(--ink-4); }
+.rem-status-dot.canceled { background: var(--ink-4); opacity: .55; }
+.rem-status-dot.failed { background: var(--must); }
+
+.rem-title {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 600;
+  color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rem-meta {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11px; color: var(--ink-3);
+  padding-left: 16px; flex-wrap: wrap;
+}
+.rem-meta .overdue { color: var(--must); font-weight: 600; }
+.rem-meta .recur { color: var(--could); font-weight: 600; }
+
+.rem-detail {
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.rem-grid {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+.rem-grid .label { color: var(--ink-4); }
+.rem-grid .value { color: var(--ink); }
+.rem-grid .value-muted { color: var(--ink-3); }
+.rem-grid .value-error { color: var(--must); }
+.rem-grid a { color: var(--accent-ink); text-decoration: underline; }
+
+.rem-note {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.rem-section-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.rem-brief {
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink);
+  max-height: 480px;
+  overflow: auto;
+}
+
+.rem-activity { display: flex; flex-direction: column; gap: 4px; }
+.rem-activity-row { display: flex; gap: 10px; font-size: 12px; color: var(--ink-2); }
+.rem-activity-row .icon { width: 18px; flex-shrink: 0; color: var(--ink-4); text-align: center; }
+.rem-activity-row .summary { flex: 1; }
+.rem-activity-row .ts { color: var(--ink-4); font-size: 10px; white-space: nowrap; }
+
+.rem-loading, .rem-empty-inline {
+  color: var(--ink-4);
+  font-size: 12px;
+  padding: 8px 0;
+}
+.rem-search {
+  flex: 1 1 200px;
+  min-width: 180px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+}
+.rem-search:focus { border-color: var(--ink); }
+
+/* ==== Danger-ghost button (cancel actions) ==== */
+.btn-danger-ghost {
+  font-size: 11px; font-weight: 600;
+  color: var(--must);
+  background: var(--surface);
+  border: 1px solid var(--must-soft);
+  border-radius: 6px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s, border-color .15s;
+}
+.btn-danger-ghost:hover { background: var(--must-soft); border-color: var(--must); }
+
+/* ==== Source cluster (filename + count badge) ==== */
+.source-cluster {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.source-cluster svg { width: 11px; height: 11px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; }
+.source-cluster .extra {
+  font-size: 9px; font-weight: 700;
+  padding: 1px 5px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  border-radius: 8px;
+}

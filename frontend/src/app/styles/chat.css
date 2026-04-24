@@ -777,3 +777,9 @@
 .chip.purple { color: #3730A3; background: #EEF2FF; border-color: transparent; }
 .chip.amber  { color: #B45309; background: var(--should-soft); border-color: transparent; }
 .chip.red    { color: #B91C1C; background: var(--must-soft); border-color: transparent; }
+.chip.blue   { color: #1E40AF; background: #DBEAFE; border-color: transparent; }
+.chip.orange { color: #C2410C; background: #FFEDD5; border-color: transparent; }
+
+/* Size variants */
+.chip.xs { padding: 2px 7px; font-size: 10px; font-weight: 700; }
+.chip.uppercase { text-transform: uppercase; letter-spacing: 0.04em; }

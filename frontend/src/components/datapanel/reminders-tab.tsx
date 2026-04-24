@@ -2,9 +2,6 @@
 
 // Reminders tab — list + detail for all project reminders.
 // Sits next to Requirements / Gaps / Meeting Prep / Handoff / Documents.
-// The bell-popover Reminders list stays as a quick-glance; this tab is
-// the full browseable surface: filters, search, per-reminder activity
-// timeline, and the brief content inline (no navigation to Meeting Prep).
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,20 +17,20 @@ import { EmptyState } from "./pills";
 
 type FilterKey = "all" | "active" | "recurring" | "past" | "failed";
 
-const STATUS_COLORS: Record<string, { dot: string; bg: string; fg: string }> = {
-  pending:    { dot: "#F59E0B", bg: "#fffbeb", fg: "#92400e" },
-  processing: { dot: "#2563eb", bg: "#eff6ff", fg: "#1e40af" },
-  prepared:   { dot: "#00E5A0", bg: "#f0fdf8", fg: "#065f46" },
-  delivered:  { dot: "#64748b", bg: "#f1f5f9", fg: "#334155" },
-  canceled:   { dot: "#94a3b8", bg: "#f8fafc", fg: "#64748b" },
-  failed:     { dot: "#EF4444", bg: "#fef2f2", fg: "#991b1b" },
+const OUTPUT_KIND: Record<string, { label: string; variant: string }> = {
+  notification: { label: "Notification",     variant: "" },
+  status:       { label: "Status brief",     variant: "blue" },
+  agenda:       { label: "Meeting agenda",   variant: "purple" },
+  research:     { label: "Research",         variant: "amber" },
 };
 
-const OUTPUT_KIND_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
-  notification: { bg: "#f1f5f9", fg: "#475569", label: "Notification" },
-  status:       { bg: "#eff6ff", fg: "#1e40af", label: "Status brief" },
-  agenda:       { bg: "#f3e8ff", fg: "#7c3aed", label: "Meeting agenda" },
-  research:     { bg: "#fef3c7", fg: "#a16207", label: "Research" },
+const STATUS_VARIANT: Record<string, string> = {
+  pending:    "amber",
+  processing: "blue",
+  prepared:   "green",
+  delivered:  "",
+  canceled:   "",
+  failed:     "red",
 };
 
 function channelLabel(ch: string): string {
@@ -112,15 +109,12 @@ export function RemindersTab({ projectId }: { projectId: string }) {
 
   useEffect(() => { reload(); }, [projectId]);
 
-  // Re-poll every 30s so the active list reflects recent fires without
-  // a manual refresh. Matches the bell-badge polling cadence.
   useEffect(() => {
     const t = setInterval(() => { reload().catch(() => {}); }, 30000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  // Load detail when a row is expanded
   useEffect(() => {
     if (!expandedId) {
       setDetail(null);
@@ -155,7 +149,6 @@ export function RemindersTab({ projectId }: { projectId: string }) {
       );
     }
 
-    // Active first (soonest due), then past/closed (most recent first).
     return [...rows].sort((a, b) => {
       const aActive = ["pending", "processing", "prepared"].includes(a.status);
       const bActive = ["pending", "processing", "prepared"].includes(b.status);
@@ -184,21 +177,19 @@ export function RemindersTab({ projectId }: { projectId: string }) {
   function toggleRow(rid: string) {
     const next = expandedId === rid ? null : rid;
     setExpandedId(next);
-    // Reflect in URL so deep links work (bell → Discovery tab →
-    // specific reminder expanded).
     const params = new URLSearchParams(searchParams.toString());
     if (next) params.set("r", next); else params.delete("r");
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
   if (loading && reminders.length === 0) {
-    return <div style={{ padding: "40px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>Loading reminders…</div>;
+    return <div className="rem-loading" style={{ textAlign: "center", padding: "40px 16px" }}>Loading reminders…</div>;
   }
 
   return (
     <div style={{ padding: "12px 4px 40px" }}>
       {/* Filters + search */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
+      <div className="rem-filters">
         {([
           ["all",       "All",       counts.all],
           ["active",    "Active",    counts.active],
@@ -210,24 +201,12 @@ export function RemindersTab({ projectId }: { projectId: string }) {
           return (
             <button
               key={key}
+              type="button"
               onClick={() => setFilter(key)}
-              style={{
-                padding: "5px 10px", borderRadius: 16, border: "1px solid var(--gray-200)",
-                background: on ? "#0f172a" : "#fff",
-                color: on ? "#fff" : "#475569",
-                fontSize: 11, fontWeight: 600, cursor: "pointer",
-                fontFamily: "inherit",
-                display: "inline-flex", alignItems: "center", gap: 5,
-              }}
+              className={`panel-filter-btn${on ? " active" : ""}`}
             >
               {label}
-              <span style={{
-                fontSize: 10, padding: "1px 6px", borderRadius: 8,
-                background: on ? "rgba(255,255,255,0.2)" : "var(--gray-100)",
-                color: on ? "#fff" : "#64748b",
-              }}>
-                {count}
-              </span>
+              <span className="count-pill">{count}</span>
             </button>
           );
         })}
@@ -235,11 +214,7 @@ export function RemindersTab({ projectId }: { projectId: string }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search subject, person, text…"
-          style={{
-            flex: "1 1 200px", minWidth: 180, padding: "6px 10px", borderRadius: 8,
-            border: "1px solid var(--gray-200)", fontSize: 12,
-            fontFamily: "inherit", outline: "none",
-          }}
+          className="rem-search"
         />
       </div>
 
@@ -253,55 +228,29 @@ export function RemindersTab({ projectId }: { projectId: string }) {
           }
         />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="rem-list">
           {filtered.map((r) => {
-            const sc = STATUS_COLORS[r.status] || STATUS_COLORS.pending;
-            const ok = OUTPUT_KIND_COLORS[r.output_kind || "notification"];
+            const ok = OUTPUT_KIND[r.output_kind || "notification"];
+            const statusVariant = STATUS_VARIANT[r.status] || "";
             const rec = recurrenceLabel(r.recurrence || "none");
             const expanded = expandedId === r.id;
             const overdue = r.status === "pending" && new Date(r.due_at).getTime() < Date.now();
             return (
-              <div
-                key={r.id}
-                style={{
-                  border: "1px solid var(--gray-100)", borderRadius: 10,
-                  background: "#fff",
-                  boxShadow: expanded ? "0 2px 12px rgba(0,0,0,0.06)" : "none",
-                  transition: "box-shadow 0.15s",
-                }}
-              >
-                <button
-                  onClick={() => toggleRow(r.id)}
-                  style={{
-                    width: "100%", textAlign: "left", cursor: "pointer",
-                    padding: "12px 14px", border: "none", background: "transparent",
-                    fontFamily: "inherit",
-                    display: "flex", flexDirection: "column", gap: 4,
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: sc.dot }} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {subjectLabel(r)}
-                    </span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                      background: ok.bg, color: ok.fg,
-                      letterSpacing: "0.03em", textTransform: "uppercase",
-                    }}>{ok.label}</span>
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                      background: sc.bg, color: sc.fg,
-                      letterSpacing: "0.03em", textTransform: "uppercase",
-                    }}>{r.status}</span>
+              <div key={r.id} className={`rem-row${expanded ? " expanded" : ""}`}>
+                <button type="button" className="rem-head" onClick={() => toggleRow(r.id)}>
+                  <div className="rem-head-row">
+                    <span className={`rem-status-dot ${r.status}`} />
+                    <span className="rem-title">{subjectLabel(r)}</span>
+                    <span className={`chip xs uppercase ${ok.variant}`}>{ok.label}</span>
+                    <span className={`chip xs uppercase ${statusVariant}`}>{r.status}</span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#64748b", paddingLeft: 16, flexWrap: "wrap" }}>
-                    <span style={{ color: overdue ? "#b91c1c" : "#64748b", fontWeight: overdue ? 600 : 400 }}>
+                  <div className="rem-meta">
+                    <span className={overdue ? "overdue" : ""}>
                       {overdue ? "Overdue · " : ""}
                       {formatDue(r.due_at)}
                     </span>
                     <span>· {channelLabel(r.channel)}</span>
-                    {rec && <span style={{ color: "#0e7490", fontWeight: 600 }}>· ↻ {rec}</span>}
+                    {rec && <span className="recur">· ↻ {rec}</span>}
                     {(r.occurrence_count ?? 0) > 0 && (
                       <span>· {r.occurrence_count} past fires</span>
                     )}
@@ -309,13 +258,13 @@ export function RemindersTab({ projectId }: { projectId: string }) {
                 </button>
 
                 {expanded && (
-                  <div style={{ borderTop: "1px solid var(--gray-100)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="rem-detail">
                     {detailLoading ? (
-                      <div style={{ color: "#94a3b8", fontSize: 12 }}>Loading…</div>
+                      <div className="rem-loading">Loading…</div>
                     ) : detail && detail.reminder.id === r.id ? (
                       <DetailBody detail={detail} onCancel={() => handleCancel(r.id)} />
                     ) : (
-                      <div style={{ color: "#94a3b8", fontSize: 12 }}>Couldn&apos;t load details.</div>
+                      <div className="rem-loading">Couldn&apos;t load details.</div>
                     )}
                   </div>
                 )}
@@ -332,27 +281,26 @@ export function RemindersTab({ projectId }: { projectId: string }) {
 function DetailBody({ detail, onCancel }: { detail: ReminderDetail; onCancel: () => void }) {
   const r = detail.reminder;
   const cancelable = ["pending", "processing", "prepared", "failed"].includes(r.status);
-  const ok = OUTPUT_KIND_COLORS[r.output_kind || "notification"];
+  const ok = OUTPUT_KIND[r.output_kind || "notification"];
 
   return (
     <>
-      {/* Metadata grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 12 }}>
-        <span style={{ color: "#94a3b8" }}>Original request</span>
-        <span style={{ color: "#0f172a" }}>{r.raw_request || "—"}</span>
-        <span style={{ color: "#94a3b8" }}>Due</span>
-        <span style={{ color: "#0f172a" }}>
+      <div className="rem-grid">
+        <span className="label">Original request</span>
+        <span className="value">{r.raw_request || "—"}</span>
+        <span className="label">Due</span>
+        <span className="value">
           {new Date(r.due_at).toLocaleString()}{" "}
-          <span style={{ color: "#94a3b8" }}>({new Date(r.due_at).toUTCString().slice(17, 22)} UTC)</span>
+          <span className="value-muted">({new Date(r.due_at).toUTCString().slice(17, 22)} UTC)</span>
         </span>
-        <span style={{ color: "#94a3b8" }}>Output kind</span>
-        <span style={{ color: ok.fg, fontWeight: 600 }}>{ok.label}</span>
-        <span style={{ color: "#94a3b8" }}>Channel</span>
-        <span style={{ color: "#0f172a" }}>{channelLabel(r.channel)}</span>
+        <span className="label">Output kind</span>
+        <span className="value" style={{ fontWeight: 600 }}>{ok.label}</span>
+        <span className="label">Channel</span>
+        <span className="value">{channelLabel(r.channel)}</span>
         {r.recurrence && r.recurrence !== "none" && (
           <>
-            <span style={{ color: "#94a3b8" }}>Recurrence</span>
-            <span style={{ color: "#0f172a" }}>
+            <span className="label">Recurrence</span>
+            <span className="value">
               {r.recurrence}
               {r.recurrence_end_at ? ` until ${new Date(r.recurrence_end_at).toLocaleDateString()}` : " (no end)"}
               {(r.occurrence_count ?? 0) > 0 ? ` · ${r.occurrence_count} past fires` : ""}
@@ -361,56 +309,47 @@ function DetailBody({ detail, onCancel }: { detail: ReminderDetail; onCancel: ()
         )}
         {r.external_ref && (
           <>
-            <span style={{ color: "#94a3b8" }}>External link</span>
-            <a href={r.external_ref} target="_blank" rel="noopener noreferrer" style={{ color: "#059669", textDecoration: "underline" }}>
+            <span className="label">External link</span>
+            <a href={r.external_ref} target="_blank" rel="noopener noreferrer">
               {r.channel === "calendar" ? "Open event in Google Calendar" : "Open link"}
             </a>
           </>
         )}
         {r.error_message && (
           <>
-            <span style={{ color: "#94a3b8" }}>Last error</span>
-            <span style={{ color: "#991b1b" }}>{r.error_message}</span>
+            <span className="label">Last error</span>
+            <span className="value-error">{r.error_message}</span>
           </>
         )}
       </div>
 
-      {/* Brief / output inline */}
       {r.output_kind === "notification" ? (
-        <div style={{ padding: 10, borderRadius: 8, background: "var(--gray-50, #f8fafc)", color: "#64748b", fontSize: 12, fontStyle: "italic" }}>
+        <div className="rem-note">
           Notification-only reminder — no output file.
         </div>
       ) : detail.brief_content ? (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+          <div className="rem-section-label">
             {r.output_kind === "status" ? "Status brief" : "Meeting agenda"}
           </div>
           <div
-            className="md-body"
-            style={{
-              padding: "14px 16px", borderRadius: 8, border: "1px solid var(--gray-100)",
-              background: "#fff", fontSize: 12, lineHeight: 1.55, color: "#0f172a",
-              maxHeight: 480, overflow: "auto",
-            }}
+            className="rem-brief md-body"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(detail.brief_content) }}
           />
         </div>
       ) : detail.brief_exists ? (
-        <div style={{ color: "#94a3b8", fontSize: 12 }}>Brief exists but is too large to render inline.</div>
+        <div className="rem-loading">Brief exists but is too large to render inline.</div>
       ) : null}
 
-      {/* Activity timeline */}
       {detail.activity.length > 0 && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
-            Activity
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div className="rem-section-label">Activity</div>
+          <div className="rem-activity">
             {detail.activity.map((a, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, fontSize: 12, color: "#475569" }}>
-                <span style={{ width: 18, flexShrink: 0, color: "#94a3b8", textAlign: "center" }}>{activityIcon(a.action)}</span>
-                <span style={{ flex: 1 }}>{a.summary}</span>
-                <span style={{ color: "#94a3b8", fontSize: 10, whiteSpace: "nowrap" }}>
+              <div key={i} className="rem-activity-row">
+                <span className="icon">{activityIcon(a.action)}</span>
+                <span className="summary">{a.summary}</span>
+                <span className="ts">
                   {new Date(a.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </span>
               </div>
@@ -419,18 +358,9 @@ function DetailBody({ detail, onCancel }: { detail: ReminderDetail; onCancel: ()
         </div>
       )}
 
-      {/* Actions */}
       {cancelable && (
         <div>
-          <button
-            onClick={onCancel}
-            style={{
-              fontSize: 11, fontWeight: 600, color: "#b91c1c",
-              background: "#fff", border: "1px solid #fecaca",
-              borderRadius: 6, padding: "5px 12px", cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
+          <button type="button" className="btn-danger-ghost" onClick={onCancel}>
             Cancel reminder
           </button>
         </div>
