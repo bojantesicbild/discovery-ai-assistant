@@ -29,8 +29,6 @@ interface RequirementDetailViewProps {
   slotBottom?: React.ReactNode;
   onAccept: (proposalId: string) => void | Promise<void>;
   onReject: (proposalId: string, reason: string) => void | Promise<void>;
-  /** Optional — same contract as MarkdownPanel's onLinkClick. Consumed by
-   *  the Blocked-By chips and the source document link. */
   onLinkClick?: (href: string) => boolean | void;
 }
 
@@ -48,27 +46,29 @@ function firstString(v: string | string[] | null | undefined): string {
 }
 
 
-/** "2h ago" / "3d ago" / fall back to locale time. Kept compact so the
- *  proposal subtitle fits on one line next to the filename + author. */
 function ago(iso: string | null | undefined): string {
   const a = formatAge(iso);
   if (!a) return "";
-  // formatAge returns HH:mm for same-day — leave that as-is.
   if (/^\d{1,2}:\d{2}$/.test(a)) return a;
   return `${a} ago`;
 }
 
 
-function FieldHeader({ label }: { label: string }) {
-  return (
-    <div style={{
-      fontSize: 11, fontWeight: 700, color: "var(--gray-500)",
-      textTransform: "uppercase", letterSpacing: 0.6,
-      marginBottom: 6, marginTop: 16,
-    }}>
-      {label}
-    </div>
-  );
+// Map meta values to .chip variants so the meta row mirrors the rest of v2.
+function metaVariant(key: string, value: string): string {
+  if (key === "priority") {
+    if (value === "must") return "red";
+    if (value === "should") return "amber";
+    if (value === "could") return "blue";
+    return "";
+  }
+  if (key === "status") {
+    if (value === "confirmed" || value === "resolved") return "green";
+    if (value === "open" || value === "discussed") return "amber";
+    if (value === "dismissed") return "";
+    return "";
+  }
+  return "";
 }
 
 
@@ -79,11 +79,7 @@ function ProposalSubtitle({ p }: { p: ProposedUpdate }) {
   const when = ago(p.created_at);
   if (when) bits.push(when);
   if (bits.length === 0) return null;
-  return (
-    <div style={{ fontSize: 10, color: "var(--gray-400)", marginTop: 3 }}>
-      {bits.join(" · ")}
-    </div>
-  );
+  return <div className="proposal-block-sub">{bits.join(" · ")}</div>;
 }
 
 
@@ -96,61 +92,27 @@ function AcceptRejectButtons({
   fieldLabel: string;
 }) {
   return (
-    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-      <button
-        aria-label={`Accept proposed ${fieldLabel}`}
-        disabled={busy}
-        onClick={onAccept}
-        style={{
-          padding: "4px 10px", borderRadius: "var(--radius-xs)",
-          border: "1px solid #05966930", background: "#05966910",
-          color: "#059669", fontSize: 11, fontWeight: 700,
-          cursor: busy ? "wait" : "pointer", fontFamily: "var(--font)",
-          transition: "background 0.15s",
-        }}
-        onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = "#05966920"; }}
-        onMouseLeave={(e) => { if (!busy) e.currentTarget.style.background = "#05966910"; }}
-      >Accept</button>
-      <button
-        aria-label={`Reject proposed ${fieldLabel}`}
-        disabled={busy}
-        onClick={onReject}
-        style={{
-          padding: "4px 10px", borderRadius: "var(--radius-xs)",
-          border: "1px solid #ef444430", background: "#ef444410",
-          color: "#dc2626", fontSize: 11, fontWeight: 600,
-          cursor: busy ? "wait" : "pointer", fontFamily: "var(--font)",
-          transition: "background 0.15s",
-        }}
-        onMouseEnter={(e) => { if (!busy) e.currentTarget.style.background = "#ef444420"; }}
-        onMouseLeave={(e) => { if (!busy) e.currentTarget.style.background = "#ef444410"; }}
-      >Reject</button>
+    <div className="proposal-block-actions">
+      <button type="button" className="btn-accept" disabled={busy} aria-label={`Accept proposed ${fieldLabel}`} onClick={onAccept}>
+        Accept
+      </button>
+      <button type="button" className="btn-reject" disabled={busy} aria-label={`Reject proposed ${fieldLabel}`} onClick={onReject}>
+        Reject
+      </button>
     </div>
   );
 }
 
 
-/** Tiny uppercase label chip: "Current (1)" / "+ New (2)". Rendered above
- *  existing-list bullets and above proposed-list additions so the PM sees
- *  the before/after split at a glance even when entries run long. */
 function DiffCountLabel({ kind, count }: { kind: "current" | "new"; count: number }) {
-  const isNew = kind === "new";
   return (
-    <div style={{
-      fontSize: 9, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase",
-      color: isNew ? "#047857" : "var(--gray-500)",
-      marginTop: isNew ? 8 : 0, marginBottom: 4,
-    }}>
-      {isNew ? `+ New (${count})` : `Current (${count})`}
+    <div className={`diff-count-label ${kind}`}>
+      {kind === "new" ? `+ New (${count})` : `Current (${count})`}
     </div>
   );
 }
 
 
-/** Green-tinted inline block for a proposed string-field value. Used by
- *  description / user_perspective / rationale / scope_note / title /
- *  source_person. `isReplacement` distinguishes "Proposed — not yet set"
- *  (current empty) from "New value" (replaces an existing value). */
 function StringProposalBlock({
   p, label, busy, onAccept, onReject, fieldLabel,
 }: {
@@ -162,51 +124,20 @@ function StringProposalBlock({
   fieldLabel: string;
 }) {
   return (
-    <div
-      id={`proposal-${p.id}`}
-      style={{
-        marginTop: 8,
-        borderRadius: 8, padding: "10px 12px",
-        background: "rgba(16, 185, 129, 0.08)",
-        borderLeft: "3px solid #10b981",
-        display: "flex", flexDirection: "column", gap: 6,
-        animation: "proposalFadeIn 0.2s ease-out",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{
-          fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 10,
-          background: "#10b981", color: "#fff", letterSpacing: 0.4,
-        }}>NEW</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "#047857", textTransform: "uppercase", letterSpacing: 0.4 }}>
-          {label}
-        </span>
-        <div style={{ marginLeft: "auto" }}>
-          <AcceptRejectButtons
-            busy={busy}
-            onAccept={onAccept} onReject={onReject}
-            fieldLabel={fieldLabel}
-          />
-        </div>
+    <div id={`proposal-${p.id}`} className="proposal-block">
+      <div className="proposal-block-head">
+        <span className="proposal-block-new-tag">NEW</span>
+        <span className="proposal-block-label">{label}</span>
+        <AcceptRejectButtons busy={busy} onAccept={onAccept} onReject={onReject} fieldLabel={fieldLabel} />
       </div>
-      <div style={{
-        fontSize: 13, color: "#065f46", fontWeight: 500,
-        whiteSpace: "pre-wrap", lineHeight: 1.6,
-      }}>
-        {firstString(p.proposed_value) || "—"}
-      </div>
-      {p.rationale && (
-        <div style={{
-          fontSize: 11, color: "var(--gray-500)", fontStyle: "italic", lineHeight: 1.45,
-        }}>{p.rationale}</div>
-      )}
+      <div className="proposal-block-body">{firstString(p.proposed_value) || "—"}</div>
+      {p.rationale && <div className="proposal-block-rationale">{p.rationale}</div>}
       <ProposalSubtitle p={p} />
     </div>
   );
 }
 
 
-/** One `+` row inside a bullet list for a proposed list-field entry. */
 function ListProposalRow({
   p, busy, onAccept, onReject, fieldLabel,
 }: {
@@ -218,43 +149,25 @@ function ListProposalRow({
 }) {
   const values = toList(p.proposed_value);
   return (
-    <li
-      id={`proposal-${p.id}`}
-      style={{
-        listStyle: "none", marginLeft: -18, marginTop: 6,
-        padding: "8px 10px", borderRadius: 8,
-        background: "rgba(16, 185, 129, 0.08)",
-        borderLeft: "3px solid #10b981",
-        animation: "proposalFadeIn 0.2s ease-out",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <span style={{
-          fontSize: 14, fontWeight: 800, color: "#10b981",
-          lineHeight: 1.5, flexShrink: 0,
-        }} aria-hidden>+</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+    <li id={`proposal-${p.id}`} className="proposal-row">
+      <div className="proposal-row-inner">
+        <span className="proposal-row-plus" aria-hidden>+</span>
+        <div className="proposal-row-body">
           {values.map((v, i) => (
-            <div key={i} style={{
-              fontSize: 13, color: "#065f46", fontWeight: 500, lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-            }}>{v}</div>
+            <div key={i} className="proposal-row-value">{v}</div>
           ))}
-          {p.rationale && (
-            <div style={{
-              fontSize: 11, color: "var(--gray-500)", fontStyle: "italic", lineHeight: 1.45, marginTop: 3,
-            }}>{p.rationale}</div>
-          )}
+          {p.rationale && <div className="proposal-block-rationale" style={{ marginTop: 3 }}>{p.rationale}</div>}
           <ProposalSubtitle p={p} />
         </div>
-        <AcceptRejectButtons
-          busy={busy}
-          onAccept={onAccept} onReject={onReject}
-          fieldLabel={fieldLabel}
-        />
+        <AcceptRejectButtons busy={busy} onAccept={onAccept} onReject={onReject} fieldLabel={fieldLabel} />
       </div>
     </li>
   );
+}
+
+
+function FieldHeader({ label }: { label: string }) {
+  return <div className="field-header">{label}</div>;
 }
 
 
@@ -278,7 +191,6 @@ export default function RequirementDetailView({
   const [busy, setBusy] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Pending-only so accepted/rejected proposals don't linger inline.
   const pending = useMemo(
     () => proposals.filter((p) => p.status === "pending"),
     [proposals],
@@ -325,13 +237,11 @@ export default function RequirementDetailView({
     }
   }
 
-  // ── Field-level proposal retrieval helpers ────────────────────────────
   const stringProposal = (f: ProposedField): ProposedUpdate | undefined =>
     (byField[f] || [])[0];
   const listProposals = (f: ProposedField): ProposedUpdate[] =>
     byField[f] || [];
 
-  const titleText = `${req.req_id}: ${req.title}`;
   const metaEntries: [string, string][] = [
     ["priority", req.priority],
     ["status", req.status],
@@ -350,115 +260,65 @@ export default function RequirementDetailView({
   const userPerspective = (req.user_perspective || "").trim();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "var(--white)" }}>
-      <style>{`
-        @keyframes proposalFadeIn {
-          from { opacity: 0; transform: translateY(-2px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-      `}</style>
-
-      {/* Header — mirrors MarkdownPanel */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10, padding: "10px 16px",
-        borderBottom: "1px solid var(--gray-200)", flexShrink: 0,
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            width: 28, height: 28, borderRadius: "var(--radius-xs)",
-            border: "1px solid var(--gray-200)", background: "var(--white)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            cursor: "pointer", transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--gray-50)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--white)"; }}
-        >
-          <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "var(--gray-500)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+    <div className="req-detail">
+      {/* Hero: back + id/version + title */}
+      <div className="req-detail-hero">
+        <button type="button" className="req-detail-back" onClick={onClose} aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titleText}</div>
+        <div className="req-detail-title">
+          <div className="req-detail-title-row">
+            <span className="id">{req.req_id}</span>
+            <span className="v">v{req.version || 1}</span>
+          </div>
+          <h1>{req.title}</h1>
         </div>
       </div>
 
-      {/* Meta badges — same palette as MarkdownPanel */}
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 8, padding: "10px 16px",
-        borderBottom: "1px solid var(--gray-100)",
-      }}>
-        {metaEntries.map(([key, value]) => (
-          <div key={key} style={{
-            display: "flex", alignItems: "center", gap: 4,
-            fontSize: 11, color: "var(--gray-500)",
-          }}>
-            <span style={{ fontWeight: 600, color: "var(--gray-400)", textTransform: "uppercase", letterSpacing: "0.5px" }}>{key}:</span>
-            <span style={{
-              padding: "1px 8px", borderRadius: 10, fontSize: 10, fontWeight: 600,
-              ...((): { background: string; color: string } => {
-                switch (value) {
-                  case "must":       return { background: "var(--danger-light)", color: "var(--danger)" };
-                  case "confirmed":
-                  case "resolved":   return { background: "var(--green-light)", color: "#059669" };
-                  case "open":       return { background: "#FEF3C7",            color: "#B45309" };
-                  case "dismissed":  return { background: "var(--gray-100)",    color: "var(--gray-400)" };
-                  default:           return { background: "var(--gray-100)",    color: "var(--gray-600)" };
-                }
-              })(),
-            }}>
-              {value}
+      {/* Meta row — chips */}
+      <div className="req-detail-meta">
+        {metaEntries.map(([key, value]) => {
+          const variant = metaVariant(key, value);
+          return (
+            <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span className="meta-label">{key}</span>
+              <span className={`chip xs${variant ? ` ${variant}` : ""}`}>{value}</span>
             </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Action buttons — same spot as MarkdownPanel (do not move) */}
+      {/* Action buttons */}
       {actions && actions.length > 0 && (
-        <div style={{
-          display: "flex", gap: 8, padding: "10px 16px",
-          borderBottom: "1px solid var(--gray-100)",
-        }}>
-          <span style={{ fontSize: 11, color: "var(--gray-400)", fontWeight: 600, alignSelf: "center", marginRight: 4 }}>
-            Set status:
-          </span>
-          {actions.map((action) => (
-            <button
-              key={action.value}
-              onClick={() => onAction?.(action.value)}
-              style={{
-                padding: "5px 14px", borderRadius: "var(--radius-xs)",
-                border: `1px solid ${action.color}30`, background: `${action.color}10`,
-                fontSize: 12, fontWeight: 600, cursor: "pointer",
-                fontFamily: "var(--font)", color: action.color,
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = `${action.color}20`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = `${action.color}10`; }}
-            >
-              {action.label}
-            </button>
-          ))}
+        <div className="req-detail-actions">
+          <span className="label">Set status:</span>
+          {actions.map((action) => {
+            const cls = action.value === "confirmed" ? "confirm" : action.value === "dismissed" ? "dismiss" : "discuss";
+            return (
+              <button
+                key={action.value}
+                type="button"
+                className={`btn-status ${cls}`}
+                onClick={() => onAction?.(action.value)}
+              >
+                {action.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* History tabs */}
+      {/* History sub-tabs */}
       {history && (
-        <div style={{
-          display: "flex", gap: 0, padding: "0 16px",
-          borderBottom: "1px solid var(--gray-100)",
-        }}>
+        <div className="req-detail-subtabs">
           {(["content", "history"] as const).map((view) => (
             <button
               key={view}
+              type="button"
               onClick={() => setActiveView(view)}
-              style={{
-                padding: "10px 14px", fontSize: 12, fontWeight: 600,
-                background: "none", border: "none", cursor: "pointer",
-                color: activeView === view ? "var(--green)" : "var(--gray-500)",
-                borderBottom: activeView === view ? "2px solid var(--green)" : "2px solid transparent",
-                marginBottom: -1, fontFamily: "var(--font)", textTransform: "capitalize",
-              }}
+              className={`req-detail-subtab${activeView === view ? " active" : ""}`}
             >
               {view}
             </button>
@@ -467,56 +327,42 @@ export default function RequirementDetailView({
       )}
 
       {/* Body */}
-      <div style={{ flex: 1, overflow: "auto", padding: 16 }} ref={bodyRef}>
+      <div className="req-detail-body" ref={bodyRef}>
         {activeView === "history" && history ? (
           historyLoading ? (
-            <div style={{ fontSize: 12, color: "var(--gray-500)" }}>Loading history…</div>
+            <div className="detail-empty">Loading history…</div>
           ) : historyEntries && historyEntries.length > 0 ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {historyEntries.map((entry) => (
-                <div key={entry.id} style={{
-                  borderLeft: `3px solid ${entry.action === "create" ? "var(--green)" : "#3B82F6"}`,
-                  padding: "8px 12px", background: "var(--gray-50)",
-                  borderRadius: "var(--radius-xs)",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
-                      background: entry.action === "create" ? "var(--green-light)" : "#DBEAFE",
-                      color: entry.action === "create" ? "#059669" : "#1D4ED8",
-                      textTransform: "uppercase",
-                    }}>{entry.action}</span>
+                <div key={entry.id} className={`history-entry ${entry.action}`}>
+                  <div className="history-entry-head">
+                    <span className={`history-entry-action ${entry.action}`}>{entry.action}</span>
                     {entry.source_filename && (
-                      <span style={{ fontSize: 11, color: "var(--gray-500)" }}>
-                        from <strong style={{ color: "var(--dark)" }}>{entry.source_filename}</strong>
+                      <span className="history-entry-meta">
+                        from <strong>{entry.source_filename}</strong>
                       </span>
                     )}
-                    <span style={{ flex: 1 }} />
-                    <span style={{ fontSize: 10, color: "var(--gray-400)" }}>
+                    <span className="history-entry-ts">
                       {entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}
                     </span>
                   </div>
                   {entry.action === "update" && Object.keys(entry.old_value || {}).length > 0 && (
-                    <div style={{ fontSize: 11, lineHeight: 1.6 }}>
+                    <div className="history-entry-diff">
                       {Object.keys(entry.old_value).map((field) => (
                         <div key={field} style={{ marginTop: 2 }}>
-                          <span style={{ color: "var(--gray-500)", fontWeight: 600 }}>{field}: </span>
-                          <span style={{ textDecoration: "line-through", color: "var(--gray-400)" }}>
-                            {String(entry.old_value[field] ?? "")}
-                          </span>
-                          <span style={{ color: "var(--gray-400)" }}> → </span>
-                          <span style={{ color: "var(--dark)", fontWeight: 600 }}>
-                            {String(entry.new_value[field] ?? "")}
-                          </span>
+                          <span className="field">{field}: </span>
+                          <span className="old">{String(entry.old_value[field] ?? "")}</span>
+                          <span style={{ color: "var(--ink-4)" }}> → </span>
+                          <span className="new">{String(entry.new_value[field] ?? "")}</span>
                         </div>
                       ))}
                     </div>
                   )}
                   {entry.action === "create" && (
-                    <div style={{ fontSize: 11, color: "var(--gray-600)" }}>
+                    <div className="history-entry-create-line">
                       {Object.entries(entry.new_value || {}).map(([k, v]) => (
                         <span key={k} style={{ marginRight: 8 }}>
-                          <span style={{ color: "var(--gray-500)" }}>{k}:</span> {String(v)}
+                          <span style={{ color: "var(--ink-3)" }}>{k}:</span> {String(v)}
                         </span>
                       ))}
                     </div>
@@ -525,33 +371,21 @@ export default function RequirementDetailView({
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: "var(--gray-500)" }}>No history yet.</div>
+            <div className="detail-empty">No history yet.</div>
           )
         ) : (
           <>
-            {/* Jump-to-first strip */}
             {pending.length > 0 && (
-              <button
-                onClick={jumpToFirst}
-                style={{
-                  width: "100%", textAlign: "left",
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "8px 12px", marginBottom: 12,
-                  borderRadius: 8, border: "1px solid #fde68a",
-                  background: "#fef3c7", cursor: "pointer",
-                  fontFamily: "var(--font)", color: "#92400e",
-                  fontSize: 12, fontWeight: 600,
-                }}
-              >
-                <svg viewBox="0 0 24 24" style={{ width: 14, height: 14, stroke: "currentColor", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+              <button type="button" className="dp-notice-strip" onClick={jumpToFirst}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                   <line x1="12" y1="9" x2="12" y2="13" />
                   <line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
                 <span>{pending.length} proposed update{pending.length === 1 ? "" : "s"}</span>
-                <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: "#b45309" }}>
+                <span className="jump">
                   Jump to first
-                  <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "currentColor", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
                 </span>
@@ -560,8 +394,7 @@ export default function RequirementDetailView({
 
             {slotTop}
 
-            <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--dark)", fontFamily: "var(--font)" }}>
-              {/* ── Description ── */}
+            <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--ink)" }}>
               <FieldSection
                 label="Description"
                 stringProposal={stringProposal("description")}
@@ -571,13 +404,12 @@ export default function RequirementDetailView({
                 onReject={(id) => setRejecting(id)}
                 current={req.description || ""}
                 renderCurrent={(v) => (
-                  <div style={{ whiteSpace: "pre-wrap" }}>{v || <em style={{ color: "var(--gray-400)" }}>No description</em>}</div>
+                  <div style={{ whiteSpace: "pre-wrap" }}>{v || <em style={{ color: "var(--ink-4)" }}>No description</em>}</div>
                 )}
                 emptyLabel="Proposed — not yet set"
                 hasLabelHeader
               />
 
-              {/* ── User Perspective ── */}
               {(userPerspective || stringProposal("user_perspective")) && (
                 <FieldSection
                   label="User Perspective"
@@ -593,7 +425,6 @@ export default function RequirementDetailView({
                 />
               )}
 
-              {/* ── Rationale ── */}
               {(rationale || stringProposal("rationale")) && (
                 <FieldSection
                   label="Rationale"
@@ -609,7 +440,6 @@ export default function RequirementDetailView({
                 />
               )}
 
-              {/* ── Alternatives Considered ── */}
               {(alternatives.length > 0 || listProposals("alternatives_considered").length > 0) && (() => {
                 const props = listProposals("alternatives_considered");
                 const hasBoth = alternatives.length > 0 && props.length > 0;
@@ -642,7 +472,6 @@ export default function RequirementDetailView({
                 );
               })()}
 
-              {/* ── Business Rules ── */}
               {((req.business_rules?.length || 0) > 0 || listProposals("business_rules").length > 0) && (() => {
                 const props = listProposals("business_rules");
                 const rules = req.business_rules || [];
@@ -676,7 +505,6 @@ export default function RequirementDetailView({
                 );
               })()}
 
-              {/* ── Acceptance Criteria ── always rendered when any AC or AC-proposal exists */}
               {((req.acceptance_criteria?.length || 0) > 0 || listProposals("acceptance_criteria").length > 0) && (() => {
                 const props = listProposals("acceptance_criteria");
                 const acs = req.acceptance_criteria || [];
@@ -710,7 +538,6 @@ export default function RequirementDetailView({
                 );
               })()}
 
-              {/* ── Edge Cases ── */}
               {((req.edge_cases?.length || 0) > 0 || listProposals("edge_cases").length > 0) && (() => {
                 const props = listProposals("edge_cases");
                 const edges = req.edge_cases || [];
@@ -744,11 +571,10 @@ export default function RequirementDetailView({
                 );
               })()}
 
-              {/* ── Scope Note ── */}
               {(scopeNote || stringProposal("scope_note")) && (
                 <>
                   <FieldHeader label="Scope Note" />
-                  {scopeNote && <div style={{ fontStyle: "italic", color: "var(--gray-600)" }}>{scopeNote}</div>}
+                  {scopeNote && <div style={{ fontStyle: "italic", color: "var(--ink-3)" }}>{scopeNote}</div>}
                   {stringProposal("scope_note") && (() => {
                     const p = stringProposal("scope_note")!;
                     return (
@@ -765,7 +591,6 @@ export default function RequirementDetailView({
                 </>
               )}
 
-              {/* ── Blocked By ── */}
               {(blockedBy.length > 0 || listProposals("blocked_by").length > 0) && (() => {
                 const props = listProposals("blocked_by");
                 const hasBoth = blockedBy.length > 0 && props.length > 0;
@@ -774,21 +599,16 @@ export default function RequirementDetailView({
                     <FieldHeader label="Blocked By" />
                     {hasBoth && <DiffCountLabel kind="current" count={blockedBy.length} />}
                     {blockedBy.length > 0 && (
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <div className="blocked-chip-row">
                         {blockedBy.map((b) => (
                           <a
                             key={b}
                             href={`br://${b}`}
+                            className="blocked-chip"
                             onClick={(e) => {
                               if (!onLinkClick) return;
                               const handled = onLinkClick(`br://${b}`);
                               if (handled !== false) e.preventDefault();
-                            }}
-                            style={{
-                              fontSize: 11, fontWeight: 600, padding: "2px 8px",
-                              borderRadius: 10, background: "var(--gray-100)",
-                              color: "var(--dark)", textDecoration: "none",
-                              border: "1px solid var(--gray-200)",
                             }}
                           >{b}</a>
                         ))}
@@ -814,12 +634,11 @@ export default function RequirementDetailView({
                 );
               })()}
 
-              {/* ── People / Source Person ── */}
               {(req.source_person || stringProposal("source_person")) && (
                 <>
                   <FieldHeader label="People" />
                   {req.source_person && (
-                    <div style={{ fontSize: 12 }}>
+                    <div className="people-line">
                       Requested by <strong>{req.source_person}</strong>
                     </div>
                   )}
@@ -839,37 +658,30 @@ export default function RequirementDetailView({
                 </>
               )}
 
-              {/* ── Source ── quote + document link */}
               {(req.source_quote || req.source_doc) && (
                 <>
                   <FieldHeader label="Source" />
                   {req.source_quote && (
-                    <blockquote style={{
-                      borderLeft: "3px solid var(--green)", padding: "8px 14px",
-                      margin: "4px 0 10px", background: "var(--green-light)",
-                      borderRadius: "0 var(--radius-xs) var(--radius-xs) 0",
-                      fontSize: 12, color: "var(--gray-600)",
-                    }}>{req.source_quote}</blockquote>
+                    <blockquote className="source-quote">{req.source_quote}</blockquote>
                   )}
                   {req.source_doc && (
                     req.source_doc_id ? (
                       <a
                         href={`doc://${req.source_doc_id}`}
+                        className="source-doc-link"
                         onClick={(e) => {
                           if (!onLinkClick) return;
                           const handled = onLinkClick(`doc://${req.source_doc_id}`);
                           if (handled !== false) e.preventDefault();
                         }}
-                        style={{ fontSize: 12, color: "#1d4ed8", textDecoration: "underline" }}
                       >{req.source_doc}</a>
                     ) : (
-                      <span style={{ fontSize: 12, color: "var(--gray-500)" }}>{req.source_doc}</span>
+                      <span className="source-doc-plain">{req.source_doc}</span>
                     )
                   )}
                 </>
               )}
 
-              {/* ── Title proposal (rare, but supported) ── */}
               {stringProposal("title") && (() => {
                 const p = stringProposal("title")!;
                 return (
@@ -907,9 +719,6 @@ export default function RequirementDetailView({
 }
 
 
-/** Standard field section: header + current text + optional green proposal
- *  block. Extracted to avoid repeating the same conditional-render dance
- *  for every string field. */
 function FieldSection({
   label,
   current,
@@ -940,14 +749,8 @@ function FieldSection({
       {hasLabelHeader && <FieldHeader label={label} />}
       {current && (
         <>
-          {/* Only label "Current" when something is about to replace it —
-              otherwise the plain section is cleaner without a redundant tag. */}
           {hasBoth && <DiffCountLabel kind="current" count={1} />}
-          <div style={hasBoth ? {
-            padding: "8px 12px", borderRadius: 8,
-            background: "var(--gray-50, #f9fafb)",
-            border: "1px solid var(--gray-100)",
-          } : undefined}>
+          <div className={hasBoth ? "field-current-box" : undefined}>
             {renderCurrent(current)}
           </div>
         </>

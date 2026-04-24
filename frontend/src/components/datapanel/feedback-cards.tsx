@@ -13,9 +13,6 @@ import type {
 } from "@/lib/api";
 
 
-/** Shape used by both the gap-detail slot and GapResolutionCard. Keeping
- *  the definition here lets DataPanel reference it without exporting its
- *  private DetailView interface. */
 export interface GapResolution {
   kind: "resolved" | "dismissed";
   text: string;
@@ -27,15 +24,10 @@ export interface GapResolution {
 
 export function GapResolutionCard({ r, clientAnswer }: {
   r: GapResolution;
-  /** When the gap also has a client answer, nest it as the supporting
-   *  evidence that led to the resolution. Collapses two cards into one. */
   clientAnswer?: GapClientFeedback;
 }) {
   const isDismissed = r.kind === "dismissed";
   const label = isDismissed ? "Dismissed" : "Resolved";
-  const color = isDismissed ? "#6b7280" : "#047857";
-  const bg = isDismissed ? "#f3f4f6" : "#d1fae5";
-  const border = isDismissed ? "#e5e7eb" : "#a7f3d0";
 
   const when = r.closedAt ? new Date(r.closedAt).toLocaleString() : null;
   const who = r.closedBy || null;
@@ -44,60 +36,27 @@ export function GapResolutionCard({ r, clientAnswer }: {
   const answerWho = clientAnswer?.client_name || "client";
 
   return (
-    <div style={{
-      marginBottom: 12, borderRadius: 10,
-      background: bg, border: `1px solid ${border}`,
-      padding: "10px 14px",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-        fontSize: 12, fontWeight: 700, color, marginBottom: r.text ? 6 : 0,
-      }}>
+    <div className={`resolution-banner ${r.kind}`}>
+      <div className="resolution-banner-head">
         <span>{isDismissed ? "✕" : "✓"} {label}</span>
         {(when || who) && (
-          <span style={{ fontWeight: 500, opacity: 0.75 }}>
+          <span className="sub">
             ·{when ? ` ${when}` : ""}{who ? ` by ${who}` : ""}
           </span>
         )}
       </div>
-      {r.text && (
-        <div style={{
-          fontSize: 13, color: "var(--dark)", lineHeight: 1.55,
-          whiteSpace: "pre-wrap",
-        }}>
-          {r.text}
-        </div>
-      )}
+      {r.text && <div className="resolution-banner-body">{r.text}</div>}
       {r.attribution && !clientAnswer && (
-        <div style={{
-          fontSize: 11, color: "var(--gray-500)", marginTop: 6, fontStyle: "italic",
-        }}>
-          — {r.attribution}
-        </div>
+        <div className="resolution-banner-attrib">— {r.attribution}</div>
       )}
 
-      {/* Nested client answer — shown as supporting evidence when both exist */}
       {clientAnswer?.answer && (
-        <div style={{
-          marginTop: 10, paddingTop: 10,
-          borderTop: `1px dashed ${border}`,
-        }}>
-          <div style={{
-            fontSize: 10, fontWeight: 700, letterSpacing: 0.5,
-            textTransform: "uppercase", color: "var(--gray-500)",
-            marginBottom: 4,
-          }}>
-            Based on client answer
-          </div>
-          <div style={{
-            fontSize: 11, color: "var(--gray-500)", marginBottom: 4,
-          }}>
+        <div className="resolution-evidence">
+          <div className="resolution-evidence-label">Based on client answer</div>
+          <div className="resolution-evidence-meta">
             {answerWho} · review round {clientAnswer.round}{answerWhen ? ` · ${answerWhen}` : ""}
           </div>
-          <div style={{
-            fontSize: 13, color: "var(--dark)", lineHeight: 1.5,
-            fontStyle: "italic", whiteSpace: "pre-wrap",
-          }}>
+          <div className="resolution-evidence-quote">
             &ldquo;{clientAnswer.answer}&rdquo;
           </div>
         </div>
@@ -115,51 +74,33 @@ export function ClientFeedbackCard({ kind, fb }: {
   const who = fb.client_name || "client";
 
   let label: string;
-  let color: string;
-  let bg: string;
-  let border: string;
+  let variant: string;
   let body: string | null;
 
   if (kind === "requirement") {
     const r = fb as ReqClientFeedback;
     if (r.action === "confirm") {
       label = "Confirmed by client";
-      color = "#047857"; bg = "#d1fae5"; border = "#a7f3d0";
+      variant = "confirm";
     } else {
       label = "Flagged for discussion by client";
-      color = "#b45309"; bg = "#fef3c7"; border = "#fde68a";
+      variant = "discuss";
     }
     body = r.note;
   } else {
     const g = fb as GapClientFeedback;
     label = "Answered by client";
-    color = "#1d4ed8"; bg = "#dbeafe"; border = "#bfdbfe";
+    variant = "answer";
     body = g.answer;
   }
 
   return (
-    <div style={{
-      marginBottom: 12, borderRadius: 10,
-      background: bg, border: `1px solid ${border}`,
-      padding: "10px 14px",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
-        fontSize: 12, fontWeight: 700, color, marginBottom: body ? 6 : 0,
-      }}>
+    <div className={`feedback-card ${variant}`}>
+      <div className="feedback-card-head">
         <span>{label}</span>
-        <span style={{ fontWeight: 500, opacity: 0.75 }}>
-          · {who} · review round {fb.round}{when ? ` · ${when}` : ""}
-        </span>
+        <span className="sub">· {who} · review round {fb.round}{when ? ` · ${when}` : ""}</span>
       </div>
-      {body && (
-        <div style={{
-          fontSize: 13, color: "var(--dark)", lineHeight: 1.55,
-          whiteSpace: "pre-wrap", fontStyle: "italic",
-        }}>
-          &ldquo;{body}&rdquo;
-        </div>
-      )}
+      {body && <div className="feedback-card-body">&ldquo;{body}&rdquo;</div>}
     </div>
   );
 }
@@ -181,12 +122,8 @@ export function InlineProposals({
   if (proposals.length === 0) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
-      <div style={{
-        padding: "10px 14px", borderRadius: 10,
-        background: "#eff6ff", border: "1px solid #bfdbfe",
-        fontSize: 12, color: "#1e40af", lineHeight: 1.5,
-      }}>
+    <div className="inline-proposals">
+      <div className="inline-proposals-notice">
         <strong>
           {proposals.length} pending update{proposals.length !== 1 ? "s" : ""}
         </strong>{" "}
@@ -202,79 +139,50 @@ export function InlineProposals({
         const isEditing = editVal !== undefined;
 
         return (
-          <div
-            key={p.id}
-            style={{
-              background: "#fff", borderRadius: 12, padding: 16,
-              border: "1px solid var(--gray-200)",
-              display: "flex", flexDirection: "column", gap: 10,
-            }}
-          >
-            {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-                background: "#dbeafe", color: "#1d4ed8", border: "1px solid #bfdbfe",
-                letterSpacing: 0.3,
-              }}>{p.target_req_id}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>
-                {p.req_title || "Requirement"}
-              </span>
-              <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--gray-500)" }}>
+          <div key={p.id} className="inline-proposal-card">
+            <div className="inline-proposal-head">
+              <span className="chip xs uppercase blue">{p.target_req_id}</span>
+              <span className="inline-proposal-title">{p.req_title || "Requirement"}</span>
+              <span className="inline-proposal-source">
                 from {p.source_gap_id}{p.review_round ? ` · review round ${p.review_round}` : ""}
               </span>
             </div>
 
-            {/* Gap question + client answer */}
             {p.gap_question && (
-              <div style={{ fontSize: 12, color: "var(--gray-600)" }}>
+              <div className="prop-card-qa">
                 <strong>Question:</strong> {p.gap_question}
               </div>
             )}
             {p.client_answer && (
-              <div style={{
-                fontSize: 12, color: "var(--gray-600)",
-                borderLeft: "3px solid var(--green)",
-                padding: "6px 10px", background: "var(--green-light)",
-                borderRadius: "0 6px 6px 0",
-              }}>
-                {p.client_answer}
-              </div>
+              <div className="prop-card-quote">{p.client_answer}</div>
             )}
 
-            {/* Proposed patch */}
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>
+            <div className="inline-proposal-section-label">
               Proposed change — {fieldLabel}
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              {/* Current */}
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 10, color: "var(--gray-500)", marginBottom: 4 }}>Current</div>
+            <div className="inline-proposal-diff-cols">
+              <div>
+                <div className="prop-diff-label current">Current</div>
                 {currentList.length === 0 ? (
-                  <div style={{ fontSize: 12, color: "var(--gray-400)", fontStyle: "italic" }}>(empty)</div>
+                  <div style={{ fontSize: 12, color: "var(--ink-4)", fontStyle: "italic" }}>(empty)</div>
                 ) : (
-                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "var(--gray-600)" }}>
+                  <ul className="prop-diff-current-list">
                     {currentList.map((v, i) => <li key={i}>{v}</li>)}
                   </ul>
                 )}
               </div>
-              {/* Proposed */}
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ fontSize: 10, color: "#059669", marginBottom: 4, fontWeight: 600 }}>
+              <div>
+                <div className="prop-diff-label new">
                   {isList ? "+ Adding" : "Replacing with"}
                 </div>
                 {isEditing ? (
                   <textarea
+                    className="inline-proposal-edit"
                     value={editVal}
                     onChange={(e) => setEditing((prev) => ({ ...prev, [p.id]: e.target.value }))}
-                    style={{
-                      width: "100%", minHeight: 60, padding: "8px 10px",
-                      borderRadius: 6, border: "1px solid var(--gray-200)",
-                      fontSize: 12, fontFamily: "var(--font)", resize: "vertical",
-                    }}
                   />
                 ) : (
-                  <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: "#047857", fontWeight: 500 }}>
+                  <ul className="prop-diff-new-list">
                     {proposedList.map((v, i) => <li key={i}>{v}</li>)}
                   </ul>
                 )}
@@ -282,14 +190,13 @@ export function InlineProposals({
             </div>
 
             {p.rationale && !isEditing && (
-              <div style={{ fontSize: 11, color: "var(--gray-500)", fontStyle: "italic" }}>
-                {p.rationale}
-              </div>
+              <div className="prop-rationale">{p.rationale}</div>
             )}
 
-            {/* Actions */}
-            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+            <div className="inline-proposal-actions">
               <button
+                type="button"
+                className="btn-accept"
                 onClick={() => {
                   const override = isEditing
                     ? (isList ? editVal.split("\n").map((s) => s.trim()).filter(Boolean) : editVal)
@@ -301,14 +208,10 @@ export function InlineProposals({
                     return next;
                   });
                 }}
-                style={{
-                  padding: "6px 14px", borderRadius: 8, border: "none",
-                  background: "var(--green)", color: "var(--dark)",
-                  fontSize: 12, fontWeight: 700, cursor: "pointer",
-                  fontFamily: "var(--font)",
-                }}
               >{isEditing ? "✓ Save & accept" : "Accept"}</button>
               <button
+                type="button"
+                className="btn-ghost"
                 onClick={() => {
                   if (isEditing) {
                     setEditing((prev) => {
@@ -322,22 +225,13 @@ export function InlineProposals({
                   }
                 }}
                 style={{
-                  padding: "6px 14px", borderRadius: 8,
-                  border: "1px solid var(--gray-200)", background: "#fff",
-                  color: "var(--gray-600)",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "var(--font)",
+                  padding: "6px 14px", borderRadius: 8, fontSize: 12, fontWeight: 600,
                 }}
               >{isEditing ? "Cancel edit" : "Edit"}</button>
               <button
+                type="button"
+                className="btn-reject"
                 onClick={() => onAction(p.id, { kind: "reject" })}
-                style={{
-                  padding: "6px 14px", borderRadius: 8,
-                  border: "1px solid #fecaca", background: "#fff",
-                  color: "#dc2626",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "var(--font)",
-                }}
               >Reject</button>
             </div>
           </div>

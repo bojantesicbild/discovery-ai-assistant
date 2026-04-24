@@ -46,24 +46,12 @@ function toList(v: string | string[] | null | undefined): string[] {
 
 
 function StatusPill({ p }: { p: ProposedUpdate }) {
-  if (p.status === "accepted") {
-    return (
-      <span style={{
-        fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-        background: "var(--green-light)", color: "#059669",
-        border: "1px solid #a7f3d0", letterSpacing: 0.3,
-      }}>Accepted</span>
-    );
-  }
+  if (p.status === "accepted") return <span className="chip xs uppercase green">Accepted</span>;
   if (p.status === "rejected") {
     return (
       <span
         title={p.rejection_reason || undefined}
-        style={{
-          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 10,
-          background: "#fee2e2", color: "#b91c1c",
-          border: "1px solid #fecaca", letterSpacing: 0.3,
-        }}
+        className="chip xs uppercase red"
       >
         Rejected{p.rejection_reason ? ` — ${p.rejection_reason}` : ""}
       </span>
@@ -77,53 +65,32 @@ function DiffView({ p }: { p: ProposedUpdate }) {
   const isList = LIST_FIELDS.includes(p.proposed_field);
   const currentList = toList(p.current_value);
   const proposedList = toList(p.proposed_value);
-
   const currentEmpty = currentList.length === 0;
 
-  // Stack vertically — side-by-side columns get unreadably narrow
-  // inside the detail panel, especially when list entries have no
-  // whitespace short enough for flexbox to break on. When current is
-  // empty, skip the Current block entirely and let the proposed block
-  // render at full width with a neutral "New value" label.
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 6 }}>
+    <div className="prop-diff">
       {!currentEmpty && (
         <div>
-          <div style={{
-            fontSize: 10, color: "var(--gray-500)", marginBottom: 4,
-            fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5,
-          }}>Current</div>
+          <div className="prop-diff-label current">Current</div>
           {isList ? (
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "var(--gray-600)", fontStyle: "italic", lineHeight: 1.5 }}>
+            <ul className="prop-diff-current-list">
               {currentList.map((v, i) => <li key={i}>{v}</li>)}
             </ul>
           ) : (
-            <div style={{ fontSize: 12, color: "var(--gray-600)", fontStyle: "italic", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
-              {currentList[0]}
-            </div>
+            <div className="prop-diff-current-text">{currentList[0]}</div>
           )}
         </div>
       )}
       <div>
-        <div style={{
-          fontSize: 10, color: "#059669", marginBottom: 4,
-          fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-        }}>
+        <div className="prop-diff-label new">
           {currentEmpty ? "New value" : isList ? "+ Adding" : "Replacing with"}
         </div>
         {isList ? (
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#047857", fontWeight: 500, lineHeight: 1.5 }}>
+          <ul className="prop-diff-new-list">
             {proposedList.map((v, i) => <li key={i}>{v}</li>)}
           </ul>
         ) : (
-          <div style={{
-            fontSize: 12, color: "#047857", fontWeight: 500,
-            whiteSpace: "pre-wrap", background: "var(--green-light)",
-            padding: "8px 12px", borderRadius: 6,
-            border: "1px solid var(--green-mid)", lineHeight: 1.5,
-          }}>
-            {proposedList[0] || "—"}
-          </div>
+          <div className="prop-diff-new-text">{proposedList[0] || "—"}</div>
         )}
       </div>
     </div>
@@ -132,46 +99,27 @@ function DiffView({ p }: { p: ProposedUpdate }) {
 
 
 function SourceChips({ p }: { p: ProposedUpdate }) {
-  const chips: { label: string; title?: string; color: string; bg: string; border: string }[] = [];
+  const chips: { label: string; title?: string; cls: string }[] = [];
   if (p.source_doc) {
-    chips.push({
-      label: p.source_doc, title: `Source document${p.source_doc_id ? ` (${p.source_doc_id})` : ""}`,
-      color: "#1d4ed8", bg: "#eff6ff", border: "#bfdbfe",
-    });
+    chips.push({ label: p.source_doc, title: `Source document${p.source_doc_id ? ` (${p.source_doc_id})` : ""}`, cls: "doc" });
   }
   if (p.source_person) {
-    chips.push({
-      label: p.source_person, title: "Source person",
-      color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe",
-    });
+    chips.push({ label: p.source_person, title: "Source person", cls: "person" });
   }
   if (p.source_gap_id) {
-    chips.push({
-      label: p.source_gap_id, title: p.gap_question || "Source gap",
-      color: "#b45309", bg: "#fef3c7", border: "#fde68a",
-    });
+    chips.push({ label: p.source_gap_id, title: p.gap_question || "Source gap", cls: "gap" });
   }
   if (chips.length === 0) return null;
   return (
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+    <div className="prop-source-chips">
       {chips.map((c, i) => (
-        <span
-          key={i}
-          title={c.title}
-          style={{
-            fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 10,
-            background: c.bg, color: c.color, border: `1px solid ${c.border}`,
-            whiteSpace: "nowrap", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis",
-          }}
-        >{c.label}</span>
+        <span key={i} title={c.title} className={`prop-source-chip ${c.cls}`}>{c.label}</span>
       ))}
     </div>
   );
 }
 
 
-// Shared across ProposedUpdatesSection and RequirementDetailView — inline
-// tracked-changes rows reuse the same modal so reject UX stays identical.
 export function RejectModal({
   onCancel,
   onConfirm,
@@ -183,53 +131,24 @@ export function RejectModal({
 
   return (
     <div
-      style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 300,
-      }}
+      className="modal-overlay"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div
-        style={{
-          background: "var(--white)", borderRadius: "var(--radius)", padding: 22,
-          width: "100%", maxWidth: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Reject proposal</div>
-        <div style={{ fontSize: 12, color: "var(--gray-500)", marginBottom: 12, lineHeight: 1.5 }}>
+      <div className="modal-card">
+        <div className="modal-title">Reject proposal</div>
+        <div className="modal-hint">
           Why? (optional, helps the agent not re-propose)
         </div>
         <textarea
+          className="modal-textarea"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="e.g. Out of scope for this phase, already covered by BR-012, etc."
           autoFocus
-          style={{
-            width: "100%", minHeight: 80, padding: "10px 12px",
-            border: "1px solid var(--gray-200)", borderRadius: "var(--radius-sm)",
-            fontSize: 13, fontFamily: "var(--font)", resize: "vertical",
-            outline: "none", lineHeight: 1.5,
-          }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = "var(--green)"; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = "var(--gray-200)"; }}
         />
-        <div style={{ display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "7px 14px", borderRadius: "var(--radius-xs)",
-              border: "1px solid var(--gray-200)", background: "var(--white)",
-              fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
-            }}
-          >Cancel</button>
-          <button
-            onClick={() => onConfirm(reason.trim())}
-            style={{
-              padding: "7px 14px", borderRadius: "var(--radius-xs)", border: "none",
-              background: "#dc2626", color: "#fff",
-              fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "var(--font)",
-            }}
-          >Reject</button>
+        <div className="modal-actions">
+          <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn-danger" onClick={() => onConfirm(reason.trim())}>Reject</button>
         </div>
       </div>
     </div>
@@ -254,129 +173,64 @@ export function ProposedUpdatesSection({ proposals, onAccept, onReject }: Propos
   const pendingCount = proposals.filter((p) => p.status === "pending").length;
 
   return (
-    <div style={{
-      marginTop: 20, borderRadius: 12, border: "1px solid var(--gray-200)",
-      background: "var(--white)", overflow: "hidden",
-    }}>
-      {/* Collapsible header */}
+    <div className="prop-section">
       <button
+        type="button"
+        className={`prop-head ${collapsed ? "closed" : "open"}`}
         onClick={() => setCollapsed((c) => !c)}
-        style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 8,
-          padding: "10px 14px", border: "none", background: "#fafafa",
-          borderBottom: collapsed ? "none" : "1px solid var(--gray-200)",
-          cursor: "pointer", fontFamily: "var(--font)",
-          textAlign: "left",
-        }}
       >
-        <svg
-          viewBox="0 0 24 24"
-          style={{
-            width: 12, height: 12, stroke: "var(--gray-500)", fill: "none",
-            strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round",
-            transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
-            transition: "transform 0.15s",
-          }}
-        ><polyline points="6 9 12 15 18 9" /></svg>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--dark)" }}>
-          Proposed updates ({pendingCount})
-        </span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--gray-500)" }}>
-          {proposals.length} total
-        </span>
+        <svg className="chev" viewBox="0 0 24 24">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <span className="title">Proposed updates ({pendingCount})</span>
+        <span className="total">{proposals.length} total</span>
       </button>
 
       {!collapsed && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 14 }}>
+        <div className="prop-body">
           {proposals.map((p) => {
             const decided = p.status !== "pending";
             const isBusy = busy === p.id;
             const when = p.created_at ? new Date(p.created_at).toLocaleString() : null;
 
             return (
-              <div
-                key={p.id}
-                style={{
-                  borderRadius: 10, padding: 12,
-                  border: "1px solid var(--gray-200)", background: "var(--white)",
-                  opacity: decided ? 0.7 : 1,
-                  display: "flex", flexDirection: "column", gap: 8,
-                }}
-              >
-                {/* Row header */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, color: "var(--dark)",
-                  }}>{humaniseField(p.proposed_field)}</span>
+              <div key={p.id} className={`prop-card${decided ? " decided" : ""}`}>
+                <div className="prop-card-head">
+                  <span className="prop-card-field">{humaniseField(p.proposed_field)}</span>
                   <SourceChips p={p} />
                   <StatusPill p={p} />
-                  {when && (
-                    <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--gray-400)" }}>
-                      {when}
-                    </span>
-                  )}
+                  {when && <span className="prop-card-ts">{when}</span>}
                 </div>
 
-                {/* Gap question / client answer (gap-driven flavour) */}
                 {p.gap_question && (
-                  <div style={{ fontSize: 11, color: "var(--gray-600)" }}>
+                  <div className="prop-card-qa">
                     <strong>Q:</strong> {p.gap_question}
                   </div>
                 )}
                 {p.client_answer && (
-                  <div style={{
-                    fontSize: 11, color: "var(--gray-600)",
-                    borderLeft: "3px solid var(--green)",
-                    padding: "4px 8px", background: "var(--green-light)",
-                    borderRadius: "0 6px 6px 0",
-                  }}>
-                    {p.client_answer}
-                  </div>
+                  <div className="prop-card-quote">{p.client_answer}</div>
                 )}
 
-                {/* Diff */}
                 <DiffView p={p} />
 
-                {/* Rationale */}
-                {p.rationale && (
-                  <div style={{
-                    fontSize: 11, color: "var(--gray-500)", fontStyle: "italic", lineHeight: 1.45,
-                  }}>
-                    {p.rationale}
-                  </div>
-                )}
+                {p.rationale && <div className="prop-rationale">{p.rationale}</div>}
 
-                {/* Actions */}
                 {!decided && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+                  <div className="prop-card-actions">
                     <button
+                      type="button"
+                      className="btn-accept"
                       disabled={isBusy}
                       onClick={async () => {
                         setBusy(p.id);
                         try { await onAccept(p.id); } finally { setBusy(null); }
                       }}
-                      style={{
-                        padding: "6px 14px", borderRadius: "var(--radius-xs)",
-                        border: "1px solid #05966930", background: "#05966910",
-                        color: "#059669", fontSize: 12, fontWeight: 700,
-                        cursor: isBusy ? "wait" : "pointer", fontFamily: "var(--font)",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { if (!isBusy) e.currentTarget.style.background = "#05966920"; }}
-                      onMouseLeave={(e) => { if (!isBusy) e.currentTarget.style.background = "#05966910"; }}
                     >Accept</button>
                     <button
+                      type="button"
+                      className="btn-reject"
                       disabled={isBusy}
                       onClick={() => setRejecting(p.id)}
-                      style={{
-                        padding: "6px 14px", borderRadius: "var(--radius-xs)",
-                        border: "1px solid #ef444430", background: "#ef444410",
-                        color: "#dc2626", fontSize: 12, fontWeight: 600,
-                        cursor: isBusy ? "wait" : "pointer", fontFamily: "var(--font)",
-                        transition: "all 0.15s",
-                      }}
-                      onMouseEnter={(e) => { if (!isBusy) e.currentTarget.style.background = "#ef444420"; }}
-                      onMouseLeave={(e) => { if (!isBusy) e.currentTarget.style.background = "#ef444410"; }}
                     >Reject</button>
                   </div>
                 )}
