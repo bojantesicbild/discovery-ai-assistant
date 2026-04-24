@@ -1,0 +1,283 @@
+/**
+ * Sidebar + nav (Design v2). Dark theme, collapse/expand driven
+ * by .app.sidebar-expanded on the parent grid (not by a class on
+ * .sidebar itself — keeps the grid animation in sync).
+ *
+ * Components: Sidebar.tsx
+ * Token deps: --sidebar, --accent, --accent-ink, --must,
+ *             --ease-*, --menu-dur
+ */
+/* ============ SIDEBAR ============ */
+.sidebar {
+  background: var(--sidebar);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 16px 14px;
+  gap: 2px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+.sidebar > * { flex-shrink: 0; }
+.sidebar .spacer { flex: 1; }
+
+.sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+
+/* Logo block — two cross-faded marks (compact "C." and full brand) */
+.logo-block {
+  position: relative;
+  height: 40px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.logo-mark {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 22px;
+  letter-spacing: -0.02em; line-height: 1;
+  opacity: 1;
+  transition: opacity 180ms var(--ease-smooth);
+}
+.logo-mark .lm-c   { color: var(--accent); }
+.logo-mark .lm-dot { color: #fff; margin-left: 1px; }
+.brand-text {
+  position: absolute; inset: 0;
+  display: flex; align-items: center;
+  padding-left: 14px;
+  font-weight: 800; font-size: 20px;
+  letter-spacing: -0.02em;
+  color: #fff; white-space: nowrap; line-height: 1;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 220ms var(--ease-smooth),
+              transform 320ms var(--ease-spring);
+  pointer-events: none;
+}
+.brand-text .brand-dot { color: var(--accent); }
+.app.sidebar-expanded .logo-mark {
+  opacity: 0;
+  transition: opacity 120ms var(--ease-smooth);
+}
+.app.sidebar-expanded .brand-text {
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 260ms var(--ease-smooth) 80ms,
+              transform 360ms var(--ease-spring) 80ms;
+}
+
+/* Section captions (MAIN / PHASES / SYSTEM) — height locked across
+ * states so nav items below never shift when collapsing. */
+.section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,.32);
+  padding: 14px 12px 6px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+}
+.section-label:first-of-type { padding-top: 6px; height: 24px; }
+.section-label .sl-text {
+  display: inline-block;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 180ms var(--ease-smooth) 80ms,
+              transform 220ms var(--ease-smooth) 80ms;
+}
+.app:not(.sidebar-expanded) .section-label .sl-text {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity 140ms var(--ease-smooth),
+              transform 180ms var(--ease-smooth);
+}
+.section-label::before {
+  content: '';
+  position: absolute; left: 50%; top: 50%;
+  width: 22px; height: 1px;
+  background: rgba(255,255,255,.12);
+  transform: translate(-50%, -50%) scaleX(0);
+  transform-origin: center;
+  opacity: 0;
+  transition: transform 280ms var(--ease-smooth),
+              opacity 180ms var(--ease-smooth);
+}
+.app:not(.sidebar-expanded) .section-label::before {
+  transform: translate(-50%, -50%) scaleX(1);
+  opacity: 1;
+  transition: transform 280ms var(--ease-smooth) 80ms,
+              opacity 180ms var(--ease-smooth) 80ms;
+}
+
+.nav-group {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+}
+
+.nav-item {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.5);
+  position: relative;
+  transition: background 160ms var(--ease-smooth),
+              color 160ms var(--ease-smooth),
+              width var(--menu-dur) var(--ease-smooth),
+              padding var(--menu-dur) var(--ease-smooth);
+  gap: 0; padding: 0;
+  align-self: center;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+.nav-item:active { transform: scale(.97); transition: transform 80ms; }
+.nav-item.active { background: var(--accent); color: var(--accent-ink); }
+
+/* Active indicator bar — left edge, slides in with the accent bg */
+.nav-item::before {
+  content: '';
+  position: absolute; left: 0; top: 50%;
+  width: 3px; height: 0;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  transform: translateY(-50%);
+  transition: height 260ms var(--ease-spring),
+              opacity 180ms var(--ease-smooth);
+  opacity: 0;
+}
+.app.sidebar-expanded .nav-item.active::before {
+  height: 22px; opacity: 1;
+}
+
+.nav-item svg {
+  width: 20px; height: 20px; stroke-width: 2;
+  flex-shrink: 0;
+  transition: transform 380ms var(--ease-spring);
+}
+
+.nav-item .badge {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 9px;
+  background: var(--must); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+  border: 2px solid var(--sidebar);
+  transition: top 320ms var(--ease-smooth),
+              right 320ms var(--ease-smooth),
+              background 220ms var(--ease-smooth),
+              color 220ms var(--ease-smooth),
+              border-color 220ms var(--ease-smooth);
+}
+
+/* Tooltip shown in collapsed state — appears next to the icon */
+.nav-item .tip {
+  position: absolute; left: 56px; top: 50%;
+  transform: translate(-4px,-50%);
+  background: #18181B; color: #fff;
+  padding: 6px 10px; border-radius: 8px;
+  font-size: 12px; font-weight: 500;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transition: opacity 140ms var(--ease-smooth),
+              transform 220ms var(--ease-spring);
+  z-index: 100;
+}
+.nav-item:hover .tip { opacity: 1; transform: translate(0,-50%); }
+
+.nav-label {
+  font-size: 14px; font-weight: 600;
+  color: inherit;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-6px);
+  transition: opacity 180ms var(--ease-smooth),
+              transform 320ms var(--ease-spring),
+              max-width var(--menu-dur) var(--ease-smooth);
+  overflow: hidden;
+}
+
+/* Expanded — stretch the nav items, reveal labels with stagger */
+.app.sidebar-expanded .nav-item {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 0 12px;
+  gap: 12px;
+  align-self: stretch;
+}
+.app.sidebar-expanded .nav-label {
+  opacity: 1;
+  max-width: 160px;
+  transform: translateX(0);
+}
+.app.sidebar-expanded .nav-group .nav-item:nth-child(1) .nav-label { transition-delay: 40ms,  40ms, 0ms; }
+.app.sidebar-expanded .nav-group .nav-item:nth-child(2) .nav-label { transition-delay: 80ms,  80ms, 0ms; }
+.app.sidebar-expanded .nav-group .nav-item:nth-child(3) .nav-label { transition-delay: 120ms, 120ms, 0ms; }
+.app.sidebar-expanded .nav-group .nav-item:nth-child(4) .nav-label { transition-delay: 160ms, 160ms, 0ms; }
+.app.sidebar-expanded .nav-group .nav-item:nth-child(5) .nav-label { transition-delay: 200ms, 200ms, 0ms; }
+
+.app.sidebar-expanded .nav-item .tip { display: none; }
+.app.sidebar-expanded .nav-item .badge {
+  position: static;
+  border: none;
+  margin-left: auto;
+  animation: badgeSettle 380ms var(--ease-spring) both;
+}
+@keyframes badgeSettle {
+  0%   { transform: scale(.6); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Avatar row in the sidebar footer */
+.avatar-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 2px;
+  overflow: hidden;
+}
+.avatar-row .avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #00FF9D, #00B86E);
+  color: #003318;
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 15px;
+  flex-shrink: 0;
+  border: 0; cursor: pointer;
+}
+.avatar-meta {
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-8px);
+  filter: blur(2px);
+  transition: opacity 200ms var(--ease-smooth) 160ms,
+              transform 360ms var(--ease-spring) 160ms,
+              filter 200ms var(--ease-smooth) 160ms;
+  min-width: 0;
+}
+.avatar-meta .name { font-weight: 700; font-size: 13px; color: #fff; letter-spacing: -0.01em; }
+.avatar-meta .email { font-size: 11px; color: rgba(255,255,255,.5); }
+.app.sidebar-expanded .avatar-meta {
+  opacity: 1;
+  transform: translateX(0);
+  filter: blur(0);
+}
+

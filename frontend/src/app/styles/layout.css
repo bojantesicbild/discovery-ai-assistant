@@ -1,0 +1,56 @@
+/**
+ * App shell layout primitives.
+ *   .app           — 2-col grid, sidebar + main
+ *   .main-content  — right column, internal flex column
+ *   .topbar-toggle — panel-left icon button that animates its rail
+ *                    via .app.sidebar-expanded
+ * Uses --sidebar-width + --menu-dur + --ease-smooth from tokens.
+ */
+
+/* ============ LAYOUT ============
+ * `.app` is a 2-col grid. Collapsed sidebar shows icons only (72px),
+ * expanded state widens to 224px via the `.sidebar-expanded` class
+ * applied on the SAME element (not the sidebar itself). This lets
+ * the animation drive both columns in sync via grid-template-columns. */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns var(--menu-dur) var(--ease-smooth);
+}
+.app.sidebar-expanded { --sidebar-width: 224px; }
+
+/* ============ MAIN (right panel of .app grid) ============ */
+.main-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Topbar sidebar-toggle — lives at the left of the topbar, toggles
+ * .sidebar-expanded on the .app wrapper. The panel-rail SVG inside
+ * animates to show state. */
+.topbar-toggle {
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  flex-shrink: 0;
+}
+.topbar-toggle:hover { background: var(--surface); color: var(--ink); }
+.topbar-toggle svg { width: 20px; height: 20px; transition: transform .3s cubic-bezier(.2,.8,.3,1); }
+.topbar-toggle .panel-rail {
+  transition: x .3s cubic-bezier(.2,.8,.3,1), width .3s cubic-bezier(.2,.8,.3,1);
+}
+.app.sidebar-expanded .topbar-toggle .panel-rail { x: 3; width: 6; }
+.app.sidebar-expanded .topbar-toggle .panel-fill { x: 3; width: 6; }
+

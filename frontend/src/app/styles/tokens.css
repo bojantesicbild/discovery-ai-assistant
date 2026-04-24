@@ -1,0 +1,125 @@
+/**
+ * Design system tokens, global reset, base typography.
+ * Everything in this file is always-on — other style modules
+ * and every component consume these CSS custom properties.
+ *
+ * If you are adding a new color, radius, or motion curve:
+ *   - add it here as a CSS var with --kebab-case
+ *   - update the token map comment at the top
+ *   - consume it via var(--name) in feature CSS, never hardcode
+ */
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Hide Next.js devtools indicator — overlaps sidebar avatar */
+#devtools-indicator { display: none !important; }
+
+/* ============================================================
+ * Design System — Discovery Redesign v2
+ * ============================================================
+ * Tokens below are the single source of truth for visual styling.
+ * Components should consume these vars, never hardcode colors or
+ * radii. Legacy tokens (--green, --gray-*) remain for back-compat
+ * with unredesigned components and will be removed as those pages
+ * migrate.
+ *
+ * Token groups:
+ *   Surfaces:  --bg, --surface, --surface-2, --sidebar
+ *   Ink:       --ink, --ink-2, --ink-3, --ink-4 (darkest → lightest)
+ *   Lines:     --line, --line-strong
+ *   Accent:    --accent, --accent-hover, --accent-ink, --accent-soft
+ *   Priority:  --must (red), --should (amber), --could (indigo)
+ *              each has a --*-soft variant for backgrounds
+ *   Motion:    --ease-smooth, --ease-spring, --menu-dur
+ *   Radii:     --radius, --radius-lg, --radius-sm
+ *   Shadows:   --shadow-sm, --shadow-md, --shadow-lg, --sticky-shadow
+ *   Layout:    --sidebar-width (drives grid collapse)
+ *
+ * Usage rule: one component = one style. Don't layer per-page
+ * overrides via inline styles; add a variant class to the component
+ * or a new token here.
+ * ============================================================ */
+:root {
+  /* Design system — primary */
+  --bg: #F7F7F4;
+  --surface: #FFFFFF;
+  --surface-2: #FBFBF8;
+  --sidebar: #0B0B0C;
+  --ink: #0A0A0B;
+  --ink-2: #3E3E44;
+  --ink-3: #6B6B72;
+  --ink-4: #9A9AA1;
+  --line: #EAEAE4;
+  --line-strong: #D6D6CE;
+  --accent: #00FF9D;
+  --accent-hover: #00E68D;
+  --accent-ink: #003D24;
+  --accent-soft: #E0FFEF;
+  --must: #FF3B30;
+  --must-soft: #FFECEA;
+  --should: #F59E0B;
+  --should-soft: #FFF4DB;
+  --could: #5E6AD2;
+  --could-soft: #ECEDFB;
+  --shadow-sm: 0 1px 2px rgba(10,10,11,.04);
+  --shadow-md: 0 4px 20px -6px rgba(10,10,11,.08), 0 1px 2px rgba(10,10,11,.04);
+  --shadow-lg: 0 20px 60px -20px rgba(10,10,11,.18), 0 4px 16px -4px rgba(10,10,11,.06);
+  --sticky-shadow: 0 8px 16px -12px rgba(10,10,11,.12);
+  --radius-lg: 18px;
+  --ease-smooth: cubic-bezier(.2,.8,.2,1);
+  --ease-spring: cubic-bezier(.34,1.3,.64,1);
+  --menu-dur: 380ms;
+  --sidebar-width: 72px;
+  --topbar-height: 64px;
+
+  /* Legacy tokens — kept for back-compat with unredesigned pages.
+     Prefer the design-system tokens above in any new component. */
+  --green: #00E5A0;
+  --green-light: #00E5A020;
+  --green-mid: #00E5A040;
+  --green-hover: #00CCA0;
+  --dark: #1A1A1A;
+  --dark-deep: #111111;
+  --dark-card: #222222;
+  --dark-border: #2A2A2A;
+  --dark-hover: #2D2D2D;
+  --white: #FFFFFF;
+  --gray-50: #F9FAFB;
+  --gray-100: #F3F4F6;
+  --gray-200: #E5E7EB;
+  --gray-300: #D1D5DB;
+  --gray-400: #9CA3AF;
+  --gray-500: #6B7280;
+  --gray-600: #4B5563;
+  --gray-700: #374151;
+  --warning: #F59E0B;
+  --warning-light: #F59E0B20;
+  --danger: #EF4444;
+  --danger-light: #EF444420;
+  --info: #3B82F6;
+  --info-light: #3B82F620;
+  --purple: #8B5CF6;
+  --purple-light: #8B5CF620;
+  --orange: #F97316;
+  --orange-light: #F9731620;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  height: 100vh;
+}
