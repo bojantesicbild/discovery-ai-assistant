@@ -110,28 +110,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     initialTab || "reqs",
   );
 
-  // Auto-collapse hero when the active tab's scroll surface moves past
-  // a small threshold. Re-attaches when activeTab changes because each
-  // tab mounts its own .reqs-scroll node. Transient — unmount clears.
+  // Reset scroll-collapse state whenever the tab changes; each tab
+  // owns its own scroll surface and attaches its own listener via
+  // an onScrollCollapse callback (e.g. RequirementsTab below).
   useEffect(() => {
     setHeroScrollCollapsed(false);
-    // Next tick so the tab's DOM has mounted.
-    const timer = setTimeout(() => {
-      const panel = document.querySelector(".data-panel");
-      const scroller = panel?.querySelector(".reqs-scroll") as HTMLElement | null;
-      if (!scroller) return;
-      const THRESHOLD = 40;
-      const onScroll = () => setHeroScrollCollapsed(scroller.scrollTop > THRESHOLD);
-      onScroll();
-      scroller.addEventListener("scroll", onScroll, { passive: true });
-      (scroller as any)._collapseCleanup = () => scroller.removeEventListener("scroll", onScroll);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      const panel = document.querySelector(".data-panel");
-      const scroller = panel?.querySelector(".reqs-scroll") as any;
-      scroller?._collapseCleanup?.();
-    };
   }, [activeTab]);
 
   const [dashboard, setDashboard] = useState<any>(null);
@@ -652,6 +635,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             onNavigate={onNavigate}
             clientFeedback={clientFeedback}
             proposals={proposals}
+            onScrollCollapse={setHeroScrollCollapsed}
           />
         )}
 

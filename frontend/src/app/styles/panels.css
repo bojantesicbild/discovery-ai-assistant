@@ -320,15 +320,14 @@
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px 16px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   display: grid;
-  /* Fixed id column width — the "auto" default was expanding to the
-   * widest stacked element (sometimes the date 'Apr 22, 2026') and
-   * producing a visible gap before the title. 64px is tight enough
-   * to hug BR-015/v1/Today but still fit Apr 22, 2026. */
-  grid-template-columns: 64px 1fr auto;
+  /* Tight id column — fixed 56px. "BR-020" is ~55px at this weight/
+   * size; "Apr 22, 2026" gets ellipsis via min-width: 0 on .req-id.
+   * Column gap kept tight at 10px so the title hugs the id block. */
+  grid-template-columns: 56px 1fr auto;
   grid-template-rows: auto auto;
-  gap: 4px 12px;
+  gap: 4px 10px;
   align-items: start;
   cursor: pointer;
   position: relative;
@@ -347,6 +346,13 @@
   gap: 2px;
   padding-top: 1px;
   min-width: 0;
+  overflow: hidden;
+}
+.req-id > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .req-id .id {
   font-family: 'JetBrains Mono', monospace;

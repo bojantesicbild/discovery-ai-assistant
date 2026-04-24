@@ -5,7 +5,7 @@
 // left column + title + meta pills. Filter UI is v2: a single search
 // input + two fd (filter-dropdown) triggers for priority / status.
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   FilterChip, ReqClientBadge, SourceBadges, EmptyState,
 } from "../pills";
@@ -36,6 +36,7 @@ interface RequirementsTabProps {
     gaps: Record<string, GapClientFeedback>;
   };
   proposals: ProposedUpdate[];
+  onScrollCollapse?: (collapsed: boolean) => void;
 }
 
 
@@ -59,8 +60,22 @@ export function RequirementsTab({
   priorityFilter, setPriorityFilter, statusFilter, setStatusFilter,
   unreadCount, markTabSeenAll, markRowSeen,
   openRequirement, onNavigate, clientFeedback, proposals,
+  onScrollCollapse,
 }: RequirementsTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Bind scroll-to-collapse via a ref callback so we don't depend on
+  // DOM querying + timing. Fires onScrollCollapse(true) past ~40px
+  // and (false) back at the top. Cleanup runs automatically when the
+  // node unmounts or the ref swaps.
+  const scrollRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const THRESHOLD = 40;
+    const update = () => onScrollCollapse?.(node.scrollTop > THRESHOLD);
+    update();
+    node.addEventListener("scroll", update, { passive: true });
+    (node as any)._scrollCleanup = () => node.removeEventListener("scroll", update);
+  }, [onScrollCollapse]);
 
   if (requirements.length === 0) {
     return (
@@ -135,7 +150,7 @@ export function RequirementsTab({
       {/* Scroll area — grows to fill, cards inside. Pager stays below
           this via the split-scroll layout defined in panels.css
           (.dp-tab-content > .reqs-scroll + footer). */}
-      <div className="reqs-scroll">
+      <div className="reqs-scroll" ref={scrollRef}>
         <div className="reqs-list" style={{ padding: "8px 0 16px" }}>
           {newThisSession.length > 0 && (
             <>
