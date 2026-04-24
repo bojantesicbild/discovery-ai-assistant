@@ -440,7 +440,13 @@
 
 .req-action {
   grid-row: 1 / 3;
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 4px;
+  /* Don't let grid stretch this track — content is tiny (kebab button
+   * + optional warn badge). justify-self:end hugs the right edge and
+   * min-content sizing keeps the body (1fr) column wide. */
+  justify-self: end;
+  width: max-content;
+  min-width: 0;
 }
 .req-warn {
   display: inline-flex; align-items: center; gap: 4px;
