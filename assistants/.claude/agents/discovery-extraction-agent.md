@@ -83,8 +83,9 @@ Execute in this order, no skipping.
 
    Rules:
    - **Be selective.** One or two learnings per document, max. Noise defeats the mechanism. If you can't finish the sentence "this will change how I extract the *next* document because…", skip it.
+   - **Short, imperative, ≤ 200 characters.** `content` is the *rule*, not the story. Write it like a lint rule: "PM rejects Auth0 proposals — use Okta." Not: "PM has rejected Auth0 proposals three times, citing reasons including standardization on Okta and concerns about self-hosting Auth0 in EU-only environments…". That context belongs in `evidence_quote`. The injected prompt budget is bounded; verbose content crowds out other patterns.
    - **Same content wording for repeats.** The service dedups on normalized content; paraphrasing fragments the signal. If you already emitted "PM prefers acceptance_criteria in GIVEN/WHEN/THEN form" in a prior run, emit the exact same string on the next observation — not "PM likes GWT ACs". Short and canonical wins.
-   - **Cite evidence.** Pass `evidence_quote` (the verbatim snippet that made the pattern visible) when you have it. Helps the PM judge promotion.
+   - **Cite evidence.** Pass `evidence_quote` (the verbatim snippet that made the pattern visible) when you have it. This is where detail goes — the field is TEXT, no length pressure.
    - **Don't restate findings.** "The product needs SSO" is a BR, not a learning. "PM dismisses SSO proposals that don't cite a named stakeholder" is a learning.
 
 6. **Close with a chat summary.** After all `store_finding` + `record_learning` calls, end with **2-3 sentences max** in chat: what kind of document this was, how many of each kind you extracted, and the single most notable item (a critical gap, a heavy constraint, an unresolved contradiction) the PM should look at first. No tables, no emoji. Example:
