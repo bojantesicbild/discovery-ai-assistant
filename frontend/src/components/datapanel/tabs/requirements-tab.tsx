@@ -223,15 +223,15 @@ function RequirementCard({
   const pri = (req.priority || "could").toLowerCase();
   const status = (req.status || "proposed").toLowerCase();
   const typeLabel = (req.type || "").replace("_", " ");
-  // Stacked: id + version inline, then time, then date (bottom).
-  // Time = HH:MM, date = "Today" / "Apr 22, 2026" — separated so PMs
-  // scanning the list can triangulate "what changed when".
+  // Stacked under the id row: time (HH:MM) then full date (Apr 22, 2026).
+  // Kept as absolute labels — relative "3d ago" is harder to cross-reference
+  // across a long list than a real date.
   let timeLabel = "";
   let dateLabel = "";
   if (req.created_at) {
     const d = new Date(req.created_at);
     timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    dateLabel = formatAge(req.created_at);
+    dateLabel = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   }
 
   return (

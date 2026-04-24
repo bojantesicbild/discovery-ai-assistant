@@ -338,31 +338,30 @@
 }
 
 .req-id {
-  /* Wider to fit "BR-024 v1" inline on row 1. Row 2 is time (HH:MM),
-   * row 3 is date ("Today" / "Apr 22, 2026"). */
-  width: 92px;
+  /* Wider to fit "BR-024 v1" inline on row 1 and "Apr 22, 2026" on
+   * the date row beneath the time. */
+  width: 108px;
   flex-shrink: 0;
   display: flex; flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 3px;
   padding-top: 1px;
-  /* Vertical separator between id column and body — thin rule that
-   * fades at top/bottom for a cool, understated divider. Drawn via
-   * a pseudo so no extra DOM node is needed. */
+  padding-right: 14px;
   position: relative;
-  padding-right: 12px;
 }
+/* Vertical separator between id column and body — short centered
+ * pill, not a full-height rule. Uses --line-strong for a quiet but
+ * visible divider that reads as "these are two zones". */
 .req-id::after {
   content: '';
   position: absolute;
-  top: 2px; bottom: 2px; right: 0;
-  width: 1px;
-  background: linear-gradient(to bottom,
-    transparent 0%,
-    var(--line) 18%,
-    var(--line-strong) 50%,
-    var(--line) 82%,
-    transparent 100%);
+  top: 50%;
+  right: 0;
+  width: 2px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transform: translateY(-50%);
 }
 .req-id-head {
   display: inline-flex; align-items: center; gap: 6px;
@@ -442,15 +441,26 @@
   border: 1px solid var(--line-strong);
 }
 
-/* Status — quietest: dot + label */
+/* Status — base is the quiet dot+label pattern. Confirmed gets the
+ * neon pill treatment (matches .fact-status.confirmed above). */
 .status {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 11.5px; font-weight: 500;
   color: var(--ink-3);
+  text-transform: lowercase;
 }
 .status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--proposed); }
-.status.confirmed .dot { background: var(--confirmed); }
 .status.discussed .dot { background: var(--discussed); }
+.status.confirmed {
+  font-size: 10.5px; font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0A1A10;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.status.confirmed .dot { display: none; }
 
 .source {
   display: inline-flex; align-items: center; gap: 5px;
@@ -918,7 +928,12 @@
 .sev-badge.medium { background: var(--should-soft); color: #B45309; }
 .sev-badge.low { background: var(--accent-soft); color: var(--accent-ink); }
 
-/* Status pill — dot + faint label (quietest of the trio per design) */
+/* Status pill — base is the quiet dot+label pattern, but .confirmed
+ * (and anything aligned with it) gets the "accent/NEW" treatment:
+ * neon green background + near-black text. Matches the tab's NEW
+ * pill so "confirmed" reads as the strong positive signal the PM
+ * is optimizing toward.
+ */
 .fact-status {
   font-size: 11.5px; font-weight: 500;
   padding: 0;
@@ -926,15 +941,27 @@
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--ink-3);
   background: transparent;
+  text-transform: lowercase;
 }
 .fact-status::before {
   content: '';
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--proposed);
 }
-.fact-status.confirmed::before { background: var(--confirmed); }
 .fact-status.assumed::before { background: var(--proposed); }
 .fact-status.pending::before { background: var(--ink-4); }
+
+/* Confirmed → bold neon pill. No dot; the pill IS the signal. */
+.fact-status.confirmed {
+  font-size: 10.5px; font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0A1A10;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.fact-status.confirmed::before { display: none; }
 
 /* Gap / contradiction status pill */
 .gap-status-pill {
