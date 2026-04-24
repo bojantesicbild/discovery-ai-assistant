@@ -35,6 +35,58 @@
  *     .model-pill + .send-btn
  * ============================================================ */
 
+/* ==== Chat shell ====
+ * Our ChatPanel's root is .chat-panel; this was the tiny flex column
+ * in legacy.css. We upgrade it here to the design's .chat container:
+ * aurora background (drifting color blobs + dot grid), isolated
+ * stacking context so decorative layers stay behind message cards.
+ *
+ * The ::before and ::after layers carry the animated decoration,
+ * .chat-panel > * is forced to z-index:1 so content sits on top.
+ */
+.chat-panel {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(ellipse 900px 520px at 20% -10%, rgba(0,255,157,.09), transparent 55%),
+    radial-gradient(ellipse 700px 500px at 110% 110%, rgba(94,106,210,.07), transparent 60%),
+    radial-gradient(ellipse 600px 400px at 100% 20%, rgba(245,158,11,.05), transparent 65%),
+    var(--bg);
+  overflow: hidden;
+}
+.chat-panel::after {
+  content: '';
+  position: absolute; inset: -20%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(0,255,157,.14), transparent 35%),
+    radial-gradient(circle at 70% 60%, rgba(94,106,210,.12), transparent 38%),
+    radial-gradient(circle at 50% 90%, rgba(245,158,11,.08), transparent 40%);
+  filter: blur(40px);
+  animation: aurora-drift 24s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+  opacity: .75;
+}
+.chat-panel::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 1.5px 1.5px, rgba(10,10,11,.05) 1px, transparent 0);
+  background-size: 22px 22px;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(180deg, transparent 0px, black 80px, black calc(100% - 120px), transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0px, black 80px, black calc(100% - 120px), transparent 100%);
+  opacity: .6;
+}
+@keyframes aurora-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(3%, -2%, 0) scale(1.08); }
+  100% { transform: translate3d(-2%, 3%, 0) scale(1.04); }
+}
+/* Keep real content above the decoration. */
+.chat-panel > * { position: relative; z-index: 1; }
+
+
 .chat-header {
   padding: 16px 32px 12px;
   display: flex; align-items: center; justify-content: space-between;

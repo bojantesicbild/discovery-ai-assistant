@@ -372,14 +372,13 @@
   position: relative;
 }
 
-/* CHAT PANEL */
+/* Migrated → chat.css — .chat-panel now owns its aurora background,
+ * isolation, and edge fades there. Keeping just the skeleton here
+ * (display + overflow) so existing consumers don't lose flex. */
 .chat-panel {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: var(--gray-50);
-  position: relative;
-  overflow: hidden;
 }
 
 /* Migrated → chat.css (.chat-header + .chat-title + .bubble +
