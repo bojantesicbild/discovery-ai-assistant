@@ -41,6 +41,23 @@ USER_ID = os.environ.get("DISCOVERY_USER_ID", "")
 if USER_ID == "00000000-0000-0000-0000-000000000000":
     USER_ID = ""
 
+# Multi-user auth: when set, we call the backend /api/auth/mcp-verify
+# at startup to exchange the PAT for a real user_id. The result is
+# cached for the subprocess lifetime — MCP processes are short-lived
+# (one per chat turn for web, one per terminal session for CLI) so
+# in-memory cache is exactly the right scope. See MU-1 / MU-2 in the
+# session-heartbeat architecture plan.
+API_TOKEN = os.environ.get("DISCOVERY_API_TOKEN", "")
+API_URL = os.environ.get("DISCOVERY_API_URL", "http://localhost:8000")
+
+# Populated by _resolve_token_identity() on first call. The trio is:
+#   user_id: UUID string, treated as authoritative when present
+#   allowed_project_ids: set of UUID strings, used for soft-warnings
+#   source: one of "token" | "env" | "db-fallback" | "unresolved",
+#           diagnostic for stderr logging
+_TOKEN_IDENTITY: dict | None = None
+_TOKEN_IDENTITY_LOCK: asyncio.Lock | None = None
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Schema-aware enum validation
@@ -308,13 +325,95 @@ async def get_project_id():
         return str(row["id"]) if row else None
 
 
+async def _resolve_token_identity() -> dict:
+    """Exchange DISCOVERY_API_TOKEN for a user identity via the backend,
+    once per subprocess lifetime. Returns the cached dict on subsequent
+    calls.
+
+    Graceful degradation: if the token is missing, the backend is
+    unreachable, or verify returns non-200, we record the failure and
+    callers fall through to the env/DB chain. Dev setups without a
+    token keep working. Production setups with a revoked token get a
+    clear stderr line instead of silent wrong-user attribution.
+    """
+    global _TOKEN_IDENTITY, _TOKEN_IDENTITY_LOCK
+    if _TOKEN_IDENTITY is not None:
+        return _TOKEN_IDENTITY
+    if _TOKEN_IDENTITY_LOCK is None:
+        _TOKEN_IDENTITY_LOCK = asyncio.Lock()
+    async with _TOKEN_IDENTITY_LOCK:
+        if _TOKEN_IDENTITY is not None:
+            return _TOKEN_IDENTITY
+        if not API_TOKEN:
+            _TOKEN_IDENTITY = {"user_id": None, "allowed_project_ids": set(), "source": "unresolved"}
+            return _TOKEN_IDENTITY
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.post(
+                    f"{API_URL}/api/auth/mcp-verify",
+                    json={"token": API_TOKEN},
+                )
+            if r.status_code != 200:
+                print(
+                    f"[mcp] token verify failed: HTTP {r.status_code} — "
+                    f"falling back to env/DB user resolution",
+                    file=sys.stderr,
+                )
+                _TOKEN_IDENTITY = {"user_id": None, "allowed_project_ids": set(), "source": "unresolved"}
+                return _TOKEN_IDENTITY
+            data = r.json()
+            _TOKEN_IDENTITY = {
+                "user_id": data.get("user_id"),
+                "allowed_project_ids": set(data.get("allowed_project_ids") or []),
+                "email": data.get("email"),
+                "source": "token",
+            }
+            print(
+                f"[mcp] authenticated as {data.get('email')} "
+                f"({len(_TOKEN_IDENTITY['allowed_project_ids'])} projects)",
+                file=sys.stderr,
+            )
+            return _TOKEN_IDENTITY
+        except Exception as e:
+            print(
+                f"[mcp] token verify errored: {e} — falling back to env/DB",
+                file=sys.stderr,
+            )
+            _TOKEN_IDENTITY = {"user_id": None, "allowed_project_ids": set(), "source": "unresolved"}
+            return _TOKEN_IDENTITY
+
+
 async def get_user_id(pid: str):
     """Resolve user id for tools that write user-attributed rows (reminders).
 
-    Fallback chain: env var → project lead → any project member → solo
-    user (when the users table has exactly one row, a reasonable default
-    for single-dev setups). Returns None only when none of those resolve
-    — caller should reject the tool call in that case."""
+    Resolution order:
+      1. PAT — DISCOVERY_API_TOKEN verified via backend /api/auth/mcp-verify
+      2. Explicit env var DISCOVERY_USER_ID (dev escape hatch)
+      3. Project lead from project_members
+      4. Any project member
+      5. Solo-user fallback (users table has exactly one row)
+
+    Returns None only when none of those resolve — caller should
+    reject the tool call in that case. MU-2: tokens take precedence so
+    multi-user installs attribute writes to the right human."""
+    # (1) Token path — preferred, multi-user-safe
+    ident = await _resolve_token_identity()
+    if ident.get("user_id"):
+        # Soft-warn if the authenticated user isn't a member of the
+        # project this MCP call is about. We don't block — local dev
+        # often runs as the bootstrap user with no membership rows —
+        # but the signal helps detect misconfigured .mcp.json.
+        allowed = ident.get("allowed_project_ids") or set()
+        if pid and allowed and pid not in allowed:
+            print(
+                f"[mcp] warning: token user {ident.get('email')} is not a "
+                f"member of project {pid} — proceeding anyway",
+                file=sys.stderr,
+            )
+        return ident["user_id"]
+
+    # (2) Env var — dev escape hatch, unchanged
     if USER_ID:
         return USER_ID
     pool = await get_pool()
@@ -2545,6 +2644,12 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def main():
+    # Resolve the PAT once at startup so the [mcp] authenticated-as line
+    # lands in stderr before the first tool call — easier to spot a
+    # misconfigured token during bootstrap than to chase it through the
+    # first extraction. Any failure here is soft; get_user_id still has
+    # the env + DB fallback chain.
+    await _resolve_token_identity()
     async with stdio_server() as (read_stream, write_stream):
         await server.run(read_stream, write_stream, server.create_initialization_options())
 
