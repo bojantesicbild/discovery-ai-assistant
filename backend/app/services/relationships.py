@@ -47,6 +47,11 @@ INVERSE_REL: dict[str, str] = {
     "source_of": "derived_from",
     "proposes_patch": "has_proposal",
     "has_proposal": "proposes_patch",
+    # Contradiction-wiring: the contradiction "concerns" a BR/constraint;
+    # from the BR's perspective it's "contradicted_by". Stored direction
+    # is contradiction → target (emission site in MCP).
+    "concerns": "contradicted_by",
+    "contradicted_by": "concerns",
     # Symmetric (same in both directions)
     "co_extracted": "co_extracted",
     "contradicts": "contradicts",

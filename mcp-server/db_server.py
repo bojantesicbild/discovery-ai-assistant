@@ -801,6 +801,7 @@ async def _dual_write_relationships(
     blocked_by_ids: list[str] | None = None,
     blocks_ids: list[str] | None = None,
     affects_ids: list[str] | None = None,
+    concerns_ids: list[str] | None = None,
     source_doc_id: str | None = None,
     source_person_name: str | None = None,
     source_quote: str | None = None,
@@ -844,6 +845,22 @@ async def _dual_write_relationships(
                 from_type=finding_type, from_uuid=finding_uuid,
                 to_type=target[0], to_uuid=target[1],
                 rel_type="affects",
+                confidence="explicit", created_by="extraction",
+                source_doc_id=source_doc_id, source_quote=source_quote,
+            )
+            written += 1
+
+    # `concerns` edges — used primarily by contradictions pointing at the
+    # BR(s) / constraint(s) whose approach is in dispute. Targets may be
+    # requirements or constraints; anything else silently skipped.
+    for ref in concerns_ids or []:
+        target = await _resolve_finding_uuid(conn, pid, ref)
+        if target and target[0] in ("requirement", "constraint"):
+            await _upsert_relationship(
+                conn, pid=pid,
+                from_type=finding_type, from_uuid=finding_uuid,
+                to_type=target[0], to_uuid=target[1],
+                rel_type="concerns",
                 confidence="explicit", created_by="extraction",
                 source_doc_id=source_doc_id, source_quote=source_quote,
             )
@@ -936,6 +953,7 @@ async def list_tools() -> list[Tool]:
                     "side_a_person": {"type": "string", "description": "Contradiction-only. Person who stated side_a (e.g. 'David Miller'). Leave null if unknown."},
                     "side_b_source": {"type": "string", "description": "Contradiction-only. Document / source reference for side_b. Leave null if unknown."},
                     "side_b_person": {"type": "string", "description": "Contradiction-only. Person who stated side_b. Leave null if unknown."},
+                    "concerns_refs": {"type": "array", "items": {"type": "string"}, "description": "Contradiction-only. Display ids of BRs and/or constraints this contradiction is ABOUT — the things whose approach or validity is in dispute. E.g. a 'RAGFlow vs Qdrant' contradiction concerns BR-007 (retrieval layer) and CON-003 (RAGFlow contract constraint). Used to wire the contradiction into the graph so it surfaces on the BR/constraint detail view. Leave empty when the contradiction is free-floating (a disagreement not yet tied to a specific requirement)."},
                 },
                 "required": ["finding_type", "title", "description"],
             },
@@ -1721,33 +1739,50 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 side_a_person = arguments.get("side_a_person") or None
                 side_b_source = arguments.get("side_b_source") or None
                 side_b_person = arguments.get("side_b_person") or None
+                # concerns_refs: display ids (BR-NNN / CON-NNN) that this
+                # contradiction is ABOUT. The retrieval-layer contradiction
+                # concerns BR-007; the SOC-2 budget contradiction concerns
+                # CON-004. Wires the contradiction into the graph so
+                # get_connections surfaces it from the BR detail view.
+                concerns_refs = arguments.get("concerns_refs") or []
                 # Keep explanation populated for legacy readers (search,
                 # agent get_contradictions, etc.) — compose from the new
                 # fields so old queries still return meaningful content.
                 expl_parts = [p for p in [title, side_a, side_b] if p]
                 explanation = " / ".join(expl_parts)
-                await conn.execute(
+                row = await conn.fetchrow(
                     "INSERT INTO contradictions "
                     "(id, project_id, title, side_a, side_b, area, "
                     " side_a_source, side_a_person, side_b_source, side_b_person, "
                     " explanation, source_doc_id, resolved) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false)",
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false) "
+                    "RETURNING id",
                     pid, title, side_a or None, side_b or None, area,
                     side_a_source, side_a_person, side_b_source, side_b_person,
                     explanation or None, source_doc_uuid,
                 )
+                contradiction_uuid = str(row["id"])
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) "
                     "VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
                     pid, f"New contradiction: {title}",
                     json.dumps({"type": "contradiction", "area": area}),
                 )
+                # Dual-write concerns edges so the contradiction shows up
+                # on the BR / constraint detail view via get_connections.
+                await _dual_write_relationships(
+                    conn, pid=pid,
+                    finding_type="contradiction", finding_uuid=contradiction_uuid,
+                    concerns_ids=concerns_refs,
+                    source_doc_id=str(source_doc_uuid) if source_doc_uuid else None,
+                    source_quote=side_a or side_b,
+                )
                 await _emit_event(
                     conn, pid=pid, event_type="finding_stored",
-                    payload={"kind": "contradiction", "title": title, "area": area},
+                    payload={"kind": "contradiction", "title": title, "area": area, "concerns": concerns_refs},
                     artifact_updates={"findings_created": [f"CTR:{title[:40]}"]},
                 )
-                return _json_result({"success": True, "type": "contradiction", "title": title})
+                return _json_result({"success": True, "type": "contradiction", "title": title, "concerns": concerns_refs})
 
             else:
                 return _json_result({"error": f"Unknown finding_type: {finding_type}. Supported: requirement, constraint, stakeholder, gap, contradiction."})
