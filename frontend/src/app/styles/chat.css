@@ -318,7 +318,15 @@
 
 /* Inline variant — sits BETWEEN text segments inside .msg-content.
  * Gets its own border + radius instead of relying on the msg-card
- * edges; spaced with 10px top/bottom margin. */
+ * edges; spaced with 10px top/bottom margin.
+ *
+ * Edge-margin collapse: when the inline tool block is the FIRST or
+ * LAST child of .msg-content, its vertical margin doubles with the
+ * msg-content padding and produces a visible white gap inside the
+ * card (the thing the user circled). Trim the touching margins so
+ * .msg-content's 14px/18px padding is the only air between the card
+ * edge and the tool block.
+ */
 .msg-card-tools.inline {
   margin: 10px 0;
   border: 1px solid var(--line);
@@ -326,6 +334,8 @@
   background: var(--surface-2);
   overflow: hidden;
 }
+.msg-content > .msg-card-tools.inline:first-child { margin-top: 0; }
+.msg-content > .msg-card-tools.inline:last-child { margin-bottom: 0; }
 .msg-card-tools.inline .tools-bar { border-bottom: 0; }
 .msg-card-tools.inline.expanded .tools-bar { border-bottom: 1px solid var(--line); }
 .act-chip {

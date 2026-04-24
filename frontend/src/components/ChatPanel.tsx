@@ -447,13 +447,6 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     }
   }
 
-  const suggestions = [
-    "What are the gaps?",
-    "Prepare meeting agenda",
-    "Show readiness score",
-    "Extract business requirements",
-  ];
-
   return (
     <div className="chat-panel" style={{ flex: 1, width: "100%" }}>
       {/* Design v2 chat header — bubble + title + tools-chip on the left,
@@ -561,13 +554,6 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Discovery AI Assistant</div>
             <div style={{ fontSize: 13, color: "var(--gray-500)", maxWidth: 360, margin: "0 auto 20px" }}>
               Upload client documents and ask about requirements, gaps, meeting prep, or generate handoff docs.
-            </div>
-            <div className="msg-suggestions" style={{ justifyContent: "center" }}>
-              {suggestions.map((s) => (
-                <button key={s} className="msg-suggestion" onClick={() => sendMessage(s)}>
-                  {s}
-                </button>
-              ))}
             </div>
           </div>
         )}
@@ -734,25 +720,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           );
         })}
 
-        {/* Suggestions appear only after a user-initiated assistant reply.
-            Hiding them after automated trigger messages (pipeline extraction,
-            reminder fires, Slack inbound) avoids the trap of "I didn't ask
-            anything — why are there follow-up chips?" and prevents one stray
-            click from posting a fake user turn into the conversation. */}
-        {messages.length > 0 && !isStreaming && (() => {
-          const last = messages[messages.length - 1];
-          if (last?.role !== "assistant") return false;
-          if (last.source === "pipeline" || last.source === "reminder" || last.source === "slack") return false;
-          return true;
-        })() && (
-          <div className="msg-suggestions">
-            {suggestions.map((s) => (
-              <button key={s} className="msg-suggestion" onClick={() => sendMessage(s)}>
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Quick-action suggestion chips removed — the design treats the
+            chat as a free-form input; pre-baked prompts added noise. If
+            they come back in the future, use .qa-chip / .msg-suggestion
+            from chat.css. */}
 
         <div ref={messagesEndRef} />
       </div>
