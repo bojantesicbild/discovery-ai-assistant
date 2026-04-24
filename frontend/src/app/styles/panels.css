@@ -1211,6 +1211,149 @@
 }
 .rem-search:focus { border-color: var(--ink); }
 
+/* ==== Primary button (black pill, used for Generate All, etc) ==== */
+.btn-primary {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 0;
+  background: var(--ink);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .12s, box-shadow .15s;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.btn-primary:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--surface-2);
+  color: var(--ink-4);
+}
+
+/* ==== Handoff tab ==== */
+.ho-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+.ho-header-title {
+  font-size: 14px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+.ho-header-sub {
+  font-size: 11px; color: var(--ink-4);
+  margin-top: 2px;
+}
+
+.ho-cards { display: flex; flex-direction: column; gap: 8px; }
+
+.ho-card {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  transition: border-color .15s, background .15s;
+  display: flex; align-items: center; gap: 10px;
+}
+.ho-card.generated { background: var(--accent-soft); }
+.ho-card.clickable { cursor: pointer; }
+.ho-card.clickable:hover { border-color: var(--accent); }
+
+.ho-card-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  color: var(--ink-4);
+  font-size: 14px; font-weight: 700;
+}
+.ho-card.generated .ho-card-icon {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.ho-card-body { flex: 1; min-width: 0; }
+.ho-card-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.ho-card-desc { font-size: 11px; color: var(--ink-4); margin-top: 1px; }
+
+/* Terminal log — intentionally inverted */
+.ho-log {
+  margin-top: 14px;
+  padding: 12px;
+  background: #1a1a2e;
+  border-radius: 8px;
+  max-height: 150px;
+  overflow: auto;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: #a1a1aa;
+}
+.ho-log .line { margin-bottom: 2px; }
+
+.ho-history {
+  margin-top: 16px;
+}
+.ho-history-label {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+  margin-bottom: 8px;
+}
+.ho-gen {
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ho-gen-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: var(--surface);
+  transition: background .15s;
+}
+.ho-gen-head:hover { background: var(--surface-2); }
+.ho-gen-count { font-size: 11px; font-weight: 500; flex: 1; color: var(--ink-2); }
+.ho-gen-err { font-size: 9px; font-weight: 600; color: var(--must); }
+.ho-gen-ts { font-size: 10px; color: var(--ink-4); }
+
+.ho-gen-log {
+  padding: 10px;
+  background: #1a1a2e;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: #a1a1aa;
+  max-height: 200px;
+  overflow: auto;
+}
+.ho-gen-log .line { margin-bottom: 2px; }
+.ho-gen-log .line.err { color: #EF4444; }
+.ho-gen-log .line.warn { color: #F59E0B; }
+.ho-gen-log .line.ok { color: #00E5A0; }
+
+.ho-viewer-back {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-3);
+  background: none; border: 0;
+  cursor: pointer;
+  margin-bottom: 12px;
+  padding: 0;
+  font-family: inherit;
+}
+.ho-viewer-back:hover { color: var(--ink); }
+.ho-viewer-title { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.ho-viewer-path { font-size: 10px; color: var(--ink-4); margin-bottom: 12px; font-family: var(--font-mono); }
+.ho-viewer-body { font-size: 13px; line-height: 1.5; color: var(--ink-2); }
+
 /* ==== Danger-ghost button (cancel actions) ==== */
 .btn-danger-ghost {
   font-size: 11px; font-weight: 600;
