@@ -8,7 +8,8 @@
  *   3. layout       — .app grid, .main-content shell
  *   4. sidebar      — Design v2 sidebar + nav
  *   5. chat         — Design v2 chat + composer (opt-in)
- *   6. legacy       — unmigrated v1 styles. Last so feature modules win
+ *   6. panels       — Design v2 requirements/gaps panel (opt-in)
+ *   7. legacy       — unmigrated v1 styles. Last so feature modules win
  *                     in source order when class names overlap.
  *
  * To add a new feature module:
@@ -21,4 +22,5 @@
 @import "./styles/layout.css";
 @import "./styles/sidebar.css";
 @import "./styles/chat.css";
+@import "./styles/panels.css";
 @import "./styles/legacy.css";
