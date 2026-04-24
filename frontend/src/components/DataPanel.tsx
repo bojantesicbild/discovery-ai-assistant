@@ -91,15 +91,20 @@ const TAB_TO_FINDING_TYPE: Record<string, FindingType | undefined> = {
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
   // Active tab persists per-project so each project remembers where you were.
   // initialTab (from URL) overrides the persisted value when present.
-  // Manual collapse (chevron) — persisted so the PM's preference sticks.
-  const [heroManuallyCollapsed, setHeroManuallyCollapsed] = usePersistedState<boolean>(
-    "datapanel:heroCollapsed", false,
-  );
+  // Manual collapse (chevron) — transient. Persisting this led to a
+  // stuck-collapsed hero once any user toggled it, even though scroll
+  // already auto-collapses. Keep it session-local.
+  const [heroManuallyCollapsed, setHeroManuallyCollapsed] = useState(false);
   // Scroll-driven collapse — transient, resets on remount/tab swap.
   // Set by the scroll listener hooked onto .reqs-scroll below.
   const [heroScrollCollapsed, setHeroScrollCollapsed] = useState(false);
   const heroCollapsed = heroManuallyCollapsed || heroScrollCollapsed;
   const setHeroCollapsed = setHeroManuallyCollapsed;
+
+  // One-time cleanup of the legacy persisted key (safe no-op when unset).
+  useEffect(() => {
+    try { localStorage.removeItem("datapanel:heroCollapsed"); } catch {}
+  }, []);
   const [activeTab, setActiveTab] = usePersistedState<string>(
     `datapanel:tab:${projectId}`,
     initialTab || "reqs",
