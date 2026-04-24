@@ -29,6 +29,7 @@ from app.models.project import Project
 from app.models.review import ReviewToken, ReviewSubmission, ProposedUpdate
 from app.models.extraction import Requirement, Gap
 from app.services.sessions import record_event_for_user
+from app.services.learnings import record_learning
 from app.models.operational import ActivityLog, Notification
 from app.schemas.review import (
     ReviewTokenCreate,
@@ -521,6 +522,24 @@ async def reject_proposal(
         artifact_updates={"proposals_rejected": [str(p.id)]},
         domain="discovery",
     )
+
+    # Rejection with a reason becomes a learning. Same reason from a
+    # different proposal bumps reference_count via the service's
+    # content_key dedup — that's how recurring PM pushback auto-
+    # promotes into an anti_pattern the agent can read next session.
+    if reason:
+        try:
+            await record_learning(
+                db,
+                project_id=project_id,
+                category="anti_pattern",
+                content=f"{p.proposed_field}: {reason}",
+                evidence_quote=reason,
+            )
+        except Exception:
+            # Learning emission is a nice-to-have — never let it
+            # block the reject flow.
+            pass
 
     await db.commit()
     return {"id": str(p.id), "status": p.status, "rejection_reason": reason}

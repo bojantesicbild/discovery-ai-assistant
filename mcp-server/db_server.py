@@ -599,8 +599,8 @@ async def _emit_event(
 
     Artifact merge matches the backend service semantics: list values
     extend with dedup, scalars replace."""
-    uid = await get_user_id(conn)
     try:
+        uid = await get_user_id(pid)
         sid = await _active_session_id(conn, pid, uid)
     except Exception as e:
         # Silent swallow — event emission must never break the main
@@ -1105,6 +1105,67 @@ async def list_tools() -> list[Tool]:
                     "max_edges": {"type": "integer", "description": "Cap on explicit edges returned. Default 60."},
                 },
                 "required": ["finding_id"],
+            },
+        ),
+        Tool(
+            name="get_active_learnings",
+            description=(
+                "Return the top-N active learnings for this project — the "
+                "PM preferences, domain facts, workflow patterns, and "
+                "anti-patterns the agent has accumulated across prior "
+                "sessions. CALL THIS AT THE START OF EVERY EXTRACTION OR "
+                "DISCOVERY TASK so you don't re-propose patterns the PM "
+                "has already rejected and you match their established "
+                "preferences.\n\n"
+                "Ordered by reference_count desc, then last_relevant_at "
+                "desc — most-reinforced first. Promoted rows always "
+                "included; transient rows filtered by min_references "
+                "(default 1 to surface everything, set 2+ to see only "
+                "recurring patterns).\n\n"
+                "Cite learnings in your chat output when you act on them, "
+                "e.g. 'skipped proposing X because PM previously rejected "
+                "this pattern twice'."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "enum": ["pm_preference", "domain_fact", "workflow_pattern", "anti_pattern"], "description": "Optional — filter to one category."},
+                    "min_references": {"type": "integer", "description": "Minimum reference_count to include (default 1)."},
+                    "limit": {"type": "integer", "description": "Max rows (default 10)."},
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="record_learning",
+            description=(
+                "Capture a PATTERN you've observed — a PM preference, a "
+                "domain fact, an anti-pattern, or a workflow convention "
+                "— so the next extraction + gap-analysis run reads it "
+                "back via get_active_learnings. Repeat emissions of the "
+                "same content collapse into one row with bumped "
+                "reference_count, so don't worry about duplicates.\n\n"
+                "Use this when you notice:\n"
+                "- The PM rejected two similar proposals for the same "
+                "reason → category='anti_pattern'\n"
+                "- The PM consistently phrases ACs a certain way → "
+                "category='pm_preference'\n"
+                "- The source documents agree on a fact not captured as "
+                "a finding → category='domain_fact'\n"
+                "- The PM always does X before Y at session-end → "
+                "category='workflow_pattern'\n\n"
+                "Be terse in `content` — one sentence. Pass "
+                "`evidence_quote` verbatim from the source (document or "
+                "chat) so the PM can verify WHY the agent captured it."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "category": {"type": "string", "enum": ["pm_preference", "domain_fact", "workflow_pattern", "anti_pattern"]},
+                    "content": {"type": "string", "description": "One-sentence insight. Repeat emissions dedup by normalized content."},
+                    "evidence_quote": {"type": "string", "description": "Optional verbatim supporting quote from source doc or chat."},
+                },
+                "required": ["category", "content"],
             },
         ),
         Tool(
@@ -2040,6 +2101,109 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 "outgoing": outgoing,
                 "incoming": incoming,
                 "derived": derived_groups,
+            })
+
+        if name == "get_active_learnings":
+            category = arguments.get("category")
+            min_refs = int(arguments.get("min_references") or 1)
+            limit = int(arguments.get("limit") or 10)
+            params = [pid, min_refs]
+            clauses = [
+                "(project_id = $1 OR project_id IS NULL)",
+                "status IN ('transient', 'promoted')",
+                "reference_count >= $2",
+            ]
+            if category:
+                params.append(category)
+                clauses.append(f"category = ${len(params)}")
+            params.append(limit)
+            rows = await conn.fetch(
+                "SELECT id, project_id, category, content, evidence_quote, "
+                "       status, reference_count, last_relevant_at, "
+                "       promoted_at "
+                "FROM learnings "
+                f"WHERE {' AND '.join(clauses)} "
+                f"ORDER BY reference_count DESC, last_relevant_at DESC "
+                f"LIMIT ${len(params)}",
+                *params,
+            )
+            return _json_result([
+                {
+                    "id": str(r["id"]),
+                    "project_id": str(r["project_id"]) if r["project_id"] else None,
+                    "category": r["category"],
+                    "content": r["content"],
+                    "evidence_quote": r["evidence_quote"],
+                    "status": r["status"],
+                    "reference_count": r["reference_count"],
+                    "last_relevant_at": r["last_relevant_at"].isoformat() if r["last_relevant_at"] else None,
+                    "promoted_at": r["promoted_at"].isoformat() if r["promoted_at"] else None,
+                }
+                for r in rows
+            ])
+
+        if name == "record_learning":
+            category = arguments.get("category") or ""
+            content = (arguments.get("content") or "").strip()
+            evidence_quote = arguments.get("evidence_quote") or None
+            allowed = ("pm_preference", "domain_fact", "workflow_pattern", "anti_pattern")
+            if category not in allowed:
+                return _json_result({"error": f"bad category {category!r}, expected {allowed}"})
+            if not content:
+                return _json_result({"error": "content is required"})
+            # Normalize content into dedup key — mirrors
+            # app.services.learnings._content_key.
+            import re as _re
+            key = _re.sub(r"\s+", " ", content.lower().strip())[:256]
+
+            # Find active session so the learning is linked to the
+            # origin context. Best-effort — unset if lookup fails.
+            uid = await get_user_id(pid)
+            session_id = None
+            try:
+                session_id = await _active_session_id(conn, pid, uid)
+            except Exception:
+                session_id = None
+
+            row = await conn.fetchrow(
+                """
+                INSERT INTO learnings
+                  (project_id, origin_session_id, category, content, content_key,
+                   evidence_quote, status, reference_count, last_relevant_at)
+                VALUES ($1, $2::uuid, $3, $4, $5, $6, 'transient', 1, NOW())
+                ON CONFLICT ON CONSTRAINT uq_learnings_dedup
+                DO UPDATE SET
+                  reference_count = learnings.reference_count + 1,
+                  last_relevant_at = NOW(),
+                  evidence_quote = COALESCE(EXCLUDED.evidence_quote, learnings.evidence_quote),
+                  status = CASE
+                    WHEN learnings.status = 'promoted' THEN 'promoted'
+                    ELSE 'transient'
+                  END,
+                  dismissed_at = NULL,
+                  dismissed_by = NULL
+                RETURNING id, category, content, reference_count, status
+                """,
+                pid, session_id, category, content, key, evidence_quote,
+            )
+            # Emit a session event so the dashboard timeline shows this
+            # learning being captured in-session.
+            await _emit_event(
+                conn, pid=pid, event_type="learning_recorded",
+                payload={
+                    "learning_id": str(row["id"]),
+                    "category": row["category"],
+                    "content": row["content"][:200],
+                    "reference_count": row["reference_count"],
+                },
+            )
+            return _json_result({
+                "success": True,
+                "id": str(row["id"]),
+                "category": row["category"],
+                "content": row["content"],
+                "reference_count": row["reference_count"],
+                "status": row["status"],
             })
 
         if name == "get_current_time":

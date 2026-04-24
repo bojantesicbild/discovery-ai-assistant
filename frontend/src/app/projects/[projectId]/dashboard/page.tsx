@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getDashboard, type DashboardResponse } from "@/lib/api";
+import LearningsPanel from "@/components/dashboard/LearningsPanel";
 
 export default function DashboardPage() {
   const params = useParams();
@@ -77,6 +78,9 @@ export default function DashboardPage() {
         <StatCard label="Contradictions" value={data.contradictions_unresolved} color={data.contradictions_unresolved > 0 ? "red" : undefined} />
         <StatCard label="Documents" value={data.documents_count} sub={data.documents_processing > 0 ? `${data.documents_processing} processing` : undefined} />
       </div>
+
+      {/* Learnings inbox — promotion candidates + active patterns */}
+      <LearningsPanel projectId={projectId} />
 
       {/* Activity */}
       <div className="bg-white rounded-xl border p-5">

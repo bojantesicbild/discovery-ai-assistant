@@ -39,6 +39,28 @@ async def run_integration_sync(ctx):
     await _run()
 
 
+async def run_learnings_reaper(ctx):
+    """Dismiss stale transient learnings.
+
+    Phase 3 of the session-heartbeat architecture. Transient learnings
+    older than DEFAULT_STALE_DAYS with fewer than DEFAULT_STALE_MIN_REFS
+    references get auto-dismissed so the inbox doesn't grow monotonically.
+    Promoted learnings are untouched — once the PM endorses one, we keep
+    it regardless of age.
+    """
+    import structlog
+    from app.services.learnings import auto_dismiss_stale
+
+    async_session = ctx["db_session"]
+    async with async_session() as db:
+        dismissed = await auto_dismiss_stale(db)
+        await db.commit()
+    if dismissed:
+        structlog.get_logger().info(
+            "learnings.reaper.dismissed", count=dismissed,
+        )
+
+
 async def scan_due_reminders(ctx):
     """Pick up reminders whose prep window has opened, run prep + delivery.
 
@@ -150,6 +172,7 @@ class WorkerSettings:
         cron(run_weekly_summaries, weekday=0, hour=7, minute=30),  # Monday 7:30 AM
         cron(run_integration_sync, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}),  # Every 5 min
         cron(scan_due_reminders, minute=set(range(0, 60))),  # Every minute — max 1-min reminder lag
+        cron(run_learnings_reaper, hour=3, minute=30),       # Daily 3:30 AM — dismiss stale learnings
     ]
     on_startup = startup
     on_shutdown = shutdown

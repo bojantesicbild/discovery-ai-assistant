@@ -1047,3 +1047,55 @@ export async function getWikiFiles(projectId: string) {
 export async function getWikiFile(projectId: string, path: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/file?path=${encodeURIComponent(path)}`);
 }
+
+// Learnings (Phase 3 — session-heartbeat architecture)
+export type LearningCategory = "pm_preference" | "domain_fact" | "workflow_pattern" | "anti_pattern";
+export type LearningStatus = "transient" | "promoted" | "dismissed";
+
+export interface Learning {
+  id: string;
+  project_id: string | null;
+  origin_session_id: string | null;
+  category: LearningCategory;
+  content: string;
+  evidence_quote: string | null;
+  evidence_doc_id: string | null;
+  status: LearningStatus;
+  reference_count: number;
+  last_relevant_at: string | null;
+  promoted_at: string | null;
+  promoted_by: string | null;
+  dismissed_at: string | null;
+  dismissed_by: string | null;
+  created_at: string | null;
+}
+
+export async function listActiveLearnings(
+  projectId: string,
+  opts: { category?: LearningCategory; limit?: number } = {},
+): Promise<{ learnings: Learning[]; total: number }> {
+  const params = new URLSearchParams();
+  if (opts.category) params.set("category", opts.category);
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  return fetchAPI(`/api/projects/${projectId}/learnings${qs ? "?" + qs : ""}`);
+}
+
+export async function listPromotionCandidates(
+  projectId: string,
+  opts: { threshold?: number; limit?: number } = {},
+): Promise<{ candidates: Learning[]; total: number; threshold: number }> {
+  const params = new URLSearchParams();
+  if (opts.threshold) params.set("threshold", String(opts.threshold));
+  if (opts.limit) params.set("limit", String(opts.limit));
+  const qs = params.toString();
+  return fetchAPI(`/api/projects/${projectId}/learnings/candidates${qs ? "?" + qs : ""}`);
+}
+
+export async function promoteLearning(projectId: string, learningId: string): Promise<Learning> {
+  return fetchAPI(`/api/projects/${projectId}/learnings/${learningId}/promote`, { method: "POST" });
+}
+
+export async function dismissLearning(projectId: string, learningId: string): Promise<Learning> {
+  return fetchAPI(`/api/projects/${projectId}/learnings/${learningId}/dismiss`, { method: "POST" });
+}
