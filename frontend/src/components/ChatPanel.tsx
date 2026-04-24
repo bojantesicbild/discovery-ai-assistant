@@ -586,10 +586,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           const isLiveStreamTarget = isStreaming && i === messages.length - 1;
           const hasContent = Boolean(msg.content) || (msg.segments && msg.segments.length > 0);
           const showGhost = msg.role === "assistant" && isLiveStreamTarget && !hasContent;
-          // Phase mapping for the 4-dot step indicator in the ghost head.
-          // plan → initial thinking, tools → tool invocation, extract →
-          // intermediate processing, write → response streaming.
-          const PHASES = ["thinking", "tool", "extract", "writing"] as const;
+          // Phase progression for the dot indicator — real status from
+          // the stream (thinking / tool / writing / retry), not a synthetic
+          // counter. Dots light up as the stream advances through phases.
+          const PHASES = ["thinking", "tool", "writing"] as const;
           const phaseIndex = isLiveStreamTarget
             ? Math.max(0, PHASES.indexOf(status.phase as any))
             : 0;
@@ -627,27 +627,33 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                       )}
                       <span className="cursor" />
                     </span>
-                    {/* 4-dot phase indicator → plan · tools · extract · write */}
-                    <span className="ghost-steps" title="plan → tools → extract → write">
-                      {PHASES.map((_, idx) => (
-                        <span
-                          key={idx}
-                          className={`step-dot${idx === phaseIndex ? " active" : ""}`}
-                        />
-                      ))}
-                      <span>step {phaseIndex + 1} / {PHASES.length}</span>
-                    </span>
+                    {/* Real-data status — dots indicate the live phase
+                        (thinking / tool / writing); trailing text is
+                        the actual counters from the stream, not a
+                        synthetic "step N of 4". */}
+                    {(status.toolCount > 0 || status.thinkingCount > 0) && (
+                      <span className="ghost-steps" title="Live agent status">
+                        {PHASES.map((_, idx) => (
+                          <span
+                            key={idx}
+                            className={`step-dot${idx === phaseIndex ? " active" : ""}`}
+                          />
+                        ))}
+                        <span>
+                          {status.toolCount > 0 && `${status.toolCount} tool${status.toolCount !== 1 ? "s" : ""}`}
+                          {status.toolCount > 0 && status.thinkingCount > 0 && " · "}
+                          {status.thinkingCount > 0 && `${status.thinkingCount} thinking`}
+                        </span>
+                      </span>
+                    )}
                   </div>
                   <div className="ghost-body">
-                    {/* When a tool is actively running, show its name +
-                        elapsed time at the top of the body */}
+                    {/* When a tool is actively running, show its real
+                        name at the top of the body. */}
                     {status.phase === "tool" && status.detail && (
                       <div className="ghost-tool">
                         <span className="tool-dot" />
-                        <span><span className="tool-name">{status.detail}</span></span>
-                        {status.toolCount > 0 && (
-                          <span className="tool-elapsed">{status.toolCount} call{status.toolCount !== 1 ? "s" : ""}</span>
-                        )}
+                        <span className="tool-name">{status.detail}</span>
                       </div>
                     )}
                     <div className="skeleton w1" />
