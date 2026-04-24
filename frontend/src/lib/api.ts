@@ -1099,3 +1099,39 @@ export async function promoteLearning(projectId: string, learningId: string): Pr
 export async function dismissLearning(projectId: string, learningId: string): Promise<Learning> {
   return fetchAPI(`/api/projects/${projectId}/learnings/${learningId}/dismiss`, { method: "POST" });
 }
+
+// API tokens (MU-1 — personal access tokens for MCP + CLI auth)
+export interface ApiTokenSummary {
+  id: string;
+  user_id: string;
+  name: string;
+  scopes: Record<string, unknown> | null;
+  created_at: string | null;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  expires_at: string | null;
+}
+
+export interface ApiTokenWithPlaintext extends ApiTokenSummary {
+  token: string;   // Plaintext — shown ONCE
+  note: string;
+}
+
+export async function listApiTokens(
+  opts: { includeRevoked?: boolean } = {},
+): Promise<{ tokens: ApiTokenSummary[]; total: number }> {
+  const qs = opts.includeRevoked ? "?include_revoked=true" : "";
+  return fetchAPI(`/api/tokens${qs}`);
+}
+
+export async function createApiToken(body: {
+  name: string;
+  expires_at?: string | null;
+  scopes?: Record<string, unknown> | null;
+}): Promise<ApiTokenWithPlaintext> {
+  return fetchAPI(`/api/tokens`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function revokeApiToken(tokenId: string): Promise<ApiTokenSummary> {
+  return fetchAPI(`/api/tokens/${tokenId}/revoke`, { method: "POST" });
+}

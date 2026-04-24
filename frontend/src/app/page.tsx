@@ -69,12 +69,21 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold">Discovery AI Assistant</h1>
           <p className="text-gray-500 mt-1">Structured client discovery for software projects</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-        >
-          New Project
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/settings/tokens"
+            className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+            title="Personal access tokens for MCP / CLI auth"
+          >
+            Tokens
+          </Link>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            New Project
+          </button>
+        </div>
       </div>
 
       {/* Create modal */}
