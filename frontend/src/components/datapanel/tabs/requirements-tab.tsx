@@ -1,13 +1,13 @@
 "use client";
 
-// Requirements tab — priority + status filter row, search, markdown
-// table, client-feedback column, and pagination. Extracted from
-// DataPanel.tsx with a typed props contract so the tab owns no data
-// fetching, just rendering.
+// Requirements tab — Design v2 card layout. Renders the same data the
+// old .panel-table did but as .req cards with id/version/date in the
+// left column + title + meta pills. Filter UI is v2: a single search
+// input + two fd (filter-dropdown) triggers for priority / status.
 
+import { useState, useRef, useEffect } from "react";
 import {
-  FilterChip, TypeBadge, PriBadge, StatusPill,
-  ReqClientBadge, SourceBadges, EmptyState,
+  FilterChip, ReqClientBadge, SourceBadges, EmptyState,
 } from "../pills";
 import type {
   ApiRequirement, ReqClientFeedback, GapClientFeedback, ProposedUpdate,
@@ -15,7 +15,7 @@ import type {
 import type { FindingType } from "@/lib/api";
 import { applyTableState, type TableState } from "@/lib/tableState";
 import { formatAge } from "@/lib/dates";
-import { TableSearch, SortableHeader, Pagination } from "../../TableControls";
+import { Pagination } from "../../TableControls";
 
 
 interface RequirementsTabProps {
@@ -39,158 +39,316 @@ interface RequirementsTabProps {
 }
 
 
+const PRIORITY_OPTIONS = [
+  { value: "all", label: "All priorities" },
+  { value: "must", label: "Must" },
+  { value: "should", label: "Should" },
+  { value: "could", label: "Could" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "discussed", label: "Discussed" },
+  { value: "proposed", label: "Proposed" },
+];
+
+
 export function RequirementsTab({
   requirements, setRequirements, reqsTable,
   priorityFilter, setPriorityFilter, statusFilter, setStatusFilter,
   unreadCount, markTabSeenAll, markRowSeen,
   openRequirement, onNavigate, clientFeedback, proposals,
 }: RequirementsTabProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+
+  if (requirements.length === 0) {
+    return (
+      <div className="dp-tab-content active">
+        <EmptyState
+          icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
+          text="No requirements extracted yet. Upload documents to get started."
+        />
+      </div>
+    );
+  }
+
+  // Filter + search. Keep sort/pagination through applyTableState.
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = requirements.filter((r) => {
+    if (priorityFilter !== "all" && r.priority !== priorityFilter) return false;
+    if (statusFilter !== "all" && r.status !== statusFilter) return false;
+    if (q) {
+      const blob = `${r.req_id} ${r.title} ${r.source_person || ""} ${r.source_doc || ""}`.toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+  const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
+    filtered, reqsTable,
+    ["req_id", "title", "type", "priority", "status", "source_person"],
+  );
+
+  // Group new vs earlier (new = not-yet-seen)
+  const newThisSession = visible.filter((r) => !r.seen_at);
+  const earlier = visible.filter((r) => r.seen_at);
+
   return (
     <div className="dp-tab-content active">
-      {/* Filter row — priority + status chips, colored by value */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginRight: 2 }}>Priority</span>
-        {["all", "must", "should", "could"].map((f) => (
-          <FilterChip key={`p-${f}`} value={f} label={f === "all" ? "All" : f} active={priorityFilter === f} onClick={() => setPriorityFilter(f)} />
-        ))}
-        <span style={{ fontSize: 10, fontWeight: 700, color: "var(--gray-400)", letterSpacing: 0.5, textTransform: "uppercase", marginLeft: 8, marginRight: 2 }}>Status</span>
-        {["all", "confirmed", "discussed", "proposed"].map((f) => (
-          <FilterChip key={`s-${f}`} value={f} label={f === "all" ? "All" : f} active={statusFilter === f} onClick={() => setStatusFilter(f)} />
-        ))}
-      </div>
-      {/* Search row — full width, with unread-mark-all on the right */}
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-        <TableSearch state={reqsTable} placeholder="Search requirements…" />
+      {/* Filters row — search + priority + status dropdowns */}
+      <div className="filters" style={{ padding: "4px 0 14px" }}>
+        <div className="filter-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter requirements…"
+          />
+        </div>
+        <FilterDropdown
+          label="Priority"
+          value={priorityFilter}
+          options={PRIORITY_OPTIONS}
+          onChange={setPriorityFilter}
+        />
+        <FilterDropdown
+          label="Status"
+          value={statusFilter}
+          options={STATUS_OPTIONS}
+          onChange={setStatusFilter}
+        />
         {unreadCount > 0 && (
           <button
             onClick={() => markTabSeenAll("requirement", setRequirements)}
             title="Mark all requirements as read"
-            style={{
-              marginLeft: "auto", padding: "4px 10px", borderRadius: 6,
-              background: "var(--green-light)", color: "#059669",
-              border: "1px solid var(--green-mid)",
-              fontSize: 11, fontWeight: 600, cursor: "pointer",
-            }}
+            className="panel-filter-btn active"
+            style={{ marginLeft: "auto" }}
           >
             ✓ Mark all read ({unreadCount})
           </button>
         )}
       </div>
-      {requirements.length === 0 ? (
-        <EmptyState icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" text="No requirements extracted yet. Upload documents to get started." />
-      ) : (() => {
-        const filtered = requirements.filter((r) =>
-          (priorityFilter === "all" || r.priority === priorityFilter) &&
-          (statusFilter === "all" || r.status === statusFilter)
-        );
-        const { visible, filteredCount, totalPages, pageStart, pageEnd } = applyTableState(
-          filtered,
-          reqsTable,
-          ["req_id", "title", "type", "priority", "status", "source_person"],
-        );
-        return (
+
+      {/* Card list — NEW THIS SESSION group + EARLIER group */}
+      <div className="reqs-list" style={{ padding: 0 }}>
+        {newThisSession.length > 0 && (
           <>
-            <table className="panel-table">
-              <thead>
-                <tr>
-                  <SortableHeader label="ID" columnKey="req_id" state={reqsTable} />
-                  <SortableHeader label="Requirement" columnKey="title" state={reqsTable} />
-                  <SortableHeader label="Type / Pri" columnKey="priority" state={reqsTable} />
-                  <SortableHeader label="Status" columnKey="status" state={reqsTable} />
-                  <SortableHeader label="Source" columnKey="source_doc" state={reqsTable} />
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((req) => (
-                  <tr
-                    key={req.id || req.req_id}
-                    onClick={() => {
-                      openRequirement(req);
-                      onNavigate?.("reqs", req.req_id);
-                      if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
-                    }}
-                    className="clickable-row"
-                    title={req.title}
-                    style={!req.seen_at ? { background: "rgba(0, 229, 160, 0.14)" } : undefined}
-                  >
-                    <td style={{
-                      whiteSpace: "nowrap", lineHeight: 1.2,
-                      borderLeft: !req.seen_at ? "3px solid var(--green)" : undefined,
-                    }}>
-                      <div style={{ fontWeight: 700, color: "var(--green)", fontSize: 12 }}>{req.req_id}</div>
-                      <div style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 600 }}>v{req.version || 1}</div>
-                      {req.created_at && (
-                        <div
-                          style={{ fontSize: 9, color: "var(--gray-400)", fontWeight: 500 }}
-                          title={new Date(req.created_at).toLocaleString()}
-                        >{formatAge(req.created_at)}</div>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                        <div className="cell-title" style={{ fontWeight: 600, fontSize: 12, flex: 1, minWidth: 0 }}>{req.title}</div>
-                        {(() => {
-                          const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
-                          if (pendingCount === 0) return null;
-                          return (
-                            <span
-                              title={`${pendingCount} pending client-driven update${pendingCount !== 1 ? "s" : ""}`}
-                              style={{
-                                fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 10,
-                                background: "#eff6ff", color: "#1d4ed8",
-                                border: "1px solid #bfdbfe", whiteSpace: "nowrap",
-                                flexShrink: 0,
-                              }}
-                            >⚠ {pendingCount}</span>
-                          );
-                        })()}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                        <TypeBadge type={req.type} />
-                        <PriBadge priority={req.priority} />
-                      </div>
-                    </td>
-                    <td>
-                      {(() => {
-                        const fb = clientFeedback.requirements[req.req_id];
-                        // Collapse to the client badge when PM status and
-                        // client action agree (both would show the same
-                        // word). Keep both when they disagree — that's
-                        // a signal the PM needs to notice.
-                        const aligned = fb && (
-                          (fb.action === "confirm" && req.status === "confirmed") ||
-                          (fb.action === "discuss" && req.status === "discussed")
-                        );
-                        if (fb && aligned) {
-                          return <ReqClientBadge fb={fb} />;
-                        }
-                        return (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                            <StatusPill status={req.status} />
-                            {fb && <ReqClientBadge fb={fb} />}
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td style={{ fontSize: 10, color: "var(--gray-500)", maxWidth: 120 }}>
-                      <SourceBadges sourceDoc={req.source_doc || undefined} sources={req.sources} version={req.version} person={req.source_person || undefined} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <Pagination
-              state={reqsTable}
-              total={filteredCount}
-              pageStart={pageStart}
-              pageEnd={pageEnd}
-              totalPages={totalPages}
-            />
+            <div className="req-group-label">
+              New this session · {newThisSession.length}
+            </div>
+            {newThisSession.map((req) => (
+              <RequirementCard
+                key={`new-${req.id || req.req_id}`}
+                req={req}
+                isNew
+                proposals={proposals}
+                clientFeedback={clientFeedback}
+                onClick={() => {
+                  openRequirement(req);
+                  onNavigate?.("reqs", req.req_id);
+                  if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
+                }}
+              />
+            ))}
           </>
-        );
-      })()}
+        )}
+        {earlier.length > 0 && (
+          <>
+            {newThisSession.length > 0 && (
+              <div className="req-group-label">Earlier</div>
+            )}
+            {earlier.map((req) => (
+              <RequirementCard
+                key={`e-${req.id || req.req_id}`}
+                req={req}
+                proposals={proposals}
+                clientFeedback={clientFeedback}
+                onClick={() => {
+                  openRequirement(req);
+                  onNavigate?.("reqs", req.req_id);
+                }}
+              />
+            ))}
+          </>
+        )}
+      </div>
+
+      <Pagination
+        state={reqsTable}
+        total={filteredCount}
+        pageStart={pageStart}
+        pageEnd={pageEnd}
+        totalPages={totalPages}
+      />
+    </div>
+  );
+}
+
+
+/* ── Requirement card ───────────────────────────────────────────────── */
+
+function RequirementCard({
+  req, isNew, proposals, clientFeedback, onClick,
+}: {
+  req: ApiRequirement;
+  isNew?: boolean;
+  proposals: ProposedUpdate[];
+  clientFeedback: { requirements: Record<string, ReqClientFeedback>; gaps: Record<string, GapClientFeedback> };
+  onClick: () => void;
+}) {
+  const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
+  const fb = clientFeedback.requirements[req.req_id];
+  const pri = (req.priority || "could").toLowerCase();
+  const status = (req.status || "proposed").toLowerCase();
+  const typeLabel = (req.type || "").replace("_", " ");
+  const dateLabel = req.created_at ? formatAge(req.created_at) : "";
+
+  return (
+    <div
+      className={`req${isNew ? " new" : ""}`}
+      onClick={onClick}
+      title={req.title}
+    >
+      <div className="req-id">
+        <span className="id">{req.req_id}</span>
+        <span className="v">v{req.version || 1}</span>
+        {dateLabel && (
+          <span
+            className="d"
+            title={req.created_at ? new Date(req.created_at).toLocaleString() : ""}
+          >
+            {dateLabel}
+          </span>
+        )}
+      </div>
+
+      <div className="req-body">
+        <div className="req-title">{req.title}</div>
+        <div className="req-meta">
+          {req.priority && (
+            <span className={`pri ${pri}`}>{req.priority}</span>
+          )}
+          {req.type && (
+            <span className="type">{typeLabel}</span>
+          )}
+          <span className={`status ${status}`}>
+            <span className="dot" />
+            {req.status}
+          </span>
+          {req.source_doc && (
+            <span className="source-tag" title={req.source_doc}>
+              {req.source_doc}
+            </span>
+          )}
+          {fb && <ReqClientBadge fb={fb} />}
+        </div>
+      </div>
+
+      <div className="req-action">
+        {pendingCount > 0 && (
+          <span
+            className="req-warn"
+            title={`${pendingCount} pending proposed update${pendingCount !== 1 ? "s" : ""}`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            {pendingCount}
+          </span>
+        )}
+        <button
+          className="kebab"
+          onClick={(e) => { e.stopPropagation(); onClick(); }}
+          title="Open details"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="5" r="1" />
+            <circle cx="12" cy="12" r="1" />
+            <circle cx="12" cy="19" r="1" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+/* ── Filter dropdown ────────────────────────────────────────────────── */
+
+function FilterDropdown({
+  label, value, options, onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  const isActive = value && value !== "all";
+  const activeOpt = options.find((o) => o.value === value);
+
+  return (
+    <div className={`fd${open ? " open" : ""}`} ref={ref}>
+      <button
+        type="button"
+        className={`fd-trigger${isActive ? " has-value" : ""}`}
+        data-v={isActive ? value : undefined}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="fd-value-dot" />
+        <span className="fd-label">
+          {isActive ? activeOpt?.label : label}
+        </span>
+        <svg className="fd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+        {isActive && (
+          <span
+            className="fd-clear"
+            onClick={(e) => { e.stopPropagation(); onChange("all"); setOpen(false); }}
+            title="Clear filter"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M6 6l12 12M6 18L18 6" />
+            </svg>
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="fd-menu">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`fd-opt${opt.value === value ? " active" : ""}`}
+              data-value={opt.value === "all" ? undefined : opt.value}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+            >
+              <span className="opt-dot" />
+              {opt.label}
+              <svg className="opt-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

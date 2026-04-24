@@ -489,45 +489,95 @@
  * classes above, corresponding rules here can be deleted.
  * ============================================================ */
 
-/* ==== DataPanel tabs (legacy class names, v2 treatment) ==== */
+/* ==== DataPanel hero (legacy class names, Design v2 hero treatment) ==== */
 .dp-header {
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 24px 12px;
+  display: flex; align-items: center; gap: 22px;
+  padding: 24px 32px 20px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: var(--bg);
 }
 .dp-readiness {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 22px;
   cursor: pointer;
+  flex: 1;
+  min-width: 0;
 }
-.dp-rb-ring { width: 40px; height: 40px; position: relative; flex-shrink: 0; }
-.dp-rb-ring svg { width: 40px; height: 40px; transform: rotate(-90deg); }
-.dp-rb-ring .bg { fill: none; stroke: var(--line); stroke-width: 5; }
-.dp-rb-ring .fg { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
+.dp-rb-ring {
+  width: 72px; height: 72px;
+  position: relative; flex-shrink: 0;
+  border-radius: 50%;
+}
+.dp-rb-ring svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+.dp-rb-ring .bg { fill: none; stroke: var(--line); stroke-width: 4; }
+.dp-rb-ring .fg {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dashoffset .45s var(--ease-smooth);
+}
 .dp-rb-val {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 11px; font-weight: 800;
+  font-size: 20px; font-weight: 800;
   color: var(--ink);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
-.dp-rb-label { font-size: 14px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
-.dp-rb-sub { font-size: 11.5px; color: var(--ink-3); font-weight: 500; }
+.dp-rb-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.dp-rb-sub {
+  font-size: 24px; font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+.dp-rb-stats {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.dp-rb-stats .num { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dp-rb-stats .num-bad { color: #B91C1C; }
+.dp-rb-stats .num-ok { color: #14532D; }
 
+/* Info / hero action pill (Info button right of hero) */
+.dp-header .hero-info-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s;
+}
+.dp-header .hero-info-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.dp-header .hero-info-btn svg { width: 13px; height: 13px; }
+
+/* ==== Tabs ==== */
 .dp-tabs {
   display: flex;
-  padding: 0 24px;
+  padding: 0 32px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   overflow-x: auto;
   background: var(--bg);
   scrollbar-width: none;
+  gap: 2px;
 }
 .dp-tabs::-webkit-scrollbar { display: none; }
 .dp-tab {
-  padding: 12px 10px;
+  padding: 14px 10px;
   font-size: 13.5px; font-weight: 600;
   color: var(--ink-3);
   background: transparent;
@@ -535,31 +585,50 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
-  display: flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: baseline; gap: 6px;
   cursor: pointer;
   font-family: inherit;
+  letter-spacing: -0.005em;
   transition: color .15s, border-color .15s;
 }
 .dp-tab:first-child { padding-left: 0; }
 .dp-tab:hover { color: var(--ink); }
 .dp-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+/* Count label — neutral number with "total" sub-label */
 .tab-count {
-  font-size: 11px; font-weight: 700;
-  background: var(--surface-2);
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-size: 12px; font-weight: 700;
   color: var(--ink-3);
-  padding: 1px 7px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
   letter-spacing: -0.005em;
 }
-.dp-tab.active .tab-count {
+.tab-count .tab-count-label {
+  color: var(--ink-4);
+  font-weight: 500;
+  font-size: 10.5px;
+}
+.dp-tab.active .tab-count { color: var(--ink); }
+.dp-tab.active .tab-count .tab-count-label { color: var(--ink-3); }
+
+/* "NEW" chip — neon pill, matches design */
+.tab-new {
+  display: inline-flex; align-items: center;
+  font-size: 10px; font-weight: 800;
+  color: #0A1A10;
   background: var(--accent);
-  color: var(--accent-ink);
-  border-color: transparent;
+  letter-spacing: 0.02em;
+  margin-left: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
 }
 
 .dp-body { flex: 1; overflow-y: auto; background: var(--bg); }
-.dp-tab-content { display: none; padding: 14px 24px 20px; }
+.dp-tab-content { display: none; padding: 16px 32px 20px; }
 .dp-tab-content.active { display: block; }
 
 /* ==== Filter bar (pill chips) ==== */

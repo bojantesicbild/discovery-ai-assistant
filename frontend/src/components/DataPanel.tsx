@@ -505,31 +505,38 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   return (
     <div className="data-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Header with readiness ring */}
-      <div className="dp-header" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="dp-readiness" style={{ flex: 1, cursor: "pointer" }} onClick={openReadinessPanel}>
+      {/* Design v2 hero — bigger ring + eyebrow + headline + stats */}
+      <div className="dp-header">
+        <div className="dp-readiness" onClick={openReadinessPanel}>
           <div className="dp-rb-ring">
-            <svg viewBox="0 0 36 36">
-              <circle cx="18" cy="18" r="15" className="bg" />
-              <circle cx="18" cy="18" r="15" className="fg" style={{ strokeDasharray: circumference, strokeDashoffset: offset }} />
+            <svg viewBox="0 0 72 72">
+              <circle cx="36" cy="36" r="32" className="bg" />
+              <circle
+                cx="36" cy="36" r="32" className="fg"
+                style={{
+                  strokeDasharray: 2 * Math.PI * 32,
+                  strokeDashoffset: 2 * Math.PI * 32 * (1 - score / 100),
+                }}
+              />
             </svg>
             <div className="dp-rb-val">{Math.round(score)}%</div>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div className="dp-rb-label">Discovery Readiness</div>
             <div className="dp-rb-sub">
-              {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready"} ·{" "}
-              {requirements.length} requirements · {openContras.length} open contradictions · {openGaps.length} gaps
+              {score >= 85 ? "Ready for handoff" : score >= 65 ? "Conditionally ready" : "Not ready for handoff"}
+            </div>
+            <div className="dp-rb-stats">
+              <span className="num">{requirements.length}</span> requirements ·{" "}
+              <span className={`num${openContras.length ? " num-bad" : " num-ok"}`}>{openContras.length}</span> open contradictions ·{" "}
+              <span className={`num${openGaps.length ? " num-bad" : " num-ok"}`}>{openGaps.length}</span> gaps
             </div>
           </div>
         </div>
-        <button onClick={openReadinessPanel} style={{
-          fontSize: 10, fontWeight: 600, color: "var(--gray-500)", display: "flex", alignItems: "center", gap: 4,
-          padding: "4px 10px", borderRadius: 6, border: "1px solid var(--gray-200)",
-          background: "var(--white)", cursor: "pointer", fontFamily: "var(--font)", flexShrink: 0,
-        }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+        <button className="hero-info-btn" onClick={openReadinessPanel}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 16v-4M12 8h.01" />
           </svg>
           Info
         </button>
@@ -556,26 +563,15 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
               onClick={() => { setActiveTab(tab.id); setExpandedRow(null); onNavigate?.(tab.id); }}
             >
               {tab.label}
-              {count !== null && count > 0 && <span className="tab-count">{count}</span>}
+              {count !== null && count > 0 && (
+                <span className="tab-count">
+                  {count}
+                  <span className="tab-count-label">total</span>
+                </span>
+              )}
               {unread > 0 && (
-                <span
-                  title={`${unread} unread`}
-                  style={{
-                    marginLeft: 4,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: 16,
-                    height: 16,
-                    padding: "0 5px",
-                    borderRadius: 8,
-                    background: "var(--green)",
-                    color: "#0f172a",
-                    fontSize: 9,
-                    fontWeight: 700,
-                  }}
-                >
-                  {unread}
+                <span className="tab-new" title={`${unread} unread`}>
+                  {unread} new
                 </span>
               )}
             </div>
