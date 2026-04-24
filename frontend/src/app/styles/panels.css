@@ -452,29 +452,67 @@
 .kebab:hover { background: var(--bg); color: var(--ink); }
 .kebab svg { width: 16px; height: 16px; }
 
-/* ==== Pagination ==== */
+/* ==== Pagination — pinned at the bottom of .dp-tab-content ==== */
 .reqs-footer {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 10px;
   padding: 12px 32px;
   border-top: 1px solid var(--line);
   font-size: 13px;
   color: var(--ink-3);
   background: var(--bg);
+  flex-shrink: 0;
 }
-.pager { display: flex; align-items: center; gap: 6px; }
-.pager button {
-  width: 30px; height: 30px;
+.reqs-footer strong {
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pager-size {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
   border-radius: 8px;
-  display: grid; place-items: center;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.pager-size:hover { border-color: var(--line-strong); }
+.pager { display: flex; align-items: center; gap: 4px; }
+.pager button {
+  min-width: 30px; height: 30px; padding: 0 6px;
+  border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
   color: var(--ink-3);
   background: transparent;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all .12s;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background .12s, border-color .12s, color .12s;
 }
-.pager button:hover { background: var(--surface); border-color: var(--line); color: var(--ink); }
-.pager .current { background: var(--ink); color: #fff; font-weight: 600; font-size: 12px; }
-.pager svg { width: 14px; height: 14px; }
+.pager button:hover:not(:disabled) {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+.pager button:disabled { opacity: .3; cursor: not-allowed; }
+.pager .current {
+  background: var(--ink); color: #fff;
+  font-weight: 700; font-size: 12px;
+  padding: 0 10px; height: 30px;
+  display: inline-flex; align-items: center;
+  border-radius: 8px;
+  min-width: 30px; justify-content: center;
+}
+.pager-sep {
+  color: var(--ink-4);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  margin: 0 2px;
+}
 
 
 /* ============================================================
@@ -489,6 +527,20 @@
  * classes above, corresponding rules here can be deleted.
  * ============================================================ */
 
+/* ==== DataPanel layout shell ====
+ * .data-panel is flex-column full-height. Header + tabs pin to top,
+ * body grows, feature tabs own their internal scroll so the pager
+ * stays pinned at the bottom (not scrolling off).
+ */
+.data-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+
 /* ==== DataPanel hero (legacy class names, Design v2 hero treatment) ==== */
 .dp-header {
   display: flex; align-items: center; gap: 22px;
@@ -496,7 +548,46 @@
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: var(--bg);
+  transition: padding .25s var(--ease-smooth);
 }
+/* Collapsed state — hero shrinks to a single pill row */
+.data-panel.hero-collapsed .dp-header {
+  padding: 10px 32px;
+  gap: 14px;
+}
+.data-panel.hero-collapsed .dp-rb-ring { width: 28px; height: 28px; }
+.data-panel.hero-collapsed .dp-rb-ring svg { width: 28px; height: 28px; }
+.data-panel.hero-collapsed .dp-rb-val { font-size: 10px; }
+.data-panel.hero-collapsed .dp-rb-label { display: none; }
+.data-panel.hero-collapsed .dp-rb-sub {
+  font-size: 14px; font-weight: 700; margin-bottom: 0;
+  display: inline-block;
+}
+.data-panel.hero-collapsed .dp-rb-stats {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 12px;
+}
+.data-panel.hero-collapsed .dp-readiness { flex-direction: row; align-items: center; gap: 12px; }
+.data-panel.hero-collapsed .dp-readiness > div:last-child {
+  display: flex; align-items: center; gap: 12px;
+  flex: 1;
+}
+
+.hero-collapse-btn {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  display: grid; place-items: center;
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s, transform .15s;
+}
+.hero-collapse-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.hero-collapse-btn svg { width: 14px; height: 14px; transition: transform .25s var(--ease-smooth); }
+.data-panel.hero-collapsed .hero-collapse-btn svg { transform: rotate(180deg); }
 .dp-readiness {
   display: flex; align-items: center; gap: 22px;
   cursor: pointer;
@@ -627,9 +718,43 @@
   text-transform: uppercase;
 }
 
-.dp-body { flex: 1; overflow-y: auto; background: var(--bg); }
-.dp-tab-content { display: none; padding: 16px 32px 20px; }
-.dp-tab-content.active { display: block; }
+/* Body acts as the flex column that contains the active tab. Tabs own
+ * their internal scroll (filters sticky top, scroll area flex-1,
+ * footer flex-shrink 0 pinned at bottom) so pager + filter row don't
+ * scroll off when the content is long. */
+.dp-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+}
+.dp-tab-content { display: none; flex: 1; min-height: 0; }
+.dp-tab-content.active {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Default: tabs that haven't adopted the split layout still render
+ * usably. Any direct child that is .reqs / .reqs-footer opts in. */
+.dp-tab-content > .filters,
+.dp-tab-content > .dp-tab-static-top { flex-shrink: 0; }
+.dp-tab-content > .reqs-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 32px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.dp-tab-content > .reqs-scroll::-webkit-scrollbar { width: 8px; }
+.dp-tab-content > .reqs-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+}
+/* Fallback for tabs that don't split — keep normal scroll */
+.dp-tab-content:not(:has(> .reqs-scroll)) { overflow-y: auto; }
+.dp-tab-content:not(:has(> .reqs-scroll)) { padding: 16px 32px 20px; }
 
 /* ==== Filter bar (pill chips) ==== */
 .panel-filter {

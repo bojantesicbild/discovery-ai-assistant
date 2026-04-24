@@ -95,8 +95,8 @@ export function RequirementsTab({
 
   return (
     <div className="dp-tab-content active">
-      {/* Filters row — search + priority + status dropdowns */}
-      <div className="filters" style={{ padding: "4px 0 14px" }}>
+      {/* Filters row — pinned at the top via flex flex-shrink: 0 */}
+      <div className="filters" style={{ padding: "12px 32px 12px" }}>
         <div className="filter-search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="11" cy="11" r="7" />
@@ -132,48 +132,52 @@ export function RequirementsTab({
         )}
       </div>
 
-      {/* Card list — NEW THIS SESSION group + EARLIER group */}
-      <div className="reqs-list" style={{ padding: 0 }}>
-        {newThisSession.length > 0 && (
-          <>
-            <div className="req-group-label">
-              New this session · {newThisSession.length}
-            </div>
-            {newThisSession.map((req) => (
-              <RequirementCard
-                key={`new-${req.id || req.req_id}`}
-                req={req}
-                isNew
-                proposals={proposals}
-                clientFeedback={clientFeedback}
-                onClick={() => {
-                  openRequirement(req);
-                  onNavigate?.("reqs", req.req_id);
-                  if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
-                }}
-              />
-            ))}
-          </>
-        )}
-        {earlier.length > 0 && (
-          <>
-            {newThisSession.length > 0 && (
-              <div className="req-group-label">Earlier</div>
-            )}
-            {earlier.map((req) => (
-              <RequirementCard
-                key={`e-${req.id || req.req_id}`}
-                req={req}
-                proposals={proposals}
-                clientFeedback={clientFeedback}
-                onClick={() => {
-                  openRequirement(req);
-                  onNavigate?.("reqs", req.req_id);
-                }}
-              />
-            ))}
-          </>
-        )}
+      {/* Scroll area — grows to fill, cards inside. Pager stays below
+          this via the split-scroll layout defined in panels.css
+          (.dp-tab-content > .reqs-scroll + footer). */}
+      <div className="reqs-scroll">
+        <div className="reqs-list" style={{ padding: "8px 0 16px" }}>
+          {newThisSession.length > 0 && (
+            <>
+              <div className="req-group-label">
+                New this session · {newThisSession.length}
+              </div>
+              {newThisSession.map((req) => (
+                <RequirementCard
+                  key={`new-${req.id || req.req_id}`}
+                  req={req}
+                  isNew
+                  proposals={proposals}
+                  clientFeedback={clientFeedback}
+                  onClick={() => {
+                    openRequirement(req);
+                    onNavigate?.("reqs", req.req_id);
+                    if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
+                  }}
+                />
+              ))}
+            </>
+          )}
+          {earlier.length > 0 && (
+            <>
+              {newThisSession.length > 0 && (
+                <div className="req-group-label">Earlier</div>
+              )}
+              {earlier.map((req) => (
+                <RequirementCard
+                  key={`e-${req.id || req.req_id}`}
+                  req={req}
+                  proposals={proposals}
+                  clientFeedback={clientFeedback}
+                  onClick={() => {
+                    openRequirement(req);
+                    onNavigate?.("reqs", req.req_id);
+                  }}
+                />
+              ))}
+            </>
+          )}
+        </div>
       </div>
 
       <Pagination

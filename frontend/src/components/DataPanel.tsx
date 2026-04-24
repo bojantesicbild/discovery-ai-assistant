@@ -91,6 +91,9 @@ const TAB_TO_FINDING_TYPE: Record<string, FindingType | undefined> = {
 export default function DataPanel({ projectId, refreshKey = 0, initialTab, highlightId, onNavigate }: DataPanelProps) {
   // Active tab persists per-project so each project remembers where you were.
   // initialTab (from URL) overrides the persisted value when present.
+  const [heroCollapsed, setHeroCollapsed] = usePersistedState<boolean>(
+    "datapanel:heroCollapsed", false,
+  );
   const [activeTab, setActiveTab] = usePersistedState<string>(
     `datapanel:tab:${projectId}`,
     initialTab || "reqs",
@@ -504,8 +507,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   }
 
   return (
-    <div className="data-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Design v2 hero — bigger ring + eyebrow + headline + stats */}
+    <div className={`data-panel${heroCollapsed ? " hero-collapsed" : ""}`} style={{ flex: 1, width: "100%" }}>
+      {/* Design v2 hero — bigger ring + eyebrow + headline + stats.
+          Collapsible so the PM can reclaim vertical space when reviewing
+          long card lists. State persists via usePersistedState below. */}
       <div className="dp-header">
         <div className="dp-readiness" onClick={openReadinessPanel}>
           <div className="dp-rb-ring">
@@ -533,13 +538,25 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             </div>
           </div>
         </div>
-        <button className="hero-info-btn" onClick={openReadinessPanel}>
+        <button
+          className="hero-collapse-btn"
+          onClick={(e) => { e.stopPropagation(); setHeroCollapsed((v) => !v); }}
+          title={heroCollapsed ? "Expand readiness" : "Collapse readiness"}
+          aria-label="Toggle readiness details"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4M12 8h.01" />
+            <path d="M18 15l-6-6-6 6" />
           </svg>
-          Info
         </button>
+        {!heroCollapsed && (
+          <button className="hero-info-btn" onClick={openReadinessPanel}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 16v-4M12 8h.01" />
+            </svg>
+            Info
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

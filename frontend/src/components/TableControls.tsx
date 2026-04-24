@@ -120,36 +120,18 @@ export function Pagination({
   const canPrev = state.page > 1;
   const canNext = state.page < totalPages;
 
-  const btnStyle: React.CSSProperties = {
-    minWidth: 24, height: 22, padding: "0 6px",
-    border: "1px solid var(--gray-200)", background: "#fff",
-    borderRadius: 4, fontSize: 10, fontWeight: 600,
-    cursor: "pointer", color: "#475569",
-    fontFamily: "inherit",
-  };
-  const disabledStyle: React.CSSProperties = {
-    ...btnStyle, opacity: 0.4, cursor: "not-allowed",
-  };
-
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 8, padding: "8px 4px",
-      fontSize: 11, color: "var(--gray-500)",
-    }}>
+    <div className="reqs-footer">
       <span>
-        {pageStart + 1}–{pageEnd} of {total}
+        Showing <strong>{pageStart + 1}–{pageEnd}</strong> of <strong>{total}</strong>
       </span>
 
       <div style={{ flex: 1 }} />
 
       <select
+        className="pager-size"
         value={state.pageSize}
         onChange={(e) => state.setPageSize(Number(e.target.value))}
-        style={{
-          height: 22, fontSize: 11, padding: "0 4px",
-          border: "1px solid var(--gray-200)", borderRadius: 4,
-          background: "#fff", fontFamily: "inherit", color: "#475569",
-        }}
         title="Items per page"
       >
         {[10, 25, 50, 100].map((n) => (
@@ -157,39 +139,14 @@ export function Pagination({
         ))}
       </select>
 
-      <button
-        onClick={() => state.setPage(1)}
-        disabled={!canPrev}
-        style={canPrev ? btnStyle : disabledStyle}
-        title="First page"
-      >
-        «
-      </button>
-      <button
-        onClick={() => state.setPage(state.page - 1)}
-        disabled={!canPrev}
-        style={canPrev ? btnStyle : disabledStyle}
-      >
-        ‹
-      </button>
-      <span style={{ minWidth: 36, textAlign: "center", fontWeight: 600, color: "#0f172a" }}>
-        {state.page}/{totalPages}
-      </span>
-      <button
-        onClick={() => state.setPage(state.page + 1)}
-        disabled={!canNext}
-        style={canNext ? btnStyle : disabledStyle}
-      >
-        ›
-      </button>
-      <button
-        onClick={() => state.setPage(totalPages)}
-        disabled={!canNext}
-        style={canNext ? btnStyle : disabledStyle}
-        title="Last page"
-      >
-        »
-      </button>
+      <div className="pager">
+        <button onClick={() => state.setPage(1)} disabled={!canPrev} title="First page">«</button>
+        <button onClick={() => state.setPage(state.page - 1)} disabled={!canPrev}>‹</button>
+        <span className="current">{state.page}</span>
+        <span className="pager-sep">/ {totalPages}</span>
+        <button onClick={() => state.setPage(state.page + 1)} disabled={!canNext}>›</button>
+        <button onClick={() => state.setPage(totalPages)} disabled={!canNext} title="Last page">»</button>
+      </div>
     </div>
   );
 }
