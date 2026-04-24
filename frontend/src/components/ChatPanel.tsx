@@ -1146,68 +1146,56 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const groups = groupTools(tools);
+  const total = tools.length + (thinkingCount || 0);
+
+  // Compose the "· 13 MCP, 1 other, 2 thinking" summary + detail chips.
+  const mcpCount = groups.mcp || 0;
+  const otherCount = (groups.read || 0) + (groups.write || 0) + (groups.bash || 0)
+    + (groups.search || 0) + (groups.agent || 0) + (groups.other || 0);
+  const summaryParts: string[] = [];
+  const chips: { cls: string; label: string }[] = [];
+  if (mcpCount) { summaryParts.push(`${mcpCount} MCP`); chips.push({ cls: "a-mcp", label: `${mcpCount} MCP` }); }
+  if (otherCount) { summaryParts.push(`${otherCount} other`); chips.push({ cls: "a-other", label: `${otherCount} other` }); }
+  if (thinkingCount) { summaryParts.push(`${thinkingCount} thinking`); chips.push({ cls: "a-think", label: `${thinkingCount} thinking` }); }
+  const summary = summaryParts.length ? `· ${summaryParts.join(", ")}` : "";
 
   return (
-    <div style={{
-      margin: "8px 0",
-      padding: "6px 10px",
-      background: "var(--gray-50, #f9fafb)",
-      borderRadius: 8,
-      borderLeft: "3px solid var(--gray-200, #e5e7eb)",
-      fontSize: 11,
-    }}>
-      {/* Summary row */}
-      <div
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          display: "flex", alignItems: "center", gap: 6,
-          cursor: "pointer", userSelect: "none",
-        }}
-      >
-        <svg viewBox="0 0 24 24" style={{
-          width: 12, height: 12, stroke: "var(--gray-400)", fill: "none",
-          strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", flexShrink: 0,
-        }}>
-          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-        </svg>
-        <span style={{ color: "var(--gray-500)", fontWeight: 600 }}>
-          {tools.length} action{tools.length !== 1 ? "s" : ""}
-        </span>
-        {Object.entries(groups).map(([type, count]) => (
-          <span key={type} className={`activity-type-chip ${type}`} style={{ fontSize: 9 }}>
-            {count} {type}
-          </span>
-        ))}
-        {thinkingCount ? (
-          <span className="activity-type-chip thinking" style={{ fontSize: 9 }}>
-            {thinkingCount} thinking
-          </span>
-        ) : null}
-        <svg viewBox="0 0 24 24" style={{
-          width: 10, height: 10, stroke: "var(--gray-400)", fill: "none",
-          strokeWidth: 2.5, marginLeft: "auto", flexShrink: 0,
-          transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s",
-        }}>
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
+    <div className={`msg-card-tools inline${expanded ? " expanded" : ""}`}>
+      <div className="tools-bar">
+        <button className="tools-toggle" type="button" onClick={() => setExpanded(!expanded)}>
+          <svg className="tt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+          <span className="tt-count">{total} tool call{total !== 1 ? "s" : ""}</span>
+          {summary && <span className="tt-summary">{summary}</span>}
+          <svg className="tt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
       </div>
-
-      {/* Expanded tool list */}
       {expanded && (
-        <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--gray-100)" }}>
-          {tools.map((tool, i) => {
-            const type = inferToolType(tool);
-            return (
-              <div key={i} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "2px 0", fontSize: 10, color: "var(--gray-600)",
-              }}>
-                <div className={`activity-dot ${type}`} style={{ width: 5, height: 5 }} />
-                <span>{tool}</span>
-              </div>
-            );
-          })}
-        </div>
+        <>
+          <div className="tools-detail">
+            {chips.map((c) => (
+              <span key={c.cls} className={`act-chip ${c.cls}`}>
+                <span className="dot" />{c.label}
+              </span>
+            ))}
+          </div>
+          {tools.length > 0 && (
+            <div className="activity-list">
+              {tools.map((tool, i) => {
+                const type = inferToolType(tool);
+                return (
+                  <div key={i} className={`activity-item ${type}`}>
+                    <div className={`activity-dot ${type}`} />
+                    <span className="activity-label">{tool}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

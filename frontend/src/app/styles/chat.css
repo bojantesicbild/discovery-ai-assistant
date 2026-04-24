@@ -315,6 +315,19 @@
   padding: 6px 14px 10px;
   border-top: 1px solid var(--line);
 }
+
+/* Inline variant — sits BETWEEN text segments inside .msg-content.
+ * Gets its own border + radius instead of relying on the msg-card
+ * edges; spaced with 10px top/bottom margin. */
+.msg-card-tools.inline {
+  margin: 10px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.msg-card-tools.inline .tools-bar { border-bottom: 0; }
+.msg-card-tools.inline.expanded .tools-bar { border-bottom: 1px solid var(--line); }
 .act-chip {
   padding: 3px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 600;
