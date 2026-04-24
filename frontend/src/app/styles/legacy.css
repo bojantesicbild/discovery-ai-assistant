@@ -311,38 +311,9 @@
   overflow: hidden;
 }
 
-.chat-session-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--gray-200);
-  background: var(--white);
-  flex-shrink: 0;
-}
-
-.chat-session-icon {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: var(--dark);
-  color: var(--green);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.chat-session-title { font-size: 14px; font-weight: 700; }
-
-.chat-session-badge {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: var(--green-light);
-  color: #059669;
-  font-weight: 600;
-}
+/* Migrated → chat.css (.chat-header + .chat-title + .bubble +
+   .tools-chip + .chat-actions + .ghost-btn). The old .chat-session-*
+   classes above are no longer referenced by ChatPanel. */
 
 .chat-messages {
   flex: 1;
@@ -703,74 +674,10 @@
   background: #dbeafe; color: #2563eb; animation: pulse 1.5s infinite;
 }
 
-/* CHAT INPUT */
-.chat-input-area { padding: 0 20px 12px; flex-shrink: 0; }
-
-.chat-input-box {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius);
-  padding: 4px;
-  display: flex;
-  align-items: flex-end;
-  transition: all 0.2s;
-  box-shadow: var(--shadow-sm);
-}
-
-.chat-input-box:focus-within {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px var(--green-light), var(--shadow-md);
-}
-
-.chat-input-box textarea {
-  flex: 1;
-  padding: 9px 8px;
-  border: none;
-  font-size: 13px;
-  font-family: var(--font);
-  line-height: 1.5;
-  resize: none;
-  outline: none;
-  background: transparent;
-  color: var(--dark);
-  max-height: 120px;
-  min-height: 40px;
-}
-
-.chat-input-box textarea::placeholder { color: var(--gray-400); }
-
-.send-btn {
-  width: 34px; height: 34px;
-  border-radius: var(--radius-sm);
-  background: var(--green);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
-  margin: 3px;
-}
-
-.send-btn:hover { background: var(--green-hover); }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.send-btn svg {
-  width: 15px; height: 15px;
-  stroke: var(--dark);
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.chat-hint {
-  font-size: 10px;
-  color: var(--gray-400);
-  margin-top: 5px;
-  text-align: center;
-}
+/* Migrated → chat.css (.composer + .composer-box + .composer-footer,
+   .composer-tray/.tray-btn, .ctx-chip, .model-pill, .send-btn). The old
+   .chat-input-* + standalone .send-btn + .chat-hint rules are gone; the
+   v2 composer uses tokenized styles under .composer-footer. */
 
 /* DIVIDER */
 .split-divider {

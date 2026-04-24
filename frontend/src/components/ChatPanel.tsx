@@ -456,34 +456,43 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
 
   return (
     <div className="chat-panel" style={{ flex: 1, width: "100%" }}>
-      {/* Session header with status bar */}
-      <div className="chat-session-header" style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px" }}>
-        <div className="chat-session-icon" style={{ width: 28, height: 28, fontSize: 11 }}>AI</div>
-        <div className="chat-session-title" style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>Discovery Chat</div>
-
-        {/* Claude Code-style status bar */}
-        <StatusBar status={status} lastStats={lastStats} isStreaming={isStreaming} />
-
-        {messages.length > 0 && !isStreaming && (
-          <button
-            onClick={async () => {
-              if (confirm("Clear conversation and start fresh?")) {
-                await clearConversation(projectId);
-                setMessages([]);
-              }
-            }}
-            title="Clear conversation"
-            style={{
-              background: "none", border: "1px solid var(--gray-200)", borderRadius: 6,
-              padding: "4px 8px", cursor: "pointer", fontSize: 11, color: "var(--gray-400)",
-              fontFamily: "var(--font)", display: "flex", alignItems: "center", gap: 4,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/></svg>
-            Clear
-          </button>
-        )}
-      </div>
+      {/* Design v2 chat header — bubble + title + tools-chip on the left,
+          live StatusBar + Clear on the right. */}
+      <header className="chat-header">
+        <div className="chat-title">
+          <div className="bubble">AI</div>
+          <div>
+            <h2>Discovery Chat</h2>
+            <p>
+              <span className="tools-chip">
+                <span className="dot" />
+                13 tools
+              </span>
+              <span>Opus 4.6</span>
+            </p>
+          </div>
+        </div>
+        <div className="chat-actions">
+          <StatusBar status={status} lastStats={lastStats} isStreaming={isStreaming} />
+          {messages.length > 0 && !isStreaming && (
+            <button
+              className="ghost-btn"
+              onClick={async () => {
+                if (confirm("Clear conversation and start fresh?")) {
+                  await clearConversation(projectId);
+                  setMessages([]);
+                }
+              }}
+              title="Clear conversation"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              </svg>
+              Clear
+            </button>
+          )}
+        </div>
+      </header>
 
       {/* Messages */}
       <div
@@ -682,18 +691,25 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="chat-input-area" style={{ position: "relative" }}>
-        {/* Workflow popup */}
+      {/* Design v2 composer — input on top, action footer below with
+          a tray on the left (workflows trigger) + model + send. */}
+      <div className="composer" style={{ position: "relative" }}>
         {showWorkflows && (
-          <div style={{
-            position: "absolute", bottom: "calc(100% + 4px)", left: 0, width: 300,
-            background: "var(--white)", border: "1px solid var(--gray-200)",
-            borderRadius: "var(--radius)", boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-            zIndex: 50, overflow: "hidden",
-          }}>
-            <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid var(--gray-100)" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "var(--gray-400)" }}>
+          <div
+            style={{
+              position: "absolute", bottom: "calc(100% - 6px)", left: 20, width: 300,
+              background: "var(--surface)", border: "1px solid var(--line)",
+              borderRadius: "var(--radius)", boxShadow: "var(--shadow-lg)",
+              zIndex: 50, overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid var(--line)" }}>
+              <div
+                style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.08em", color: "var(--ink-4)",
+                }}
+              >
                 Workflows
               </div>
             </div>
@@ -704,24 +720,32 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   onClick={() => { setShowWorkflows(false); sendMessage(wf.prompt); }}
                   style={{
                     display: "flex", alignItems: "center", gap: 12, padding: "10px 12px",
-                    borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "all 0.15s",
+                    borderRadius: "var(--radius-sm)", cursor: "pointer", transition: "background 0.15s",
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = "var(--gray-50)"}
-                  onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "var(--radius-sm)",
-                    border: "1px solid var(--gray-200)", background: "var(--gray-50)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "var(--gray-500)", flexShrink: 0,
-                  }}>
-                    <svg viewBox="0 0 24 24" style={{ width: 16, height: 16, stroke: "currentColor", fill: "none", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                  <div
+                    style={{
+                      width: 32, height: 32, borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--line)", background: "var(--surface-2)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: "var(--ink-3)", flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      style={{
+                        width: 16, height: 16, stroke: "currentColor", fill: "none",
+                        strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round",
+                      }}
+                    >
                       {wf.icon}
                     </svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--dark)" }}>{wf.label}</div>
-                    <div style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 1 }}>{wf.desc}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{wf.label}</div>
+                    <div style={{ fontSize: 11, color: "var(--ink-4)", marginTop: 1 }}>{wf.desc}</div>
                   </div>
                 </div>
               ))}
@@ -729,45 +753,70 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           </div>
         )}
 
-        <div className="chat-input-box">
-          <button
-            onClick={() => setShowWorkflows(!showWorkflows)}
-            disabled={isStreaming}
-            style={{
-              width: 34, height: 34, borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--gray-200)", background: showWorkflows ? "var(--green-light)" : "var(--white)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              cursor: "pointer", transition: "all 0.2s", flexShrink: 0, margin: "3px 4px",
-              color: showWorkflows ? "var(--green)" : "var(--gray-500)",
-              transform: showWorkflows ? "rotate(45deg)" : "none",
-            }}
-          >
-            <svg viewBox="0 0 24 24" style={{ width: 18, height: 18, stroke: "currentColor", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            placeholder="Ask about requirements, gaps, readiness..."
-            value={input}
-            onChange={(e) => { setInput(e.target.value); if (showWorkflows) setShowWorkflows(false); }}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-          />
-          <button
-            className="send-btn"
-            onClick={() => handleSubmit()}
-            disabled={isStreaming || !input.trim()}
-          >
-            <svg viewBox="0 0 24 24">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-          </button>
-        </div>
-        <div className="chat-hint">
-          Type <strong>/</strong> for workflows
+        <div className="composer-box">
+          <div className="composer-input-wrap">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder="Ask about requirements, gaps, readiness…"
+              value={input}
+              onChange={(e) => { setInput(e.target.value); if (showWorkflows) setShowWorkflows(false); }}
+              onKeyDown={handleKeyDown}
+              disabled={isStreaming}
+            />
+          </div>
+          <div className="composer-footer">
+            <div className="composer-tray">
+              <button
+                type="button"
+                className="tray-btn"
+                onClick={() => setShowWorkflows(!showWorkflows)}
+                disabled={isStreaming}
+                title="Workflows"
+                style={{
+                  color: showWorkflows ? "var(--accent-ink)" : undefined,
+                  background: showWorkflows ? "var(--accent-soft)" : undefined,
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span className="tray-kbd">/</span>
+              </button>
+            </div>
+
+            <div style={{ flex: 1, fontSize: 11, color: "var(--ink-4)" }}>
+              Type <strong style={{ color: "var(--ink-2)" }}>/</strong> for workflows
+            </div>
+
+            <div className="composer-right">
+              <button
+                type="button"
+                className="model-pill"
+                title="Model"
+                onClick={(e) => e.preventDefault()}
+              >
+                <span className="model-dot" />
+                Opus 4.6
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="send-btn"
+                onClick={() => handleSubmit()}
+                disabled={isStreaming || !input.trim()}
+                title="Send"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1789,9 +1838,11 @@ function renderChatMarkdown(text: string): string {
     return '\x00BLOCK<ul class="chat-ul">' + items.map(i => `<li class="chat-li">${renderInline(i)}</li>`).join("") + "</ul>BLOCK\x00";
   });
 
-  // Ordered list items — collect consecutive
-  html = html.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
-    const items = block.trim().split("\n").map(l => l.replace(/^\d+\. /, ""));
+  // Ordered list items — collect consecutive, tolerating a blank line between items
+  // (LLMs often emit each item as "1." with blank-line separators; we merge into one <ol>
+  // so the browser auto-numbers 1, 2, 3, … regardless of the source digit.)
+  html = html.replace(/((?:^\d+\. .+$\n(?:\n(?=\d+\. ))?)+)/gm, (block) => {
+    const items = block.trim().split(/\n+/).map(l => l.replace(/^\d+\. /, ""));
     return '\x00BLOCK<ol class="chat-ol">' + items.map(i => `<li class="chat-oli">${renderInline(i)}</li>`).join("") + "</ol>BLOCK\x00";
   });
 
