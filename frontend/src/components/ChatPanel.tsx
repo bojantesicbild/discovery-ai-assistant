@@ -1000,73 +1000,88 @@ function ActivityPanel({ tools, isLive, currentTool, thinkingCount, activityLog 
   const logEntries = activityLog || [];
   const lastEntry = logEntries.length > 0 ? logEntries[logEntries.length - 1] : null;
 
+  // Design v2 tools-bar: collapsed shows "N tool calls · breakdown" with
+  // chevron; expanded shows a detail row of act-chips + the full log.
+  const totalActions = tools.length + (thinkingCount || 0);
+  const summaryParts: string[] = [];
+  const groupBadges: { cls: string; label: string }[] = [];
+  const mcpCount = groups.mcp || 0;
+  const readCount = (groups.read || 0);
+  const writeCount = (groups.write || 0) + (groups.bash || 0);
+  const otherCount = (groups.other || 0) + (groups.search || 0) + (groups.agent || 0);
+  if (mcpCount > 0) { summaryParts.push(`${mcpCount} MCP`); groupBadges.push({ cls: "a-mcp", label: `${mcpCount} MCP` }); }
+  if (readCount + writeCount + otherCount > 0) {
+    const n = readCount + writeCount + otherCount;
+    summaryParts.push(`${n} other`);
+    groupBadges.push({ cls: "a-other", label: `${n} other` });
+  }
+  if (thinkingCount && thinkingCount > 0) {
+    summaryParts.push(`${thinkingCount} thinking`);
+    groupBadges.push({ cls: "a-think", label: `${thinkingCount} thinking` });
+  }
+  const summary = summaryParts.length ? `· ${summaryParts.join(", ")}` : "";
+
   return (
-    <div className="activity-panel">
-      {/* Summary bar — always visible */}
-      <div className="activity-summary" onClick={() => setExpanded(!expanded)}>
-        <div className="activity-summary-left">
-          <span className="activity-count">{tools.length} action{tools.length !== 1 ? "s" : ""}</span>
-          {Object.entries(groups).map(([type, count]) => (
-            <span key={type} className={`activity-type-chip ${type}`}>
-              {count} {type}
-            </span>
-          ))}
-          {thinkingCount ? (
-            <span className="activity-type-chip thinking">{thinkingCount} thinking</span>
-          ) : null}
-          {/* Last action preview when collapsed */}
-          {!expanded && lastEntry && (
-            <span style={{ fontSize: 10, color: lastEntry.type === "error" ? "#EF4444" : "var(--gray-500)", marginLeft: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
-              {lastEntry.type === "tool" ? lastEntry.tool : lastEntry.content?.slice(0, 50)}
-            </span>
-          )}
-        </div>
-        <button className="activity-expand-btn">
-          {expanded ? "Hide" : "Show"}
-          <svg viewBox="0 0 24 24" style={{ width: 10, height: 10, stroke: "currentColor", fill: "none", strokeWidth: 2.5, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
-            <polyline points="6 9 12 15 18 9"/>
+    <div className={`msg-card-tools${expanded ? " expanded" : ""}`}>
+      {/* Collapsed toggle — matches design's .tools-bar > .tools-toggle */}
+      <div className="tools-bar">
+        <button className="tools-toggle" type="button" onClick={() => setExpanded(!expanded)}>
+          <svg className="tt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+          <span className="tt-count">{totalActions} tool call{totalActions !== 1 ? "s" : ""}</span>
+          {summary && <span className="tt-summary">{summary}</span>}
+          <svg className="tt-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M6 9l6 6 6-6" />
           </svg>
         </button>
       </div>
 
-      {/* Expanded activity log (text + tools interleaved) */}
-      {expanded && (activityLog && activityLog.length > 0 ? (
-        <div className="activity-list">
-          {activityLog.map((entry, i) => (
-            <div key={i} className={`activity-item ${entry.type === "tool" ? inferToolType(entry.tool || "") : entry.type}`}>
-              <div className={`activity-dot ${entry.type === "tool" ? inferToolType(entry.tool || "") : entry.type === "error" ? "mcp" : entry.type === "thinking" ? "agent" : ""}`} />
-              <span className="activity-label" style={{
-                color: entry.type === "error" ? "#EF4444" : entry.type === "text" ? "var(--gray-600)" : undefined,
-                fontStyle: entry.type === "text" ? "normal" : undefined,
-                fontSize: entry.type === "text" ? 10 : undefined,
-              }}>
-                {entry.type === "tool" ? entry.tool : entry.type === "thinking" ? "Thinking..." : entry.type === "error" ? `Error: ${entry.content}` : entry.content}
+      {/* Expanded breakdown — chips first, then per-tool log */}
+      {expanded && (
+        <>
+          <div className="tools-detail">
+            {groupBadges.map((b) => (
+              <span key={b.cls} className={`act-chip ${b.cls}`}>
+                <span className="dot" />{b.label}
               </span>
+            ))}
+          </div>
+          {(activityLog && activityLog.length > 0) ? (
+            <div className="activity-list">
+              {activityLog.map((entry, i) => (
+                <div
+                  key={i}
+                  className={`activity-item ${entry.type === "tool" ? inferToolType(entry.tool || "") : entry.type}`}
+                >
+                  <div className={`activity-dot ${entry.type === "tool" ? inferToolType(entry.tool || "") : entry.type === "thinking" ? "agent" : ""}`} />
+                  <span className="activity-label">
+                    {entry.type === "tool" ? entry.tool
+                      : entry.type === "thinking" ? "Thinking…"
+                      : entry.type === "error" ? `Error: ${entry.content}`
+                      : entry.content}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      ) : tools.length > 0 ? (
-        <div className="activity-list">
-          {tools.map((tool, i) => {
-            const type = inferToolType(tool);
-            const isCurrent = isLive && tool === currentTool;
-            const isLast = isLive && i === tools.length - 1 && !currentTool;
-            return (
-              <div key={i} className={`activity-item ${type}${isCurrent || isLast ? " active" : ""}`}>
-                <div className={`activity-dot ${type}${isCurrent || isLast ? " pulse" : ""}`} />
-                <span className="activity-label">{tool}</span>
-                {(isCurrent || isLast) && <span className="activity-running">running</span>}
-              </div>
-            );
-          })}
-          {isLive && (
-            <div className="activity-item active" style={{ opacity: 0.5 }}>
-              <div className="activity-dot pulse" />
-              <span className="activity-label" style={{ fontStyle: "italic" }}>...</span>
+          ) : tools.length > 0 ? (
+            <div className="activity-list">
+              {tools.map((tool, i) => {
+                const type = inferToolType(tool);
+                const isCurrent = isLive && tool === currentTool;
+                const isLast = isLive && i === tools.length - 1 && !currentTool;
+                return (
+                  <div key={i} className={`activity-item ${type}${isCurrent || isLast ? " active" : ""}`}>
+                    <div className={`activity-dot ${type}${isCurrent || isLast ? " pulse" : ""}`} />
+                    <span className="activity-label">{tool}</span>
+                    {(isCurrent || isLast) && <span className="activity-running">running</span>}
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-      ) : null)}
+          ) : null}
+        </>
+      )}
     </div>
   );
 }
@@ -1935,28 +1950,20 @@ function renderInline(text: string): string {
   });
   // Wikilinks
   t = t.replace(/\[\[([^\]]+)\]\]/g, (_m, target) => slot(`<a ${WS} data-wiki="${target}">${target}</a>`));
-  // Bare finding IDs in prose → clickable chips that open the detail panel.
-  // Backticked IDs (`BR-001`) and markdown links ([BR-001](br://…)) are
-  // already slotted above, so this pass only sees remaining plain text —
-  // that's the "escape hatch" the agent uses when it wants a literal
-  // non-linked reference. Requires 3+ digits to avoid version strings.
-  // Colors mirror Topbar TYPE_COLORS so auto-linked IDs match the rest of
-  // the UI (search results, type badges, graph nodes).
+  // Bare finding IDs in prose → tokenized .chat-ref pills. Styling
+  // lives in chat.css; per-kind variant classes (.chat-ref-br,
+  // .chat-ref-gap, etc.) paint the accent color. Keeps the renderer
+  // free of inline styles so theme changes propagate.
   t = t.replace(/\b(BR|GAP|CON|CTR)-\d{3,}\b/g, (id, prefix) => {
-    const kindMeta: Record<string, { tab: string; color: string }> = {
-      BR:  { tab: "reqs",           color: "#059669" },  // requirement green
-      GAP: { tab: "gaps",           color: "#F59E0B" },  // gap amber
-      CON: { tab: "constraints",    color: "#F97316" },  // constraint orange
-      CTR: { tab: "contradictions", color: "#EF4444" },  // contradiction red
+    const tabMap: Record<string, string> = {
+      BR: "reqs", GAP: "gaps",
+      CON: "constraints", CTR: "contradictions",
     };
-    const { tab, color } = kindMeta[prefix];
+    const tab = tabMap[prefix];
+    const variant = prefix.toLowerCase();
     return slot(
       `<a data-finding-id="${id}" data-finding-tab="${tab}" ` +
-      `style="display:inline-block;white-space:nowrap;` +
-      `padding:1px 7px;border-radius:10px;font-size:0.88em;` +
-      `font-weight:600;cursor:pointer;text-decoration:none;` +
-      `background:${color}15;color:${color};` +
-      `border:1px solid ${color}30">${id}</a>`
+      `class="chat-ref chat-ref-${variant}">${id}</a>`
     );
   });
   // Bold / italic

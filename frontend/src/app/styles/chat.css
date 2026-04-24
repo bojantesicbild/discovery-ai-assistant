@@ -168,18 +168,43 @@
   color: var(--ink);
 }
 /* Finding-id pill (BR-004, GAP-007 …). Kept under a scoped class so
- * it doesn't collide with the legacy `.ref` used elsewhere. */
+ * it doesn't collide with the legacy `.ref` used elsewhere.
+ * Per-kind variants use soft tinted backgrounds that harmonize with
+ * the accent tokens without shouting — readable in prose, still
+ * clickable-looking via cursor:pointer. */
 .msg-content .chat-ref {
   display: inline-block;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
   font-size: 12px; font-weight: 700;
-  padding: 2px 7px;
-  background: var(--accent);
-  color: #0A1A10;
-  border-radius: 5px;
+  padding: 1px 7px;
+  border-radius: 6px;
   margin: 0 2px;
   vertical-align: 1px;
   letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.msg-content .chat-ref-br  {
+  background: var(--accent-soft); color: #14532D;
+  border: 1px solid rgba(0,168,100,.18);
+}
+.msg-content .chat-ref-gap {
+  background: var(--should-soft); color: #B45309;
+  border: 1px solid rgba(245,158,11,.22);
+}
+.msg-content .chat-ref-con {
+  background: #FFF4E6; color: #B45309;
+  border: 1px solid rgba(249,115,22,.2);
+}
+.msg-content .chat-ref-ctr {
+  background: var(--must-soft); color: #B91C1C;
+  border: 1px solid rgba(255,59,48,.22);
+}
+.msg-content .chat-ref:hover {
+  background: var(--accent);
+  color: #0A1A10;
+  border-color: transparent;
 }
 .msg-content em { font-style: normal; font-weight: 600; color: var(--must); }
 
@@ -265,7 +290,8 @@
   color: var(--ink-3);
   transition: transform .2s;
 }
-.msg-card.expanded .tools-toggle .tt-chevron { transform: rotate(180deg); }
+.msg-card.expanded .tools-toggle .tt-chevron,
+.msg-card-tools.expanded .tools-toggle .tt-chevron { transform: rotate(180deg); }
 .tools-detail {
   display: none;
   padding: 10px 14px;
@@ -274,7 +300,21 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-.msg-card.expanded .tools-detail { display: flex; }
+.msg-card.expanded .tools-detail,
+.msg-card-tools.expanded .tools-detail { display: flex; }
+
+/* Tool-call block — a wrapper we can drop above .msg-content.
+ * Matches the design's data-expandable pattern without requiring
+ * the parent msg-card to carry the .expanded state. */
+.msg-card-tools {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.msg-card-tools .tools-bar { border-bottom: 0; }
+.msg-card-tools .activity-list {
+  padding: 6px 14px 10px;
+  border-top: 1px solid var(--line);
+}
 .act-chip {
   padding: 3px 10px; border-radius: 999px;
   font-size: 11px; font-weight: 600;
