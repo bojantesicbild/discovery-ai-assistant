@@ -321,14 +321,12 @@
   border-radius: 14px;
   padding: 14px 16px;
   margin-bottom: 8px;
-  display: grid;
-  /* Tight id column — fixed 56px. "BR-020" is ~55px at this weight/
-   * size; "Apr 22, 2026" gets ellipsis via min-width: 0 on .req-id.
-   * Column gap kept tight at 10px so the title hugs the id block. */
-  grid-template-columns: 56px 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 4px 10px;
-  align-items: start;
+  /* Flex instead of grid — grid's auto column was stretching the
+   * action track unpredictably (saw 194–254px dead space in testing).
+   * Flex lets each child hug its own content; body takes the rest. */
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   cursor: pointer;
   position: relative;
   transition: border-color .15s, transform .12s, box-shadow .15s;
@@ -340,12 +338,12 @@
 }
 
 .req-id {
-  grid-row: 1 / 3;
+  width: 56px;
+  flex-shrink: 0;
   display: flex; flex-direction: column;
   align-items: flex-start;
   gap: 2px;
   padding-top: 1px;
-  min-width: 0;
   overflow: hidden;
 }
 .req-id > * {
@@ -380,8 +378,9 @@
 .req-id .d { margin-top: 1px; }
 
 .req-body {
-  display: flex; flex-direction: column; gap: 6px;
+  flex: 1 1 0;
   min-width: 0;
+  display: flex; flex-direction: column; gap: 6px;
 }
 .req-title {
   font-size: 14.5px; font-weight: 600;
@@ -439,14 +438,9 @@
 .source svg { width: 12px; height: 12px; }
 
 .req-action {
-  grid-row: 1 / 3;
+  flex-shrink: 0;
   display: flex; align-items: center; gap: 4px;
-  /* Don't let grid stretch this track — content is tiny (kebab button
-   * + optional warn badge). justify-self:end hugs the right edge and
-   * min-content sizing keeps the body (1fr) column wide. */
-  justify-self: end;
-  width: max-content;
-  min-width: 0;
+  padding-top: 1px;
 }
 .req-warn {
   display: inline-flex; align-items: center; gap: 4px;
