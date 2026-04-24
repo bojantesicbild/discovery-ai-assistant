@@ -62,12 +62,19 @@ async def record_learning(
     category: str,
     content: str,
     project_id: uuid.UUID | None = None,
+    user_id: uuid.UUID | None = None,
     origin_session_id: uuid.UUID | None = None,
     evidence_quote: str | None = None,
     evidence_doc_id: uuid.UUID | None = None,
 ) -> Learning:
     """Insert a learning, or bump reference_count + last_relevant_at
-    when an existing row matches (project, category, normalized content).
+    when an existing row matches (project, user, category, normalized content).
+
+    Scope:
+      - user_id=None, project_id=X → team learning on project X
+      - user_id=Y,    project_id=X → Y's personal learning on project X
+      - user_id=None, project_id=None → universal team truth (rare)
+      - user_id=Y,    project_id=None → Y's style, follows them anywhere
 
     Agent-friendly: call it with a bare content string and the service
     handles dedup. Over repeated sessions a pattern accumulates
@@ -84,9 +91,10 @@ async def record_learning(
     key = _content_key(content)
     now = datetime.now(timezone.utc)
 
-    # Upsert via the UNIQUE (project_id, category, content_key) index.
-    # On conflict: bump reference_count + last_relevant_at and reactivate
-    # if the row was previously dismissed (PM sees the pattern repeating).
+    # Upsert via the UNIQUE (project_id, user_id, category, content_key)
+    # index. On conflict: bump reference_count + last_relevant_at and
+    # reactivate if the row was previously dismissed (PM sees the pattern
+    # repeating).
     #
     # SQLAlchemy's ORM layer doesn't re-hydrate entities from RETURNING
     # when pg_insert follows the upsert path — so we RETURNING id only
@@ -94,6 +102,7 @@ async def record_learning(
     # but correctness beats cleverness here.
     stmt = pg_insert(Learning).values(
         project_id=project_id,
+        user_id=user_id,
         origin_session_id=origin_session_id,
         category=category,
         content=content,
@@ -219,6 +228,7 @@ async def auto_dismiss_stale(
 async def get_active_learnings(
     db: AsyncSession, *,
     project_id: uuid.UUID,
+    user_id: uuid.UUID | None = None,
     category: str | None = None,
     min_references: int = 1,
     include_global: bool = True,
@@ -226,17 +236,34 @@ async def get_active_learnings(
 ) -> list[Learning]:
     """Top-N active learnings for a project — the session-start context.
 
-    Ordering: reference_count DESC (most-reinforced first), then
-    last_relevant_at DESC. `include_global=True` unions NULL-project
-    rows (cross-project patterns the PM has explicitly promoted).
+    Scope precedence (all four cells unioned when applicable):
+      1. (project_id=X, user_id=Y)     — this user on this project
+      2. (project_id=X, user_id=NULL)  — team convention on this project
+      3. (project_id=NULL, user_id=Y)  — user's personal style anywhere
+      4. (project_id=NULL, user_id=NULL) — universal truth
+          (cells 3 + 4 only when include_global=True)
 
-    Excludes dismissed status. Callers that want the full history should
-    use `list_all` (not exposed yet; add when a history UI needs it).
+    When user_id is None, cells 1 and 3 collapse to cells 2 and 4 —
+    team-level reads stay identical to pre-MU-4 behavior.
+
+    Ordering: reference_count DESC (most-reinforced first), then
+    last_relevant_at DESC. Dismissed rows excluded.
     """
     conds = [
         Learning.status.in_(("transient", "promoted")),
         Learning.reference_count >= min_references,
     ]
+
+    # User scope — when a user is named, return their personal rows
+    # AND the team-level (NULL user_id) rows; otherwise team-level only.
+    if user_id is not None:
+        conds.append(
+            or_(Learning.user_id == user_id, Learning.user_id.is_(None))
+        )
+    else:
+        conds.append(Learning.user_id.is_(None))
+
+    # Project scope — same shape: include_global union, otherwise strict.
     if include_global:
         conds.append(
             or_(Learning.project_id == project_id,
@@ -244,6 +271,7 @@ async def get_active_learnings(
         )
     else:
         conds.append(Learning.project_id == project_id)
+
     if category:
         conds.append(Learning.category == category)
     q = (

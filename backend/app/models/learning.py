@@ -41,6 +41,13 @@ class Learning(Base, IdMixin):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=True,
     )
+    # NULL user_id = team-level learning, shared by everyone on the
+    # project. Populated user_id = personal learning, only surfaced
+    # to that user. See migration 036 for the full scope matrix.
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     origin_session_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("sessions.id", ondelete="SET NULL"),
         nullable=True,
@@ -90,7 +97,8 @@ class Learning(Base, IdMixin):
 
     __table_args__ = (
         UniqueConstraint(
-            "project_id", "category", "content_key",
+            "project_id", "user_id", "category", "content_key",
             name="uq_learnings_dedup",
+            postgresql_nulls_not_distinct=True,
         ),
     )

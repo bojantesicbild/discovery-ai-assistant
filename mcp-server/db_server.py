@@ -1281,6 +1281,7 @@ async def list_tools() -> list[Tool]:
                     "category": {"type": "string", "enum": ["pm_preference", "domain_fact", "workflow_pattern", "anti_pattern"]},
                     "content": {"type": "string", "description": "One-sentence insight. Repeat emissions dedup by normalized content."},
                     "evidence_quote": {"type": "string", "description": "Optional verbatim supporting quote from source doc or chat."},
+                    "scope": {"type": "string", "enum": ["team", "personal"], "description": "Scope of the learning. 'team' (default) = everyone on this project sees it. 'personal' = only the current user sees it — use for quirks specific to one PM's style (e.g. 'Alice prefers bullet-point ACs') rather than project-wide conventions. Personal scope requires an authenticated token; without one the MCP downgrades to team with a stderr warning."},
                 },
                 "required": ["category", "content"],
             },
@@ -2241,18 +2242,29 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             category = arguments.get("category")
             min_refs = int(arguments.get("min_references") or 1)
             limit = int(arguments.get("limit") or 10)
+            # Per-user scope (MU-4). The MCP resolves the caller's user
+            # once via token verify; we UNION their personal rows with
+            # team-level (user_id IS NULL) rows. An unauthenticated /
+            # dev-fallback MCP gets team-level only, matching the
+            # default before MU-4.
+            caller_uid = await get_user_id(pid)
             params = [pid, min_refs]
             clauses = [
                 "(project_id = $1 OR project_id IS NULL)",
                 "status IN ('transient', 'promoted')",
                 "reference_count >= $2",
             ]
+            if caller_uid:
+                params.append(caller_uid)
+                clauses.append(f"(user_id = ${len(params)} OR user_id IS NULL)")
+            else:
+                clauses.append("user_id IS NULL")
             if category:
                 params.append(category)
                 clauses.append(f"category = ${len(params)}")
             params.append(limit)
             rows = await conn.fetch(
-                "SELECT id, project_id, category, content, evidence_quote, "
+                "SELECT id, project_id, user_id, category, content, evidence_quote, "
                 "       status, reference_count, last_relevant_at, "
                 "       promoted_at "
                 "FROM learnings "
@@ -2280,6 +2292,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             category = arguments.get("category") or ""
             content = (arguments.get("content") or "").strip()
             evidence_quote = arguments.get("evidence_quote") or None
+            # MU-4: scope controls whether this is a personal learning
+            # (Alice's commit-message preference) or a team convention
+            # (this project uses GWT acceptance criteria). Agents emit
+            # 'team' by default; 'personal' requires an authenticated
+            # token so we have a real user_id to attribute.
+            scope = (arguments.get("scope") or "team").lower()
+            if scope not in ("team", "personal"):
+                return _json_result({"error": f"bad scope {scope!r}, expected 'team' or 'personal'"})
             allowed = ("pm_preference", "domain_fact", "workflow_pattern", "anti_pattern")
             if category not in allowed:
                 return _json_result({"error": f"bad category {category!r}, expected {allowed}"})
@@ -2290,8 +2310,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             import re as _re
             key = _re.sub(r"\s+", " ", content.lower().strip())[:256]
 
-            # Find active session so the learning is linked to the
-            # origin context. Best-effort — unset if lookup fails.
+            # Resolve the caller identity. Used both for the session
+            # linkage (same as before) AND to scope the learning row.
             uid = await get_user_id(pid)
             session_id = None
             try:
@@ -2299,12 +2319,27 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             except Exception:
                 session_id = None
 
+            # Personal scope requires a real user_id. Without one we fall
+            # back to team scope with a stderr warning — better than
+            # silently attributing to 'everyone' when the agent meant
+            # a specific person.
+            scope_user_id = None
+            if scope == "personal":
+                if uid:
+                    scope_user_id = uid
+                else:
+                    print(
+                        "[mcp] record_learning(scope=personal) with no user — "
+                        "downgrading to team scope",
+                        file=sys.stderr,
+                    )
+
             row = await conn.fetchrow(
                 """
                 INSERT INTO learnings
-                  (project_id, origin_session_id, category, content, content_key,
+                  (project_id, user_id, origin_session_id, category, content, content_key,
                    evidence_quote, status, reference_count, last_relevant_at)
-                VALUES ($1, $2::uuid, $3, $4, $5, $6, 'transient', 1, NOW())
+                VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, 'transient', 1, NOW())
                 ON CONFLICT ON CONSTRAINT uq_learnings_dedup
                 DO UPDATE SET
                   reference_count = learnings.reference_count + 1,
@@ -2316,9 +2351,9 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                   END,
                   dismissed_at = NULL,
                   dismissed_by = NULL
-                RETURNING id, category, content, reference_count, status
+                RETURNING id, user_id, category, content, reference_count, status
                 """,
-                pid, session_id, category, content, key, evidence_quote,
+                pid, scope_user_id, session_id, category, content, key, evidence_quote,
             )
             # Emit a session event so the dashboard timeline shows this
             # learning being captured in-session.

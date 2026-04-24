@@ -62,13 +62,21 @@ async def list_active_learnings(
     category: str | None = Query(None),
     min_references: int = Query(1, ge=1),
     include_global: bool = Query(True),
+    team_only: bool = Query(False, description="If true, only team-level rows (user_id IS NULL) — used for admin review."),
     limit: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """List active learnings visible to the caller.
+
+    Default scope: caller's personal rows + team-level rows on this
+    project (and optionally global cross-project rows). Admins /
+    reviewers can pass team_only=true to inspect just the shared tier.
+    """
     rows = await get_active_learnings(
         db,
         project_id=project_id,
+        user_id=None if team_only else user.id,
         category=category,
         min_references=min_references,
         include_global=include_global,
