@@ -338,28 +338,43 @@
 }
 
 .req-id {
-  width: 56px;
+  /* Wider to fit "BR-024 v1" inline on row 1. Row 2 is time (HH:MM),
+   * row 3 is date ("Today" / "Apr 22, 2026"). */
+  width: 92px;
   flex-shrink: 0;
   display: flex; flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 4px;
   padding-top: 1px;
-  overflow: hidden;
+  /* Vertical separator between id column and body — thin rule that
+   * fades at top/bottom for a cool, understated divider. Drawn via
+   * a pseudo so no extra DOM node is needed. */
+  position: relative;
+  padding-right: 12px;
 }
-.req-id > * {
+.req-id::after {
+  content: '';
+  position: absolute;
+  top: 2px; bottom: 2px; right: 0;
+  width: 1px;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    var(--line) 18%,
+    var(--line-strong) 50%,
+    var(--line) 82%,
+    transparent 100%);
+}
+.req-id-head {
+  display: inline-flex; align-items: center; gap: 6px;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.req-id .id {
+.req-id-head .id {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px; font-weight: 700;
+  font-size: 12.5px; font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
-  display: inline-flex; align-items: baseline; gap: 6px;
 }
-.req-id .v {
+.req-id-head .v {
   font-size: 10px; font-weight: 700;
   color: var(--could);
   font-family: 'JetBrains Mono', monospace;
@@ -368,14 +383,21 @@
   border-radius: 4px;
   letter-spacing: 0;
 }
-.req-id .d,
-.req-id .t {
-  font-size: 10px; font-weight: 500;
+.req-id .t,
+.req-id .d {
+  font-size: 10.5px; font-weight: 500;
   color: var(--ink-4);
   font-family: 'JetBrains Mono', monospace;
   letter-spacing: -0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.req-id .d { margin-top: 1px; }
+.req-id .t { color: var(--ink-3); font-weight: 600; }
+/* Old .req-id child rules moved above (.req-id-head pattern) — the
+ * id + version render inline via .req-id-head, time/date stack
+ * beneath via the .t / .d rules defined with the new .req-id block. */
 
 .req-body {
   flex: 1 1 0;
@@ -693,7 +715,7 @@
 }
 .dp-tab:first-child { padding-left: 0; }
 .dp-tab:hover { color: var(--ink); }
-.dp-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.dp-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
 
 /* Count label — neutral number with "total" sub-label */
 .tab-count {

@@ -223,7 +223,16 @@ function RequirementCard({
   const pri = (req.priority || "could").toLowerCase();
   const status = (req.status || "proposed").toLowerCase();
   const typeLabel = (req.type || "").replace("_", " ");
-  const dateLabel = req.created_at ? formatAge(req.created_at) : "";
+  // Stacked: id + version inline, then time, then date (bottom).
+  // Time = HH:MM, date = "Today" / "Apr 22, 2026" — separated so PMs
+  // scanning the list can triangulate "what changed when".
+  let timeLabel = "";
+  let dateLabel = "";
+  if (req.created_at) {
+    const d = new Date(req.created_at);
+    timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    dateLabel = formatAge(req.created_at);
+  }
 
   return (
     <div
@@ -232,8 +241,11 @@ function RequirementCard({
       title={req.title}
     >
       <div className="req-id">
-        <span className="id">{req.req_id}</span>
-        <span className="v">v{req.version || 1}</span>
+        <div className="req-id-head">
+          <span className="id">{req.req_id}</span>
+          <span className="v">v{req.version || 1}</span>
+        </div>
+        {timeLabel && <span className="t">{timeLabel}</span>}
         {dateLabel && (
           <span
             className="d"
