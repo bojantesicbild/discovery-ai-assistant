@@ -614,20 +614,18 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
               {msg.source === "slack" && <SlackBadge msg={msg} />}
               {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
               {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
-              {/* Live in-flight state — green pill with streaming dots,
-                  matches the design's "Thinking …" treatment.
-                  Once the stream settles we fall back to the .dot-sep
-                  separator (if there's a sub-label) or nothing. */}
-              {isLiveStreamTarget ? (
+              {/* Live in-flight — green pill + streaming dots matches
+                  the design's "Thinking…" pattern. Completed messages
+                  show nothing here (the tools-bar below already
+                  surfaces tool + thinking counts). */}
+              {isLiveStreamTarget && (
                 <span className="chip green">
                   {status.phase === "writing" ? "Writing" :
                    status.phase === "tool" ? "Using tools" :
                    status.phase === "retry" ? "Retrying" : "Thinking"}
                   <span className="streaming-dots"><span /><span /><span /></span>
                 </span>
-              ) : msg.role === "assistant" && msg.thinkingCount ? (
-                <span className="chip purple">{msg.thinkingCount} thinking</span>
-              ) : null}
+              )}
               {msg.time && <span className="ts">{msg.time}</span>}
             </div>
             <div className={`msg-card${showGhost ? " ghost" : ""}${isLiveStreamTarget ? " live" : ""}`}>
@@ -1033,7 +1031,10 @@ function ActivityPanel({ tools, isLive, currentTool, thinkingCount, activityLog 
 
   // Design v2 tools-bar: collapsed shows "N tool calls · breakdown" with
   // chevron; expanded shows a detail row of act-chips + the full log.
-  const totalActions = tools.length + (thinkingCount || 0);
+  // "N tool calls" = actual tool invocations only. Thinking blocks
+  // surface as a separate ", N thinking" entry in the summary, not
+  // as part of the count.
+  const totalActions = tools.length;
   const summaryParts: string[] = [];
   const groupBadges: { cls: string; label: string }[] = [];
   const mcpCount = groups.mcp || 0;
@@ -1146,7 +1147,7 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
 }) {
   const [expanded, setExpanded] = useState(false);
   const groups = groupTools(tools);
-  const total = tools.length + (thinkingCount || 0);
+  const total = tools.length;
 
   // Compose the "· 13 MCP, 1 other, 2 thinking" summary + detail chips.
   const mcpCount = groups.mcp || 0;
