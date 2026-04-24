@@ -33,34 +33,16 @@ export function DocumentsTab({
   return (
     <div className="dp-tab-content active">
       {(gmailConnected || driveConnected) && (
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 12 }}>
+        <div className="docs-import-bar">
           {gmailConnected && (
-            <button
-              onClick={() => setGmailOpen(true)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8,
-                border: "1px solid var(--gray-200)", background: "#fff",
-                color: "var(--dark)", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: "var(--font)",
-              }}
-            >
-              <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>G</span>
+            <button className="btn-secondary" onClick={() => setGmailOpen(true)}>
+              <span className="btn-secondary-icon">G</span>
               Import from Gmail
             </button>
           )}
           {driveConnected && (
-            <button
-              onClick={() => setDriveOpen(true)}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "6px 12px", borderRadius: 8,
-                border: "1px solid var(--gray-200)", background: "#fff",
-                color: "var(--dark)", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: "var(--font)",
-              }}
-            >
-              <span style={{ width: 18, height: 18, borderRadius: 5, background: "var(--green)", color: "var(--dark)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800 }}>D</span>
+            <button className="btn-secondary" onClick={() => setDriveOpen(true)}>
+              <span className="btn-secondary-icon">D</span>
               Import from Drive
             </button>
           )}
@@ -110,12 +92,12 @@ export function DocumentsTab({
                     <span style={{ fontSize: 12 }}>
                       {doc.items_extracted} items
                       {doc.contradictions_found > 0 && (
-                        <span style={{ color: "var(--danger)", marginLeft: 4, fontSize: 10 }}>+{doc.contradictions_found} conflicts</span>
+                        <span style={{ color: "var(--must)", marginLeft: 4, fontSize: 10 }}>+{doc.contradictions_found} conflicts</span>
                       )}
                     </span>
-                  ) : <span style={{ color: "var(--gray-400)" }}>—</span>}
+                  ) : <span style={{ color: "var(--ink-4)" }}>—</span>}
                 </td>
-                <td style={{ color: "var(--gray-500)", whiteSpace: "nowrap", fontSize: 11 }}>
+                <td style={{ color: "var(--ink-3)", whiteSpace: "nowrap", fontSize: 11 }}>
                   {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}
                 </td>
                 <td>
@@ -128,7 +110,7 @@ export function DocumentsTab({
                       try { await deleteDocument(projectId, doc.id); loadData(); } catch { alert("Delete failed"); }
                     }}
                   >
-                    <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "var(--danger)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
+                    <svg viewBox="0 0 24 24" style={{ width: 12, height: 12, stroke: "var(--must)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }}>
                       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                     </svg>
                   </button>
