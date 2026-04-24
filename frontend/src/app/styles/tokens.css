@@ -111,7 +111,8 @@
   --purple-light: #8B5CF620;
   --orange: #F97316;
   --orange-light: #F9731620;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Menlo', monospace;
   --radius: 12px;
   --radius-sm: 8px;
   --radius-xs: 6px;
@@ -121,10 +122,24 @@
 
 body {
   font-family: var(--font);
+  /* cv11: alt characters for better rendering of 6/9 etc. ss01/ss03:
+     alternate single-story a and alternate @ glyph. Matches the
+     design mock's body text look. */
+  font-feature-settings: 'cv11', 'ss01', 'ss03';
   background: var(--bg);
   color: var(--ink);
+  font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
   height: 100vh;
+}
+
+/* Monospace usage — finding IDs, code, kbd, skeleton-adjacent chips. */
+code, kbd, pre, .mono,
+.msg-content .chat-ref,
+.req-id .id, .req-id .v, .req-id .d, .req-id .t,
+.panel-table td:first-child,
+.kbd-inline, .tray-kbd, .ghost-steps, .ghost-tool, .ctx-chip .ctx-file {
+  font-family: var(--font-mono);
 }

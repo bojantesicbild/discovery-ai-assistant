@@ -320,31 +320,9 @@
    The old .chat-messages/.chat-msg/.msg-avatar/.msg-body/.msg-bubble/
    .msg-sender/.msg-time rules are gone. */
 
-.msg-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.msg-suggestion {
-  padding: 5px 12px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--gray-600);
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: var(--font);
-}
-
-.msg-suggestion:hover {
-  border-color: var(--green);
-  color: var(--dark);
-  background: var(--green-light);
-}
+/* Migrated → chat.css: .msg-suggestions / .msg-suggestion now match
+   the design's .qa-chip pattern (larger pill, lift-on-hover, token
+   colors). Class names unchanged. */
 
 /* SHARED MARKDOWN (chat + handoff) */
 .chat-paragraph-break { height: 6px; }
@@ -506,86 +484,10 @@
 .ho-assumed { background: #FEF3C7; color: #D97706; }
 .ho-notcovered { background: #fee2e2; color: #EF4444; }
 
-/* ACTIVITY PANEL (Claude Code-style tool timeline) */
-.activity-panel {
-  margin-bottom: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--gray-200);
-  background: #f8fafb;
-  overflow: hidden;
-}
-.activity-summary {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 10px; gap: 6px; cursor: pointer;
-  transition: background 0.15s;
-}
-.activity-summary:hover { background: #f0f2f4; }
-.activity-summary-left {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-}
-.activity-count {
-  font-size: 10px; font-weight: 700; color: var(--gray-500);
-}
-.activity-type-chip {
-  font-size: 9px; font-weight: 600; padding: 1px 6px; border-radius: 6px;
-  display: inline-flex; align-items: center; gap: 3px;
-}
-.activity-type-chip.read { background: #f3f4f6; color: #6b7280; }
-.activity-type-chip.write { background: #fff7ed; color: #ea580c; }
-.activity-type-chip.mcp { background: #d1fae5; color: #059669; }
-.activity-type-chip.bash { background: #fef3c7; color: #d97706; }
-.activity-type-chip.search { background: #dbeafe; color: #2563eb; }
-.activity-type-chip.agent { background: #ede9fe; color: #7c3aed; }
-.activity-type-chip.thinking { background: #f3e8ff; color: #7c3aed; }
-.activity-type-chip.other { background: #f3f4f6; color: #6b7280; }
-
-.activity-agent-badge {
-  font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 8px;
-  background: #ede9fe; color: #7c3aed;
-  display: inline-flex; align-items: center; gap: 3px;
-}
-
-.activity-expand-btn {
-  font-size: 10px; font-weight: 600; color: var(--gray-400);
-  background: none; border: none; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 4px; border-radius: 4px;
-  transition: color 0.15s; font-family: var(--font);
-}
-.activity-expand-btn:hover { color: var(--gray-600); }
-
-.activity-list {
-  padding: 4px 10px 8px;
-  border-top: 1px solid var(--gray-100);
-  display: flex; flex-direction: column; gap: 1px;
-  max-height: 200px; overflow-y: auto;
-}
-.activity-item {
-  display: flex; align-items: center; gap: 8px;
-  padding: 3px 0; font-size: 11px; color: var(--gray-500);
-  transition: color 0.15s;
-}
-.activity-item.active { color: var(--dark); font-weight: 500; }
-
-.activity-dot {
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: var(--gray-300); transition: background 0.15s;
-}
-.activity-dot.read { background: #9ca3af; }
-.activity-dot.write { background: #ea580c; }
-.activity-dot.mcp { background: #059669; }
-.activity-dot.bash { background: #d97706; }
-.activity-dot.search { background: #2563eb; }
-.activity-dot.agent { background: #7c3aed; }
-.activity-dot.pulse { animation: pulse 1.5s infinite; }
-.activity-item.active .activity-dot { width: 7px; height: 7px; }
-
-.activity-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.activity-running {
-  font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 4px;
-  background: #dbeafe; color: #2563eb; animation: pulse 1.5s infinite;
-}
+/* Migrated → chat.css: .activity-panel + children are now styled in
+   the v2 tools-bar vocabulary (canonical tokens, accent highlights).
+   ChatPanel's ActivityPanel component keeps its legacy class names;
+   only the visual rules moved. */
 
 /* Migrated → chat.css (.composer + .composer-box + .composer-footer,
    .composer-tray/.tray-btn, .ctx-chip, .model-pill, .send-btn). The old
