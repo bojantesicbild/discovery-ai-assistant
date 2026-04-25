@@ -149,10 +149,16 @@ function EdgeRow({
     onNavigate?.(KIND_TAB[edge.neighbor.kind], edge.neighbor.display_id);
   }
 
+  // Derived rows always drop the rel-type column — "Same document" /
+  // "Same stakeholder" is already conveyed by the DERIVED confidence
+  // pill + the source-doc chip on the right, so repeating it as the
+  // first column is redundant. Explicit rows keep their rel unless
+  // the parent passed hideRel (uniform-rel-across-view collapse).
+  const skipRel = hideRel || dir === "derived";
   return (
     <div className={`conn-row${dir === "derived" ? " derived" : ""}`}>
       <DirArrow dir={dir} />
-      {!hideRel && <span className="rel">{humaniseRel(edge.rel_type)}</span>}
+      {!skipRel && <span className="rel">{humaniseRel(edge.rel_type)}</span>}
       <KindChip target={edge.neighbor} projectId={projectId} onNavigate={onNavigate} />
       <span className="label">{edge.neighbor.label}</span>
       <ConfidencePill c={edge.confidence} />
