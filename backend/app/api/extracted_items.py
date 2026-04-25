@@ -215,6 +215,12 @@ async def list_gaps(
         "blocked_reqs": g.blocked_reqs or [],
         "sources": g.sources or [],
         "suggested_action": g.suggested_action,
+        # Migration 038 — descriptive context fields. Each fills a gap
+        # the structural fields can't answer on their own.
+        "impact_summary": getattr(g, "impact_summary", None),
+        "validation_plan": getattr(g, "validation_plan", None) or [],
+        "assumed_default": getattr(g, "assumed_default", None),
+        "options": getattr(g, "options", None) or [],
         "status": g.status,
         "resolution": g.resolution,
         "closed_at": g.closed_at.isoformat() if g.closed_at else None,

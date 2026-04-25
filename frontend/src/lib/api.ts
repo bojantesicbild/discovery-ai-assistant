@@ -138,6 +138,13 @@ export interface ApiGap {
   blocked_reqs: string[];
   sources: ApiSourceRef[];
   suggested_action: string | null;
+  /** Migration 038 — descriptive context fields. Pre-038 rows have
+   *  these null; the UI falls back to suggested_action / source_quote
+   *  for a clean legacy render. */
+  impact_summary?: string | null;
+  validation_plan?: string[];
+  assumed_default?: string | null;
+  options?: string[];
   status: string;              // open | resolved | dismissed
   resolution: string | null;
   closed_at?: string | null;

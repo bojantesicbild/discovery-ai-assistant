@@ -3,6 +3,7 @@
 ---
 id: GAP-XXX
 question: ""
+kind: missing_info
 severity: medium
 area: general
 status: open
@@ -25,11 +26,23 @@ cssclasses: [gap, node-amber]
 
 _What we don't know yet_
 
-## Suggested Action
+## Why it matters
 
-_(content)_
+_1-2 sentences in plain language on what gets blocked / put at risk if this stays open. Different from blocked_reqs (which lists which BRs are gated): impact_summary explains the consequence — re-work cost, scope risk, decision deadline. Required when blocked_reqs is non-empty._
 
-## Blocked Requirements
+## Default we're running on
+
+_When kind=unvalidated_assumption only. The specific assumption being made *as if it were confirmed*, plus the cost of being wrong. E.g. 'Assuming markdown-first chunking. If invalidated: PDF + DOCX heuristics needed, +2-3 days to MVP.'_
+
+## Options on the table
+
+- 
+
+## Validation plan
+
+- 
+
+## Blocked requirements
 
 - [[item]]
 

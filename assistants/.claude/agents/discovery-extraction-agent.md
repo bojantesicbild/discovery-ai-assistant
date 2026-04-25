@@ -58,7 +58,44 @@ Execute in this order, no skipping.
    - Unvalidated assumptions (we think X but nothing confirms) → `gap` with `kind='unvalidated_assumption'`.
 
    - **requirement** — a capability the system should have. Fields: `title`, `description`, `priority` (must/should/could/wont), `source_quote`, `source_person` (who said it, if known), optional `acceptance_criteria` (GIVEN/WHEN/THEN blocks, one string per AC). When the source explains WHY we chose X over Y, populate `rationale` (1–2 sentences) and `alternatives_considered` (one entry per rejected option in format `<option> — <reason>`). When a requirement only applies to part of the system, set `scope_note` (e.g. `MVP only`, `iOS only`). When one BR can't ship before another is ready, list the dependency ids in `blocked_by` (e.g. `['BR-001', 'BR-004']`).
-   - **gap** — an open question the document raises but doesn't answer. Fields: `title` (the question), `description` (why it matters), `priority` (severity: high/medium/low), `source_quote`. Set `kind` to `unvalidated_assumption` when the document says "we assume X" or "we believe X" without confirmation; `undecided` when it says "we need to decide X" or "TBD"; otherwise leave as `missing_info` (default).
+   - **gap** — an open question the document raises but doesn't answer. Required: `title` (the question), `priority` (severity: high/medium/low), `source_quote`. Set `kind` to `unvalidated_assumption` when the document says "we assume X" or "we believe X" without confirmation; `undecided` when it says "we need to decide X" or "TBD"; otherwise leave as `missing_info` (default).
+
+     Use the **descriptive context fields** introduced in migration 038 — sparse gaps (just question + quote) leave the PM with nothing to act on. Populate these so the doc itself answers "why does this matter?" and "what do I do next?":
+     - `impact_summary` — 1-2 sentences in PLAIN LANGUAGE on what gets blocked / put at risk if the gap stays open. Different from `blocked_reqs` (which lists which BRs are gated): `impact_summary` explains the *consequence* — rework cost, scope risk, decision deadline. **Required when `blocked_reqs` is non-empty.** Bounded inference is allowed: "what does it mean for these BRs?" is fine, invention is not.
+     - `validation_plan` — ordered list of concrete steps to close the gap. Each entry is a single action: who to ask, what to measure, what to decide. **Required when severity is medium or high.** Replaces the legacy `suggested_action` text field — populate this list instead.
+     - `assumed_default` — when `kind=unvalidated_assumption` ONLY. The specific assumption being made *as if confirmed*, plus the cost of being wrong. E.g. *"Assuming markdown-first chunking. If invalidated: PDF + DOCX heuristics needed, +2-3 days to MVP."* Populate ONLY when the source explicitly names the assumption.
+     - `options` — when `kind=undecided` ONLY. Choices being weighed, ≥2 entries. Each entry: *"<option> — <pros / cons>"*. Populate ONLY when the source explicitly names the options.
+
+     **Anti-fabrication rules — DO NOT INVENT CONTENT:**
+     - `assumed_default` / `options`: populate ONLY when the source EXPLICITLY names them. If the source doesn't say "we assume X" or "options are A vs B", leave the field null. Never fabricate.
+     - `validation_plan`: requires AT LEAST ONE concrete signal in the source (a named person, a missing stat, a referenced doc). If none, fall back to a single-step plan: `["Discuss with {source_person} in next session."]`.
+     - `impact_summary`: bounded inference allowed when `blocked_reqs` is set — describe what those BRs need this gap for. Without `blocked_reqs`, leave null rather than guess.
+
+     **WRONG** (sparse stub — what the agent does today):
+     ```
+     title: "80% of uploads assumed to be Markdown — unvalidated"
+     severity: medium
+     blocked_reqs: ["BR-024", "BR-025"]
+     source_quote: "We believe 80% of uploads will be markdown..."
+     ```
+
+     **RIGHT** (descriptive fields populated from source + bounded inference):
+     ```
+     title: "80% of uploads assumed to be Markdown — unvalidated"
+     kind: "unvalidated_assumption"
+     severity: "medium"
+     blocked_reqs: ["BR-024", "BR-025"]
+     impact_summary: "If the upload mix isn't validated, the chunking template selection (markdown-first vs PDF/DOCX-first) stays speculative. Wrong choice means re-extracting the existing corpus once it crosses ~50 docs. Cost: 1-2 days of pipeline rework + a fresh round of client review."
+     assumed_default: "Assuming markdown-first chunking. If invalidated: PDF + DOCX heuristics needed (separate template per source mime-type), adds ~2-3 days to MVP scope."
+     validation_plan: [
+       "Ask David in next sync: pull last 30 days of upload mime-type counts.",
+       "If markdown share <60%, escalate chunking-template choice to architecture review.",
+       "Capture finding in client-meeting-notes-3 and resolve / convert to constraint."
+     ]
+     source_quote: "We believe 80% of uploads will be markdown..."
+     ```
+
+     Legacy `description` / `suggested_action` callers still work (they land on the same DB columns), but new extractions should populate the structured fields above directly.
    - **constraint** — a budget / timeline / technology / regulatory / organizational limit. Fields: `title`, `description` (the constraint + its impact), `priority` (constraint type: budget/timeline/technology/regulatory/organizational), `source_quote`, `source_person` (who imposed it, when named), `affects_reqs` (list of BR ids this constraint shapes — only include when the source explicitly links it), `workaround` (short mitigation note when the source discusses one; skip otherwise).
    - **contradiction** — two statements in the document (or between this document and existing findings) that can't both be true. Fields:
      - `title` — short headline, ≤60 chars. Nouns not sentences. E.g. 'MVP handoff documents', 'Extraction model', 'Vector DB choice'.

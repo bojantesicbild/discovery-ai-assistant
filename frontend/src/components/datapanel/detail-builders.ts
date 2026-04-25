@@ -254,10 +254,37 @@ export function buildGapView(
   // question), no "## Question" repeat. Each section is a field-
   // header with substantive content underneath. Source quote +
   // document render outside the body via <SourceCitation>.
-  const md = [
-    blocksLine ? blocksLine : "",
-    gap.suggested_action ? `\n## ${suggestedActionHeading}\n${gap.suggested_action}` : "",
-  ].filter(Boolean).join("\n");
+  //
+  // Section order (migration 038):
+  //   Why it matters → Default we're running on / Options on the table
+  //   → Validation plan → Blocks → (legacy Suggested Action fallback)
+  // Each section omits when its source is empty so a sparse legacy
+  // gap renders the same shape it always has.
+  const sections: string[] = [];
+
+  if (gap.impact_summary) {
+    sections.push(`## Why it matters\n${gap.impact_summary}`);
+  }
+  if (gap.kind === "unvalidated_assumption" && gap.assumed_default) {
+    sections.push(`## Default we're running on\n${gap.assumed_default}`);
+  }
+  if (gap.kind === "undecided" && gap.options && gap.options.length > 0) {
+    const opts = gap.options.map((o) => `- ${o}`).join("\n");
+    sections.push(`## Options on the table\n${opts}`);
+  }
+  if (gap.validation_plan && gap.validation_plan.length > 0) {
+    const steps = gap.validation_plan
+      .map((s, i) => `${i + 1}. ${s}`)
+      .join("\n");
+    sections.push(`## Validation plan\n${steps}`);
+  } else if (gap.suggested_action) {
+    // Legacy fallback — pre-038 rows used a free-form paragraph.
+    // Keep it under the same heading so old + new gaps look the same.
+    sections.push(`## ${suggestedActionHeading}\n${gap.suggested_action}`);
+  }
+  if (blocksLine) sections.push(blocksLine);
+
+  const md = sections.join("\n\n");
 
   const isOpen = gap.status === "open";
   const actions: Action[] = isOpen

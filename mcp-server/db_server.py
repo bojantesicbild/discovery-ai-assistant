@@ -1045,6 +1045,10 @@ async def list_tools() -> list[Tool]:
                     "workaround": {"type": "string", "description": "Constraint-only. Short mitigation note — the negotiation lever the PM can use when pushing back on an assumed constraint. Format: 'option considered — reason it fails' or just a free-text sentence. Skip when no workaround is discussed in the source."},
                     "kind": {"type": "string", "enum": ["missing_info", "unvalidated_assumption", "undecided"], "description": "Gap-only. Kind of gap: 'missing_info' (default) = client never told us; 'unvalidated_assumption' = we're assuming X but nothing confirms it; 'undecided' = a call that needs to be made but hasn't been."},
                     "blocked_reqs": {"type": "array", "items": {"type": "string"}, "description": "Gap-only. BR ids this gap blocks — capture when the source explicitly says a question must be answered before a BR can proceed ('we can't finalize BR-004 until we decide X'). Format ['BR-004', 'BR-005']. Drives the PM's 'what's at risk if this gap stays open' view."},
+                    "impact_summary": {"type": "string", "description": "Gap-only. 1-2 sentences in PLAIN LANGUAGE on what gets blocked or put at risk if this gap stays open. Different from blocked_reqs — explains the *consequence* (rework cost, scope risk, decision deadline). REQUIRED when blocked_reqs is non-empty. Example: 'If the upload mix isn't validated, the chunking template selection stays speculative. Wrong choice means re-extracting the existing corpus once it crosses ~50 docs. Cost: 1-2 days of pipeline rework + a fresh round of client review.'"},
+                    "validation_plan": {"type": "array", "items": {"type": "string"}, "description": "Gap-only. Ordered list of concrete steps to close the gap. Each entry is a single action — who to ask, what to measure, what to decide. REQUIRED when severity is medium or high. Example: ['Ask David in next sync: pull last 30 days of upload mime-type counts.', 'If markdown share <60%, escalate chunking-template choice to architecture review.']. Replaces the legacy free-form `suggested_action` — supply this for new extractions instead."},
+                    "assumed_default": {"type": "string", "description": "Gap-only, when kind=unvalidated_assumption. The specific assumption being made *as if confirmed*, plus the cost of being wrong. Example: 'Assuming markdown-first chunking. If invalidated: PDF + DOCX heuristics needed (separate template per source mime-type), adds ~2-3 days to MVP scope.' Populate ONLY when the source explicitly names the assumption — never fabricate."},
+                    "options": {"type": "array", "items": {"type": "string"}, "description": "Gap-only, when kind=undecided. Choices being weighed, ≥2 entries. Each entry: '<option> — <pros / cons>'. Example: ['RAGFlow — already paid for, vendor lock-in. PRO: zero cost. CON: weaker ANN at >10M vectors.', 'Qdrant self-hosted — best ANN perf, EU-hostable. CON: extra ops surface.']. Populate ONLY when the source explicitly names the options — never fabricate."},
                     "side_a": {"type": "string", "description": "Contradiction-only. The FIRST conflicting statement — what one source/person said. E.g. 'David says 2 handoff docs'."},
                     "side_b": {"type": "string", "description": "Contradiction-only. The SECOND conflicting statement — what the other source/person said. E.g. 'Sarah says 3 handoff docs are required'."},
                     "area": {"type": "string", "description": "Contradiction-only. Domain category: tech-stack / scope / governance / timeline / budget / other."},
@@ -1811,15 +1815,38 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 # Gaps that block BRs — the agent-time capture of blocking
                 # relationships. Dual-written as `blocks` edges below.
                 blocked_reqs = arguments.get("blocked_reqs") or []
+                # Migration 038 — descriptive context fields. Kind-conditional:
+                # assumed_default for unvalidated_assumption, options for
+                # undecided. Validation_plan + impact_summary apply to
+                # all kinds. Each is nullable; the renderer falls back when
+                # they're absent so legacy callers keep working unchanged.
+                impact_summary = (arguments.get("impact_summary") or "").strip() or None
+                validation_plan = arguments.get("validation_plan") or None
+                assumed_default = (arguments.get("assumed_default") or "").strip() or None
+                options = arguments.get("options") or None
+                # Anti-fabrication: only allow assumed_default for
+                # unvalidated_assumption, options for undecided. If the
+                # caller mismatches the kind we drop the value silently
+                # rather than store conflicting state.
+                if kind != "unvalidated_assumption":
+                    assumed_default = None
+                if kind != "undecided":
+                    options = None
                 row = await conn.fetchrow(
                     "INSERT INTO gaps (id, project_id, gap_id, question, kind, severity, area, status, "
-                    " source_quote, source_person, source_doc_id, blocked_reqs) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'open', $7, $8, $9, $10::jsonb) "
+                    " source_quote, source_person, source_doc_id, blocked_reqs, "
+                    " impact_summary, validation_plan, assumed_default, options) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 'open', $7, $8, $9, "
+                    " $10::jsonb, $11, $12::jsonb, $13, $14::jsonb) "
                     "RETURNING id",
                     pid, gap_id, title, kind, priority or "medium",
                     source or "general", source_quote or "",
                     (source_person if source_person and source_person != "unknown" else None),
                     source_doc_uuid, json.dumps(blocked_reqs),
+                    impact_summary,
+                    json.dumps(validation_plan) if validation_plan is not None else None,
+                    assumed_default,
+                    json.dumps(options) if options is not None else None,
                 )
                 finding_uuid = str(row["id"])
                 await conn.execute(

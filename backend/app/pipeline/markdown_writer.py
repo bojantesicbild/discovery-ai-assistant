@@ -641,7 +641,12 @@ def constraint_to_payload(
 
 
 def gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None = None) -> dict:
-    """Build the writer-input payload from a Gap SQLAlchemy row."""
+    """Build the writer-input payload from a Gap SQLAlchemy row.
+
+    Migration 038 adds the descriptive context fields (impact_summary,
+    validation_plan, assumed_default, options). Pre-038 rows have them
+    null — the renderer omits the corresponding sections so old gaps
+    keep rendering with the old shape."""
     return {
         "id": g.gap_id,
         "question": g.question or "",
@@ -653,6 +658,12 @@ def gap_to_payload(g, doc_name: str | None, today: str, doc_class: dict | None =
         "source_person": g.source_person or "unknown",
         "blocked_reqs": list(g.blocked_reqs or []),
         "suggested_action": g.suggested_action or "",
+        # Migration 038 — descriptive context fields. Each one fills a
+        # gap the structural fields can't answer on their own.
+        "impact_summary": getattr(g, "impact_summary", None) or "",
+        "validation_plan": list(getattr(g, "validation_plan", None) or []),
+        "assumed_default": getattr(g, "assumed_default", None) or "",
+        "options": list(getattr(g, "options", None) or []),
         "source_quote": g.source_quote or "",
         "resolution": g.resolution or "",
         # Closure accountability fields (migration 015/016). Kept as None
@@ -958,6 +969,14 @@ def render_gap_text(
     suggested = payload.get("suggested_action") or ""
     source_quote = payload.get("source_quote") or ""
     doc_class = payload.get("_doc_class") or {}
+    # Migration 038 — descriptive context fields. Each is rendered as
+    # its own section, in a fixed order (Why → Default/Options →
+    # Validation plan → Blocked → Source). Sections omit when empty so
+    # a sparse legacy gap renders the same shape it always has.
+    impact_summary = (payload.get("impact_summary") or "").strip()
+    validation_plan = list(payload.get("validation_plan") or [])
+    assumed_default = (payload.get("assumed_default") or "").strip()
+    options = list(payload.get("options") or [])
 
     # Resolve source_raw to a relative path so the source document
     # link points at .raw/ instead of an orphan wikilink
@@ -994,9 +1013,48 @@ def render_gap_text(
     ]
     if kind_line:
         lines += [kind_line, ""]
-    if suggested:
+
+    # Why it matters — first descriptive section. Plain language
+    # consequence; what the PM needs to triage without reading the
+    # source. Bounded inference allowed when blocked_reqs is set.
+    if impact_summary:
+        lines.append("## Why it matters")
+        lines.append("")
+        lines.append(impact_summary)
+        lines.append("")
+
+    # Kind-conditional descriptive section.
+    #   - unvalidated_assumption → "Default we're running on" (text)
+    #   - undecided              → "Options on the table" (bullets)
+    if assumed_default and kind == "unvalidated_assumption":
+        lines.append("## Default we're running on")
+        lines.append("")
+        lines.append(assumed_default)
+        lines.append("")
+    if options and kind == "undecided":
+        lines.append("## Options on the table")
+        lines.append("")
+        for opt in options:
+            lines.append(f"- {opt}")
+        lines.append("")
+
+    # Validation plan — concrete steps. Prefer the structured list;
+    # fall back to the legacy free-form `suggested_action` when the
+    # row was extracted before migration 038.
+    if validation_plan:
+        lines.append("## Validation plan")
+        lines.append("")
+        for step in validation_plan:
+            lines.append(f"- {step}")
+        lines.append("")
+    elif suggested:
+        # Legacy single-paragraph suggested_action — render under the
+        # same heading so old + new gaps share the same section title.
+        lines.append("## Validation plan")
+        lines.append("")
         lines.append(suggested)
         lines.append("")
+
     if source_quote:
         lines.append("## Source")
         lines.append(f'> "{source_quote}"')

@@ -90,7 +90,13 @@ class Gap(Base, IdMixin, TimestampMixin):
     source_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_person: Mapped[str | None] = mapped_column(String, nullable=True)
     blocked_reqs: Mapped[list] = mapped_column(JSONB, default=list)  # ["BR-001", "BR-002"]
-    suggested_action: Mapped[str | None] = mapped_column(Text, nullable=True)
+    suggested_action: Mapped[str | None] = mapped_column(Text, nullable=True)  # legacy — superseded by validation_plan
+    # Migration 038 — descriptive context fields. Each one fills a gap
+    # the structural fields can't answer on their own.
+    impact_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    validation_plan: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    assumed_default: Mapped[str | None] = mapped_column(Text, nullable=True)
+    options: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String, default="open")  # open, resolved, dismissed
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     closed_by: Mapped[str | None] = mapped_column(String, nullable=True)
