@@ -343,16 +343,13 @@
   will-change: transform, box-shadow, border-color;
 }
 .req:hover {
-  /* Border stays neutral on hover — the only colour cue is the BR
-   * id turning green via .req:hover .req-id-head .id below. Keeps
-   * the row chrome quiet so identity reads as the affordance. */
+  /* Border stays neutral; the only colour cue is the dashed
+   * separator turning green so the eye lands on the id zone. */
   border-color: var(--line-strong);
   transform: translateY(-3px);
   box-shadow: var(--shadow-lg);
 }
-.req:hover .req-id-head .id {
-  color: var(--accent);
-}
+.req:hover .req-id { border-right-color: var(--accent); }
 .req:active {
   transform: translateY(-1px);
   transition: all 100ms ease-out;
@@ -380,6 +377,9 @@
   padding-right: 12px;
   border-right: 1px dashed var(--line);
   align-self: stretch;
+  /* Transition the dashed border colour so the green hover state
+   * fades in/out matching the card lift instead of snapping. */
+  transition: border-right-color 250ms cubic-bezier(.2, .8, .2, 1);
 }
 .req-id-head {
   display: inline-flex; align-items: center; gap: 6px;
@@ -390,7 +390,6 @@
   font-size: 12.5px; font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
-  transition: color 250ms cubic-bezier(.2, .8, .2, 1);
 }
 .req-id-head .v {
   font-size: 10px; font-weight: 700;

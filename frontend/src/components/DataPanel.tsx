@@ -672,6 +672,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             setExpandedRow={setExpandedRow}
             onNavigate={onNavigate}
             loadData={loadData}
+            onScrollCollapse={setHeroScrollCollapsed}
           />
         )}
 

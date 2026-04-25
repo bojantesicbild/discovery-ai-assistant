@@ -1,21 +1,24 @@
 "use client";
 
 // Requirements tab — Design v2 card layout. Renders the same data the
-// old .panel-table did but as .req cards with id/version/date in the
-// left column + title + meta pills. Filter UI is v2: a single search
-// input + two fd (filter-dropdown) triggers for priority / status.
+// old .panel-table did but as .req cards via the shared FindingCard
+// shell. Filter UI is a single search input + two FilterDropdown
+// triggers for priority / status. Both pieces live in the parent
+// datapanel/ directory so gaps-tab and other future tabs share them.
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  FilterChip, ReqClientBadge, SourceBadges, EmptyState,
-} from "../pills";
+import { useState } from "react";
+import { ReqClientBadge, EmptyState } from "../pills";
 import type {
   ApiRequirement, ReqClientFeedback, GapClientFeedback, ProposedUpdate,
+  FindingType,
 } from "@/lib/api";
-import type { FindingType } from "@/lib/api";
 import { applyTableState, type TableState } from "@/lib/tableState";
-import { formatAge } from "@/lib/dates";
 import { Pagination } from "../../TableControls";
+import { FilterDropdown } from "../filter-dropdown";
+import {
+  FindingCard, CardKebab, CardWarnBadge,
+  formatCardDate, useScrollCollapse,
+} from "../finding-card";
 
 
 interface RequirementsTabProps {
@@ -63,19 +66,7 @@ export function RequirementsTab({
   onScrollCollapse,
 }: RequirementsTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Bind scroll-to-collapse via a ref callback so we don't depend on
-  // DOM querying + timing. Fires onScrollCollapse(true) past ~40px
-  // and (false) back at the top. Cleanup runs automatically when the
-  // node unmounts or the ref swaps.
-  const scrollRef = useCallback((node: HTMLDivElement | null) => {
-    if (!node) return;
-    const THRESHOLD = 40;
-    const update = () => onScrollCollapse?.(node.scrollTop > THRESHOLD);
-    update();
-    node.addEventListener("scroll", update, { passive: true });
-    (node as any)._scrollCleanup = () => node.removeEventListener("scroll", update);
-  }, [onScrollCollapse]);
+  const scrollRef = useScrollCollapse(onScrollCollapse);
 
   if (requirements.length === 0) {
     return (
@@ -88,7 +79,6 @@ export function RequirementsTab({
     );
   }
 
-  // Filter + search. Keep sort/pagination through applyTableState.
   const q = searchQuery.trim().toLowerCase();
   const filtered = requirements.filter((r) => {
     if (priorityFilter !== "all" && r.priority !== priorityFilter) return false;
@@ -107,6 +97,60 @@ export function RequirementsTab({
   // Group new vs earlier (new = not-yet-seen)
   const newThisSession = visible.filter((r) => !r.seen_at);
   const earlier = visible.filter((r) => r.seen_at);
+
+  function renderCard(req: ApiRequirement, isNew: boolean) {
+    const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
+    const fb = clientFeedback.requirements[req.req_id];
+    const pri = (req.priority || "could").toLowerCase();
+    const status = (req.status || "proposed").toLowerCase();
+    const typeLabel = (req.type || "").replace("_", " ");
+    const date = formatCardDate(req.created_at);
+
+    const onCardClick = () => {
+      openRequirement(req);
+      onNavigate?.("reqs", req.req_id);
+      if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
+    };
+
+    return (
+      <FindingCard
+        key={`${isNew ? "new" : "e"}-${req.id || req.req_id}`}
+        id={req.req_id}
+        idTag={<span className="v">v{req.version || 1}</span>}
+        timeLabel={date.time}
+        dateLabel={date.date}
+        dateTooltip={date.tooltip}
+        title={req.title}
+        isNew={isNew}
+        onClick={onCardClick}
+        meta={
+          <>
+            {req.priority && <span className={`pri ${pri}`}>{req.priority}</span>}
+            {req.type && <span className="type">{typeLabel}</span>}
+            <span className={`status ${status}`}>
+              <span className="dot" />
+              {req.status}
+            </span>
+            {req.source_doc && (
+              <span className="source-tag" title={req.source_doc}>{req.source_doc}</span>
+            )}
+            {fb && <ReqClientBadge fb={fb} />}
+          </>
+        }
+        actions={
+          <>
+            {pendingCount > 0 && (
+              <CardWarnBadge
+                count={pendingCount}
+                title={`${pendingCount} pending proposed update${pendingCount !== 1 ? "s" : ""}`}
+              />
+            )}
+            <CardKebab onClick={(e) => { e.stopPropagation(); onCardClick(); }} />
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <div className="dp-tab-content active">
@@ -147,9 +191,6 @@ export function RequirementsTab({
         )}
       </div>
 
-      {/* Scroll area — grows to fill, cards inside. Pager stays below
-          this via the split-scroll layout defined in panels.css
-          (.dp-tab-content > .reqs-scroll + footer). */}
       <div className="reqs-scroll" ref={scrollRef}>
         <div className="reqs-list" style={{ padding: "8px 0 16px" }}>
           {newThisSession.length > 0 && (
@@ -157,20 +198,7 @@ export function RequirementsTab({
               <div className="req-group-label">
                 New this session · {newThisSession.length}
               </div>
-              {newThisSession.map((req) => (
-                <RequirementCard
-                  key={`new-${req.id || req.req_id}`}
-                  req={req}
-                  isNew
-                  proposals={proposals}
-                  clientFeedback={clientFeedback}
-                  onClick={() => {
-                    openRequirement(req);
-                    onNavigate?.("reqs", req.req_id);
-                    if (req.id && !req.seen_at) markRowSeen("requirement", req.id, setRequirements);
-                  }}
-                />
-              ))}
+              {newThisSession.map((req) => renderCard(req, true))}
             </>
           )}
           {earlier.length > 0 && (
@@ -178,18 +206,7 @@ export function RequirementsTab({
               {newThisSession.length > 0 && (
                 <div className="req-group-label">Earlier</div>
               )}
-              {earlier.map((req) => (
-                <RequirementCard
-                  key={`e-${req.id || req.req_id}`}
-                  req={req}
-                  proposals={proposals}
-                  clientFeedback={clientFeedback}
-                  onClick={() => {
-                    openRequirement(req);
-                    onNavigate?.("reqs", req.req_id);
-                  }}
-                />
-              ))}
+              {earlier.map((req) => renderCard(req, false))}
             </>
           )}
         </div>
@@ -202,184 +219,6 @@ export function RequirementsTab({
         pageEnd={pageEnd}
         totalPages={totalPages}
       />
-    </div>
-  );
-}
-
-
-/* ── Requirement card ───────────────────────────────────────────────── */
-
-function RequirementCard({
-  req, isNew, proposals, clientFeedback, onClick,
-}: {
-  req: ApiRequirement;
-  isNew?: boolean;
-  proposals: ProposedUpdate[];
-  clientFeedback: { requirements: Record<string, ReqClientFeedback>; gaps: Record<string, GapClientFeedback> };
-  onClick: () => void;
-}) {
-  const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
-  const fb = clientFeedback.requirements[req.req_id];
-  const pri = (req.priority || "could").toLowerCase();
-  const status = (req.status || "proposed").toLowerCase();
-  const typeLabel = (req.type || "").replace("_", " ");
-  // Stacked under the id row: time (HH:MM) then full date (Apr 22, 2026).
-  // Kept as absolute labels — relative "3d ago" is harder to cross-reference
-  // across a long list than a real date.
-  let timeLabel = "";
-  let dateLabel = "";
-  if (req.created_at) {
-    const d = new Date(req.created_at);
-    timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    dateLabel = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-  }
-
-  return (
-    <div
-      className={`req${isNew ? " new" : ""}`}
-      onClick={onClick}
-      title={req.title}
-    >
-      <div className="req-id">
-        <div className="req-id-head">
-          <span className="id">{req.req_id}</span>
-          <span className="v">v{req.version || 1}</span>
-        </div>
-        {timeLabel && <span className="t">{timeLabel}</span>}
-        {dateLabel && (
-          <span
-            className="d"
-            title={req.created_at ? new Date(req.created_at).toLocaleString() : ""}
-          >
-            {dateLabel}
-          </span>
-        )}
-      </div>
-
-      <div className="req-body">
-        <div className="req-title">{req.title}</div>
-        <div className="req-meta">
-          {req.priority && (
-            <span className={`pri ${pri}`}>{req.priority}</span>
-          )}
-          {req.type && (
-            <span className="type">{typeLabel}</span>
-          )}
-          <span className={`status ${status}`}>
-            <span className="dot" />
-            {req.status}
-          </span>
-          {req.source_doc && (
-            <span className="source-tag" title={req.source_doc}>
-              {req.source_doc}
-            </span>
-          )}
-          {fb && <ReqClientBadge fb={fb} />}
-        </div>
-      </div>
-
-      <div className="req-action">
-        {pendingCount > 0 && (
-          <span
-            className="req-warn"
-            title={`${pendingCount} pending proposed update${pendingCount !== 1 ? "s" : ""}`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            {pendingCount}
-          </span>
-        )}
-        <button
-          className="kebab"
-          onClick={(e) => { e.stopPropagation(); onClick(); }}
-          title="Open details"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="5" r="1" />
-            <circle cx="12" cy="12" r="1" />
-            <circle cx="12" cy="19" r="1" />
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
-/* ── Filter dropdown ────────────────────────────────────────────────── */
-
-function FilterDropdown({
-  label, value, options, onChange,
-}: {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
-
-  const isActive = value && value !== "all";
-  const activeOpt = options.find((o) => o.value === value);
-
-  return (
-    <div className={`fd${open ? " open" : ""}`} ref={ref}>
-      <button
-        type="button"
-        className={`fd-trigger${isActive ? " has-value" : ""}`}
-        data-v={isActive ? value : undefined}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span className="fd-value-dot" />
-        <span className="fd-label">
-          {isActive ? activeOpt?.label : label}
-        </span>
-        <svg className="fd-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-        {isActive && (
-          <span
-            className="fd-clear"
-            onClick={(e) => { e.stopPropagation(); onChange("all"); setOpen(false); }}
-            title="Clear filter"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M6 6l12 12M6 18L18 6" />
-            </svg>
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="fd-menu">
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className={`fd-opt${opt.value === value ? " active" : ""}`}
-              data-value={opt.value === "all" ? undefined : opt.value}
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-            >
-              <span className="opt-dot" />
-              {opt.label}
-              <svg className="opt-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
