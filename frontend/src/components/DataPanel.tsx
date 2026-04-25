@@ -30,7 +30,6 @@ import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import RequirementDetailView from "./datapanel/requirement-detail-view";
 import PersonDetailView from "./datapanel/person-detail-view";
 import ConnectionsSection from "./datapanel/connections-section";
-import { useDetailAnimVariant } from "./datapanel/detail-anim-picker";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { RemindersTab } from "./datapanel/reminders-tab";
@@ -176,9 +175,6 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   // Duration here MUST match the .req-detail.closing animation in
   // panels.css (260ms). Cleared on unmount or fresh detail change.
   const [detailClosing, setDetailClosing] = useState(false);
-  // Animation variant chosen via the floating picker. Hot-swaps the
-  // detail panel className without remounting.
-  const animVariant = useDetailAnimVariant();
   const detailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (detailCloseTimerRef.current) clearTimeout(detailCloseTimerRef.current);
@@ -392,7 +388,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         <PersonDetailView
           projectId={projectId}
           name={highlightId}
-          onClose={() => onNavigate?.("reqs")}
+          onClose={() => onNavigate?.("people")}
           onNavigate={onNavigate}
         />
       </div>
@@ -472,7 +468,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
       return (
         <div
-          className={`data-panel detail-anim-${animVariant}${detailClosing ? " closing" : ""}`}
+          className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
           style={{ flex: 1, width: "100%" }}
         >
           <RequirementDetailView
@@ -515,7 +511,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
     return (
       <div
-        className={`data-panel detail-anim-${animVariant}${detailClosing ? " closing" : ""}`}
+        className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
         style={{ flex: 1, width: "100%" }}
       >
         <MarkdownPanel
