@@ -29,6 +29,10 @@ type NavItem = {
   label: string;
   icon: React.ReactNode;
   badge?: string | number;
+  /** True for routes that live under /projects/[projectId]/. Resolved
+   *  to the full project-scoped path at render time using the
+   *  projectId parsed from the current pathname. */
+  projectScoped?: boolean;
 };
 
 type NavSection = { label: string; items: NavItem[] };
@@ -69,6 +73,7 @@ const NAV_SECTIONS: NavSection[] = [
       {
         href: "/story-tech",
         label: "Story & Tech",
+        projectScoped: true,
         icon: (
           <>
             <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -79,11 +84,13 @@ const NAV_SECTIONS: NavSection[] = [
       {
         href: "/code",
         label: "Code",
+        projectScoped: true,
         icon: <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />,
       },
       {
         href: "/qa",
         label: "QA",
+        projectScoped: true,
         icon: (
           <>
             <circle cx="12" cy="12" r="9" />
@@ -99,6 +106,7 @@ const NAV_SECTIONS: NavSection[] = [
       {
         href: "/documents",
         label: "Documents",
+        projectScoped: true,
         icon: (
           <>
             <path d="M6 3h9l5 5v13H6z" />
@@ -110,6 +118,7 @@ const NAV_SECTIONS: NavSection[] = [
       {
         href: "/knowledge",
         label: "Knowledge",
+        projectScoped: true,
         icon: (
           <>
             <path d="M4 5a2 2 0 012-2h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2z" />
@@ -148,9 +157,23 @@ export default function Sidebar() {
       .catch(() => {});
   }, []);
 
-  const isActive = (href: string): boolean => {
-    if (href === "/") return pathname === "/";
-    return pathname.startsWith(href);
+  // Pull the projectId out of the URL when we're inside a project
+  // route (/projects/[uuid]/...). Used to resolve project-scoped
+  // sidebar items to their actual route. Falls back to null on
+  // global pages — those items render disabled in that case.
+  const projectId = (() => {
+    const m = pathname.match(/^\/projects\/([^/]+)/);
+    return m ? m[1] : null;
+  })();
+
+  const resolveHref = (item: NavItem): string | null => {
+    if (!item.projectScoped) return item.href;
+    return projectId ? `/projects/${projectId}${item.href}` : null;
+  };
+
+  const isActive = (resolved: string): boolean => {
+    if (resolved === "/") return pathname === "/";
+    return pathname.startsWith(resolved);
   };
 
   return (
@@ -172,12 +195,32 @@ export default function Sidebar() {
           </div>
           <div className="nav-group" role="menu">
             {section.items.map((item) => {
-              const active = isActive(item.href);
+              const resolved = resolveHref(item);
+              // Project-scoped items render disabled when no projectId
+              // is in the current URL — they have no concrete route to
+              // navigate to without a project context.
+              if (resolved === null) {
+                return (
+                  <span
+                    key={item.href}
+                    className="nav-item disabled"
+                    title={`${item.label} (open a project first)`}
+                    aria-disabled="true"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                      {item.icon}
+                    </svg>
+                    <span className="nav-label">{item.label}</span>
+                    <span className="tip">{item.label} — open a project first</span>
+                  </span>
+                );
+              }
+              const active = isActive(resolved);
               const badge = item.badge;
               return (
                 <Link
                   key={item.href}
-                  href={item.href}
+                  href={resolved}
                   className={active ? "nav-item active" : "nav-item"}
                   title={item.label}
                 >

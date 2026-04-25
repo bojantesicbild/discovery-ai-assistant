@@ -148,6 +148,12 @@
 .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; }
 .nav-item:active { transform: scale(.97); transition: transform 80ms; }
 .nav-item.active { background: var(--accent); color: var(--accent-ink); }
+.nav-item.disabled {
+  opacity: .42;
+  cursor: not-allowed;
+  pointer-events: auto; /* keep hover for the tooltip */
+}
+.nav-item.disabled:hover { background: transparent; color: currentColor; }
 
 /* Active indicator bar — left edge, slides in with the accent bg */
 .nav-item::before {
