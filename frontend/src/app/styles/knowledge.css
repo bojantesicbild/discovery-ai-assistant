@@ -1,0 +1,348 @@
+/**
+ * Knowledge graph page (Design v2 retrofit).
+ *
+ * Drop-in classes for the /projects/[id]/knowledge surface — header
+ * bar, view-mode pills, pinned-node chips, search dropdown, graph
+ * toolbar, and node detail panel chrome. Replaces the inline-style
+ * blob the page used to ship with so the surface reads consistently
+ * with the rest of v2 (tokens, Inter, JetBrains Mono).
+ *
+ * Token deps: --bg, --surface*, --ink*, --line*, --accent*, --must,
+ *             --could, --should, --font-mono.
+ */
+
+/* ==== Page shell ==== */
+.kg-page {
+  display: flex; flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg);
+  font-family: inherit;
+}
+
+/* ==== Header bar — single compact row ==== */
+.kg-header {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  display: flex; align-items: center; gap: 16px;
+  flex-shrink: 0;
+}
+.kg-title {
+  font-size: 17px; font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  margin: 0;
+  white-space: nowrap;
+}
+.kg-stats {
+  font-size: 12px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.kg-stats strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ==== View tabs (Graph | Wiki) — same chip vocabulary as
+ * .panel-filter-btn but tighter for inline use in the header. */
+.kg-view-tabs {
+  display: flex; gap: 4px;
+  margin-left: 4px;
+}
+.kg-view-tab {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: background .15s, color .15s, transform .12s;
+}
+.kg-view-tab:hover { color: var(--ink); }
+.kg-view-tab.active {
+  background: var(--accent);
+  color: #0A1A10;
+  box-shadow: 0 1px 3px rgba(0,168,100,.18);
+}
+
+/* ==== Search + pinned-node cluster (right side of header) ==== */
+.kg-search-cluster {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+  position: relative;
+}
+
+/* Pinned node — chip with kind-tinted dot */
+.kg-pin-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-2);
+  font-family: inherit;
+  letter-spacing: -0.005em;
+}
+.kg-pin-chip[data-kind] { /* per-kind tint via inline style still — see graph-layout TYPE_COLORS */
+}
+.kg-pin-chip-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+}
+.kg-pin-chip-close {
+  background: none; border: 0; padding: 0;
+  margin-left: 2px;
+  font-size: 13px; line-height: 1; font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  opacity: .7;
+  transition: opacity .15s;
+}
+.kg-pin-chip-close:hover { opacity: 1; }
+.kg-pin-clear-btn {
+  background: none; border: 0;
+  padding: 2px 6px;
+  cursor: pointer;
+  color: var(--ink-4);
+  font-size: 11px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: color .15s;
+}
+.kg-pin-clear-btn:hover { color: var(--ink); }
+
+/* Search input — same surface as filter-search but narrower */
+.kg-search-input {
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  width: 200px;
+  transition: border-color .15s;
+}
+.kg-search-input:focus { border-color: var(--ink); }
+.kg-search-input::placeholder { color: var(--ink-4); }
+
+/* Search dropdown — anchored beneath the input */
+.kg-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 200;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.kg-search-row {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0; background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  font-size: 12px;
+  color: var(--ink);
+  transition: background .12s;
+}
+.kg-search-row:hover { background: var(--surface-2); }
+.kg-search-row-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.kg-search-row-label {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.kg-search-row-kind {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--font-mono);
+}
+.kg-search-empty {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--ink-4);
+  text-align: center;
+}
+
+/* ==== Main area below the header ==== */
+.kg-main {
+  flex: 1;
+  min-width: 0; max-width: 100%;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Empty-state center — shown when there are no nodes yet */
+.kg-empty {
+  position: absolute;
+  inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.kg-empty svg {
+  width: 48px; height: 48px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  margin-bottom: 12px;
+}
+.kg-empty .kg-empty-title {
+  font-size: 15px; font-weight: 600;
+  color: var(--ink-2);
+  margin: 0 0 4px;
+}
+.kg-empty .kg-empty-sub {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 0;
+}
+
+/* ==== Graph column ==== */
+.kg-graph-col {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  display: flex; flex-direction: column;
+  transition: all .25s ease;
+}
+.kg-graph-canvas-wrap {
+  flex: 1;
+  position: relative;
+}
+.kg-graph-canvas-wrap canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+}
+
+/* ==== Toolbar (layout pickers + entity-type filters) ==== */
+.kg-toolbar {
+  display: flex; align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 0;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  z-index: 2;
+  flex-shrink: 0;
+}
+.kg-toolbar-divider {
+  width: 1px; height: 16px;
+  background: var(--line);
+  margin: 0 8px;
+}
+.kg-layout-btn {
+  padding: 5px 11px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  transition: background .15s, color .15s;
+}
+.kg-layout-btn:hover { color: var(--ink); }
+.kg-layout-btn.active {
+  background: var(--accent);
+  color: #0A1A10;
+}
+.kg-reset-btn {
+  padding: 5px 9px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: var(--ink-4);
+  font-family: inherit;
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  transition: color .15s;
+}
+.kg-reset-btn:hover { color: var(--ink-2); }
+
+.kg-filter-cluster {
+  display: flex; gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.kg-filter-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border: 0; border-radius: 5px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ink-4);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  opacity: .7;
+  transition: background .15s, color .15s, opacity .15s;
+}
+.kg-filter-btn:hover { opacity: 1; }
+.kg-filter-btn.active {
+  opacity: 1;
+}
+.kg-filter-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--ink-4);
+}
+.kg-filter-count {
+  font-size: 9.5px;
+  color: var(--ink-4);
+  margin-left: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==== Node detail side panel ==== */
+.kg-side-panel {
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  overflow-x: hidden;
+  transition: all .25s ease;
+}
+.kg-side-panel.open {
+  width: 440px;
+  min-width: 440px; max-width: 440px;
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  box-shadow: -4px 0 16px rgba(0,0,0,.04);
+}
+.kg-side-panel:not(.open) {
+  width: 0;
+  min-width: 0; max-width: 0;
+  border-left: none;
+  overflow-y: hidden;
+}
+
+/* ==== Animations ==== */
+@keyframes kg-slide-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}

@@ -272,82 +272,50 @@ export default function KnowledgeGraphPage() {
 
   /* ---------- render ---------- */
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+    <div className="kg-page">
       {/* Header — single compact row */}
-      <div style={{
-        padding: "10px 20px",
-        borderBottom: "1px solid #e2e8f0",
-        background: "#fff",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-      }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", margin: 0, whiteSpace: "nowrap" }}>
-          Knowledge Base
-        </h1>
-        <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>
-          {filteredNodes.length} nodes &middot; {filteredEdgeCount} edges
+      <div className="kg-header">
+        <h1 className="kg-title">Knowledge Base</h1>
+        <span className="kg-stats">
+          <strong>{filteredNodes.length}</strong> nodes · <strong>{filteredEdgeCount}</strong> edges
         </span>
 
-        {/* View tabs */}
-        <div style={{ display: "flex", gap: 4, marginLeft: 8 }}>
+        <div className="kg-view-tabs">
           {(["graph", "wiki"] as const).map((v) => (
             <button
               key={v}
+              type="button"
+              className={`kg-view-tab${viewMode === v ? " active" : ""}`}
               onClick={() => setViewMode(v)}
-              style={{
-                padding: "4px 14px", border: "none", borderRadius: 6,
-                background: viewMode === v ? "var(--green)" : "var(--gray-100)",
-                color: viewMode === v ? "var(--dark)" : "#64748b",
-                fontSize: 12, fontWeight: 600, cursor: "pointer",
-                fontFamily: "var(--font)", transition: "all 0.15s",
-              }}
             >
               {v === "graph" ? "Graph" : "Wiki"}
             </button>
           ))}
         </div>
 
-        <div style={{ flex: 1 }} />
-
-        {/* Search + pinned pills */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", position: "relative" }}>
-          {/* Pinned node pills */}
+        <div className="kg-search-cluster">
           {[...pinnedNodes].map((id) => {
             const node = nodes.find((n) => n.id === id);
-            const color = TYPE_COLORS[node?.type || ""] || "#6b7280";
+            const color = TYPE_COLORS[node?.type || ""] || "var(--ink-3)";
             return (
               <span
                 key={id}
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 4,
-                  padding: "3px 8px", borderRadius: 12,
-                  background: `${color}15`, border: `1px solid ${color}40`,
-                  fontSize: 11, fontWeight: 600, color,
-                }}
+                className="kg-pin-chip"
+                style={{ color, background: `${color}14`, borderColor: `${color}33` }}
               >
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: color }} />
+                <span className="kg-pin-chip-dot" style={{ background: color }} />
                 {node?.label || id}
                 <button
+                  type="button"
+                  className="kg-pin-chip-close"
                   onClick={() => unpinNode(id)}
-                  style={{
-                    background: "none", border: "none", padding: 0, marginLeft: 2,
-                    cursor: "pointer", color, fontSize: 13, lineHeight: 1, fontWeight: 700,
-                  }}
-                >
-                  ×
-                </button>
+                  aria-label="Unpin"
+                >×</button>
               </span>
             );
           })}
           {pinnedNodes.size > 0 && (
-            <button
-              onClick={clearPins}
-              style={{
-                background: "none", border: "none", padding: "2px 4px",
-                cursor: "pointer", color: "#94a3b8", fontSize: 11, fontFamily: "var(--font)",
-              }}
-            >
+            <button type="button" className="kg-pin-clear-btn" onClick={clearPins}>
               Clear
             </button>
           )}
@@ -357,56 +325,35 @@ export default function KnowledgeGraphPage() {
               placeholder={pinnedNodes.size > 0 ? "Add node..." : "Search nodes..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{
-                padding: "5px 12px", border: "1px solid #e2e8f0", borderRadius: 6,
-                fontSize: 12, width: 180, outline: "none", background: "#f8fafc",
-              }}
+              className="kg-search-input"
             />
-            {/* Search dropdown — click to pin */}
             {search.length >= 2 && (
-              <div style={{
-                position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-                background: "#fff", border: "1px solid #e2e8f0", borderRadius: 8,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 200,
-                maxHeight: 200, overflowY: "auto",
-              }}>
-                {nodes
-                  .filter((n) =>
+              <div className="kg-search-dropdown">
+                {(() => {
+                  const matches = nodes.filter((n) =>
                     !pinnedNodes.has(n.id) &&
                     (n.label.toLowerCase().includes(search.toLowerCase()) ||
-                     n.id.toLowerCase().includes(search.toLowerCase()))
-                  )
-                  .slice(0, 10)
-                  .map((n) => {
-                    const color = TYPE_COLORS[n.type] || "#6b7280";
+                     n.id.toLowerCase().includes(search.toLowerCase())),
+                  );
+                  if (matches.length === 0) {
+                    return <div className="kg-search-empty">No matching nodes</div>;
+                  }
+                  return matches.slice(0, 10).map((n) => {
+                    const color = TYPE_COLORS[n.type] || "var(--ink-3)";
                     return (
                       <button
                         key={n.id}
+                        type="button"
+                        className="kg-search-row"
                         onClick={() => pinNode(n.id)}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 8, width: "100%",
-                          padding: "7px 12px", border: "none", background: "none",
-                          cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
-                          fontSize: 12, transition: "background 0.1s",
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
                       >
-                        <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "#0f172a" }}>{n.label}</span>
-                        <span style={{ fontSize: 9, fontWeight: 600, color, textTransform: "uppercase" }}>{n.type}</span>
+                        <span className="kg-search-row-dot" style={{ background: color }} />
+                        <span className="kg-search-row-label">{n.label}</span>
+                        <span className="kg-search-row-kind" style={{ color }}>{n.type}</span>
                       </button>
                     );
-                  })}
-                {nodes.filter((n) =>
-                  !pinnedNodes.has(n.id) &&
-                  (n.label.toLowerCase().includes(search.toLowerCase()) ||
-                   n.id.toLowerCase().includes(search.toLowerCase()))
-                ).length === 0 && (
-                  <div style={{ padding: "10px 12px", fontSize: 12, color: "#94a3b8", textAlign: "center" }}>
-                    No matching nodes
-                  </div>
-                )}
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -416,36 +363,21 @@ export default function KnowledgeGraphPage() {
       {/* Main area — minWidth:0 + maxWidth:100% so this flex child of
           the outer column can't widen past the viewport regardless of
           what the graph column's content wants to be. */}
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", display: "flex", position: "relative", overflow: "hidden" }}>
-        {/* Empty state */}
+      <div className="kg-main">
         {nodes.length === 0 && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#94a3b8",
-            }}
-          >
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <div className="kg-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
-            <p style={{ marginTop: 12, fontSize: 15, fontWeight: 500 }}>No knowledge graph data yet</p>
-            <p style={{ fontSize: 13, color: "#94a3b8" }}>
+            <p className="kg-empty-title">No knowledge graph data yet</p>
+            <p className="kg-empty-sub">
               Upload documents and chat with the AI to build the knowledge base
             </p>
           </div>
         )}
 
-        {/* Graph view. minWidth:0 is critical here — without it, the
-            toolbar/scrubber intrinsic min-content pushes this flex
-            column wider than available, shoving the side panel past
-            the viewport's right edge. */}
         {viewMode === "graph" && (
-          <div style={{ flex: 1, minWidth: 0, overflow: "hidden", position: "relative", transition: "all 0.25s ease", display: "flex", flexDirection: "column" }}>
+          <div className="kg-graph-col">
             <GraphToolbar
               graphLayout={graphLayout}
               changeLayout={changeLayout}
@@ -453,12 +385,8 @@ export default function KnowledgeGraphPage() {
               toggleFilter={toggleFilter}
               filteredNodes={filteredNodes}
             />
-            <div style={{ flex: 1, position: "relative" }}>
-            <canvas
-              ref={canvasRef}
-              {...mouseHandlers}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-            />
+            <div className="kg-graph-canvas-wrap">
+              <canvas ref={canvasRef} {...mouseHandlers} />
             </div>
 
             <TimelineScrubber
@@ -495,7 +423,6 @@ export default function KnowledgeGraphPage() {
           />
         )}
 
-        {/* Wiki view */}
         {viewMode === "wiki" && (
           <WikiView projectId={projectId} onSelectNode={(id) => {
             const node = nodes.find((n) => n.id === id);
@@ -503,27 +430,7 @@ export default function KnowledgeGraphPage() {
           }} />
         )}
 
-        {/* Side panel — slides in/out. flexShrink:0 + maxWidth pin the
-            width at 380; inner content uses minWidth:0 so long strings
-            (descriptions, chip values) wrap instead of pushing the
-            panel past the viewport. */}
-        <div
-          style={{
-            width: selectedNode ? 440 : 0,
-            minWidth: selectedNode ? 440 : 0,
-            maxWidth: selectedNode ? 440 : 0,
-            flexShrink: 0,
-            boxSizing: "border-box",
-            borderLeft: selectedNode ? "1px solid var(--gray-200)" : "none",
-            background: "var(--white)",
-            overflowY: selectedNode ? "auto" : "hidden",
-            overflowX: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            transition: "all 0.25s ease",
-            boxShadow: selectedNode ? "-4px 0 16px rgba(0,0,0,0.06)" : "none",
-          }}
-        >
+        <div className={`kg-side-panel${selectedNode ? " open" : ""}`}>
           {selectedNode && (
             <NodeDetailPanel
               node={selectedNode}
@@ -536,14 +443,6 @@ export default function KnowledgeGraphPage() {
           )}
         </div>
       </div>
-
-      {/* Inline animation style */}
-      <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(20px); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }

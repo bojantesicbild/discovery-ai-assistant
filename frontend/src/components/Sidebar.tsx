@@ -60,9 +60,9 @@ const NAV_SECTIONS: NavSection[] = [
     label: "Phases",
     items: [
       {
-        href: "/discovery",
+        href: "/chat",
         label: "Discovery",
-        badge: 29,
+        projectScoped: true,
         icon: (
           <>
             <circle cx="12" cy="12" r="9" />
