@@ -1112,50 +1112,57 @@
 .empty-dash { color: var(--ink-4); font-size: 11px; }
 
 /* ==== Gaps tab — section switcher + mark-all + finding detail ==== */
+/* Sub-tabs span the panel edge-to-edge (no horizontal padding on the
+ * strip) and split equally via flex: 1. Active state uses a soft
+ * green tint (var(--accent-soft)) instead of an underline so the
+ * filled tab reads as the selected zone at a glance. The count pill
+ * uses --accent + dark text to match the "X NEW" chip upstairs. */
 .dp-subtabs {
-  display: flex; gap: 4px;
-  padding: 3px;
-  background: var(--surface-2);
-  border-radius: 10px;
-  margin-bottom: 12px;
+  display: flex;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  margin: 0 0 12px;
 }
 .dp-subtab {
   flex: 1;
-  padding: 7px 12px;
-  border-radius: 7px;
+  padding: 12px 16px;
   border: 0;
+  margin-bottom: -1px;
   background: transparent;
   color: var(--ink-3);
-  font-size: 12px; font-weight: 600;
+  font-size: 13.5px; font-weight: 600;
+  letter-spacing: -0.005em;
   cursor: pointer;
   font-family: inherit;
-  /* Unified curve so the sliding pill (background swap on .active),
-   * text-color shift, and shadow grow as one motion. 200ms is long
-   * enough to read but short enough not to feel sluggish on quick
-   * sub-tab toggles. */
   transition:
-    background-color 200ms cubic-bezier(.2,.8,.2,1),
     color            200ms cubic-bezier(.2,.8,.2,1),
-    box-shadow       200ms cubic-bezier(.2,.8,.2,1),
-    transform        120ms cubic-bezier(.2,.8,.2,1);
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+    background-color 200ms cubic-bezier(.2,.8,.2,1);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.dp-subtab:active { transform: scale(0.97); }
-.dp-subtab:hover { color: var(--ink); }
+.dp-subtab:hover { color: var(--ink); background-color: var(--surface-2); }
 .dp-subtab.active {
-  background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  background-color: var(--surface);
 }
 .dp-subtab .count-pill {
-  font-size: 10px; font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  color: var(--ink-3);
+  /* Mirrors .tab-new ("8 NEW") so the badge language is consistent
+   * across the main tab strip and the sub-tabs. */
+  font-size: 10px; font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0A1A10;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   margin-left: 0;
 }
-.dp-subtab.active .count-pill { background: var(--accent-soft); color: var(--accent-ink); }
+/* No active-state override on .count-pill — the green-with-dark-text
+ * chip is the same whether the sub-tab is active or not, matching
+ * the main .tab-new "8 NEW" badge. */
 
 /* Shared "✓ Mark all read" ghost-green button */
 .btn-mark-all {
@@ -2579,6 +2586,51 @@
 
 /* People attribution */
 .people-line { font-size: 12px; color: var(--ink-2); }
+
+/* ==== Person detail view ==== */
+.person-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.person-avatar svg { width: 22px; height: 22px; }
+
+.person-finding-group {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: 4px;
+}
+.person-finding-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .12s;
+}
+.person-finding-row:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  transform: translateY(-1px);
+}
+.person-finding-title {
+  flex: 1; min-width: 0;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.person-finding-meta {
+  font-size: 11px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
 
 /* History panel */
 .history-entry {

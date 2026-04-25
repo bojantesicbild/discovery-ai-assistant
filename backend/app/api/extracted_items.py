@@ -429,6 +429,122 @@ async def list_stakeholders(
     return {"items": out, "total": len(items)}
 
 
+@router.get("/stakeholders/by-name/{name}")
+async def get_stakeholder_by_name(
+    project_id: uuid.UUID,
+    name: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Look up a stakeholder by their display name and return them
+    along with every finding that names them as source_person.
+
+    Powers the right-pane Person detail view in the discovery panel.
+    Findings are grouped by kind so the UI can render them in
+    sections (Requirements / Gaps / Constraints / Contradictions).
+
+    The name is matched case-insensitively. Returns 404 only when no
+    stakeholder row AND no source_person matches exist — a "ghost"
+    person referenced only on findings still resolves to a partial
+    record with name + empty role/org."""
+    stk_row = (await db.execute(
+        select(Stakeholder).where(
+            Stakeholder.project_id == project_id,
+            Stakeholder.name.ilike(name),
+        )
+    )).scalar_one_or_none()
+
+    # Pull every finding kind that has a source_person column.
+    reqs = (await db.execute(
+        select(Requirement).where(
+            Requirement.project_id == project_id,
+            Requirement.source_person.ilike(name),
+        ).order_by(Requirement.created_at)
+    )).scalars().all()
+
+    gaps = (await db.execute(
+        select(Gap).where(
+            Gap.project_id == project_id,
+            Gap.source_person.ilike(name),
+        ).order_by(Gap.created_at)
+    )).scalars().all()
+
+    cons = (await db.execute(
+        select(Constraint).where(
+            Constraint.project_id == project_id,
+            Constraint.source_person.ilike(name),
+        ).order_by(Constraint.created_at)
+    )).scalars().all()
+
+    # Contradictions name people on each side — count a hit on either.
+    contras = (await db.execute(
+        select(Contradiction).where(
+            Contradiction.project_id == project_id,
+            (Contradiction.item_a_person.ilike(name) | Contradiction.item_b_person.ilike(name)),
+        ).order_by(Contradiction.created_at)
+    )).scalars().all()
+
+    if not stk_row and not (reqs or gaps or cons or contras):
+        return {"stakeholder": None, "findings": {"requirements": [], "gaps": [], "constraints": [], "contradictions": []}}
+
+    stakeholder = (
+        {
+            "id": str(stk_row.id),
+            "name": stk_row.name,
+            "role": stk_row.role,
+            "organization": stk_row.organization,
+            "decision_authority": stk_row.decision_authority,
+            "interests": stk_row.interests,
+        }
+        if stk_row else
+        # Ghost stakeholder — referenced as source_person but never
+        # extracted as a Stakeholder row. UI should still render
+        # something so the deep-link works.
+        {"id": None, "name": name, "role": None, "organization": None,
+         "decision_authority": None, "interests": None}
+    )
+
+    # Same positional ordering used elsewhere for CON/CTR.
+    all_cons = (await db.execute(
+        select(Constraint.id).where(Constraint.project_id == project_id)
+        .order_by(Constraint.created_at, Constraint.id)
+    )).scalars().all()
+    con_idx = {uid: i + 1 for i, uid in enumerate(all_cons)}
+
+    all_ctrs = (await db.execute(
+        select(Contradiction.id).where(Contradiction.project_id == project_id)
+        .order_by(Contradiction.created_at, Contradiction.id)
+    )).scalars().all()
+    ctr_idx = {uid: i + 1 for i, uid in enumerate(all_ctrs)}
+
+    return {
+        "stakeholder": stakeholder,
+        "findings": {
+            "requirements": [{
+                "id": str(r.id), "req_id": r.req_id, "title": r.title,
+                "priority": r.priority, "status": r.status,
+            } for r in reqs],
+            "gaps": [{
+                "id": str(g.id), "gap_id": g.gap_id,
+                "question": g.question, "severity": g.severity,
+                "status": g.status,
+            } for g in gaps],
+            "constraints": [{
+                "id": str(c.id),
+                "display_id": f"CON-{con_idx.get(c.id, 0):03d}" if con_idx.get(c.id) else None,
+                "type": c.type, "description": c.description,
+                "status": c.status,
+            } for c in cons],
+            "contradictions": [{
+                "id": str(c.id),
+                "display_id": f"CTR-{ctr_idx.get(c.id, 0):03d}" if ctr_idx.get(c.id) else None,
+                "title": c.title or (c.explanation or "")[:80],
+                "resolved": c.resolved,
+            } for c in contras],
+        },
+    }
+
+
 # ── Contradictions ────────────────────────────────────
 
 @router.get("/contradictions")

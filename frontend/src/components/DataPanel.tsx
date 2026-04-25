@@ -28,6 +28,7 @@ import {
 } from "./datapanel/feedback-cards";
 import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import RequirementDetailView from "./datapanel/requirement-detail-view";
+import PersonDetailView from "./datapanel/person-detail-view";
 import ConnectionsSection from "./datapanel/connections-section";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
@@ -336,6 +337,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   const openContras = contradictions.filter((c) => !c.resolved);
   const openGaps = gaps.filter((g) => g.status === "open");
+
+  // Person detail (?tab=people&highlight=Name) — short-circuits the
+  // tab body since people aren't a tab; they're a right-pane view
+  // reachable via the connections section + chat refs.
+  if (activeTab === "people" && highlightId) {
+    return (
+      <div className="data-panel" style={{ flex: 1, width: "100%" }}>
+        <PersonDetailView
+          projectId={projectId}
+          name={highlightId}
+          onClose={() => onNavigate?.("reqs")}
+          onNavigate={onNavigate}
+        />
+      </div>
+    );
+  }
 
   // If detail view is open
   if (detail) {

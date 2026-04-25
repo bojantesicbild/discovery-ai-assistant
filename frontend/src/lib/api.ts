@@ -446,6 +446,27 @@ export async function listStakeholders(projectId: string): Promise<ApiListRespon
   return fetchAPI(`/api/projects/${projectId}/stakeholders`);
 }
 
+export interface PersonFindingsBundle {
+  stakeholder: {
+    id: string | null;
+    name: string;
+    role: string | null;
+    organization: string | null;
+    decision_authority: string | null;
+    interests: string | null;
+  };
+  findings: {
+    requirements: Array<{ id: string; req_id: string; title: string; priority: string; status: string }>;
+    gaps: Array<{ id: string; gap_id: string; question: string; severity: string; status: string }>;
+    constraints: Array<{ id: string; display_id: string | null; type: string; description: string; status: string }>;
+    contradictions: Array<{ id: string; display_id: string | null; title: string; resolved: boolean }>;
+  };
+}
+
+export async function getStakeholderByName(projectId: string, name: string): Promise<PersonFindingsBundle> {
+  return fetchAPI(`/api/projects/${projectId}/stakeholders/by-name/${encodeURIComponent(name)}`);
+}
+
 export async function listContradictions(projectId: string): Promise<ApiListResponse<ApiContradiction>> {
   return fetchAPI(`/api/projects/${projectId}/contradictions`);
 }
