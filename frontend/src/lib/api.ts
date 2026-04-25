@@ -652,8 +652,15 @@ export function chatStream(
   }).catch((err) => onError(err.message));
 }
 
-export async function getConversation(projectId: string) {
-  return fetchAPI(`/api/projects/${projectId}/conversation`);
+export async function getConversation(
+  projectId: string,
+  opts?: { cursor?: string | null; limit?: number },
+) {
+  const qs = new URLSearchParams();
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return fetchAPI(`/api/projects/${projectId}/conversation${suffix}`);
 }
 
 export async function clearConversation(projectId: string) {

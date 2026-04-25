@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { chatStream, getConversation, clearConversation } from "@/lib/api";
+import { useTopSentinel } from "@/lib/useTopSentinel";
 
 interface Segment {
   type: "text" | "activity";
@@ -139,6 +140,30 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Cursor pagination state — the chat now loads the newest page on
+  // mount and fetches older pages on scroll-up. `oldestCursor` is opaque
+  // (server decides shape); when the server returns null we know there
+  // is no more history and the top sentinel disappears.
+  const [oldestCursor, setOldestCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isFetchingOlder, setIsFetchingOlder] = useState<boolean>(false);
+  // "↓ N new" pill — incremented by the polling reconcile when a brand-new
+  // message arrives while the user is scrolled up reading older history.
+  const [hasNewBelow, setHasNewBelow] = useState<number>(0);
+
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  // Snapshot scrollHeight + scrollTop right before a prepend. The
+  // useLayoutEffect that fires after the prepend renders restores the
+  // delta so the user's reading position never jumps.
+  const pendingAnchorRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
+  // Tracks whether the user is currently pinned to the bottom (within a
+  // small threshold). Used to gate auto-scroll on new messages — we
+  // never yank a scrolled-up reader down to the bottom.
+  const isPinnedToBottomRef = useRef<boolean>(true);
+  // Initial mount: snap to bottom synchronously the first time messages
+  // render. Later renders use smooth scroll only when pinned.
+  const didInitialScrollRef = useRef<boolean>(false);
+
   // Map a raw server message into our local Message shape
   const mapMessage = (m: any): Message => ({
     role: m.role,
@@ -163,8 +188,18 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     _processing: m._processing || false,
   });
 
-  // Load conversation history on mount
+  // Load the newest page of conversation history on mount. Older pages
+  // are fetched lazily as the user scrolls up — see loadOlder() below.
   useEffect(() => {
+    // Reset on project switch — otherwise we'd briefly show the previous
+    // project's tail with the new project's pagination cursor.
+    setMessages([]);
+    setOldestCursor(null);
+    setHasMore(false);
+    setHasNewBelow(0);
+    didInitialScrollRef.current = false;
+    isPinnedToBottomRef.current = true;
+
     getConversation(projectId)
       .then((data) => {
         if (data.messages?.length > 0) {
@@ -172,6 +207,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           const lastAssistant = [...data.messages].reverse().find((m: any) => m.role === "assistant");
           if (lastAssistant?.stats) setLastStats(lastAssistant.stats);
         }
+        setOldestCursor(data.next_cursor ?? null);
+        setHasMore(Boolean(data.next_cursor));
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,6 +217,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   // Poll for new messages from the shared conversation (Slack inbound).
   // Only runs while the page is visible and we're NOT actively streaming
   // a web-initiated turn (the SSE stream owns updates during that window).
+  // Always queries the newest page (no cursor) — older history is
+  // immutable once paginated in, no need to refetch it.
   useEffect(() => {
     let cancelled = false;
     const tick = async () => {
@@ -188,6 +227,7 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
         const data = await getConversation(projectId);
         if (cancelled) return;
         const incoming: Message[] = (data.messages || []).map(mapMessage);
+        let appended = 0;
         setMessages((prev) => {
           // Reconcile incoming server messages with local state.
           // Two paths:
@@ -264,11 +304,19 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
             } else {
               indexByKey.set(msg._key, next.length);
               next.push(msg);
+              appended += 1;
               mutated = true;
             }
           }
           return mutated ? next : prev;
         });
+        // Drive the "↓ N new" pill — only when the user is currently
+        // scrolled up reading older history. If they're pinned at the
+        // bottom, the auto-scroll effect will smoothly bring the new
+        // message into view and the pill stays at zero.
+        if (appended > 0 && !isPinnedToBottomRef.current) {
+          setHasNewBelow((n) => n + appended);
+        }
       } catch {
         /* ignore polling errors */
       }
@@ -281,9 +329,129 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, isStreaming]);
 
+  // Restore scroll anchor after a "load older" prepend. Runs in the
+  // commit phase BEFORE paint, so the user never sees the jump that
+  // would happen if we did this in useEffect.
+  useLayoutEffect(() => {
+    const anchor = pendingAnchorRef.current;
+    if (!anchor) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    const delta = el.scrollHeight - anchor.prevScrollHeight;
+    el.scrollTop = anchor.prevScrollTop + delta;
+    pendingAnchorRef.current = null;
+  }, [messages]);
+
+  // Initial mount: snap to the bottom synchronously the first time we
+  // have messages so the user lands at the latest turn with no flash.
+  useLayoutEffect(() => {
+    if (didInitialScrollRef.current) return;
+    if (messages.length === 0) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    didInitialScrollRef.current = true;
+    isPinnedToBottomRef.current = true;
+  }, [messages.length]);
+
+  // Subsequent message changes (new turn arrives, stream chunk lands):
+  // smooth-scroll to the bottom only when the user is already pinned
+  // there. Scrolled-up readers get the "↓ N new" pill instead.
   useEffect(() => {
+    if (!didInitialScrollRef.current) return;
+    if (pendingAnchorRef.current) return;  // a prepend just ran — don't fight it
+    if (!isPinnedToBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Track pinning by listening to scroll events on the chat body. 64px
+  // threshold means "close enough to the bottom to count as pinned" —
+  // generous enough that a slow stream still auto-scrolls without the
+  // user feeling locked, tight enough that a deliberate scroll-up
+  // disengages it immediately.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const pinned = dist < 64;
+      isPinnedToBottomRef.current = pinned;
+      if (pinned) setHasNewBelow(0);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Tab returns from hidden → poll immediately so the user doesn't have
+  // to wait up to 5s for the next interval tick to see fresh messages.
+  useEffect(() => {
+    function onVisible() {
+      if (document.hidden || isStreaming) return;
+      getConversation(projectId)
+        .then((data) => {
+          const incoming: Message[] = (data.messages || []).map(mapMessage);
+          // Reuse the same reconcile shape as the polling loop: in-place
+          // update by _key, append unknown keys.
+          setMessages((prev) => {
+            const next = [...prev];
+            const indexByKey = new Map<string, number>();
+            next.forEach((m, i) => { if (m._key) indexByKey.set(m._key, i); });
+            let mutated = false;
+            for (const msg of incoming) {
+              if (!msg._key) continue;
+              const existingIdx = indexByKey.get(msg._key);
+              if (existingIdx !== undefined) {
+                next[existingIdx] = { ...next[existingIdx], ...msg };
+                mutated = true;
+              } else {
+                indexByKey.set(msg._key, next.length);
+                next.push(msg);
+                mutated = true;
+              }
+            }
+            return mutated ? next : prev;
+          });
+        })
+        .catch(() => {});
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, isStreaming]);
+
+  // Fetch the next older page and prepend it. The IntersectionObserver
+  // sentinel at the top of the list calls this on enter; the scroll
+  // anchor is captured BEFORE state mutates so the restoration pass
+  // can compute the right delta.
+  const loadOlder = useCallback(async () => {
+    if (!hasMore || isFetchingOlder || !oldestCursor) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    pendingAnchorRef.current = {
+      prevScrollHeight: el.scrollHeight,
+      prevScrollTop: el.scrollTop,
+    };
+    setIsFetchingOlder(true);
+    try {
+      const data = await getConversation(projectId, { cursor: oldestCursor });
+      const older: Message[] = (data.messages || []).map(mapMessage);
+      setMessages((prev) => [...older, ...prev]);
+      setOldestCursor(data.next_cursor ?? null);
+      setHasMore(Boolean(data.next_cursor));
+    } catch {
+      // Failed fetch: clear the anchor so we don't restore against a
+      // stale snapshot on the next render.
+      pendingAnchorRef.current = null;
+    } finally {
+      setIsFetchingOlder(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, oldestCursor, hasMore, isFetchingOlder]);
+
+  const topSentinelRef = useTopSentinel({
+    onEnter: loadOlder,
+    enabled: hasMore && !isFetchingOlder,
+  });
 
   function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
@@ -502,6 +670,7 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       {/* Messages — Design v2 .chat-body-wrap + .chat-body with edge fades */}
       <div className="chat-body-wrap">
       <div
+        ref={scrollerRef}
         className="chat-body"
         id="chatMessages"
         onClick={(e) => {
@@ -558,6 +727,25 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           </div>
         )}
 
+        {/* Top-of-list sentinel for invisible infinite scroll. While more
+            history is available, an IntersectionObserver fires loadOlder
+            when this element comes into view; once next_cursor is null
+            the sentinel unmounts and the observer disconnects. The
+            skeleton reuses .msg-card.ghost so the loading vibe matches
+            the live-stream ghost above. */}
+        {hasMore && (
+          <div ref={topSentinelRef} className="chat-history-sentinel">
+            {isFetchingOlder && (
+              <div className="msg-card ghost" style={{ margin: "8px 0" }}>
+                <div className="ghost-body">
+                  <div className="skeleton w1" />
+                  <div className="skeleton w2" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {messages.map((msg, i) => {
           if (msg.role === "system") {
             // Group only consecutive system messages of the same kind.
@@ -581,11 +769,36 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
               ? (msg.source === "slack" ? (msg.slack_user_name || "Slack user") : "You")
               : "Discovery Assistant";
           // Empty assistant bubble mid-stream → ghost state (spinner +
-          // skeleton). When content starts arriving we flip to the
-          // normal msg-content render.
+          // skeleton). Same treatment for pipeline/reminder/Slack runs
+          // that started server-side (msg._processing) — uploads and
+          // reminder fires should look the same as a live chat turn,
+          // not a stale "Agent thinking…" line. When content starts
+          // arriving we flip to the normal msg-content render.
           const isLiveStreamTarget = isStreaming && i === messages.length - 1;
-          const hasContent = Boolean(msg.content) || (msg.segments && msg.segments.length > 0);
-          const showGhost = msg.role === "assistant" && isLiveStreamTarget && !hasContent;
+          // Activity-only segments (thinking, tool calls) shouldn't count
+          // as "real" content — otherwise the ghost UI flips off the
+          // moment the agent emits its first thinking event, even though
+          // the user has nothing to read yet. Only TEXT segments (or
+          // top-level content) end the ghost state.
+          const hasTextSegment = (msg.segments || []).some((s) => s.type === "text" && s.content);
+          const hasContent = Boolean(msg.content) || hasTextSegment;
+          // Server-side runs (document extraction, reminder prep) keep the
+          // ghost up for the entire in-flight window even when the agent
+          // dribbles intermediate reasoning text into the message — those
+          // partial chunks are noisy mid-thought, not the final summary
+          // the PM should be reading. The ghost replaces them with a
+          // clean "still working" surface and the real text appears
+          // when extraction finishes (kind flips to *_done).
+          const isInflightServerRun =
+            msg.role === "assistant" && (
+              (msg.source === "pipeline" && msg.kind === "extraction_running") ||
+              (msg.source === "reminder" && msg.kind === "reminder_prep")
+            );
+          const showGhost =
+            msg.role === "assistant" && (
+              isInflightServerRun ||
+              (!hasContent && (isLiveStreamTarget || !!msg._processing))
+            );
           // Phase progression for the dot indicator — real status from
           // the stream (thinking / tool / writing / retry), not a synthetic
           // counter. Dots light up as the stream advances through phases.
@@ -598,8 +811,20 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
             <div className="msg-meta">
               <strong>{senderName}</strong>
               {msg.source === "slack" && <SlackBadge msg={msg} />}
-              {msg.source === "pipeline" && <TriggerBadge source="pipeline" kind={msg.kind} />}
-              {msg.source === "reminder" && <TriggerBadge source="reminder" kind={msg.kind} />}
+              {msg.source === "pipeline" && (
+                <TriggerBadge
+                  source="pipeline"
+                  kind={msg.kind}
+                  filename={(msg.data as { filename?: string } | undefined)?.filename}
+                />
+              )}
+              {msg.source === "reminder" && (
+                <TriggerBadge
+                  source="reminder"
+                  kind={msg.kind}
+                  reminderLabel={(msg.data as { label?: string } | undefined)?.label}
+                />
+              )}
               {/* Live in-flight — green pill + streaming dots matches
                   the design's "Thinking…" pattern. Completed messages
                   show nothing here (the tools-bar below already
@@ -620,45 +845,76 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   <div className="ghost-head">
                     <span className="ghost-spinner" />
                     <span className="ghost-status">
-                      {status.detail || (
-                        status.phase === "writing" ? "Writing response" :
-                        status.phase === "tool" ? "Calling tools" :
-                        "Thinking"
-                      )}
+                      {isLiveStreamTarget
+                        ? (status.detail || (
+                            status.phase === "writing" ? "Writing response" :
+                            status.phase === "tool" ? "Calling tools" :
+                            "Thinking"
+                          ))
+                        : msg.source === "pipeline"
+                          // Filename already lives in the meta line — keep
+                          // the ghost head generic so the user doesn't
+                          // read the same string twice.
+                          ? (msg.toolCalls && msg.toolCalls.length > 0 ? "Calling tools" : "Thinking")
+                        : msg.source === "reminder"
+                          ? "Preparing reminder"
+                        : msg.source === "slack"
+                          ? "Agent thinking"
+                        : "Thinking"}
                       <span className="cursor" />
                     </span>
-                    {/* Real-data status — dots indicate the live phase
-                        (thinking / tool / writing); trailing text is
-                        the actual counters from the stream, not a
-                        synthetic "step N of 4". */}
-                    {(status.toolCount > 0 || status.thinkingCount > 0) && (
-                      <span className="ghost-steps" title="Live agent status">
-                        {PHASES.map((_, idx) => (
-                          <span
-                            key={idx}
-                            className={`step-dot${idx === phaseIndex ? " active" : ""}`}
-                          />
-                        ))}
-                        <span>
-                          {status.toolCount > 0 && `${status.toolCount} tool${status.toolCount !== 1 ? "s" : ""}`}
-                          {status.toolCount > 0 && status.thinkingCount > 0 && " · "}
-                          {status.thinkingCount > 0 && `${status.thinkingCount} thinking`}
+                    {/* Live counter pill — phase dots (thinking → tool →
+                        writing) for the chat-stream case, simple counters
+                        for server-side runs (uploads, reminders) where we
+                        only know totals. Either way the user sees what
+                        the agent is doing, not a generic spinner. */}
+                    {(() => {
+                      const pipelineToolCount = msg.toolCalls?.length || 0;
+                      const pipelineThinkingCount = msg.thinkingCount || 0;
+                      const liveHasCounts = isLiveStreamTarget && (status.toolCount > 0 || status.thinkingCount > 0);
+                      const pipelineHasCounts = !isLiveStreamTarget && (pipelineToolCount > 0 || pipelineThinkingCount > 0);
+                      if (!liveHasCounts && !pipelineHasCounts) return null;
+                      const tools = isLiveStreamTarget ? status.toolCount : pipelineToolCount;
+                      const thinks = isLiveStreamTarget ? status.thinkingCount : pipelineThinkingCount;
+                      return (
+                        <span className="ghost-steps" title="Live agent status">
+                          {isLiveStreamTarget && PHASES.map((_, idx) => (
+                            <span
+                              key={idx}
+                              className={`step-dot${idx === phaseIndex ? " active" : ""}`}
+                            />
+                          ))}
+                          <span>
+                            {tools > 0 && `${tools} tool${tools !== 1 ? "s" : ""}`}
+                            {tools > 0 && thinks > 0 && " · "}
+                            {thinks > 0 && `${thinks} thinking`}
+                          </span>
                         </span>
-                      </span>
-                    )}
+                      );
+                    })()}
                   </div>
                   <div className="ghost-body">
-                    {/* When a tool is actively running, show its real
-                        name at the top of the body. */}
-                    {status.phase === "tool" && status.detail && (
-                      <div className="ghost-tool">
-                        <span className="tool-dot" />
-                        <span className="tool-name">{status.detail}</span>
-                      </div>
-                    )}
+                    {/* Latest tool call surfaces inline so the ghost reads
+                        as "what the agent is doing right now", not just a
+                        generic skeleton. Live-stream uses status.detail
+                        (the tool currently running); server-side runs
+                        pick the most recent entry from msg.toolCalls. */}
+                    {(() => {
+                      const liveDetail = isLiveStreamTarget && status.phase === "tool" ? status.detail : null;
+                      const pipelineLast = !isLiveStreamTarget && msg.toolCalls && msg.toolCalls.length > 0
+                        ? msg.toolCalls[msg.toolCalls.length - 1]
+                        : null;
+                      const detail = liveDetail || pipelineLast;
+                      if (!detail) return null;
+                      return (
+                        <div className="ghost-tool">
+                          <span className="tool-dot" />
+                          <span className="tool-name">{detail}</span>
+                        </div>
+                      );
+                    })()}
                     <div className="skeleton w1" />
                     <div className="skeleton w2" />
-                    <div className="skeleton w3" />
                   </div>
                 </>
               ) : msg.role === "assistant" && msg.segments && msg.segments.length > 0 ? (
@@ -690,7 +946,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                   )}
                   {msg._processing && !isLiveStreamTarget && (
                     <div className="msg-content">
-                      <ProcessingIndicator source={msg.source} />
+                      <ProcessingIndicator
+                        source={msg.source}
+                        currentTool={msg.toolCalls && msg.toolCalls.length > 0 ? msg.toolCalls[msg.toolCalls.length - 1] : undefined}
+                      />
                     </div>
                   )}
                 </>
@@ -712,7 +971,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                     {msg.content ? (
                       <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(msg.content) }} />
                     ) : msg._processing ? (
-                      <ProcessingIndicator source={msg.source} />
+                      <ProcessingIndicator
+                        source={msg.source}
+                        currentTool={msg.toolCalls && msg.toolCalls.length > 0 ? msg.toolCalls[msg.toolCalls.length - 1] : undefined}
+                      />
                     ) : null}
                     {isLiveStreamTarget && msg.content && status.phase !== "idle" && status.phase !== "writing" && (
                       <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
@@ -721,7 +983,10 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                     )}
                     {msg._processing && msg.content && !isLiveStreamTarget && (
                       <div style={{ marginTop: 8, paddingTop: 6, borderTop: "1px solid var(--line)" }}>
-                        <ProcessingIndicator source={msg.source} />
+                        <ProcessingIndicator
+                        source={msg.source}
+                        currentTool={msg.toolCalls && msg.toolCalls.length > 0 ? msg.toolCalls[msg.toolCalls.length - 1] : undefined}
+                      />
                       </div>
                     )}
                   </div>
@@ -745,6 +1010,24 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
 
         <div ref={messagesEndRef} />
       </div>
+      {/* "↓ N new" pill — only renders when at least one new message
+          arrived while the user was scrolled up reading older history.
+          Click jumps to the bottom and zeroes the counter. */}
+      {hasNewBelow > 0 && (
+        <button
+          type="button"
+          className="chat-new-below"
+          onClick={() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+            setHasNewBelow(0);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12l7 7 7-7" />
+          </svg>
+          {hasNewBelow} new
+        </button>
+      )}
       </div>
 
       {/* Design v2 composer — input on top, action footer below with
@@ -990,8 +1273,8 @@ function StatusBar({ status, lastStats, isStreaming }: {
 
   return (
     <div style={barStyle}>
-      <span style={pillStyle("var(--green-light, #d1fae5)", "#059669")}>
-        <span style={dotStyle("#059669")} />
+      <span style={pillStyle("var(--accent-soft)", "var(--accent-ink)")}>
+        <span style={dotStyle("var(--accent)")} />
         Ready
       </span>
     </div>
@@ -1196,17 +1479,38 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
 
 /* ── Processing indicator (for Slack-triggered runs in progress) ── */
 
-function ProcessingIndicator({ source }: { source?: string }) {
-  const label = source === "slack" ? "Agent thinking (via Slack)…" : "Agent thinking…";
+function ProcessingIndicator({ source, currentTool }: { source?: string; currentTool?: string }) {
+  const label =
+    source === "slack" ? "Agent thinking (via Slack)" :
+    source === "pipeline" ? "Extracting" :
+    source === "reminder" ? "Preparing reminder" :
+    "Agent thinking";
+  // Same accent-green chip + streaming-dots vocabulary as the meta
+  // badge — keeps the visual language of "live work in progress"
+  // unified across the meta line and the in-bubble indicator.
+  // When a tool call is active, show its name inline so the user sees
+  // exactly what the agent is doing right now (e.g. "Extracting · vault.read(...)").
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#7c3aed", padding: "4px 0" }}>
-      <span style={{ display: "inline-flex", gap: 3 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0s" }} />
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0.3s" }} />
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c3aed", animation: "pulse 1.5s infinite", animationDelay: "0.6s" }} />
-      </span>
-      <span style={{ fontSize: 12 }}>{label}</span>
-    </div>
+    <span className="chip green" style={{ marginTop: 2, maxWidth: "100%", overflow: "hidden" }}>
+      {label}
+      {currentTool && (
+        <>
+          <span style={{ opacity: 0.55 }}>·</span>
+          <span style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 10.5,
+            opacity: 0.85,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            maxWidth: 320,
+          }}>
+            {currentTool}
+          </span>
+        </>
+      )}
+      <span className="streaming-dots"><span /><span /><span /></span>
+    </span>
   );
 }
 
@@ -1716,49 +2020,95 @@ function ClientReviewNotice({
 //
 // Inline SVGs (not emoji) so the badges match the rest of the app's icon
 // language — same 24-viewBox, stroke-based style used in Topbar + Sidebar.
-function TriggerBadge({ source, kind }: { source: "pipeline" | "reminder"; kind?: string }) {
-  // Maps source + kind → tokenized .chip variant + label + icon.
-  // Colors come from chat.css so badges live inside the same palette
-  // as other inline chips (.chip.green / .chip.amber / .chip.red).
-  const label = (() => {
+// Single icon set, sized + stroked to match every other meta-line glyph.
+// Inline so the meta stays self-contained (no extra import surface).
+const _IconDoc = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+const _IconAlert = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+const _IconBell = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+    <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 01-3.46 0" />
+  </svg>
+);
+
+function TriggerBadge({ source, kind, filename, reminderLabel }: {
+  source: "pipeline" | "reminder";
+  kind?: string;
+  filename?: string;
+  reminderLabel?: string;
+}) {
+  // Every pipeline + reminder kind renders as plain meta-line text with a
+  // single small icon — no green/amber pill, no separate chip surface.
+  // The meaningful context (filename / reminder label) is the actual signal
+  // the user looks for; chip colour added redundant noise on top of the
+  // ghost skeleton, the activity panel, or the surrounding meta items.
+  type Tone = "default" | "danger" | "muted";
+  type Bit = { icon: React.ReactNode; text: string; tone: Tone; running: boolean; tooltip: string };
+
+  const bit: Bit | null = (() => {
     if (source === "pipeline") {
-      if (kind === "extraction_running") return "Extracting";
-      if (kind === "extraction_done") return "Upload";
-      if (kind === "extraction_failed") return "Upload failed";
-      return "Upload";
+      const fn = filename || "document";
+      const tooltip = "Auto-triggered by a document upload.";
+      if (kind === "extraction_running") {
+        return { icon: <_IconDoc />, text: `Extracting ${fn}`, tone: "default", running: true, tooltip };
+      }
+      if (kind === "extraction_failed") {
+        return { icon: <_IconAlert />, text: `Failed to extract ${fn}`, tone: "danger", running: false, tooltip };
+      }
+      // extraction_done (and the historic "Upload" fallback)
+      return { icon: <_IconDoc />, text: `Extracted from ${fn}`, tone: "muted", running: false, tooltip };
     }
-    if (kind === "reminder_prep") return "Reminder prep";
-    if (kind === "reminder_prep_done") return "Reminder";
-    if (kind === "reminder_delivered") return "Reminder";
-    if (kind === "reminder_prep_failed") return "Reminder failed";
-    return "Reminder";
+    // reminder
+    const lbl = reminderLabel || "reminder";
+    const tooltip = "Auto-triggered by a reminder firing. Scheduled by you earlier.";
+    if (kind === "reminder_prep") {
+      return { icon: <_IconBell />, text: `Preparing ${lbl}`, tone: "default", running: true, tooltip };
+    }
+    if (kind === "reminder_prep_failed") {
+      return { icon: <_IconAlert />, text: `Reminder failed: ${lbl}`, tone: "danger", running: false, tooltip };
+    }
+    // reminder_prep_done / reminder_delivered / fallback
+    return { icon: <_IconBell />, text: `Reminder · ${lbl}`, tone: "muted", running: false, tooltip };
   })();
 
-  const variant = source === "pipeline"
-    ? (kind === "extraction_failed" ? "red" : "green")
-    : (kind === "reminder_prep_failed" ? "red" : "amber");
+  if (!bit) return null;
 
-  const tooltip = source === "pipeline"
-    ? "Auto-triggered by a document upload. Extraction runs without your input."
-    : "Auto-triggered by a reminder firing. Scheduled by you earlier.";
-
-  const iconPath = source === "pipeline"
-    ? ["M16 16l-4-4-4 4", "M12 12v9", "M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"]
-    : ["M12 8v5l3 2"];
-  const iconCircle = source === "reminder";
+  const color =
+    bit.tone === "danger" ? "var(--must, #B91C1C)" :
+    bit.tone === "muted"  ? "var(--ink-3)" :
+    "var(--ink-2)";
 
   return (
-    <span className={`chip ${variant}`} title={tooltip}>
-      <svg
-        width="11" height="11" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
+    <>
+      <span className="dot-sep">·</span>
+      <span
+        title={bit.tooltip}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          color, minWidth: 0, maxWidth: 360,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          fontWeight: 500,
+        }}
       >
-        {iconCircle && <circle cx="12" cy="12" r="9" />}
-        {iconPath.map((d, i) => <path key={i} d={d} />)}
-      </svg>
-      {label}
-    </span>
+        {bit.icon}
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{bit.text}</span>
+        {bit.running && <span className="streaming-dots"><span /><span /><span /></span>}
+      </span>
+    </>
   );
 }
 

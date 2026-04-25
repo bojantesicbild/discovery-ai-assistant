@@ -138,6 +138,42 @@
 .chat-body::-webkit-scrollbar { width: 8px; }
 .chat-body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 8px; }
 
+/* Top-of-list sentinel — IntersectionObserver target for invisible
+   infinite scroll. Needs a tiny non-zero height so it can be observed
+   even when no skeleton is rendered. */
+.chat-history-sentinel {
+  min-height: 1px;
+  padding: 4px 0;
+}
+
+/* "↓ N new" pill — sits over the bottom-right of .chat-body-wrap when
+   the user is scrolled up and a new message arrives. Reuses the same
+   accent green vocabulary the streaming chip uses so it reads as part
+   of the same family rather than a new affordance. */
+.chat-new-below {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font: 600 12px/1 var(--font);
+  cursor: pointer;
+  box-shadow: 0 4px 16px -4px rgba(0,255,157,.35);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.chat-new-below:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -4px rgba(0,255,157,.45);
+}
+.chat-new-below svg { stroke: currentColor; }
+
 .msg { margin-bottom: 18px; }
 .msg-meta {
   display: flex; align-items: center; gap: 8px;
