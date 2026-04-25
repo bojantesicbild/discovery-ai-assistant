@@ -390,6 +390,11 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
     # Create the ONE streaming message up front. All subsequent updates
     # patch this row in place — the chat renderer shows it as a live
     # "processing" card that fills in with tool calls and text as they arrive.
+    #
+    # Content is left empty on purpose so the frontend renders the ghost
+    # skeleton (matches the extraction pipeline pattern). The label and
+    # due time are persisted in `data` so the meta line can show
+    # "Preparing <label>" survivorshipped across refreshes.
     placeholder_id: str | None = None
     try:
         placeholder_id = await conversation_store.append_message(
@@ -399,9 +404,8 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
                 "source": "reminder",
                 "kind": "reminder_prep",
                 "reminder_id": str(reminder.id),
-                "content": render_reminder_card(
-                    state="running", label=label, due_local=due_local,
-                ),
+                "content": "",
+                "data": {"label": label, "due_local": due_local},
                 "segments": [],
                 "toolCalls": [],
                 "thinkingCount": 0,

@@ -22,10 +22,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.operational import Conversation
+from app.models.operational import Conversation, ConversationMessage
 
 log = structlog.get_logger()
 
@@ -56,6 +56,31 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_iso(ts: str | None) -> datetime:
+    """Best-effort ISO parse, falling back to now(). Used so the
+    ConversationMessage row's created_at always lines up with the dict's
+    own timestamp."""
+    if ts:
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            pass
+    return datetime.now(timezone.utc)
+
+
+def _msg_uuid(message: dict[str, Any]) -> uuid.UUID:
+    """The hex id stored in the message dict is a uuid4().hex (32 chars,
+    no dashes). Coerce to a UUID for the typed PK column. Defensive
+    against any legacy non-uuid id by minting a fresh one."""
+    raw = message.get("id")
+    if raw:
+        try:
+            return uuid.UUID(raw)
+        except (ValueError, AttributeError):
+            pass
+    return uuid.uuid4()
+
+
 async def append_message(
     db: AsyncSession,
     project_id: uuid.UUID,
@@ -67,6 +92,11 @@ async def append_message(
     source-specific metadata. We assign a stable `id`, add `timestamp` if
     missing, and trim to MAX_MESSAGES. Returns the assigned id so callers
     can update_message_by_id later.
+
+    Dual-writes to conversation_messages (one row per dict) so paginated
+    history reads are O(page size) regardless of how long the convo is.
+    The JSONB list still gets trimmed to MAX_MESSAGES; the rows table is
+    NOT trimmed — that's where the real history lives.
     """
     if "id" not in message:
         message["id"] = uuid.uuid4().hex
@@ -78,6 +108,18 @@ async def append_message(
     if len(history) > MAX_MESSAGES:
         history = history[-MAX_MESSAGES:]
     conv.messages = history
+    # Dual-write: persist this message as its own row for cursor pagination.
+    db.add(ConversationMessage(
+        id=_msg_uuid(message),
+        conversation_id=conv.id,
+        project_id=project_id,
+        role=message.get("role") or "assistant",
+        content=message.get("content"),
+        source=message.get("source"),
+        kind=message.get("kind"),
+        payload=message,
+        created_at=_parse_iso(message.get("timestamp")),
+    ))
     await db.commit()
     return message["id"]
 
@@ -113,20 +155,44 @@ async def update_message_by_id(
     """Find a message by its stable id in the shared conversation and patch
     it in place. Returns True if a row was updated, False if the id wasn't
     found. SQLAlchemy needs a fresh JSONB list for change detection so we
-    rebuild the array."""
+    rebuild the array.
+
+    Dual-writes the same patch into the conversation_messages row so the
+    paginated history endpoint sees the patched payload too. Done in the
+    same transaction as the JSONB rewrite — they cannot drift."""
     conv = await get_shared(db, project_id)
     history = list(conv.messages or [])
     found = False
+    patched_msg: dict[str, Any] | None = None
     new_history: list[dict] = []
     for msg in history:
         if msg.get("id") == message_id:
-            new_msg = {**msg, **patch}
-            new_history.append(new_msg)
+            patched_msg = {**msg, **patch}
+            new_history.append(patched_msg)
             found = True
         else:
             new_history.append(msg)
-    if found:
+    if found and patched_msg is not None:
         conv.messages = new_history
+        # Mirror the patch into conversation_messages. We only touch the
+        # mirrored row when the JSONB write actually found a match — if a
+        # caller ever updates a stale id the rows table stays consistent.
+        try:
+            row_uuid = uuid.UUID(message_id)
+        except (ValueError, AttributeError):
+            row_uuid = None
+        if row_uuid is not None:
+            await db.execute(
+                update(ConversationMessage)
+                .where(ConversationMessage.id == row_uuid)
+                .values(
+                    role=patched_msg.get("role") or "assistant",
+                    content=patched_msg.get("content"),
+                    source=patched_msg.get("source"),
+                    kind=patched_msg.get("kind"),
+                    payload=patched_msg,
+                )
+            )
         await db.commit()
     return found
 
@@ -297,4 +363,10 @@ async def get_messages(db: AsyncSession, project_id: uuid.UUID, limit: int = 40)
 async def clear_conversation(db: AsyncSession, project_id: uuid.UUID) -> None:
     conv = await get_shared(db, project_id)
     conv.messages = []
+    # Wipe the per-row history too — otherwise "Clear conversation" would
+    # only blank the rolling JSONB window while leaving the paginated
+    # archive intact, which is the opposite of what the user expects.
+    await db.execute(
+        delete(ConversationMessage).where(ConversationMessage.project_id == project_id)
+    )
     await db.commit()

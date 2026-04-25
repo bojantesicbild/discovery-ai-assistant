@@ -20,6 +20,11 @@ async def lifespan(app: FastAPI):
     # Re-queue stuck documents (queued or mid-processing from previous crash)
     await _requeue_stuck_documents()
 
+    # Heal stuck "_processing": True chat / pipeline / reminder placeholders
+    # left by the previous worker generation. Without this they render as
+    # the ghost UI forever — see chat.py finally-block notes.
+    await _heal_stuck_processing_messages()
+
     # Start Slack inbound listeners (one per project with Slack + ≥1 channel link)
     try:
         from app.slack.manager import manager as slack_manager
@@ -86,6 +91,115 @@ async def _requeue_stuck_documents():
     except Exception as e:
         import structlog
         structlog.get_logger().warning("Startup re-queue check failed", error=str(e))
+
+
+async def _heal_stuck_processing_messages():
+    """Mark every in-flight chat / extraction / reminder placeholder as
+    interrupted on boot.
+
+    Background: the chat (and earlier the pipeline + reminder) flows write
+    a placeholder message with ``_processing: True`` before kicking off
+    the agent run, then patch it in place when the run completes. If
+    uvicorn is reloaded mid-stream (file save, OOM kill, manual restart)
+    the finally-block update never lands and the row stays stuck —
+    rendered forever as the ghost UI on the next mount.
+
+    This sweep runs once at startup. Anything still marked
+    ``_processing: True`` from a previous worker generation is, by
+    definition, no longer being worked on by anyone, so we patch both
+    the rolling JSONB list and the conversation_messages rows to flip
+    the flag and surface a short interrupted-content marker.
+
+    The sweep is intentionally generous (any ``_processing: True``,
+    regardless of ``kind``) so older placeholders that predate the
+    ``kind: 'chat_running'`` tag get healed too."""
+    import structlog
+    log = structlog.get_logger()
+
+    INTERRUPTED_TEXT = "⚠️ Backend restarted mid-response. Send the message again."
+
+    try:
+        from app.db.session import async_session
+        from sqlalchemy import text
+
+        async with async_session() as db:
+            # 1) Flip the typed rows. content overwrite happens only when
+            #    the existing content is empty — for an in-flight run that
+            #    streamed some text before the crash, we keep what we have
+            #    so the user sees their partial answer rather than the
+            #    interrupted marker.
+            row_result = await db.execute(text(
+                """
+                UPDATE conversation_messages
+                SET
+                    content = CASE
+                        WHEN COALESCE(content, '') = '' THEN :interrupted
+                        ELSE content
+                    END,
+                    payload = jsonb_set(
+                        jsonb_set(
+                            payload,
+                            '{_processing}',
+                            'false'::jsonb,
+                            true
+                        ),
+                        '{content}',
+                        to_jsonb(
+                            CASE
+                                WHEN COALESCE(payload->>'content', '') = ''
+                                    THEN :interrupted
+                                ELSE payload->>'content'
+                            END
+                        ),
+                        true
+                    )
+                WHERE COALESCE((payload->>'_processing')::boolean, false) = true
+                """
+            ), {"interrupted": INTERRUPTED_TEXT})
+
+            # 2) Same patch on the rolling JSONB list. We rebuild the
+            #    array with the in-flight elements healed; everything
+            #    else stays bit-for-bit identical.
+            await db.execute(text(
+                """
+                UPDATE conversations c
+                SET messages = (
+                    SELECT COALESCE(jsonb_agg(
+                        CASE
+                            WHEN COALESCE((msg->>'_processing')::boolean, false) = true
+                            THEN jsonb_set(
+                                    jsonb_set(msg, '{_processing}', 'false'::jsonb, true),
+                                    '{content}',
+                                    to_jsonb(
+                                        CASE
+                                            WHEN COALESCE(msg->>'content', '') = ''
+                                                THEN :interrupted
+                                            ELSE msg->>'content'
+                                        END
+                                    ),
+                                    true
+                                )
+                            ELSE msg
+                        END
+                        ORDER BY ord
+                    ), '[]'::jsonb)
+                    FROM jsonb_array_elements(c.messages) WITH ORDINALITY AS t(msg, ord)
+                )
+                WHERE jsonb_typeof(c.messages) = 'array'
+                  AND EXISTS (
+                      SELECT 1 FROM jsonb_array_elements(c.messages) AS m(msg)
+                      WHERE COALESCE((m.msg->>'_processing')::boolean, false) = true
+                  )
+                """
+            ), {"interrupted": INTERRUPTED_TEXT})
+
+            await db.commit()
+            healed = row_result.rowcount if row_result.rowcount is not None else 0
+            if healed:
+                log.info("Healed stuck _processing messages", count=healed)
+
+    except Exception as e:
+        log.warning("Stuck-message sweep failed", error=str(e))
 
 
 app = FastAPI(

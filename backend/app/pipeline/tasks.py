@@ -326,6 +326,12 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
 
     # Post a streaming placeholder to chat so the PM sees extraction live.
     # Same pattern as reminder_prep — one evolving card vs. two messages.
+    #
+    # Content is left empty on purpose so the frontend renders the ghost
+    # skeleton (dashed border + spinner + skeleton bars) until the agent
+    # produces real summary text. The filename is passed via `data` so
+    # the ghost label reads "Extracting <filename>" without polluting the
+    # message body.
     placeholder_id: str | None = None
     try:
         placeholder_id = await conversation_store.append_message(
@@ -335,7 +341,8 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
                 "source": "pipeline",
                 "kind": "extraction_running",
                 "document_id": str(doc.id),
-                "content": f"📄 Extracting findings from **{doc.filename}**…",
+                "content": "",
+                "data": {"filename": doc.filename},
                 "segments": [],
                 "toolCalls": [],
                 "thinkingCount": 0,

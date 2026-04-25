@@ -18,6 +18,33 @@ class Conversation(Base, IdMixin, TimestampMixin):
     messages: Mapped[list] = mapped_column(JSONB, default=list)
 
 
+class ConversationMessage(Base):
+    """One row per chat message — feeds the cursor-paginated history endpoint.
+
+    The Conversation.messages JSONB list is still the authoritative source
+    for slack listener / reminder delivery / consume_unseen_system readers
+    (they scan it newest-first). This table is dual-written by
+    conversation_store.append_message and update_message_by_id, and read
+    by the paginated /conversation endpoint."""
+    __tablename__ = "conversation_messages"
+
+    # No IdMixin / TimestampMixin — id is supplied (matches the existing
+    # message["id"] uuid hex) and created_at is parsed from message["timestamp"].
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False,
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False,
+    )
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    kind: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ActivityLog(Base, IdMixin, TimestampMixin):
     __tablename__ = "activity_log"
 
