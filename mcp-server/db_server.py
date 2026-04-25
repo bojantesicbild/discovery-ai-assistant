@@ -1066,6 +1066,7 @@ async def list_tools() -> list[Tool]:
                     "role": {"type": "string", "description": "Stakeholder-only. Optional 1-2 sentence narrative when role_title alone doesn't convey the relationship (e.g. 'Client CEO with final authority on architecture decisions'). Leave empty when role_title is sufficient. NEVER pack 4+ separate decisions into one paragraph here — split into decisions[] instead."},
                     "decisions": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Specific decisions this person has made or owns. Each entry: short headline + reasoning. Examples: ['EU-only hosting — non-negotiable contractual requirement.', '€80k MVP budget ceiling — confirmed.', 'Named RAGFlow as vector store — any swap requires amendment.']. A long single-sentence role usually splits into 2-4 distinct decisions; do that split."},
                     "interests": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Short keyword phrases (≤6 words each) for what this person personally cares about. Examples: ['cost predictability', 'data residency', 'audit trail']. NEVER combine multiple interests into one entry separated by 'and' / commas."},
+                    "concerns": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Specific risks or worries the person has VOICED in the source. Each entry shaped '<topic> — <what they said>'. Different from interests (ongoing themes, ≤6 words) and decisions (past calls): concerns are present-tense risks they explicitly want acknowledged. Examples: ['Q3 milestone slip — \\\"we lose the launch window if extraction quality misses\\\"', 'Vendor lock-in — \\\"no clean exit path if RAGFlow folds\\\"']. Only emit when the source genuinely shows the person raising a concern; do NOT infer from tone or fabricate."},
                 },
                 "required": ["finding_type", "title", "description"],
             },
@@ -1797,13 +1798,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 role_para = arguments.get("role") or description or None
                 decisions_list = arguments.get("decisions") or None
                 interests_list = arguments.get("interests") or []
+                # Migration 041 — concerns (present-tense risks the person
+                # has voiced). Optional list; null when the source doesn't
+                # show the person raising any concern.
+                concerns_list = arguments.get("concerns") or None
+                if concerns_list is not None and not isinstance(concerns_list, list):
+                    concerns_list = None
                 await conn.execute(
-                    "INSERT INTO stakeholders (id, project_id, name, role_title, role, organization, decision_authority, decisions, interests, source_doc_id) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                    "INSERT INTO stakeholders (id, project_id, name, role_title, role, organization, decision_authority, decisions, interests, concerns, source_doc_id) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
                     pid, title, role_title, role_para,
                     source or "unknown", priority or "informed",
                     json.dumps(decisions_list) if decisions_list is not None else None,
                     json.dumps(interests_list),
+                    json.dumps(concerns_list) if concerns_list else None,
                     source_doc_uuid,
                 )
                 await conn.execute(

@@ -470,6 +470,7 @@ async def list_stakeholders(
             "decision_authority": s.decision_authority,
             "decisions": getattr(s, "decisions", None) or [],
             "interests": s.interests,
+            "concerns": getattr(s, "concerns", None) or [],
             "finding_counts": {
                 "requirements": req_counts.get(key, 0),
                 "gaps": gap_counts.get(key, 0),
@@ -559,6 +560,7 @@ async def get_stakeholder_by_name(
             "decision_authority": stk_row.decision_authority,
             "decisions": getattr(stk_row, "decisions", None) or [],
             "interests": stk_row.interests,
+            "concerns": getattr(stk_row, "concerns", None) or [],
         }
         if stk_row else
         # Ghost stakeholder — referenced as source_person but never
@@ -566,7 +568,7 @@ async def get_stakeholder_by_name(
         # something so the deep-link works.
         {"id": None, "name": name, "role_title": None, "role": None,
          "organization": None, "decision_authority": None,
-         "decisions": [], "interests": None}
+         "decisions": [], "interests": None, "concerns": []}
     )
 
     # Same positional ordering used elsewhere for CON/CTR.

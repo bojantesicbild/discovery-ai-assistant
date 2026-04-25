@@ -191,6 +191,10 @@ export interface ApiStakeholder {
    *  a short headline + reasoning. Added in migration 037. */
   decisions?: string[];
   interests: string[];
+  /** Specific risks/worries the person has voiced in source docs. Each
+   *  entry shaped "<topic> — <what they said>". Added in migration 041.
+   *  Different from interests (ongoing themes, ≤6 words). */
+  concerns?: string[];
   seen_at: string | null;
   /** Per-kind finding counts where this person is named source_person.
    *  Returned by GET /stakeholders so the People tab can render badges
@@ -498,6 +502,7 @@ export interface PersonFindingsBundle {
     decision_authority: string | null;
     decisions?: string[];
     interests: string | string[] | null;
+    concerns?: string[];
   };
   findings: {
     requirements: Array<{ id: string; req_id: string; title: string; priority: string; status: string }>;

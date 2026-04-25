@@ -132,7 +132,8 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
          *  conditionally rendered so a sparse stakeholder doesn't show
          *  empty placeholders. */}
         {(stakeholder.role || (stakeholder.decisions && stakeholder.decisions.length > 0) ||
-          (Array.isArray(stakeholder.interests) && stakeholder.interests.length > 0)) && (
+          (Array.isArray(stakeholder.interests) && stakeholder.interests.length > 0) ||
+          (stakeholder.concerns && stakeholder.concerns.length > 0)) && (
           <div className="req-detail-content-card" style={{ marginBottom: 12 }}>
             {stakeholder.role && (
               <>
@@ -153,6 +154,14 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
                 <div className="field-header">Interests</div>
                 <ul>
                   {stakeholder.interests.map((it, i) => <li key={i}>{it}</li>)}
+                </ul>
+              </>
+            )}
+            {stakeholder.concerns && stakeholder.concerns.length > 0 && (
+              <>
+                <div className="field-header">Concerns</div>
+                <ul className="person-concerns">
+                  {stakeholder.concerns.map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
               </>
             )}

@@ -27,6 +27,10 @@ _One-paragraph role narrative. Used when role_title alone doesn't capture the re
 
 - 
 
+## Concerns
+
+- 
+
 ## Requirements
 
 - [[item]]
@@ -57,13 +61,20 @@ For each stakeholder, capture:
   Examples: "cost predictability", "data residency", "audit trail".
   Each entry under ~6 words. NEVER combine multiple interests into one
   entry separated by 'and' / commas.
+- concerns: specific risks or worries the person has voiced. Each entry
+  shaped '<topic> — <what they said about it>'. Different from interests
+  (ongoing themes) — concerns are present-tense risks they explicitly
+  want acknowledged. Only emit when the source shows the person raising
+  a concern; do not infer from tone or fabricate. Examples:
+    - 'Q3 milestone slip — "we lose the launch window if extraction quality misses"'
+    - 'Vendor lock-in — "no clean exit path if RAGFlow folds"'
 
 WRONG (legacy free-form):
   role: "Client CEO with final authority. Imposed EU-only hosting as a
   non-negotiable contractual requirement. Confirmed the €80k MVP budget
   ceiling. Named RAGFlow as contractually specified."
 
-RIGHT (split into role_title + decisions + interests):
+RIGHT (split into role_title + decisions + interests + concerns):
   role_title: "CEO"
   role: "Client CEO with final authority on architecture + budget."
   decisions:
@@ -71,6 +82,9 @@ RIGHT (split into role_title + decisions + interests):
     - "€80k MVP budget ceiling — confirmed."
     - "Named RAGFlow as vector store — any swap requires amendment."
   interests: ["compliance", "cost predictability"]
+  concerns:
+    - 'Vendor lock-in — "if RAGFlow folds we have no clean exit"'
+    - 'Quality vs cost trade-off — "Haiku saves money but worried about extraction accuracy"'
 
 Avoid creating stakeholders for one-off mentions. Wait until someone
 appears in two or more sources OR is the named decision-maker for at

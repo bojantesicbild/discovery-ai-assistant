@@ -45,6 +45,13 @@ fields:
     frontmatter: false
     description: "What this person cares about — short keywords or phrases. Examples: 'cost predictability', 'data residency', 'time to market'. Keep each entry under ~6 words; longer context goes into decisions[] or role."
 
+  - key: concerns
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "Specific risks or worries this person has voiced. Each entry shaped '<topic> — <what they said about it>'. Different from interests (ongoing themes) and decisions (what they've decided): concerns are present-tense risks they want acknowledged. Examples: 'Q3 milestone slip — \"we lose the launch window if extraction quality misses\"', 'Vendor lock-in — \"no clean exit path if RAGFlow folds\"'. Only emit when the source genuinely shows the person raising a concern; do not infer from tone."
+
   - key: source_doc
     type: string
     required: false
@@ -73,6 +80,11 @@ sections:
   - name: Interests
     format: bullets
     generated_from: interests
+    required: false
+
+  - name: Concerns
+    format: bullets
+    generated_from: concerns
     required: false
 
   - name: Requirements
@@ -118,13 +130,20 @@ extraction_prompt: |
     Examples: "cost predictability", "data residency", "audit trail".
     Each entry under ~6 words. NEVER combine multiple interests into one
     entry separated by 'and' / commas.
+  - concerns: specific risks or worries the person has voiced. Each entry
+    shaped '<topic> — <what they said about it>'. Different from interests
+    (ongoing themes) — concerns are present-tense risks they explicitly
+    want acknowledged. Only emit when the source shows the person raising
+    a concern; do not infer from tone or fabricate. Examples:
+      - 'Q3 milestone slip — "we lose the launch window if extraction quality misses"'
+      - 'Vendor lock-in — "no clean exit path if RAGFlow folds"'
 
   WRONG (legacy free-form):
     role: "Client CEO with final authority. Imposed EU-only hosting as a
     non-negotiable contractual requirement. Confirmed the €80k MVP budget
     ceiling. Named RAGFlow as contractually specified."
 
-  RIGHT (split into role_title + decisions + interests):
+  RIGHT (split into role_title + decisions + interests + concerns):
     role_title: "CEO"
     role: "Client CEO with final authority on architecture + budget."
     decisions:
@@ -132,6 +151,9 @@ extraction_prompt: |
       - "€80k MVP budget ceiling — confirmed."
       - "Named RAGFlow as vector store — any swap requires amendment."
     interests: ["compliance", "cost predictability"]
+    concerns:
+      - 'Vendor lock-in — "if RAGFlow folds we have no clean exit"'
+      - 'Quality vs cost trade-off — "Haiku saves money but worried about extraction accuracy"'
 
   Avoid creating stakeholders for one-off mentions. Wait until someone
   appears in two or more sources OR is the named decision-maker for at

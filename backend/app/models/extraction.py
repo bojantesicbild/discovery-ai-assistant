@@ -76,6 +76,10 @@ class Stakeholder(Base, IdMixin, TimestampMixin):
     # short headline + reasoning. Added in migration 037.
     decisions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     interests: Mapped[list] = mapped_column(JSONB, default=list)
+    # Migration 041 — concerns are present-tense risks/worries the person
+    # has explicitly voiced. Different shape from interests (ongoing
+    # themes) and decisions (past calls).
+    concerns: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     sources: Mapped[list] = mapped_column(JSONB, default=list)
     version: Mapped[int] = mapped_column(Integer, default=1)

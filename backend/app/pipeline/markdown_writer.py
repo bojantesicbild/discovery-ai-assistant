@@ -706,6 +706,7 @@ def stakeholder_to_payload(
         "decision_authority": s.decision_authority or "informed",
         "decisions": list(getattr(s, "decisions", None) or []),
         "interests": list(s.interests or []),
+        "concerns": list(getattr(s, "concerns", None) or []),
         "date": today,
         "_person_reqs": person_reqs,
     }
@@ -1171,6 +1172,7 @@ def render_stakeholder_text(payload: dict, *, original_text: str | None = None) 
     role = (payload.get("role") or "").strip()
     decisions = payload.get("decisions") or []
     interests = payload.get("interests") or []
+    concerns = payload.get("concerns") or []
     person_reqs = payload.get("_person_reqs") or []
 
     fm_block = schema_lib.render_frontmatter("stakeholder", payload)
@@ -1193,6 +1195,12 @@ def render_stakeholder_text(payload: dict, *, original_text: str | None = None) 
         lines.extend(["## Interests", ""])
         for interest in interests:
             lines.append(f"- {interest}")
+        lines.append("")
+
+    if concerns:
+        lines.extend(["## Concerns", ""])
+        for c in concerns:
+            lines.append(f"- {c}")
         lines.append("")
 
     if person_reqs:

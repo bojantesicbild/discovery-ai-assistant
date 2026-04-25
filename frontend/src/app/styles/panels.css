@@ -2544,6 +2544,12 @@
 }
 .req-detail-content-card ul li::marker { font-size: 1.1em; }
 
+/* Concerns — present-tense risks the person voiced. Amber marker so the
+ * eye separates them from neutral interests / decisions in the same card. */
+.req-detail-content-card ul.person-concerns li::marker {
+  color: var(--should);
+}
+
 /* When the content card hosts a markdown blob (FindingDetailView for
  * gap / constraint / contradiction / document) the renderMarkdown
  * helper stamps inline styles on every element. Override them here
@@ -4660,6 +4666,48 @@
   border-bottom-color: var(--ink);
 }
 .notif-tab-badge {
+  font-size: 10px; font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #0A1A10;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Client-review modal tabs — same underline + accent-pill recipe as
+ * the .notif-tabs / .dp-subtab strips. Lives here so the visual
+ * language stays in one place. */
+.crm-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 16px;
+}
+.crm-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition:
+    color 200ms cubic-bezier(.2,.8,.2,1),
+    border-color 200ms cubic-bezier(.2,.8,.2,1);
+}
+.crm-tab:hover { color: var(--ink); }
+.crm-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.crm-tab-badge {
   font-size: 10px; font-weight: 800;
   padding: 1px 7px;
   border-radius: 999px;

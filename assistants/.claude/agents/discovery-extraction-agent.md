@@ -176,6 +176,7 @@ Execute in this order, no skipping.
      - `role` — optional 1-2 sentence narrative when `role_title` alone doesn't convey the relationship (e.g. 'Client CEO with final authority on architecture decisions'). Leave empty when `role_title` is sufficient.
      - `decisions` — array of specific decisions this person has made or owns. Each entry: short headline + reasoning. Example: `["EU-only hosting — non-negotiable contractual requirement.", "€80k MVP budget ceiling — confirmed."]`. A long single-sentence role usually splits into 2-4 distinct decisions; do that split.
      - `interests` — array of short keyword phrases (≤6 words each) for what they personally care about. Example: `["cost predictability", "data residency"]`. Never combine multiple interests into one entry separated by 'and' / commas.
+     - `concerns` — array of specific risks or worries the person has VOICED in the source. Each entry shaped `'<topic> — <what they said>'`. Different shape from interests (ongoing themes, ≤6 words each) and decisions (what they decided): concerns are present-tense risks they want acknowledged. Example: `['Vendor lock-in — "no clean exit path if RAGFlow folds"', 'Q3 milestone slip — "we lose the launch window if extraction quality misses"']`. Only emit when the source genuinely shows the person raising a concern; do NOT infer from tone or fabricate.
 
      **WRONG** (legacy free-form, don't do this):
      ```
@@ -193,10 +194,14 @@ Execute in this order, no skipping.
        "Named RAGFlow as vector store — any swap requires amendment."
      ]
      interests: ["compliance", "cost predictability"]
+     concerns: [
+       "Vendor lock-in — \"no clean exit path if RAGFlow folds\"",
+       "Quality vs cost — \"Haiku saves money but worried about extraction accuracy\""
+     ]
      priority: "final"
      ```
 
-     The legacy `description` field still works as a fallback (it lands on `role`), but new extractions should populate `role_title` + `decisions` + `interests` directly.
+     The legacy `description` field still works as a fallback (it lands on `role`), but new extractions should populate `role_title` + `decisions` + `interests` + `concerns` directly when the source supports each one.
 
 5. **Record learnings (when warranted).** If the document surfaces a *pattern* that will matter on future runs — not a finding about the project, a rule about how to work on it — call `record_learning` once per pattern. The point is cheap institutional memory: repeat emissions bump `reference_count` and hit the auto-promotion threshold.
 
