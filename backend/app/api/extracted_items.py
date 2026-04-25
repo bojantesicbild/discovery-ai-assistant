@@ -477,10 +477,13 @@ async def get_stakeholder_by_name(
     )).scalars().all()
 
     # Contradictions name people on each side — count a hit on either.
+    # Note: the DB columns are side_a_person / side_b_person; the API
+    # serializer elsewhere renames them to item_a/b_person for legacy
+    # frontend compat, but here we query the model directly.
     contras = (await db.execute(
         select(Contradiction).where(
             Contradiction.project_id == project_id,
-            (Contradiction.item_a_person.ilike(name) | Contradiction.item_b_person.ilike(name)),
+            (Contradiction.side_a_person.ilike(name) | Contradiction.side_b_person.ilike(name)),
         ).order_by(Contradiction.created_at)
     )).scalars().all()
 
