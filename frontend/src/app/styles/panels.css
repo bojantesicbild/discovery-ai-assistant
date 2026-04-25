@@ -710,8 +710,8 @@
   color: var(--ink-3);
 }
 .dp-rb-stats .num { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
-.dp-rb-stats .num-bad { color: #B91C1C; }
-.dp-rb-stats .num-ok { color: #14532D; }
+.dp-rb-stats .num-bad { color: rgb(239, 68, 68); }
+.dp-rb-stats .num-ok { color: rgb(0, 255, 157); }
 
 /* Info / hero action pill (Info button right of hero) */
 .dp-header .hero-info-btn {
@@ -2587,6 +2587,70 @@
 /* People attribution */
 .people-line { font-size: 12px; color: var(--ink-2); }
 
+/* ==== People tab — list of all stakeholders ==== */
+.people-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.people-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .12s, box-shadow .15s;
+  width: 100%;
+}
+.people-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.people-card-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.people-card-avatar svg { width: 22px; height: 22px; }
+.people-card-body {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.people-card-name {
+  font-size: 14px; font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-card-role {
+  font-size: 12px; color: var(--ink-2);
+  font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-card-org {
+  font-size: 11px; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.people-card-arrow {
+  width: 14px; height: 14px;
+  color: var(--ink-4);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .15s, transform .15s, color .15s;
+}
+.people-card:hover .people-card-arrow {
+  opacity: 1;
+  color: var(--accent-ink);
+  transform: translateX(2px);
+}
+
 /* ==== Person detail view ==== */
 .person-avatar {
   width: 40px; height: 40px;
@@ -3364,11 +3428,12 @@
 .confidence-pill.derived  { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
 /* Status-setting button — chip-shaped pill that lives inside the
- * combined sub-tabs/actions row. Tighter padding + 999px radius +
- * a shared "dot" prefix per variant make the trio visually balanced
- * regardless of label length. */
+ * combined sub-tabs/actions row. Tighter padding + 999px radius
+ * keeps the trio visually balanced regardless of label length.
+ * Tinted background + matching border carries the variant colour
+ * on its own — no leading dot needed. */
 .btn-status {
-  display: inline-flex; align-items: center; gap: 5px;
+  display: inline-flex; align-items: center;
   padding: 4px 11px;
   border-radius: 999px;
   font-size: 11.5px; font-weight: 700;
@@ -3377,14 +3442,6 @@
   border: 1px solid transparent;
   letter-spacing: -0.005em;
   transition: background .15s, border-color .15s, color .15s;
-}
-.btn-status::before {
-  content: '';
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: .8;
-  flex-shrink: 0;
 }
 .btn-status.confirm  { background: var(--accent-soft); color: var(--accent-ink); border-color: rgba(0,168,100,.22); }
 .btn-status.confirm:hover  { background: var(--accent); color: #0A1A10; border-color: var(--accent); }
@@ -3565,3 +3622,226 @@
   color: var(--ink-3);
   border-radius: 8px;
 }
+
+/* ==== Detail panel open / close animation ====
+ * Five variants picked by the floating DetailAnimPicker (saved to
+ * localStorage as `detail-anim-variant`). Each variant ships its own
+ * keyframe pair (-in / -out) and applies via a wrapper class on the
+ * .data-panel container. JS-side close timeout is 260ms so every
+ * exit keyframe should finish ≤ 260ms.
+ *
+ *   drift   — quiet translateY + cross-fade. Conservative.
+ *   shutter — clip-path left→right reveal. Cinematic.
+ *   spring  — scale 0.85→1 with overshoot. Playful.
+ *   pop     — scale + shadow grow from top-right corner. Punchy.
+ *   tilt    — 3D rotateY with perspective. Dimensional.
+ */
+
+/* ---- v1: drift (Y translate + fade) ---- */
+@keyframes detail-drift-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes detail-drift-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(6px); }
+}
+.data-panel.detail-anim-drift            { animation: detail-drift-in 280ms cubic-bezier(.2, .8, .2, 1) both; }
+.data-panel.detail-anim-drift.closing    { animation: detail-drift-out 220ms cubic-bezier(.4, 0, 1, 1) both; }
+
+/* ---- v2: shutter (clip-path wipe) ---- */
+@keyframes detail-shutter-in {
+  from { clip-path: inset(0 100% 0 0); opacity: 0.6; }
+  to   { clip-path: inset(0 0 0 0);    opacity: 1; }
+}
+@keyframes detail-shutter-out {
+  from { clip-path: inset(0 0 0 0);    opacity: 1; }
+  to   { clip-path: inset(0 0 0 100%); opacity: 0.6; }
+}
+.data-panel.detail-anim-shutter          { animation: detail-shutter-in 360ms cubic-bezier(.83, 0, .17, 1) both; }
+.data-panel.detail-anim-shutter.closing  { animation: detail-shutter-out 240ms cubic-bezier(.83, 0, .17, 1) both; }
+
+/* ---- v3: spring (scale with overshoot) ---- */
+@keyframes detail-spring-in {
+  0%   { opacity: 0; transform: scale(0.85); }
+  60%  { opacity: 1; transform: scale(1.015); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes detail-spring-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.92); }
+}
+.data-panel.detail-anim-spring           { animation: detail-spring-in 380ms cubic-bezier(.34, 1.56, .64, 1) both; transform-origin: center; }
+.data-panel.detail-anim-spring.closing   { animation: detail-spring-out 200ms ease-in both; transform-origin: center; }
+
+/* ---- v4: pop (scale + shadow from top-right) ---- */
+@keyframes detail-pop-in {
+  from { opacity: 0; transform: scale(0.94) translateX(8px); box-shadow: 0 0 0 rgba(0,0,0,0); }
+  to   { opacity: 1; transform: scale(1) translateX(0);     box-shadow: 0 24px 60px -28px rgba(15,23,42,0.18); }
+}
+@keyframes detail-pop-out {
+  from { opacity: 1; transform: scale(1);    box-shadow: 0 24px 60px -28px rgba(15,23,42,0.18); }
+  to   { opacity: 0; transform: scale(0.96) translateX(6px); box-shadow: 0 0 0 rgba(0,0,0,0); }
+}
+.data-panel.detail-anim-pop              { animation: detail-pop-in 320ms cubic-bezier(.22, 1, .36, 1) both; transform-origin: top right; }
+.data-panel.detail-anim-pop.closing      { animation: detail-pop-out 220ms cubic-bezier(.4, 0, 1, 1) both; transform-origin: top right; }
+
+/* ---- v5: tilt (3D rotateY with travelling shadow) ---- */
+@keyframes detail-tilt-in {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) rotateY(-10deg) translateX(28px);
+    box-shadow: -28px 18px 36px -22px rgba(15,23,42,0.05);
+  }
+  60% {
+    opacity: 1;
+    box-shadow: -16px 26px 48px -16px rgba(15,23,42,0.18);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) rotateY(0) translateX(0);
+    box-shadow: 0 12px 36px -16px rgba(15,23,42,0.12);
+  }
+}
+@keyframes detail-tilt-out {
+  0%   { opacity: 1; transform: perspective(900px) rotateY(0)     translateX(0);    box-shadow: 0 12px 36px -16px rgba(15,23,42,0.12); }
+  100% { opacity: 0; transform: perspective(900px) rotateY(-8deg) translateX(22px); box-shadow: -22px 12px 28px -20px rgba(15,23,42,0.04); }
+}
+.data-panel.detail-anim-tilt             { animation: detail-tilt-in 420ms cubic-bezier(.22, .9, .27, 1) both; transform-origin: left center; }
+.data-panel.detail-anim-tilt.closing     { animation: detail-tilt-out 260ms cubic-bezier(.55, 0, .67, .19) both; transform-origin: left center; }
+
+/* ---- v6: zoom (zoom-out from item — origin top-left, big scale) ---- */
+/* Reads as "the card I clicked grew into the detail view": scale
+ * starts small at the top-left corner, expands to fill, with a
+ * shadow that grows in tandem so it looks like the panel is
+ * lifting off the surface. */
+@keyframes detail-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.55) translateY(40px);
+    box-shadow: 0 0 0 rgba(15,23,42,0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    box-shadow: 0 32px 80px -36px rgba(15,23,42,0.22);
+  }
+}
+@keyframes detail-zoom-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    box-shadow: 0 32px 80px -36px rgba(15,23,42,0.22);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.65) translateY(28px);
+    box-shadow: 0 0 0 rgba(15,23,42,0);
+  }
+}
+.data-panel.detail-anim-zoom             { animation: detail-zoom-in 380ms cubic-bezier(.22, 1, .36, 1) both; transform-origin: top left; }
+.data-panel.detail-anim-zoom.closing     { animation: detail-zoom-out 240ms cubic-bezier(.55, 0, .67, .19) both; transform-origin: top left; }
+
+/* ---- v7: iris (circular clip-path reveal) ---- */
+@keyframes detail-iris-in {
+  from { clip-path: circle(0% at 50% 50%);   opacity: 0.5; }
+  to   { clip-path: circle(140% at 50% 50%); opacity: 1; }
+}
+@keyframes detail-iris-out {
+  from { clip-path: circle(140% at 50% 50%); opacity: 1; }
+  to   { clip-path: circle(0% at 50% 50%);   opacity: 0.5; }
+}
+.data-panel.detail-anim-iris             { animation: detail-iris-in 420ms cubic-bezier(.22, 1, .36, 1) both; }
+.data-panel.detail-anim-iris.closing     { animation: detail-iris-out 240ms cubic-bezier(.55, 0, .67, .19) both; }
+
+/* ---- v8: float (drop-in from above with scale + soft shadow) ---- */
+@keyframes detail-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.97);
+    box-shadow: 0 0 0 rgba(15,23,42,0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    box-shadow: 0 18px 48px -22px rgba(15,23,42,0.16);
+  }
+}
+@keyframes detail-float-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(-12px) scale(0.98); }
+}
+.data-panel.detail-anim-float            { animation: detail-float-in 340ms cubic-bezier(.22, 1, .36, 1) both; }
+.data-panel.detail-anim-float.closing    { animation: detail-float-out 220ms cubic-bezier(.55, 0, .67, .19) both; }
+
+/* ---- v9: soft (subtle scale + fade — the "barely there" option) ---- */
+@keyframes detail-soft-in {
+  from { opacity: 0; transform: scale(0.985); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes detail-soft-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.99); }
+}
+.data-panel.detail-anim-soft             { animation: detail-soft-in 220ms cubic-bezier(.4, 0, .2, 1) both; }
+.data-panel.detail-anim-soft.closing     { animation: detail-soft-out 160ms cubic-bezier(.4, 0, 1, 1) both; }
+
+[class*="detail-anim-"] {
+  will-change: transform, opacity, clip-path, box-shadow;
+}
+[class*="detail-anim-"].closing {
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="detail-anim-"] { animation: none !important; }
+}
+
+/* ==== Detail anim picker (dev-only floating widget) ==== */
+.detail-anim-picker {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px -12px rgba(15,23,42,0.18);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  min-width: 220px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+.detail-anim-picker-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-weight: 700; font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.detail-anim-picker-head button {
+  background: transparent;
+  border: 0;
+  color: var(--ink-3);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+.detail-anim-picker-head button:hover { background: var(--surface-2); color: var(--ink); }
+.detail-anim-picker label {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.detail-anim-picker label:hover { background: var(--surface-2); color: var(--ink); }
+.detail-anim-picker label input { margin: 0; cursor: pointer; }
+.detail-anim-picker label.active { color: var(--ink); font-weight: 600; }
+.detail-anim-picker label .desc { color: var(--ink-3); font-size: 10.5px; margin-left: auto; }

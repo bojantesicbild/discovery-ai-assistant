@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getDashboard, listRequirements, listContradictions, listDocuments,
   deleteDocument, updateRequirement, resolveContradiction, listGaps, resolveGap, updateConstraintStatus,
@@ -30,9 +30,11 @@ import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import RequirementDetailView from "./datapanel/requirement-detail-view";
 import PersonDetailView from "./datapanel/person-detail-view";
 import ConnectionsSection from "./datapanel/connections-section";
+import { useDetailAnimVariant } from "./datapanel/detail-anim-picker";
 import { HandoffTab } from "./datapanel/handoff-tab";
 import { MeetingPrepTab } from "./datapanel/meeting-prep-tab";
 import { RemindersTab } from "./datapanel/reminders-tab";
+import { PeopleTab } from "./datapanel/people-tab";
 import { ReadinessPanel } from "./datapanel/readiness";
 import { RequirementsTab } from "./datapanel/tabs/requirements-tab";
 import { DocumentsTab } from "./datapanel/tabs/documents-tab";
@@ -75,11 +77,18 @@ interface DetailView {
 const TABS = [
   { id: "reqs", label: "Requirements", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" },
   { id: "gaps", label: "Gaps", icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" },
-  { id: "meeting", label: "Meeting Prep", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
-  { id: "reminders", label: "Reminders", icon: "M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" },
+  { id: "people", label: "People", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 7a4 4 0 100-8 4 4 0 000 8M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "schedule", label: "Schedule", icon: "M19 4H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V6a2 2 0 00-2-2zM16 2v4M8 2v4M3 10h18" },
   { id: "handoff", label: "Handoff", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
   { id: "docs", label: "Documents", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6" },
 ];
+
+// Migrate the persisted-tab state for users coming from the previous
+// layout where Meeting Prep + Reminders were two separate tabs.
+const TAB_MIGRATIONS: Record<string, string> = {
+  meeting: "schedule",
+  reminders: "schedule",
+};
 
 // Maps DataPanel tab id → backend finding type. Tabs that don't have an
 // underlying finding type (meeting, handoff, docs) are absent.
@@ -109,6 +118,22 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   const [activeTab, setActiveTab] = usePersistedState<string>(
     `datapanel:tab:${projectId}`,
     initialTab || "reqs",
+  );
+
+  // One-time migration for users whose persisted tab is "meeting" /
+  // "reminders" — both fold into "schedule" now. Runs once per mount.
+  useEffect(() => {
+    const migrated = TAB_MIGRATIONS[activeTab];
+    if (migrated) setActiveTab(migrated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sub-section inside the Schedule tab. Same pattern as gapSection
+  // for the Gaps tab. Persisted per-project so the user lands back on
+  // whatever they last had open.
+  const [scheduleSection, setScheduleSection] = usePersistedState<"prep" | "reminders">(
+    `datapanel:scheduleSection:${projectId}`,
+    "prep",
   );
 
   // Reset scroll-collapse state whenever the tab changes; each tab
@@ -145,6 +170,19 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
   };
   const pushDetail = (view: DetailView) => setDetailStack((prev) => [...prev, view]);
   const popDetail = () => setDetailStack((prev) => prev.slice(0, -1));
+  // Tracks when the user has clicked close — keeps the panel mounted
+  // for one extra frame so the .closing CSS class can play the exit
+  // keyframe before we drop the data and re-render the list view.
+  // Duration here MUST match the .req-detail.closing animation in
+  // panels.css (260ms). Cleared on unmount or fresh detail change.
+  const [detailClosing, setDetailClosing] = useState(false);
+  // Animation variant chosen via the floating picker. Hot-swaps the
+  // detail panel className without remounting.
+  const animVariant = useDetailAnimVariant();
+  const detailCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (detailCloseTimerRef.current) clearTimeout(detailCloseTimerRef.current);
+  }, []);
   // Top-of-stack updater — used by openDocument to swap its own
   // placeholder for real content without clobbering a pushed parent.
   const updateTopDetail = (view: DetailView) =>
@@ -244,6 +282,13 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     } else if (initialTab === "decisions" || initialTab === "scope" || initialTab === "assumptions") {
       // Legacy taxonomy — these kinds no longer exist. Fall back to gaps.
       setActiveTab("gaps");
+    } else if (initialTab === "meeting") {
+      // Legacy: pre-Schedule deep links land on the prep sub-tab.
+      setActiveTab("schedule");
+      setScheduleSection("prep");
+    } else if (initialTab === "reminders") {
+      setActiveTab("schedule");
+      setScheduleSection("reminders");
     } else {
       setActiveTab(initialTab);
     }
@@ -356,13 +401,23 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
 
   // If detail view is open
   if (detail) {
+    // Two-phase close: stamp the wrapper with `closing` so the CSS
+    // exit keyframe fires, then drop the detail data after the
+    // animation finishes. Reset the closing flag at the same tick so
+    // the next open lands fresh.
+    const DETAIL_CLOSE_MS = 260;
     const handleClose = () => {
-      if (detailStack.length > 1) {
-        popDetail();
-      } else {
-        setDetail(null);
-        onNavigate?.(activeTab);
-      }
+      if (detailCloseTimerRef.current) clearTimeout(detailCloseTimerRef.current);
+      setDetailClosing(true);
+      detailCloseTimerRef.current = setTimeout(() => {
+        setDetailClosing(false);
+        if (detailStack.length > 1) {
+          popDetail();
+        } else {
+          setDetail(null);
+          onNavigate?.(activeTab);
+        }
+      }, DETAIL_CLOSE_MS);
     };
     const handleLinkClick = (href: string) => {
       // In-app links push onto the detail stack so the close
@@ -416,7 +471,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     if (detail.itemKind === "requirement" && reqForDetail) {
       const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
       return (
-        <div className="data-panel" style={{ flex: 1, width: "100%" }}>
+        <div
+          className={`data-panel detail-anim-${animVariant}${detailClosing ? " closing" : ""}`}
+          style={{ flex: 1, width: "100%" }}
+        >
           <RequirementDetailView
             req={reqForDetail}
             projectId={projectId}
@@ -456,7 +514,10 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
     }
 
     return (
-      <div className="data-panel" style={{ flex: 1, width: "100%" }}>
+      <div
+        className={`data-panel detail-anim-${animVariant}${detailClosing ? " closing" : ""}`}
+        style={{ flex: 1, width: "100%" }}
+      >
         <MarkdownPanel
           title={detail.title}
           content={detail.content}
@@ -693,24 +754,44 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           />
         )}
 
-        {/* ── MEETING PREP ── */}
-        {activeTab === "meeting" && (
+        {/* ── PEOPLE ── stakeholder list, mounts when no person is highlighted */}
+        {activeTab === "people" && (
           <div className="dp-tab-content active">
-            <MeetingPrepTab
-              projectId={projectId}
-              contradictions={openContras}
-              gaps={gaps}
-              requirements={requirements}
-              constraints={constraints}
-              dashboard={dashboard}
-            />
+            <PeopleTab projectId={projectId} onNavigate={onNavigate} />
           </div>
         )}
 
-        {/* ── REMINDERS ── */}
-        {activeTab === "reminders" && (
+        {/* ── SCHEDULE ── Prep | Reminders sub-tabs */}
+        {activeTab === "schedule" && (
           <div className="dp-tab-content active">
-            <RemindersTab projectId={projectId} />
+            <div className="dp-subtabs" style={{ padding: "12px 32px 0" }}>
+              {([
+                { id: "prep" as const, label: "Prep" },
+                { id: "reminders" as const, label: "Reminders" },
+              ]).map((sec) => (
+                <button
+                  key={sec.id}
+                  type="button"
+                  className={`dp-subtab${scheduleSection === sec.id ? " active" : ""}`}
+                  onClick={() => setScheduleSection(sec.id)}
+                >
+                  {sec.label}
+                </button>
+              ))}
+            </div>
+            {scheduleSection === "prep" && (
+              <MeetingPrepTab
+                projectId={projectId}
+                contradictions={openContras}
+                gaps={gaps}
+                requirements={requirements}
+                constraints={constraints}
+                dashboard={dashboard}
+              />
+            )}
+            {scheduleSection === "reminders" && (
+              <RemindersTab projectId={projectId} />
+            )}
           </div>
         )}
 
