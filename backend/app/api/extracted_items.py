@@ -381,6 +381,11 @@ async def list_constraints(
         "source_person": c.source_person,
         "affects_reqs": c.affects_reqs or [],
         "workaround": c.workaround,
+        # Migration 039 — negotiation context fields. Pre-039 rows
+        # have these null; the UI falls back to workaround text.
+        "cost_if_kept": getattr(c, "cost_if_kept", None),
+        "workaround_options": getattr(c, "workaround_options", None) or [],
+        "renegotiation_path": getattr(c, "renegotiation_path", None),
         "source_doc": doc_name,
         "source_doc_id": str(c.source_doc_id) if c.source_doc_id else None,
         "created_at": c.created_at.isoformat() if c.created_at else None,

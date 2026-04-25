@@ -125,16 +125,44 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
   const raisedValue = formatRaisedMeta(con.created_at);
   const workaround = (con.workaround || "").trim();
   const affects = con.affects_reqs || [];
+  // Migration 039 — negotiation context fields. Each section shows
+  // when its source is non-empty so a sparse legacy constraint
+  // renders the same shape it always has.
+  const costIfKept = (con.cost_if_kept || "").trim();
+  const workaroundOptions = con.workaround_options || [];
+  const renegotiationPath = (con.renegotiation_path || "").trim();
 
   // Body follows BR / gap pattern: no H1 (hero shows it), no source
   // quote / document sections (FindingDetailView renders <SourceCitation>
-  // separately). Sections that have content render as field-headers.
-  const md = [
-    desc && desc.length > 80 ? desc : "",
-    con.impact ? `\n## Impact\n${con.impact}` : "",
-    workaround ? `\n## Workaround\n${workaround}` : "",
-    affects.length ? `\n## Affected Requirements\n${affects.map((r) => `- [${r}](br://${r})`).join("\n")}` : "",
-  ].filter(Boolean).join("\n");
+  // separately). Section order: Impact → Cost if kept → Workaround
+  // options → Renegotiation path → Affected Requirements.
+  const sections: string[] = [];
+
+  if (desc && desc.length > 80) sections.push(desc);
+  if (con.impact) sections.push(`## Impact\n${con.impact}`);
+  if (costIfKept) sections.push(`## Cost if kept\n${costIfKept}`);
+
+  // Workaround options — prefer the structured list (migration 039);
+  // fall back to the legacy single-paragraph `workaround` text under
+  // the same heading so old + new constraints share the same look.
+  if (workaroundOptions.length > 0) {
+    const opts = workaroundOptions.map((o) => `- ${o}`).join("\n");
+    sections.push(`## Workaround options\n${opts}`);
+  } else if (workaround) {
+    sections.push(`## Workaround options\n${workaround}`);
+  }
+
+  if (renegotiationPath) {
+    sections.push(`## Renegotiation path\n${renegotiationPath}`);
+  }
+
+  if (affects.length > 0) {
+    sections.push(
+      `## Affected Requirements\n${affects.map((r) => `- [${r}](br://${r})`).join("\n")}`,
+    );
+  }
+
+  const md = sections.join("\n\n");
 
   const allStatuses: Action[] = [
     { label: "Mark Confirmed",  value: "confirmed",  color: "#10b981" },

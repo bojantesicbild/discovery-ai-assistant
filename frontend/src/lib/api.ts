@@ -164,6 +164,11 @@ export interface ApiConstraint {
   source_person?: string | null;
   affects_reqs?: string[];
   workaround?: string | null;
+  /** Migration 039 — negotiation context fields. Pre-039 rows have
+   *  these null; UI falls back to workaround text. */
+  cost_if_kept?: string | null;
+  workaround_options?: string[];
+  renegotiation_path?: string | null;
   source_doc?: string | null;
   source_doc_id?: string | null;
   sources?: ApiSourceRef[];

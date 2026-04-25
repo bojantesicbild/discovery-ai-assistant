@@ -623,7 +623,11 @@ def constraint_to_payload(
     `affected_reqs` is the derived (same-source-doc) list. The explicit
     `affects_reqs` stored by the agent takes precedence when present — if
     the agent linked the constraint to specific BRs, we trust that over
-    the ambient co-source heuristic."""
+    the ambient co-source heuristic.
+
+    Migration 039 adds negotiation context fields (cost_if_kept,
+    workaround_options, renegotiation_path). Pre-039 rows have them
+    null — the renderer omits the corresponding sections."""
     explicit = list(getattr(con, "affects_reqs", None) or [])
     return {
         "id": con_id,
@@ -635,6 +639,10 @@ def constraint_to_payload(
         "source_quote": con.source_quote or "",
         "source_person": getattr(con, "source_person", None) or "",
         "workaround": getattr(con, "workaround", None) or "",
+        # Migration 039 — negotiation context fields.
+        "cost_if_kept": getattr(con, "cost_if_kept", None) or "",
+        "workaround_options": list(getattr(con, "workaround_options", None) or []),
+        "renegotiation_path": getattr(con, "renegotiation_path", None) or "",
         "date": today,
         "affected_reqs": explicit or affected_reqs,
     }
@@ -910,8 +918,12 @@ def render_constraint_text(
     impact = payload.get("impact") or "Not specified"
     source_quote = payload.get("source_quote") or ""
     source_person = payload.get("source_person") or ""
-    workaround = payload.get("workaround") or ""
+    workaround = (payload.get("workaround") or "").strip()
     affected = payload.get("affected_reqs") or []
+    # Migration 039 — negotiation context fields.
+    cost_if_kept = (payload.get("cost_if_kept") or "").strip()
+    workaround_options = list(payload.get("workaround_options") or [])
+    renegotiation_path = (payload.get("renegotiation_path") or "").strip()
 
     fm_block = schema_lib.render_frontmatter("constraint", payload)
 
@@ -924,21 +936,47 @@ def render_constraint_text(
         impact,
         "",
     ]
+
+    # Cost if kept — business cost of acceptance. Surfaces above the
+    # workaround discussion so the PM sees what's at stake before the
+    # alternatives.
+    if cost_if_kept:
+        lines.append("## Cost if kept")
+        lines.append(cost_if_kept)
+        lines.append("")
+
+    # Workaround options — prefer the structured list (migration 039);
+    # fall back to the legacy single-paragraph `workaround` text under
+    # the same heading when the row pre-dates 039.
+    if workaround_options:
+        lines.append("## Workaround options")
+        for opt in workaround_options:
+            lines.append(f"- {opt}")
+        lines.append("")
+    elif workaround:
+        lines.append("## Workaround options")
+        lines.append(workaround)
+        lines.append("")
+
+    if renegotiation_path:
+        lines.append("## Renegotiation path")
+        lines.append(renegotiation_path)
+        lines.append("")
+
+    if affected:
+        lines.append("## Affected Requirements")
+        for rid in affected:
+            lines.append(f"- [[{rid}]] — constrained")
+        lines.append("")
+
     if source_quote:
         lines.append("## Source")
         lines.append(f'> "{source_quote}"')
         lines.append("")
+
     if source_person:
         lines.append(f"## Raised by\n- [[{stakeholder_filename_safe(source_person)}|{source_person}]]")
         lines.append("")
-    if workaround:
-        lines.append("## Workaround")
-        lines.append(workaround)
-        lines.append("")
-    lines.append("## Affected Requirements")
-    for rid in affected:
-        lines.append(f"- [[{rid}]] — constrained")
-    lines.append("")
 
     return fm_block + "\n".join(lines)
 

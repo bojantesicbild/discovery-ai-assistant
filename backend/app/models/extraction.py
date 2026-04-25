@@ -45,7 +45,12 @@ class Constraint(Base, IdMixin, TimestampMixin):
     source_quote: Mapped[str] = mapped_column(Text, nullable=False)
     source_person: Mapped[str | None] = mapped_column(String, nullable=True)
     affects_reqs: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
-    workaround: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workaround: Mapped[str | None] = mapped_column(Text, nullable=True)  # legacy — superseded by workaround_options
+    # Migration 039 — negotiation context fields. Each one fills a
+    # gap in what the structural fields can't answer.
+    cost_if_kept: Mapped[str | None] = mapped_column(Text, nullable=True)
+    workaround_options: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    renegotiation_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String, default="assumed")
     sources: Mapped[list] = mapped_column(JSONB, default=list)
     version: Mapped[int] = mapped_column(Integer, default=1)

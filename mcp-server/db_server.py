@@ -1042,7 +1042,10 @@ async def list_tools() -> list[Tool]:
                     "scope_note": {"type": "string", "description": "Requirement-only. Short boundary clarifier if this BR doesn't apply everywhere (e.g. 'MVP only', 'iOS only'). Skip for most BRs."},
                     "blocked_by": {"type": "array", "items": {"type": "string"}, "description": "Requirement-only. BR ids that must ship before this one (e.g. ['BR-001', 'BR-004']). Used by story-story-agent to sequence PBIs in Phase 2."},
                     "affects_reqs": {"type": "array", "items": {"type": "string"}, "description": "Constraint-only. BR ids this constraint shapes (e.g. ['BR-004', 'BR-007']). Gives the PM a one-click 'what's at risk if this constraint stays' view. Include only when the source document clearly links the constraint to specific requirements."},
-                    "workaround": {"type": "string", "description": "Constraint-only. Short mitigation note — the negotiation lever the PM can use when pushing back on an assumed constraint. Format: 'option considered — reason it fails' or just a free-text sentence. Skip when no workaround is discussed in the source."},
+                    "workaround": {"type": "string", "description": "Constraint-only, DEPRECATED. Use workaround_options array instead. Kept for back-compat; if you populate this, the renderer will fall back to it when workaround_options is empty."},
+                    "cost_if_kept": {"type": "string", "description": "Constraint-only. BUSINESS cost of accepting the constraint as-is. Different from `impact` (which describes how it limits the project TECHNICALLY): cost_if_kept is what the BUSINESS pays — scope ruled out, customers we can't serve, time/money locked in. Required when affects_reqs is non-empty. Example: 'Locks the product to EU-only sub-processor agreement; rules out US/APAC clients in MVP without a separate 3mo legal cycle. ~€8k legal review cost per region.'"},
+                    "workaround_options": {"type": "array", "items": {"type": "string"}, "description": "Constraint-only. Options the source MENTIONS for working around the constraint. Each entry: '<option> — <pros / cons or why rejected>'. ≥1 entry. Replaces the legacy `workaround` text field — populate this list instead. NEVER fabricate options the source doesn't name. Example: ['CDN in front of eu-west-1 — rejected by Sarah Chen, data must stay in region not just traffic.', 'Switch to AWS eu-central-1 — adds 3mo legal review lead time.']"},
+                    "renegotiation_path": {"type": "string", "description": "Constraint-only. What changing or lifting the constraint would take. Most actionable when status is `assumed` or `negotiable`. Include who must approve, lead time, cost, conditions. SKIP when status is `confirmed` (the constraint is final and not actionable). Example: 'Legal team must approve a new sub-processor agreement (~3mo lead, ~€8k cost). Sarah Chen is the named gatekeeper. Negotiable only if the target region has a pre-cleared sub-processor template.'"},
                     "kind": {"type": "string", "enum": ["missing_info", "unvalidated_assumption", "undecided"], "description": "Gap-only. Kind of gap: 'missing_info' (default) = client never told us; 'unvalidated_assumption' = we're assuming X but nothing confirms it; 'undecided' = a call that needs to be made but hasn't been."},
                     "blocked_reqs": {"type": "array", "items": {"type": "string"}, "description": "Gap-only. BR ids this gap blocks — capture when the source explicitly says a question must be answered before a BR can proceed ('we can't finalize BR-004 until we decide X'). Format ['BR-004', 'BR-005']. Drives the PM's 'what's at risk if this gap stays open' view."},
                     "impact_summary": {"type": "string", "description": "Gap-only. 1-2 sentences in PLAIN LANGUAGE on what gets blocked or put at risk if this gap stays open. Different from blocked_reqs — explains the *consequence* (rework cost, scope risk, decision deadline). REQUIRED when blocked_reqs is non-empty. Example: 'If the upload mix isn't validated, the chunking template selection stays speculative. Wrong choice means re-extracting the existing corpus once it crosses ~50 docs. Cost: 1-2 days of pipeline rework + a fresh round of client review.'"},
@@ -1741,13 +1744,24 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 con_type = coerce_enum("constraint", "type", priority, "technology")
                 affects = arguments.get("affects_reqs") or []
                 workaround = arguments.get("workaround") or None
+                # Migration 039 — negotiation context fields. Each is
+                # nullable; the renderer falls back when absent so
+                # legacy callers keep working unchanged.
+                cost_if_kept = (arguments.get("cost_if_kept") or "").strip() or None
+                workaround_options = arguments.get("workaround_options") or None
+                renegotiation_path = (arguments.get("renegotiation_path") or "").strip() or None
                 row = await conn.fetchrow(
                     "INSERT INTO constraints (id, project_id, type, description, impact, "
-                    " source_quote, source_person, source_doc_id, affects_reqs, workaround, status) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'assumed') "
+                    " source_quote, source_person, source_doc_id, affects_reqs, workaround, status, "
+                    " cost_if_kept, workaround_options, renegotiation_path) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, 'assumed', "
+                    " $10, $11::jsonb, $12) "
                     "RETURNING id",
                     pid, con_type, title, description or "", source_quote or "",
-                    source_person, source_doc_uuid, json.dumps(affects), workaround
+                    source_person, source_doc_uuid, json.dumps(affects), workaround,
+                    cost_if_kept,
+                    json.dumps(workaround_options) if workaround_options is not None else None,
+                    renegotiation_path,
                 )
                 finding_uuid = str(row["id"])
                 await conn.execute(

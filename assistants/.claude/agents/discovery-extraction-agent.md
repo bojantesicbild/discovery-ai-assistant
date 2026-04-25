@@ -96,7 +96,45 @@ Execute in this order, no skipping.
      ```
 
      Legacy `description` / `suggested_action` callers still work (they land on the same DB columns), but new extractions should populate the structured fields above directly.
-   - **constraint** — a budget / timeline / technology / regulatory / organizational limit. Fields: `title`, `description` (the constraint + its impact), `priority` (constraint type: budget/timeline/technology/regulatory/organizational), `source_quote`, `source_person` (who imposed it, when named), `affects_reqs` (list of BR ids this constraint shapes — only include when the source explicitly links it), `workaround` (short mitigation note when the source discusses one; skip otherwise).
+   - **constraint** — a budget / timeline / technology / regulatory / organizational limit. Required: `title`, `description` (the rule, 1 sentence), `impact` (how it TECHNICALLY limits things, 1-2 sentences), `priority` (constraint type), `source_quote`, `status`. Optional: `source_person` (who imposed it), `affects_reqs` (list of BR ids it shapes — only when source explicitly links).
+
+     Use the **negotiation context fields** introduced in migration 039 — these turn the constraint doc into a 1-page negotiation brief instead of a bare rule:
+     - `cost_if_kept` — BUSINESS cost of accepting the constraint as-is. Different from `impact` (which describes how it limits TECHNICALLY): `cost_if_kept` is what the BUSINESS pays — scope ruled out, customers we can't serve, time/money locked in. **Required when `affects_reqs` is non-empty.** Bounded inference allowed.
+     - `workaround_options` — list of options the source MENTIONS for working around the constraint. Each entry: `<option> — <pros / cons or why rejected>`. **Replaces the legacy `workaround` text** — populate this list instead. Skip if the source mentions no options.
+     - `renegotiation_path` — what changing or lifting the constraint would take. Include who must approve, lead time, cost, conditions. **Required when `status` is `assumed` or `negotiable`. SKIP when `status` is `confirmed`** (the constraint is final).
+
+     **Anti-fabrication rules:**
+     - `workaround_options`: list ONLY options the source names. Don't invent fictional alternatives to fill the list. Single-option constraints stay single-option.
+     - `cost_if_kept`: bounded inference allowed when `affects_reqs` is non-empty. Without it, leave null rather than guess.
+     - `renegotiation_path`: only when status ∈ {`assumed`, `negotiable`}. For `confirmed` it's not actionable.
+
+     **WRONG** (sparse stub, single string for workaround):
+     ```
+     type: regulatory
+     description: "Must host on AWS eu-west-1"
+     impact: "All data must stay in EU."
+     workaround: "CDN was considered, rejected"
+     affects_reqs: ["BR-004", "BR-007"]
+     status: assumed
+     ```
+
+     **RIGHT** (descriptive fields populated from source):
+     ```
+     type: regulatory
+     description: "Must host on AWS eu-west-1 — legal sub-processor agreement already approved"
+     impact: "Legal has approved the eu-west-1 sub-processor agreement; changing region requires 3 months of re-review. All data must remain in-region — includes S3 buckets used by document ingestion (BR-004) and core agents (BR-007)."
+     affects_reqs: ["BR-004", "BR-007"]
+     cost_if_kept: "Locks the product to EU-only sub-processor agreement; rules out US/APAC clients in MVP without a separate 3mo legal cycle. ~€8k legal review cost per additional region."
+     workaround_options: [
+       "CDN in front of eu-west-1 — rejected by Sarah Chen, data must stay in region not just traffic.",
+       "Switch to AWS eu-central-1 — adds 3mo legal review lead time; sub-processor agreement re-approval needed.",
+       "Self-hosted EU storage — out of scope for MVP, considered for post-launch."
+     ]
+     renegotiation_path: "Legal team must approve a new sub-processor agreement (~3mo lead, ~€8k cost). Sarah Chen is the named gatekeeper. Negotiable only if the target region has a pre-cleared sub-processor template."
+     status: assumed
+     ```
+
+     The legacy `workaround` text still works (lands on the same column), but new extractions should populate `workaround_options` directly — the renderer prefers the structured list.
    - **contradiction** — two statements in the document (or between this document and existing findings) that can't both be true. Fields:
      - `title` — short headline, ≤60 chars. Nouns not sentences. E.g. 'MVP handoff documents', 'Extraction model', 'Vector DB choice'.
      - `side_a` — the FIRST conflicting statement, verbatim or close paraphrase.
