@@ -693,6 +693,9 @@ async def list_contradictions(
             "explanation": c.explanation,
             "resolved": c.resolved,
             "resolution_note": c.resolution_note,
+            # Migration 040 descriptive context fields.
+            "impact_summary": getattr(c, "impact_summary", None),
+            "resolution_options": getattr(c, "resolution_options", None) or [],
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
     await _attach_seen(contra_list, db, user.id, project_id, "contradiction")

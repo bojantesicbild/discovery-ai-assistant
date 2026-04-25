@@ -234,6 +234,11 @@ export interface ApiContradiction {
   resolved: boolean;
   resolution_note: string | null;
   suggested_resolution?: string | null;
+  // Migration 040 descriptive context fields. impact_summary explains
+  // what's at stake if the contradiction stays unresolved; resolution_options
+  // is a list of paths each shaped "<option> — <pros / cons>".
+  impact_summary?: string | null;
+  resolution_options?: string[] | null;
   created_at: string | null;
   seen_at: string | null;
 }

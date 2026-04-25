@@ -735,6 +735,8 @@ def contradiction_to_payload(ctr, ctr_id: str, today: str) -> dict:
         "explanation": ctr.explanation or "",
         "resolved": bool(ctr.resolved),
         "resolution_note": ctr.resolution_note or "",
+        "impact_summary": getattr(ctr, "impact_summary", None) or "",
+        "resolution_options": list(getattr(ctr, "resolution_options", None) or []),
         "date": today,
     }
 
@@ -1258,6 +1260,21 @@ def render_contradiction_text(payload: dict, *, original_text: str | None = None
             lines.append(f"- {item_a_type}: `{item_a_id}`")
         if item_b_type and item_b_id:
             lines.append(f"- {item_b_type}: `{item_b_id}`")
+        lines.append("")
+
+    impact_summary = (payload.get("impact_summary") or "").strip()
+    if impact_summary:
+        lines += ["## Impact", "", impact_summary, ""]
+
+    resolution_options = [
+        opt.strip()
+        for opt in (payload.get("resolution_options") or [])
+        if isinstance(opt, str) and opt.strip()
+    ]
+    if resolution_options:
+        lines += ["## Resolution options", ""]
+        for opt in resolution_options:
+            lines.append(f"- {opt}")
         lines.append("")
 
     if resolved and resolution:

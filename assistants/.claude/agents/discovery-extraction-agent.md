@@ -146,7 +146,29 @@ Execute in this order, no skipping.
      - `area` — domain category: tech-stack / scope / governance / timeline / budget / other.
      - `source_quote` — the verbatim quote from the current document that establishes the contradiction (usually matches one of the sides).
      - `concerns_refs` — list of display ids (BR-NNN / CON-NNN) the contradiction is ABOUT. If the two sides argue over how to satisfy BR-007, pass `['BR-007']`. If the contradiction spans a BR and the constraint that forces it, pass both (e.g., `['BR-007', 'CON-003']`). Populate whenever the source text makes the target concrete; leave empty when it's a free-floating disagreement not yet tied to a specific requirement. This wires the contradiction into the graph so it surfaces on the BR / constraint detail view — without it the contradiction is invisible to downstream analysis.
-     Do NOT stuff "X vs Y" into a single description field — use side_a + side_b so the UI can render the two sides distinctly. Do NOT skip the per-side `_person` / `_source` fields when the information is in the document — the UI needs them to show provenance chips. The whole point of capturing a contradiction is to show *who disagrees with whom and where* so the PM can resolve it.
+     - `impact_summary` — WHY the contradiction matters. What's blocked, at risk, or affected if no one decides. 1-3 sentences. Grain is "consequences of staying unresolved", not a restatement of side_a/side_b. Leave empty when the source does not discuss consequences — do NOT fabricate.
+     - `resolution_options` — list of concrete paths to resolve, each a single string shaped `'<option> — <pros / cons or recommendation>'`. Example: `["Run a 50-document benchmark — pick the model by quality threshold, empirical and lowest risk", "Hybrid: Haiku by default, fall back to Sonnet on confidence<medium — keeps cost down but adds runtime branching", "Stay on Haiku — accept quality loss as MVP trade-off"]`. Only emit when the source genuinely discusses options or trade-offs; leave empty otherwise.
+
+     **WRONG** (no impact, no options — PM has to guess what to do):
+     ```
+     title: "Extraction model"
+     side_a: "Earlier decision: use Claude Sonnet for extraction quality."
+     side_b: "Milan Kovac decided to use Haiku for 10x cost reduction. Quality vs. cost trade-off unresolved."
+     ```
+
+     **RIGHT** (impact + options — PM can act):
+     ```
+     title: "Extraction model"
+     side_a: "Earlier decision: use Claude Sonnet for extraction quality."
+     side_b: "Milan Kovac decided to use Haiku for 10x cost reduction. Quality vs. cost trade-off unresolved."
+     impact_summary: "Affects every BR depending on extraction accuracy (BR-001, BR-003). If Haiku quality drops below the confirmed-finding threshold the client review portal surfaces wrong data; reverting to Sonnet breaks Milan's 10x cost commitment."
+     resolution_options:
+       - "Run a 50-document benchmark — pick the model by quality threshold, empirical and lowest risk"
+       - "Hybrid: Haiku by default, fall back to Sonnet on confidence<medium — keeps cost down but adds runtime branching"
+       - "Stay on Haiku — accept quality loss as MVP trade-off, revisit post-launch"
+     ```
+
+     Do NOT stuff "X vs Y" into a single description field — use side_a + side_b so the UI can render the two sides distinctly. Do NOT skip the per-side `_person` / `_source` fields when the information is in the document — the UI needs them to show provenance chips. Do NOT fabricate `impact_summary` or `resolution_options` — leave empty when the source doesn't discuss them. The whole point of capturing a contradiction is to show *who disagrees with whom, why it matters, and what options exist* so the PM can resolve it.
    - **stakeholder** — a person named in the document with a role. Required: `title` (the name), `priority` (decision authority: final/recommender/informed), `source_person` (their name again — for search). Skip generic references like "the team" or "management."
 
      Use the **structured fields** introduced in migration 037 — do **not** stuff multi-sentence narratives into one field:

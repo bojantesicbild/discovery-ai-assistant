@@ -148,6 +148,12 @@ class Contradiction(Base, IdMixin, TimestampMixin):
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Migration 040 — descriptive context fields. impact_summary explains
+    # what's at stake if the contradiction stays unresolved; resolution_options
+    # is a list of concrete paths each shaped "<option> — <pros / cons>".
+    impact_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolution_options: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
 
 class ChangeHistory(Base, IdMixin, TimestampMixin):
     __tablename__ = "change_history"

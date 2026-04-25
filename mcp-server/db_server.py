@@ -1060,6 +1060,8 @@ async def list_tools() -> list[Tool]:
                     "side_b_source": {"type": "string", "description": "Contradiction-only. Document / source reference for side_b. Leave null if unknown."},
                     "side_b_person": {"type": "string", "description": "Contradiction-only. Person who stated side_b. Leave null if unknown."},
                     "concerns_refs": {"type": "array", "items": {"type": "string"}, "description": "Contradiction-only. Display ids of BRs and/or constraints this contradiction is ABOUT — the things whose approach or validity is in dispute. E.g. a 'RAGFlow vs Qdrant' contradiction concerns BR-007 (retrieval layer) and CON-003 (RAGFlow contract constraint). Used to wire the contradiction into the graph so it surfaces on the BR/constraint detail view. Leave empty when the contradiction is free-floating (a disagreement not yet tied to a specific requirement)."},
+                    "impact_summary": {"type": "string", "description": "Contradiction-only. WHY the contradiction matters — what's blocked, at risk, or affected if no one decides. 1-3 sentences. Example: 'Affects every BR depending on extraction accuracy (BR-001, BR-003). If Haiku quality drops below the confirmed-finding threshold the client review portal surfaces wrong data; reverting to Sonnet breaks Milan's 10x cost commitment.' Leave empty when the source does not discuss consequences — do NOT fabricate."},
+                    "resolution_options": {"type": "array", "items": {"type": "string"}, "description": "Contradiction-only. Concrete paths to resolve, each shaped '<option> — <pros / cons or recommendation>'. Examples: ['Run a 50-document benchmark — pick the model by quality threshold, empirical and lowest risk', 'Hybrid: Haiku by default, fall back to Sonnet on confidence<medium — keeps cost down but adds runtime branching', 'Stay on Haiku — accept quality loss as MVP trade-off']. Only emit when the source genuinely discusses options or trade-offs; leave empty otherwise."},
                     "role_title": {"type": "string", "description": "Stakeholder-only. SHORT job title (≤40 chars). Examples: 'CEO', 'CTO', 'Lead Developer', 'Product Manager'. Do NOT pack decisions, opinions, or context into this field — those go into decisions[] / interests[]. Title-case, no punctuation. Use this instead of cramming the title into `description`."},
                     "role": {"type": "string", "description": "Stakeholder-only. Optional 1-2 sentence narrative when role_title alone doesn't convey the relationship (e.g. 'Client CEO with final authority on architecture decisions'). Leave empty when role_title is sufficient. NEVER pack 4+ separate decisions into one paragraph here — split into decisions[] instead."},
                     "decisions": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Specific decisions this person has made or owns. Each entry: short headline + reasoning. Examples: ['EU-only hosting — non-negotiable contractual requirement.', '€80k MVP budget ceiling — confirmed.', 'Named RAGFlow as vector store — any swap requires amendment.']. A long single-sentence role usually splits into 2-4 distinct decisions; do that split."},
@@ -1904,6 +1906,13 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 # CON-004. Wires the contradiction into the graph so
                 # get_connections surfaces it from the BR detail view.
                 concerns_refs = arguments.get("concerns_refs") or []
+                # Migration 040 descriptive context fields. impact_summary
+                # explains what's at stake; resolution_options enumerates
+                # paths the agent saw discussed in the source.
+                impact_summary = arguments.get("impact_summary") or None
+                resolution_options = arguments.get("resolution_options") or None
+                if resolution_options is not None and not isinstance(resolution_options, list):
+                    resolution_options = None
                 # Keep explanation populated for legacy readers (search,
                 # agent get_contradictions, etc.) — compose from the new
                 # fields so old queries still return meaningful content.
@@ -1913,12 +1922,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "INSERT INTO contradictions "
                     "(id, project_id, title, side_a, side_b, area, "
                     " side_a_source, side_a_person, side_b_source, side_b_person, "
-                    " explanation, source_doc_id, resolved) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false) "
+                    " explanation, source_doc_id, resolved, "
+                    " impact_summary, resolution_options) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, "
+                    " $12, $13::jsonb) "
                     "RETURNING id",
                     pid, title, side_a or None, side_b or None, area,
                     side_a_source, side_a_person, side_b_source, side_b_person,
                     explanation or None, source_doc_uuid,
+                    impact_summary,
+                    json.dumps(resolution_options) if resolution_options else None,
                 )
                 contradiction_uuid = str(row["id"])
                 await conn.execute(
