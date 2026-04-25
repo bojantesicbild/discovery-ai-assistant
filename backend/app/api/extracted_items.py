@@ -416,15 +416,53 @@ async def list_stakeholders(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
+    # Pull stakeholders + per-person finding counts in 5 grouped
+    # queries so the People tab can render badges without N round-trips.
+    # Counts are keyed by lower(name) since the same person can be
+    # extracted from multiple documents under slightly different
+    # capitalisations.
+    from sqlalchemy import func
+
+    stk_result = await db.execute(
         select(Stakeholder).where(Stakeholder.project_id == project_id)
     )
-    items = result.scalars().all()
-    out = [{"id": str(s.id), "name": s.name, "role": s.role,
-             "organization": s.organization,
-             "decision_authority": s.decision_authority,
-             "interests": s.interests}
-            for s in items]
+    items = stk_result.scalars().all()
+
+    async def _counts_by_person(Model, person_col):
+        rows = (await db.execute(
+            select(func.lower(person_col), func.count())
+            .where(Model.project_id == project_id, person_col.is_not(None))
+            .group_by(func.lower(person_col))
+        )).all()
+        return {name: count for name, count in rows if name}
+
+    req_counts = await _counts_by_person(Requirement, Requirement.source_person)
+    gap_counts = await _counts_by_person(Gap, Gap.source_person)
+    con_counts = await _counts_by_person(Constraint, Constraint.source_person)
+
+    # Contradictions name people on either side — sum both.
+    side_a = await _counts_by_person(Contradiction, Contradiction.side_a_person)
+    side_b = await _counts_by_person(Contradiction, Contradiction.side_b_person)
+    ctr_counts: dict[str, int] = {}
+    for d in (side_a, side_b):
+        for k, v in d.items():
+            ctr_counts[k] = ctr_counts.get(k, 0) + v
+
+    out = []
+    for s in items:
+        key = (s.name or "").lower()
+        out.append({
+            "id": str(s.id), "name": s.name, "role": s.role,
+            "organization": s.organization,
+            "decision_authority": s.decision_authority,
+            "interests": s.interests,
+            "finding_counts": {
+                "requirements": req_counts.get(key, 0),
+                "gaps": gap_counts.get(key, 0),
+                "constraints": con_counts.get(key, 0),
+                "contradictions": ctr_counts.get(key, 0),
+            },
+        })
     await _attach_seen(out, db, user.id, project_id, "stakeholder")
     return {"items": out, "total": len(items)}
 

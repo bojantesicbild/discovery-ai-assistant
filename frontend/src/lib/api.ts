@@ -172,6 +172,15 @@ export interface ApiStakeholder {
   decision_authority: string;  // final | recommender | informed
   interests: string[];
   seen_at: string | null;
+  /** Per-kind finding counts where this person is named source_person.
+   *  Returned by GET /stakeholders so the People tab can render badges
+   *  without extra per-row API calls. */
+  finding_counts?: {
+    requirements: number;
+    gaps: number;
+    constraints: number;
+    contradictions: number;
+  };
 }
 
 export interface ApiContradiction {

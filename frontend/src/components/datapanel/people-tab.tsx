@@ -18,6 +18,26 @@ interface Props {
 }
 
 
+// Tinted count badge for a single finding kind. `count === 0` renders
+// muted so empty kinds fade into the row instead of competing visually
+// with non-empty ones.
+function CountBadge({
+  label, count, kind,
+}: {
+  label: string;
+  count: number;
+  kind: "green" | "amber" | "orange" | "red";
+}) {
+  const empty = count === 0;
+  return (
+    <span className={`person-count-badge ${empty ? "empty" : kind}`}>
+      <span className="n">{count}</span>
+      <span className="lbl">{label}</span>
+    </span>
+  );
+}
+
+
 export function PeopleTab({ projectId, onNavigate }: Props) {
   const [people, setPeople] = useState<ApiStakeholder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,32 +112,43 @@ export function PeopleTab({ projectId, onNavigate }: Props) {
       </div>
 
       <div className="people-grid">
-        {filtered.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className="people-card"
-            onClick={() => onNavigate?.("people", p.name)}
-          >
-            <div className="people-card-avatar">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <div className="people-card-body">
-              <div className="people-card-name">{p.name}</div>
-              {p.role && <div className="people-card-role">{p.role}</div>}
-              {p.organization && (
-                <div className="people-card-org">{p.organization}</div>
-              )}
-            </div>
-            <svg className="people-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="13 6 19 12 13 18" />
-            </svg>
-          </button>
-        ))}
+        {filtered.map((p) => {
+          const counts = p.finding_counts || { requirements: 0, gaps: 0, constraints: 0, contradictions: 0 };
+          return (
+            <button
+              key={p.id}
+              type="button"
+              className="people-card"
+              onClick={() => onNavigate?.("people", p.name)}
+            >
+              <div className="people-card-top">
+                <div className="people-card-avatar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                </div>
+                <div className="people-card-body">
+                  <div className="people-card-name">{p.name}</div>
+                  {p.role && <div className="people-card-role">{p.role}</div>}
+                  {p.organization && (
+                    <div className="people-card-org">{p.organization}</div>
+                  )}
+                </div>
+                <svg className="people-card-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="13 6 19 12 13 18" />
+                </svg>
+              </div>
+              <div className="people-card-counts">
+                <CountBadge label="BR"  count={counts.requirements}    kind="green"  />
+                <CountBadge label="Gap" count={counts.gaps}            kind="amber"  />
+                <CountBadge label="Con" count={counts.constraints}     kind="orange" />
+                <CountBadge label="Ctr" count={counts.contradictions}  kind="red"    />
+              </div>
+            </button>
+          );
+        })}
         {filtered.length === 0 && (
           <div className="rem-loading" style={{ gridColumn: "1 / -1" }}>
             No people match {`"${search}"`}.
