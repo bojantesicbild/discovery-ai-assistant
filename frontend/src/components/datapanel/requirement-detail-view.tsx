@@ -315,6 +315,7 @@ export default function RequirementDetailView({
             <span className="id">{req.req_id}</span>
             <span className="v">v{req.version || 1}</span>
           </span>
+          <h1 className="req-detail-title-h1">{req.title}</h1>
           <HeroOverflowMenu
             displayId={req.req_id}
             onCopyId={() => navigator.clipboard.writeText(req.req_id)}
@@ -323,8 +324,6 @@ export default function RequirementDetailView({
             }}
           />
         </div>
-
-        <h1 className="req-detail-title-h1">{req.title}</h1>
 
         <div className="req-detail-hero-chips">
           {req.priority && <span className={`pri ${req.priority}`}>{req.priority}</span>}
