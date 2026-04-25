@@ -117,7 +117,8 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
   }
 
   function renderWikiMarkdown(md: string): string {
-    // 1. Extract tables and wikilinks before escaping
+    // 1. Extract tables before escaping. Style hooks live on .kg-wiki-body
+    // table/th/td selectors in knowledge.css — markup stays plain.
     const tables: Record<string, string> = {};
     const lines = md.split("\n");
     const cleaned: string[] = [];
@@ -151,25 +152,24 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
         const parseCells = (line: string) =>
           line.split("|").filter((_, idx, arr) => idx > 0 && idx < arr.length - (line.endsWith("|") ? 1 : 0)).map((c) => c.trim());
 
-        // Render wikilinks inside table cells
         const renderCell = (cell: string) => {
           const escaped = esc(cell);
           return escaped.replace(/\[\[([^\]]+)\]\]/g, (_m, target) =>
-            `<a class="wiki-link" data-target="${target}" style="color:#00E5A0;font-weight:600;cursor:pointer;border-bottom:1px dashed #00E5A0;text-decoration:none">${target}</a>`
+            `<a class="wiki-link" data-target="${target}">${target}</a>`,
           );
         };
 
         const hdrCells = parseCells(tableLines[0]);
-        let h = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px"><thead><tr>';
+        let h = '<table><thead><tr>';
         hdrCells.forEach((cell, ci) => {
-          h += `<th style="text-align:${aligns[ci] || "left"};padding:8px 12px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600;color:#0f172a">${renderCell(cell)}</th>`;
+          h += `<th style="text-align:${aligns[ci] || "left"}">${renderCell(cell)}</th>`;
         });
         h += "</tr></thead><tbody>";
         for (let r = 1; r < tableLines.length; r++) {
           const cells = parseCells(tableLines[r]);
           h += "<tr>";
           cells.forEach((cell, ci) => {
-            h += `<td style="text-align:${aligns[ci] || "left"};padding:6px 12px;border:1px solid #e2e8f0;color:#4b5563">${renderCell(cell)}</td>`;
+            h += `<td style="text-align:${aligns[ci] || "left"}">${renderCell(cell)}</td>`;
           });
           h += "</tr>";
         }
@@ -183,31 +183,31 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
       }
     }
 
-    // 2. Process remaining text
+    // 2. Process remaining text — markup stays plain, styles live in
+    // knowledge.css under .kg-wiki-body. No more inline style="…".
     let html = cleaned.join("\n")
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/\[\[([^\]]+)\]\]/g, (_m, target) =>
-        `<a class="wiki-link" data-target="${target}" style="color:#00E5A0;font-weight:600;cursor:pointer;border-bottom:1px dashed #00E5A0;text-decoration:none">${target}</a>`
+        `<a class="wiki-link" data-target="${target}">${target}</a>`,
       )
-      .replace(/^### (.+)$/gm, '<h3 style="font-size:14px;font-weight:700;margin:16px 0 6px;color:#0f172a">$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2 style="font-size:16px;font-weight:700;margin:18px 0 8px;color:#0f172a">$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1 style="font-size:18px;font-weight:800;margin:20px 0 10px;color:#0f172a">$1</h1>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code style="padding:1px 5px;background:#f0fdf4;border:1px solid #dcfce7;border-radius:4px;font-size:0.88em;font-family:monospace;color:#16a34a">$1</code>')
-      .replace(/^- (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
-      .replace(/^\d+\. (.+)$/gm, '<li style="margin:3px 0;padding-left:4px">$1</li>')
-      .replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid #00E5A0;padding:6px 12px;margin:8px 0;background:#f0fdf8;border-radius:0 6px 6px 0;font-size:12px;color:#4b5563;font-style:italic">$1</blockquote>')
-      .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:14px 0">')
-      .replace(/\n\n/g, '</p><p style="margin:8px 0">')
-      .replace(/\n/g, '<br>');
+      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/^- (.+)$/gm, "<li>$1</li>")
+      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
+      .replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>")
+      .replace(/^---$/gm, "<hr>")
+      .replace(/\n\n/g, "</p><p>")
+      .replace(/\n/g, "<br>");
 
-    html = '<p style="margin:8px 0">' + html + '</p>';
+    html = "<p>" + html + "</p>";
     html = html.replace(/(<li[^>]*>.*?<\/li>(\s*<br>)?)+/g, (match) =>
-      '<ul style="padding-left:18px;margin:6px 0">' + match.replace(/<br>/g, '') + '</ul>'
+      "<ul>" + match.replace(/<br>/g, "") + "</ul>",
     );
 
-    // 3. Re-insert tables
     for (const [key, tableHtml] of Object.entries(tables)) {
       html = html.replace(key, tableHtml);
     }
@@ -215,15 +215,12 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
     return html;
   }
 
-  if (loading) return <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>Loading wiki...</div>;
+  if (loading) return <div className="kg-wiki-loading">Loading wiki…</div>;
 
   return (
-    <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+    <div className="kg-wiki">
       {/* File tree sidebar */}
-      <div style={{
-        width: 240, flexShrink: 0, borderRight: "1px solid #e2e8f0",
-        background: "#fafbfc", overflowY: "auto", padding: "12px 0",
-      }}>
+      <div className="kg-wiki-tree">
         {sortedFolders.map((folder) => {
           const folderFiles = grouped.get(folder) || [];
           const isExpanded = expandedFolders.has(folder);
@@ -231,104 +228,93 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
 
           return (
             <div key={folder}>
-              <div
+              <button
+                type="button"
+                className="kg-wiki-folder-head"
+                aria-expanded={isExpanded}
                 onClick={() => toggleFolder(folder)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 14px", cursor: "pointer", userSelect: "none",
-                  fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "0.5px", color: "#64748b",
-                }}
               >
-                <span style={{ fontSize: 10, transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "none" }}>
-                  ▶
-                </span>
+                <span className="kg-wiki-folder-chev">▶</span>
                 {label}
-                <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 500, marginLeft: "auto" }}>{folderFiles.length}</span>
-              </div>
+                <span className="kg-wiki-folder-count">{folderFiles.length}</span>
+              </button>
               {isExpanded && folderFiles.map((f) => {
                 const isActive = selectedPath === f.path;
                 const statusIcon = STATUS_ICONS[f.status] || "";
-                const statusColor = STATUS_COLORS[f.status] || "#94a3b8";
+                const statusColor = STATUS_COLORS[f.status] || "var(--ink-4)";
                 return (
-                  <div
+                  <button
                     key={f.path}
+                    type="button"
+                    className={`kg-wiki-file${isActive ? " active" : ""}`}
                     onClick={() => openFile(f.path)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "5px 14px 5px 28px", cursor: "pointer",
-                      background: isActive ? "#f0fdf8" : "transparent",
-                      borderRight: isActive ? "2px solid #00E5A0" : "2px solid transparent",
-                      fontSize: 12, color: isActive ? "#0f172a" : "#4b5563",
-                      fontWeight: isActive ? 600 : 400,
-                      transition: "all 0.1s",
-                    }}
                   >
-                    {statusIcon && <span style={{ color: statusColor, fontSize: 11 }}>{statusIcon}</span>}
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {f.id || f.title}
-                    </span>
-                  </div>
+                    {statusIcon && (
+                      <span className="kg-wiki-file-status" style={{ color: statusColor }}>{statusIcon}</span>
+                    )}
+                    <span className="kg-wiki-file-name">{f.id || f.title}</span>
+                  </button>
                 );
               })}
             </div>
           );
         })}
 
-        {/* Obsidian hint */}
-        <div style={{
-          padding: "10px 14px", borderTop: "1px solid #e2e8f0",
-          fontSize: 10, color: "#94a3b8", lineHeight: 1.4,
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 2 }}>Open in Obsidian</div>
-          <div
-            style={{ fontFamily: "monospace", fontSize: 9, cursor: "pointer", wordBreak: "break-all" }}
+        <div className="kg-wiki-footer">
+          <div className="label">Open in Obsidian</div>
+          <button
+            type="button"
+            className="kg-wiki-footer-path"
             onClick={() => { navigator.clipboard.writeText(`.runtime/projects/${projectId}/.memory-bank`); }}
             title="Click to copy path"
           >
-            .runtime/projects/{projectId.slice(0, 8)}.../.memory-bank
-          </div>
+            .runtime/projects/{projectId.slice(0, 8)}…/.memory-bank
+          </button>
         </div>
       </div>
 
       {/* Content panel */}
-      <div style={{ flex: 1, overflow: "auto", padding: "16px 24px" }}>
+      <div className="kg-wiki-content">
         {!selectedPath ? (
-          <div style={{ color: "#94a3b8", textAlign: "center", paddingTop: 60 }}>
-            <p style={{ fontSize: 15, fontWeight: 500 }}>Select a file to view</p>
-          </div>
+          <div className="kg-wiki-empty">Select a file to view</div>
         ) : (
           <>
-            {/* Breadcrumb */}
-            <div style={{ fontSize: 11, color: "#94a3b8", marginBottom: 8 }}>
-              discovery / {selectedPath.replace(".md", "")}
+            <div className="kg-wiki-crumb">
+              discovery <span className="sep">/</span>
+              <span className="leaf">{selectedPath.replace(".md", "")}</span>
             </div>
 
-            {/* Frontmatter badges */}
             {Object.keys(frontmatter).length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+              <div className="kg-wiki-meta">
                 {Object.entries(frontmatter).map(([key, value]) => {
                   if (!value || key === "description" || key === "category") return null;
+                  // Long values (e.g. multi-sentence role descriptions)
+                  // make terrible chip text — clamp to a short preview.
+                  const display = typeof value === "string" && value.length > 60
+                    ? value.slice(0, 60).trim() + "…"
+                    : value;
                   const color =
-                    key === "priority" ? (value === "must" ? "#EF4444" : value === "should" ? "#F59E0B" : "#3B82F6")
-                    : key === "status" ? (STATUS_COLORS[value] || "#94a3b8")
-                    : key === "confidence" ? (value === "high" ? "#00E5A0" : value === "low" ? "#EF4444" : "#F59E0B")
-                    : "#64748b";
+                    key === "priority" ? (value === "must" ? "var(--must)" : value === "should" ? "var(--should)" : "var(--could)")
+                    : key === "status" ? (STATUS_COLORS[value as string] || "var(--ink-3)")
+                    : key === "confidence" ? (value === "high" ? "var(--accent-ink)" : value === "low" ? "var(--must)" : "var(--should)")
+                    : "var(--ink-3)";
                   return (
-                    <span key={key} style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 6,
-                      background: `${color}15`, color,
-                    }}>
-                      {key}: {value}
+                    <span
+                      key={key}
+                      className="kg-wiki-meta-pill"
+                      style={{ color, background: `color-mix(in srgb, ${color} 12%, transparent)` }}
+                      title={typeof value === "string" ? value : undefined}
+                    >
+                      <span className="key">{key}:</span>
+                      {display}
                     </span>
                   );
                 })}
               </div>
             )}
 
-            {/* Rendered content */}
             <div
-              style={{ fontSize: 13, lineHeight: 1.7, color: "#1e293b" }}
+              className="kg-wiki-body"
               dangerouslySetInnerHTML={{ __html: renderWikiMarkdown(content) }}
               onClick={(e) => {
                 const target = (e.target as HTMLElement).closest("[data-target]");
@@ -339,30 +325,22 @@ export function WikiView({ projectId, onSelectNode }: { projectId: string; onSel
               }}
             />
 
-            {/* Backlinks */}
             {backlinks.length > 0 && (
-              <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid #e2e8f0" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#94a3b8", marginBottom: 8 }}>
+              <div className="kg-wiki-backlinks">
+                <div className="kg-wiki-backlinks-label">
                   Referenced By ({backlinks.length})
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div className="kg-wiki-backlinks-list">
                   {backlinks.map((bl) => (
                     <button
                       key={bl.path}
+                      type="button"
+                      className="kg-wiki-backlink"
                       onClick={() => openFile(bl.path)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        padding: "6px 10px", borderRadius: 6,
-                        border: "1px solid #e2e8f0", background: "#fff",
-                        cursor: "pointer", fontFamily: "var(--font)", textAlign: "left",
-                        fontSize: 12, color: "#0f172a", transition: "all 0.1s",
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#00E5A0"; e.currentTarget.style.background = "#f0fdf8"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; e.currentTarget.style.background = "#fff"; }}
                     >
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#00E5A0", flexShrink: 0 }} />
-                      <span style={{ flex: 1 }}>{bl.title}</span>
-                      <span style={{ fontSize: 10, color: "#94a3b8" }}>{bl.id}</span>
+                      <span className="kg-wiki-backlink-dot" />
+                      <span className="kg-wiki-backlink-title">{bl.title}</span>
+                      <span className="kg-wiki-backlink-id">{bl.id}</span>
                     </button>
                   ))}
                 </div>
