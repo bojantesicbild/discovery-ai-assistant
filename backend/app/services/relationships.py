@@ -72,6 +72,11 @@ class FindingRef:
     kind: str           # 'requirement' | 'gap' | 'constraint' | ...
     display_id: str     # BR-004, GAP-007, stakeholder name, etc.
     label: str          # short human label
+    # Per-kind status string so the connections section can stamp a
+    # "confirmed" / "resolved" badge on each linked item without
+    # requiring a second fetch. Stays None for kinds that don't carry
+    # a status (stakeholder).
+    status: str | None = None
 
 
 _MODEL_BY_KIND = {
@@ -100,16 +105,14 @@ async def resolve_display_id(
             Requirement.req_id == upper,
         )
         r = (await db.execute(q)).scalar_one_or_none()
-        return FindingRef(r.id, "requirement", r.req_id, r.title) if r else None
+        return FindingRef(r.id, "requirement", r.req_id, r.title, r.status) if r else None
     if upper.startswith("GAP-"):
         q = select(Gap).where(
             Gap.project_id == project_id, Gap.gap_id == upper,
         )
         r = (await db.execute(q)).scalar_one_or_none()
-        return FindingRef(r.id, "gap", r.gap_id, r.question[:80]) if r else None
+        return FindingRef(r.id, "gap", r.gap_id, r.question[:80], r.status) if r else None
     if upper.startswith("CON-"):
-        # Constraint IDs are positional (CON-NNN = row index). Parse the
-        # number and fetch by stable creation order.
         try:
             idx = int(upper.split("-", 1)[1]) - 1
         except (ValueError, IndexError):
@@ -118,7 +121,7 @@ async def resolve_display_id(
             Constraint.project_id == project_id,
         ).order_by(Constraint.created_at, Constraint.id).offset(idx).limit(1)
         r = (await db.execute(q)).scalar_one_or_none()
-        return FindingRef(r.id, "constraint", upper, r.description[:80]) if r else None
+        return FindingRef(r.id, "constraint", upper, r.description[:80], r.status) if r else None
     if upper.startswith("CTR-"):
         try:
             idx = int(upper.split("-", 1)[1]) - 1
@@ -128,8 +131,10 @@ async def resolve_display_id(
             Contradiction.project_id == project_id,
         ).order_by(Contradiction.created_at, Contradiction.id).offset(idx).limit(1)
         r = (await db.execute(q)).scalar_one_or_none()
-        label = r.title or (r.explanation or "")[:80] if r else ""
-        return FindingRef(r.id, "contradiction", upper, label) if r else None
+        if not r:
+            return None
+        label = r.title or (r.explanation or "")[:80]
+        return FindingRef(r.id, "contradiction", upper, label, "resolved" if r.resolved else "open")
 
     # No prefix — try stakeholder by name, then document by filename.
     stk = (await db.execute(
@@ -139,7 +144,7 @@ async def resolve_display_id(
         )
     )).scalar_one_or_none()
     if stk:
-        return FindingRef(stk.id, "stakeholder", stk.name, f"{stk.role}")
+        return FindingRef(stk.id, "stakeholder", stk.name, f"{stk.role}", None)
     doc = (await db.execute(
         select(Document).where(
             Document.project_id == project_id,
@@ -147,7 +152,7 @@ async def resolve_display_id(
         )
     )).scalar_one_or_none()
     if doc:
-        return FindingRef(doc.id, "document", doc.filename, doc.filename)
+        return FindingRef(doc.id, "document", doc.filename, doc.filename, doc.pipeline_stage)
     return None
 
 
@@ -181,8 +186,8 @@ async def resolve_uuids_to_display(
         if kind in ("constraint", "contradiction"):
             idx_map = await _positional_index(db, project_id, Model)
         for r in rows:
-            display, label = _display_for(kind, r, idx_map)
-            out[(kind, r.id)] = FindingRef(r.id, kind, display, label)
+            display, label, status = _display_for(kind, r, idx_map)
+            out[(kind, r.id)] = FindingRef(r.id, kind, display, label, status)
     return out
 
 
@@ -207,31 +212,36 @@ async def _positional_index(
 def _display_for(
     kind: str, row: Any,
     idx_map: dict[uuid.UUID, int] | None = None,
-) -> tuple[str, str]:
-    """Per-kind display-id + label extraction. One function so all
-    callers produce consistent labels.
+) -> tuple[str, str, str | None]:
+    """Per-kind (display-id, label, status) extraction. One function
+    so all callers produce consistent labels + status strings.
+
+    Status maps:
+      requirement / gap / constraint  → row.status
+      contradiction                   → "resolved" / "open"
+      document                        → row.pipeline_stage
+      stakeholder                     → None (no status concept)
 
     For positional kinds (constraint, contradiction) the caller is
     expected to pass idx_map — without it, we fall back to the UUID
-    prefix form which won't match resolve_display_id's expectations
-    but is still distinguishable per row."""
+    prefix form."""
     if kind == "requirement":
-        return row.req_id, row.title or ""
+        return row.req_id, row.title or "", row.status
     if kind == "gap":
-        return row.gap_id, (row.question or "")[:80]
+        return row.gap_id, (row.question or "")[:80], row.status
     if kind == "constraint":
         idx = idx_map.get(row.id) if idx_map else None
         display = f"CON-{idx:03d}" if idx else f"CON-{str(row.id)[:8]}"
-        return display, (row.description or "")[:80]
+        return display, (row.description or "")[:80], row.status
     if kind == "contradiction":
         idx = idx_map.get(row.id) if idx_map else None
         display = f"CTR-{idx:03d}" if idx else f"CTR-{str(row.id)[:8]}"
-        return display, row.title or (row.explanation or "")[:80]
+        return display, row.title or (row.explanation or "")[:80], "resolved" if row.resolved else "open"
     if kind == "stakeholder":
-        return row.name, row.role or ""
+        return row.name, row.role or "", None
     if kind == "document":
-        return row.filename, row.filename
-    return str(row.id)[:8], str(getattr(row, "title", "") or "")[:80]
+        return row.filename, row.filename, getattr(row, "pipeline_stage", None)
+    return str(row.id)[:8], str(getattr(row, "title", "") or "")[:80], None
 
 
 # ── Insert / upsert / retract ─────────────────────────────────────────
@@ -510,8 +520,8 @@ async def _derived_groups_for(
             )).scalars().all()
             idx_map = await _idx_for(kind, SiblingModel) if kind in ("constraint", "contradiction") else None
             for r in rows:
-                disp, lbl = _display_for(kind, r, idx_map)
-                siblings.append(FindingRef(r.id, kind, disp, lbl))
+                disp, lbl, status = _display_for(kind, r, idx_map)
+                siblings.append(FindingRef(r.id, kind, disp, lbl, status))
         if siblings:
             doc = await db.get(Document, source_doc_id)
             groups.append(DerivedGroup(
@@ -535,8 +545,8 @@ async def _derived_groups_for(
             )).scalars().all()
             idx_map = await _idx_for(kind, SiblingModel) if kind in ("constraint", "contradiction") else None
             for r in rows:
-                disp, lbl = _display_for(kind, r, idx_map)
-                siblings.append(FindingRef(r.id, kind, disp, lbl))
+                disp, lbl, status = _display_for(kind, r, idx_map)
+                siblings.append(FindingRef(r.id, kind, disp, lbl, status))
         if siblings:
             groups.append(DerivedGroup(
                 kind="shared_stakeholder",

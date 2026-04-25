@@ -8,11 +8,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  getItemHistory, type HistoryEntry,
   type ApiRequirement, type ProposedUpdate, type ProposedField,
 } from "@/lib/api";
 import { formatAge } from "@/lib/dates";
 import { RejectModal } from "./proposed-updates-section";
+import {
+  useDetailHistory, DetailHistoryView, HeroOverflowMenu,
+  SourceBlock, SourceCitation, statusActionClass, statusChipClasses,
+} from "./detail-shell";
 
 
 type Action = { label: string; value: string; color: string };
@@ -51,30 +54,6 @@ function ago(iso: string | null | undefined): string {
   if (!a) return "";
   if (/^\d{1,2}:\d{2}$/.test(a)) return a;
   return `${a} ago`;
-}
-
-
-// Hero chip helpers.
-// The status chip uses the canonical .status / .status.confirmed /
-// .status.discussed pattern (dot + label) so it matches RequirementsTab
-// rows. Confidence stays a neutral .chip with the literal label.
-function statusChipClasses(status: string): string {
-  if (status === "confirmed" || status === "resolved") return "status confirmed";
-  if (status === "discussed") return "status discussed";
-  return "status"; // proposed / pending / open
-}
-
-
-// Map an Action (label/value) onto one of the three .btn-status
-// variants in panels.css. The detail-builders ship Drop with
-// value="dropped" — the previous switch only matched "dismissed",
-// so Drop fell through to discuss (amber) instead of dismiss (red).
-function statusActionClass(value: string, label: string): string {
-  const v = (value || "").toLowerCase();
-  const l = (label || "").toLowerCase();
-  if (v === "confirmed" || l === "confirm") return "confirm";
-  if (v === "dropped" || v === "dismissed" || l === "drop") return "dismiss";
-  return "discuss";
 }
 
 
@@ -197,8 +176,10 @@ export default function RequirementDetailView({
   onLinkClick,
 }: RequirementDetailViewProps) {
   const [activeView, setActiveView] = useState<"content" | "history">("content");
-  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[] | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const { entries: historyEntries, loading: historyLoading } = useDetailHistory(
+    history,
+    activeView === "history",
+  );
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Animation state — which proposal id is currently animating, and
@@ -224,17 +205,10 @@ export default function RequirementDetailView({
     return m;
   }, [pending]);
 
+  // Reset to the Content sub-tab whenever the item id changes — the
+  // useDetailHistory hook resets `entries` on the same trigger so
+  // both pieces stay in sync.
   useEffect(() => {
-    if (activeView !== "history" || !history || historyEntries) return;
-    setHistoryLoading(true);
-    getItemHistory(history.projectId, history.itemType, history.itemId)
-      .then((res) => setHistoryEntries(res.history))
-      .catch(() => setHistoryEntries([]))
-      .finally(() => setHistoryLoading(false));
-  }, [activeView, history, historyEntries]);
-
-  useEffect(() => {
-    setHistoryEntries(null);
     setActiveView("content");
   }, [history?.itemId]);
 
@@ -316,13 +290,7 @@ export default function RequirementDetailView({
             <span className="v">v{req.version || 1}</span>
           </span>
           <h1 className="req-detail-title-h1">{req.title}</h1>
-          <HeroOverflowMenu
-            displayId={req.req_id}
-            onCopyId={() => navigator.clipboard.writeText(req.req_id)}
-            onCopyLink={() => {
-              try { navigator.clipboard.writeText(window.location.href); } catch {}
-            }}
-          />
+          <HeroOverflowMenu displayId={req.req_id} />
         </div>
 
         <div className="req-detail-hero-chips">
@@ -402,50 +370,7 @@ export default function RequirementDetailView({
       {/* Body */}
       <div className="req-detail-body" ref={bodyRef} onScroll={onBodyScroll}>
         {activeView === "history" && history ? (
-          historyLoading ? (
-            <div className="detail-empty">Loading history…</div>
-          ) : historyEntries && historyEntries.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {historyEntries.map((entry) => (
-                <div key={entry.id} className={`history-entry ${entry.action}`}>
-                  <div className="history-entry-head">
-                    <span className={`history-entry-action ${entry.action}`}>{entry.action}</span>
-                    {entry.source_filename && (
-                      <span className="history-entry-meta">
-                        from <strong>{entry.source_filename}</strong>
-                      </span>
-                    )}
-                    <span className="history-entry-ts">
-                      {entry.created_at ? new Date(entry.created_at).toLocaleString() : ""}
-                    </span>
-                  </div>
-                  {entry.action === "update" && Object.keys(entry.old_value || {}).length > 0 && (
-                    <div className="history-entry-diff">
-                      {Object.keys(entry.old_value).map((field) => (
-                        <div key={field} style={{ marginTop: 2 }}>
-                          <span className="field">{field}: </span>
-                          <span className="old">{String(entry.old_value[field] ?? "")}</span>
-                          <span style={{ color: "var(--ink-4)" }}> → </span>
-                          <span className="new">{String(entry.new_value[field] ?? "")}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {entry.action === "create" && (
-                    <div className="history-entry-create-line">
-                      {Object.entries(entry.new_value || {}).map(([k, v]) => (
-                        <span key={k} style={{ marginRight: 8 }}>
-                          <span style={{ color: "var(--ink-3)" }}>{k}:</span> {String(v)}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="detail-empty">No history yet.</div>
-          )
+          <DetailHistoryView loading={historyLoading} entries={historyEntries} />
         ) : (
           <>
             {pending.length > 0 && (
@@ -774,168 +699,6 @@ export default function RequirementDetailView({
             await handleReject(id, reason);
           }}
         />
-      )}
-    </div>
-  );
-}
-
-
-function SourceCitation({
-  quote, filename, docId, onLinkClick,
-}: {
-  quote?: string | null;
-  filename?: string | null;
-  docId?: string | null;
-  onLinkClick?: (href: string) => boolean | void;
-}) {
-  if (!quote && !filename) return null;
-  const clickable = !!filename && !!docId && !!onLinkClick;
-  const FileIcon = (
-    <svg className="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-  const OpenArrow = (
-    <svg className="open-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <line x1="5" y1="12" x2="19" y2="12" />
-      <polyline points="13 6 19 12 13 18" />
-    </svg>
-  );
-
-  const headerInner = (
-    <>
-      {FileIcon}
-      <span className="file-name">{filename || "Source"}</span>
-      {clickable && OpenArrow}
-    </>
-  );
-
-  return (
-    <div className="source-citation">
-      {filename && (
-        clickable ? (
-          <a
-            href={`doc://${docId}`}
-            className="source-citation-header clickable"
-            onClick={(e) => {
-              if (!onLinkClick) return;
-              const handled = onLinkClick(`doc://${docId}`);
-              if (handled !== false) e.preventDefault();
-            }}
-          >
-            {headerInner}
-          </a>
-        ) : (
-          <div className="source-citation-header">{headerInner}</div>
-        )
-      )}
-      {quote && (
-        <div className="source-citation-body">{quote}</div>
-      )}
-    </div>
-  );
-}
-
-
-function SourceBlock({
-  filename, docId, mergedCount, onLinkClick,
-}: {
-  filename: string;
-  docId?: string | null;
-  mergedCount: number;
-  onLinkClick?: (href: string) => boolean | void;
-}) {
-  const clickable = !!docId && !!onLinkClick;
-  const Icon = (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-    </svg>
-  );
-  const Body = (
-    <>
-      {Icon}
-      <span>{filename}</span>
-      {mergedCount > 0 && (
-        <span className="merge-tag">+{mergedCount - 1} merged</span>
-      )}
-    </>
-  );
-  if (clickable) {
-    return (
-      <a
-        href={`doc://${docId}`}
-        className="req-detail-source-block clickable"
-        title={`Open ${filename}${mergedCount > 1 ? ` · merged from ${mergedCount} docs` : ""}`}
-        onClick={(e) => {
-          if (!onLinkClick) return;
-          const handled = onLinkClick(`doc://${docId}`);
-          if (handled !== false) e.preventDefault();
-        }}
-      >
-        {Body}
-      </a>
-    );
-  }
-  return (
-    <span
-      className="req-detail-source-block"
-      title={mergedCount > 1 ? `${filename} · merged from ${mergedCount} docs` : filename}
-    >
-      {Body}
-    </span>
-  );
-}
-
-
-function HeroOverflowMenu({
-  displayId, onCopyId, onCopyLink,
-}: {
-  displayId: string;
-  onCopyId: () => void;
-  onCopyLink: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [open]);
-
-  return (
-    <div ref={ref} style={{ position: "relative", marginLeft: "auto" }}>
-      <button
-        type="button"
-        className="req-detail-overflow"
-        onClick={() => setOpen((o) => !o)}
-        aria-label="More actions"
-        title="More actions"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="5" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="19" r="1.4" />
-        </svg>
-      </button>
-      {open && (
-        <div className="req-detail-overflow-menu" role="menu">
-          <button type="button" onClick={() => { onCopyId(); setOpen(false); }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-              <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-            Copy ID ({displayId})
-          </button>
-          <button type="button" onClick={() => { onCopyLink(); setOpen(false); }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
-            Copy link
-          </button>
-        </div>
       )}
     </div>
   );

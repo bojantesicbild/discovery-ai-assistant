@@ -45,6 +45,7 @@ def _serialize_connections(result: ConnectionsResult) -> dict[str, Any]:
             "kind": result.center.kind,
             "display_id": result.center.display_id,
             "label": result.center.label,
+            "status": result.center.status,
         },
         "outgoing": [
             {
@@ -60,6 +61,7 @@ def _serialize_connections(result: ConnectionsResult) -> dict[str, Any]:
                     "kind": e.neighbor.kind,
                     "display_id": e.neighbor.display_id,
                     "label": e.neighbor.label,
+                    "status": e.neighbor.status,
                 },
             }
             for e in result.outgoing
@@ -78,6 +80,7 @@ def _serialize_connections(result: ConnectionsResult) -> dict[str, Any]:
                     "kind": e.neighbor.kind,
                     "display_id": e.neighbor.display_id,
                     "label": e.neighbor.label,
+                    "status": e.neighbor.status,
                 },
             }
             for e in result.incoming
@@ -92,6 +95,7 @@ def _serialize_connections(result: ConnectionsResult) -> dict[str, Any]:
                         "kind": m.kind,
                         "display_id": m.display_id,
                         "label": m.label,
+                        "status": m.status,
                     }
                     for m in g.members
                 ],

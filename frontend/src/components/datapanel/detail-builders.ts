@@ -6,7 +6,7 @@
 // composes these with its callbacks.
 
 import type {
-  ApiRequirement, ApiConstraint, ApiGap, ApiDocument,
+  ApiRequirement, ApiConstraint, ApiGap, ApiDocument, ApiContradiction,
 } from "@/lib/api";
 import { formatRaisedMeta } from "@/lib/dates";
 import type { GapResolution } from "./feedback-cards";
@@ -21,7 +21,7 @@ export interface DetailViewBase {
   actions?: Action[];
   history?: { projectId: string; itemType: string; itemId: string };
   itemKey?: string;
-  itemKind?: "requirement" | "gap";
+  itemKind?: "requirement" | "gap" | "constraint" | "contradiction";
   gapResolution?: GapResolution;
 }
 
@@ -122,25 +122,18 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
   const shortTitle = desc.length > 80 ? desc.slice(0, 77).trimEnd() + "…" : desc;
   const headerTitle = shortTitle || `${con.type} constraint (no description)`;
 
-  const sourceLines: string[] = [];
-  if (con.source_doc && con.source_doc_id) {
-    sourceLines.push(`- [${con.source_doc}](doc://${con.source_doc_id})`);
-  } else if (con.source_doc) {
-    sourceLines.push(`- ${con.source_doc}`);
-  }
-
   const raisedValue = formatRaisedMeta(con.created_at);
   const workaround = (con.workaround || "").trim();
   const affects = con.affects_reqs || [];
 
+  // Body follows BR / gap pattern: no H1 (hero shows it), no source
+  // quote / document sections (FindingDetailView renders <SourceCitation>
+  // separately). Sections that have content render as field-headers.
   const md = [
-    `# ${conId}: ${headerTitle}`,
-    desc && desc.length > 80 ? `\n${desc}` : "",
+    desc && desc.length > 80 ? desc : "",
     con.impact ? `\n## Impact\n${con.impact}` : "",
-    con.source_quote ? `\n## Source Quote\n> ${con.source_quote}` : "",
     workaround ? `\n## Workaround\n${workaround}` : "",
     affects.length ? `\n## Affected Requirements\n${affects.map((r) => `- [${r}](br://${r})`).join("\n")}` : "",
-    sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
   ].filter(Boolean).join("\n");
 
   const allStatuses: Action[] = [
@@ -160,7 +153,67 @@ export function buildConstraintView(con: ApiConstraint, index: number, projectId
     meta,
     history: con.id ? { projectId, itemType: "constraint", itemId: con.id } : undefined,
     actions,
+    itemKey: conId,
+    itemKind: "constraint",
   };
+}
+
+
+export function buildContradictionView(
+  c: ApiContradiction,
+  index: number,
+  projectId: string,
+): DetailViewBase {
+  // Contradictions follow the constraint pattern: positional CTR-NNN
+  // matches the backend's resolve_display_id() ordering (created_at,
+  // id) so deep-links from connections / chat resolve to the same row.
+  const ctrId = `CTR-${String(index + 1).padStart(3, "0")}`;
+  const headerTitle = _contraTitle(c);
+
+  // Body is rendered by <ConflictBody> in the panel — it owns the
+  // side-A/B comparison + AI suggestion + resolution layout. We keep
+  // an empty content string so FindingDetailView's bodyContent slot
+  // wins and the markdown card never renders.
+  const md = "";
+
+  const actions: Action[] = c.resolved
+    ? [{ label: "Reopen", value: "reopen", color: "#6b7280" }]
+    : [
+        { label: "Resolve", value: "resolve", color: "#10b981" },
+        { label: "Add to Meeting", value: "meeting", color: "#6366f1" },
+      ];
+
+  const meta: Record<string, string> = {
+    id: ctrId,
+    severity: "high",
+    status: c.resolved ? "resolved" : "open",
+  };
+  if (c.area && c.area !== "unknown") meta.area = c.area;
+  // ApiContradiction has no closed_at field — formatRaisedMeta handles
+  // null fine and just returns the raise date + age.
+  const raisedValue = formatRaisedMeta(c.created_at);
+  if (raisedValue) meta.raised = raisedValue;
+
+  return {
+    title: `${ctrId}: ${headerTitle}`,
+    content: md,
+    meta,
+    history: c.id ? { projectId, itemType: "contradiction", itemId: c.id } : undefined,
+    actions,
+    itemKey: ctrId,
+    itemKind: "contradiction",
+  };
+}
+
+
+function _contraTitle(c: ApiContradiction): string {
+  if (c.title) return c.title.slice(0, 80);
+  if (c.item_a_ref && !c.item_a_ref.startsWith("New ")) return c.item_a_ref.slice(0, 80);
+  const expl = (c.explanation || "").trim();
+  if (!expl) return "Contradiction";
+  const colon = expl.indexOf(":");
+  if (colon > 0 && colon < 80) return expl.slice(0, colon).trim();
+  return expl.slice(0, 80);
 }
 
 
@@ -176,8 +229,6 @@ export function buildGapView(
         return req ? `[${brId}](br://${req.id})` : brId;
       }).join(", ")
     : "";
-
-  const sourceLines = _sourceLines(gap.source_doc, gap.source_doc_id, gap.sources);
 
   let gapResolution: GapResolution | undefined;
   if ((gap.status === "resolved" || gap.status === "dismissed") && gap.resolution) {
@@ -199,14 +250,13 @@ export function buildGapView(
     ? "Originally suggested action"
     : "Suggested Action";
 
+  // Body follows BR's pattern: no H1 (hero already shows GAP-NNN +
+  // question), no "## Question" repeat. Each section is a field-
+  // header with substantive content underneath. Source quote +
+  // document render outside the body via <SourceCitation>.
   const md = [
-    `# ${gap.gap_id}: ${gap.question}`,
-    blocksLine ? `\n${blocksLine}` : "",
+    blocksLine ? blocksLine : "",
     gap.suggested_action ? `\n## ${suggestedActionHeading}\n${gap.suggested_action}` : "",
-    gap.source_quote && gap.source_quote !== "extracted from document"
-      ? `\n## Source Quote\n> ${gap.source_quote}`
-      : "",
-    sourceLines.length ? `\n## Source Document\n${sourceLines.join("\n")}` : "",
   ].filter(Boolean).join("\n");
 
   const isOpen = gap.status === "open";

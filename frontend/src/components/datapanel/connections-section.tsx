@@ -103,6 +103,23 @@ function ConfidencePill({ c }: { c: ConnectionConfidence }) {
 }
 
 
+// "Confirmed" / "Resolved" green badge — only renders when the
+// linked item has a settled status. Same accent-green + dark-text
+// treatment as the .tab-new "X NEW" pill so the visual language is
+// consistent across the panel.
+function isSettledStatus(s: string | null | undefined): boolean {
+  return s === "confirmed" || s === "resolved";
+}
+function ConfirmedBadge({ status }: { status: string | null | undefined }) {
+  if (!isSettledStatus(status)) return null;
+  return (
+    <span className="confirmed-badge" title={`This item is ${status}`}>
+      {status}
+    </span>
+  );
+}
+
+
 type EdgeDir = "out" | "in" | "derived";
 
 
@@ -161,6 +178,7 @@ function EdgeRow({
       {!skipRel && <span className="rel">{humaniseRel(edge.rel_type)}</span>}
       <KindChip target={edge.neighbor} projectId={projectId} onNavigate={onNavigate} />
       <span className="label">{edge.neighbor.label}</span>
+      <ConfirmedBadge status={edge.neighbor.status} />
       <ConfidencePill c={edge.confidence} />
       {edge.source_doc && (
         <span className="source" title={edge.source_quote || edge.source_doc}>
@@ -250,7 +268,10 @@ function GroupedByKind({
           </div>
           <div className="conn-group-members">
             {refs.map((r) => (
-              <KindChip key={r.uuid} target={r} projectId={projectId} onNavigate={onNavigate} />
+              <span key={r.uuid} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <KindChip target={r} projectId={projectId} onNavigate={onNavigate} />
+                <ConfirmedBadge status={r.status} />
+              </span>
             ))}
           </div>
         </div>

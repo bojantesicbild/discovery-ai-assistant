@@ -1247,6 +1247,266 @@
   padding: 10px 0 2px;
 }
 
+/* ==== Contradiction body (FindingDetailView's bodyContent slot) ====
+ *
+ * Bold side-by-side comparison: Side A (slate-blue) and Side B (amber)
+ * stacked with a black "VS" pill anchored in the gutter between them.
+ * Each side card has a tinted top strip carrying its label + the
+ * source/person chips, and the quote takes the body. The AI
+ * recommendation card sits below with a sparkle icon and an accent
+ * gradient ring; the resolution card is calm and neutral with a
+ * checkmark. The whole stack is item-agnostic — drop in another kind
+ * of two-sided comparison and the same vocabulary works.
+ */
+.ctr-body {
+  display: flex; flex-direction: column;
+  gap: 20px;
+  padding: 4px 0 6px;
+}
+
+/* Comparison wrapper — stacks vertically inside the 440px panel.
+ * The .ctr-vs-rail sits between cards and carries the VS pill. */
+.ctr-comparison {
+  display: flex; flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+/* Side card — tall, bold tinted top strip + roomy quote body. */
+.ctr-side {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.ctr-side-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  font-family: inherit;
+  border-bottom: 1px solid;
+}
+.ctr-side-tag {
+  font-size: 10px; font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+.ctr-side-meta {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 65%;
+}
+.ctr-side-quote {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+/* Side A — slate-blue palette. Reads as the prior / established
+ * position. Calm but distinct from green so the eye doesn't read
+ * "approved". */
+.ctr-side[data-side="a"] {
+  border-color: rgba(37, 99, 235, 0.16);
+}
+.ctr-side[data-side="a"] .ctr-side-head {
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+  border-bottom-color: rgba(37, 99, 235, 0.18);
+  color: #1E3A8A;
+}
+.ctr-side[data-side="a"] .ctr-side-tag {
+  color: #1D4ED8;
+}
+
+/* Side B — amber palette. Reads as the new / conflicting position.
+ * Warmer + more alert than Side A without going full alarm-red. */
+.ctr-side[data-side="b"] {
+  border-color: rgba(217, 119, 6, 0.18);
+}
+.ctr-side[data-side="b"] .ctr-side-head {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%);
+  border-bottom-color: rgba(217, 119, 6, 0.2);
+  color: #92400E;
+}
+.ctr-side[data-side="b"] .ctr-side-tag {
+  color: #B45309;
+}
+
+/* VS rail — the gutter between A and B, with a centered black pill.
+ * 18px of vertical room so the pill has space to breathe; the line
+ * elements on either side fade into the bg. */
+.ctr-vs-rail {
+  display: flex; align-items: center; justify-content: center;
+  height: 28px;
+  margin: -2px 0;
+  position: relative;
+}
+.ctr-vs-rail::before,
+.ctr-vs-rail::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-strong) 50%, transparent);
+}
+.ctr-vs-pill {
+  font-size: 11px; font-weight: 900;
+  letter-spacing: 0.15em;
+  padding: 4px 12px;
+  margin: 0 10px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px -4px rgba(15, 23, 42, 0.25);
+}
+
+/* Source / person chips inside the side header. The avatar uses a
+ * 22px circle with initials so identity reads at a glance even when
+ * the name overflows. */
+.ctr-source-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600;
+  padding: 3px 8px 3px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: var(--ink-2);
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ctr-source-chip svg {
+  width: 11px; height: 11px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.ctr-person {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 600;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.ctr-person-avatar {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--ink);
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.ctr-side[data-side="a"] .ctr-person-avatar {
+  background: #DBEAFE;
+  color: #1E40AF;
+}
+.ctr-side[data-side="b"] .ctr-person-avatar {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+/* Fallback explanation block when neither side parsed. */
+.ctr-explanation {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+/* AI Recommendation — accent gradient ring + sparkle icon. The body
+ * is a calm white card so the recommendation reads as advice, not as
+ * a verdict. */
+.ctr-recommendation {
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-soft) 0%, #ECFDF5 60%, var(--surface) 100%);
+  border: 1px solid rgba(0, 168, 100, 0.22);
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.ctr-recommendation::before {
+  /* Subtle accent ring on the top-left so the card reads as
+   * "AI-flavoured" without being loud. */
+  content: '';
+  position: absolute;
+  top: -32px; left: -32px;
+  width: 80px; height: 80px;
+  background: radial-gradient(circle, rgba(0, 168, 100, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.ctr-recommendation-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+  position: relative;
+}
+.ctr-recommendation-icon {
+  display: inline-grid; place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0A1A10;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px -4px rgba(0, 168, 100, 0.5);
+}
+.ctr-recommendation-icon svg { width: 12px; height: 12px; }
+.ctr-recommendation-label {
+  font-size: 11px; font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-ink);
+}
+.ctr-recommendation-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  position: relative;
+}
+
+/* Resolution — neutral closure card with a green checkmark icon. */
+.ctr-resolution {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 14px 16px;
+}
+.ctr-resolution-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+.ctr-resolution-icon {
+  display: inline-grid; place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0A1A10;
+  flex-shrink: 0;
+}
+.ctr-resolution-icon svg { width: 13px; height: 13px; }
+.ctr-resolution-label {
+  font-size: 11px; font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-2);
+}
+.ctr-resolution-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
 .gap-meta-chip {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 10px; font-weight: 600;
@@ -2136,6 +2396,74 @@
   font-weight: 700;
 }
 .req-detail-content-card ul li::marker { font-size: 1.1em; }
+
+/* When the content card hosts a markdown blob (FindingDetailView for
+ * gap / constraint / contradiction / document) the renderMarkdown
+ * helper stamps inline styles on every element. Override them here
+ * so the typography lines up with BR's structured content card —
+ * uppercase field-header H2/H3, list markers in accent-ink, accent
+ * blockquote, etc. !important is required because renderMarkdown
+ * sets style="" inline for chat usage. */
+.req-detail-content-card.md-body h1,
+.req-detail-content-card.md-body h2,
+.req-detail-content-card.md-body h3 {
+  font-size: 11.5px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  margin: 18px 0 8px !important;
+  color: var(--ink) !important;
+  font-family: inherit !important;
+}
+.req-detail-content-card.md-body > h1:first-child,
+.req-detail-content-card.md-body > h2:first-child,
+.req-detail-content-card.md-body > h3:first-child,
+.req-detail-content-card.md-body > p:first-child { margin-top: 0 !important; }
+.req-detail-content-card.md-body p { margin: 0 0 8px !important; }
+.req-detail-content-card.md-body strong { color: var(--ink) !important; font-weight: 600 !important; }
+.req-detail-content-card.md-body ul,
+.req-detail-content-card.md-body ol {
+  margin: 4px 0 8px !important;
+  padding-left: 22px !important;
+  list-style-position: outside !important;
+}
+.req-detail-content-card.md-body li {
+  margin-bottom: 4px !important;
+  padding-left: 4px !important;
+}
+.req-detail-content-card.md-body li::marker {
+  color: var(--accent-ink) !important;
+  font-weight: 700 !important;
+}
+.req-detail-content-card.md-body blockquote {
+  border-left: 3px solid var(--accent) !important;
+  background: var(--accent-soft) !important;
+  padding: 10px 14px !important;
+  margin: 12px 0 !important;
+  border-radius: 0 8px 8px 0 !important;
+  color: var(--ink-2) !important;
+  font-size: 13px !important;
+  font-style: normal !important;
+}
+.req-detail-content-card.md-body code {
+  background: var(--surface-2) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+  font-family: var(--font-mono, monospace) !important;
+  font-size: 12px !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+}
+.req-detail-content-card.md-body a {
+  color: var(--accent-ink) !important;
+  font-weight: 600 !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+}
+.req-detail-content-card.md-body hr {
+  border-top: 1px solid var(--line) !important;
+  margin: 16px 0 !important;
+}
 
 /* Subtle divider between sections inside the doc card — only used
  * where the eye benefits from it (between description + criteria,
@@ -3474,6 +3802,23 @@
 .confidence-pill.proposed { background: var(--should-soft); color: #B45309; border-color: rgba(245,158,11,.2); }
 .confidence-pill.derived  { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
+/* Confirmed/resolved badge on connection rows + derived chips.
+ * Saturated --accent green with near-black text, matches the .tab-new
+ * "X NEW" pill aesthetic. Only shows when the linked item carries a
+ * settled status (requirement/constraint = "confirmed", gap/contradiction
+ * = "resolved"). */
+.confirmed-badge {
+  font-size: 9px; font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #0A1A10;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
 /* Status-setting button — chip-shaped pill that lives inside the
  * combined sub-tabs/actions row. Tighter padding + 999px radius
  * keeps the trio visually balanced regardless of label length.
@@ -3496,6 +3841,8 @@
 .btn-status.dismiss:hover  { background: #fecaca; border-color: var(--must); }
 .btn-status.discuss  { background: var(--should-soft); color: #B45309; border-color: rgba(245,158,11,.22); }
 .btn-status.discuss:hover  { background: #fde68a; border-color: var(--should); }
+.btn-status.info     { background: #DBEAFE; color: #1E40AF; border-color: rgba(37,99,235,.22); }
+.btn-status.info:hover     { background: #BFDBFE; border-color: #2563EB; }
 
 /* ==== Primary button (black pill, used for Generate All, etc) ==== */
 .btn-primary {

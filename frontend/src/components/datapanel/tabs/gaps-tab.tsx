@@ -17,7 +17,7 @@ import {
   SevBadge, GapStatusPill, GapClientBadge, EmptyState,
 } from "../pills";
 import { applyTableState, type TableState } from "@/lib/tableState";
-import { resolveContradiction, type FindingType } from "@/lib/api";
+import type { FindingType } from "@/lib/api";
 import type {
   ApiGap, ApiConstraint, ApiContradiction,
   ReqClientFeedback, GapClientFeedback,
@@ -53,6 +53,7 @@ interface GapsTabProps {
   markRowSeen: (findingType: FindingType, findingId: string, setter?: SetterFn) => Promise<void>;
   openGap: (gap: ApiGap) => void;
   openConstraint: (c: ApiConstraint, index: number) => void;
+  openContradiction: (c: ApiContradiction, index: number) => void;
   clientFeedback: {
     requirements: Record<string, ReqClientFeedback>;
     gaps: Record<string, GapClientFeedback>;
@@ -85,7 +86,7 @@ export function GapsTab({
   gapSection, setGapSection, gapStatusFilter, setGapStatusFilter,
   contraFilter, setContraFilter,
   unreadCounts, markTabSeenAll, markRowSeen,
-  openGap, openConstraint, clientFeedback,
+  openGap, openConstraint, openContradiction, clientFeedback,
   expandedRow, setExpandedRow, onNavigate, loadData,
   onScrollCollapse,
 }: GapsTabProps) {
@@ -151,7 +152,6 @@ export function GapsTab({
 
       {gapSection === "conflicts" && (
         <ConflictsSection
-          projectId={projectId}
           contradictions={contradictions}
           setContradictions={setContradictions}
           contraTable={contraTable}
@@ -160,10 +160,8 @@ export function GapsTab({
           unread={unreadCounts.contradiction}
           markTabSeenAll={markTabSeenAll}
           markRowSeen={markRowSeen}
-          expandedRow={expandedRow}
-          setExpandedRow={setExpandedRow}
+          openContradiction={openContradiction}
           onNavigate={onNavigate}
-          loadData={loadData}
           onScrollCollapse={onScrollCollapse}
         />
       )}
@@ -416,13 +414,12 @@ function ConstraintsSection({
 /* ── Conflicts sub-section ────────────────────────────────────────── */
 
 function ConflictsSection({
-  projectId, contradictions, setContradictions, contraTable,
+  contradictions, setContradictions, contraTable,
   contraFilter, setContraFilter,
   unread, markTabSeenAll, markRowSeen,
-  expandedRow, setExpandedRow, onNavigate, loadData,
+  openContradiction, onNavigate,
   onScrollCollapse,
 }: {
-  projectId: string;
   contradictions: ApiContradiction[];
   setContradictions: React.Dispatch<React.SetStateAction<ApiContradiction[]>>;
   contraTable: TableState;
@@ -431,10 +428,8 @@ function ConflictsSection({
   unread: number;
   markTabSeenAll: (t: FindingType, s?: SetterFn) => Promise<void>;
   markRowSeen: (t: FindingType, id: string, s?: SetterFn) => Promise<void>;
-  expandedRow: string | null;
-  setExpandedRow: (id: string | null) => void;
+  openContradiction: (c: ApiContradiction, index: number) => void;
   onNavigate?: (tab: string, itemId?: string) => void;
-  loadData: () => void;
   onScrollCollapse?: (collapsed: boolean) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -467,46 +462,40 @@ function ConflictsSection({
   const earlierCards = visible.filter((c) => c.seen_at);
 
   function renderCard(c: ApiContradiction, isNew: boolean) {
+    // Positional CTR-NNN — matches the backend's _display_for /
+    // resolve_display_id ordering (created_at, id) so chat references
+    // and connection-graph navigation land on the same row.
+    const absoluteIndex = contradictions.findIndex((x) => x.id === c.id);
+    const ctrId = `CTR-${String(absoluteIndex + 1).padStart(3, "0")}`;
     const date = formatCardDate(c.created_at);
-    const conflictId = String(c.id).slice(0, 8);
-    const isOpen = expandedRow === c.id;
     const onCardClick = () => {
-      const next = isOpen ? null : c.id;
-      setExpandedRow(next);
-      onNavigate?.("contradictions", next ? conflictId : undefined);
+      openContradiction(c, absoluteIndex);
+      onNavigate?.("contradictions", ctrId);
       if (c.id && !c.seen_at) markRowSeen("contradiction", c.id, setContradictions as SetterFn);
     };
     const area = c.area || (c.item_a_type && c.item_a_type !== "unknown" ? c.item_a_type : "");
     return (
-      <div key={c.id}>
-        <FindingCard
-          id={`CTR-${conflictId}`}
-          timeLabel={date.time}
-          dateLabel={date.date}
-          dateTooltip={date.tooltip}
-          title={_contraTitle(c)}
-          isNew={isNew}
-          onClick={onCardClick}
-          meta={
-            <>
-              <SevBadge severity="high" />
-              <GapStatusPill status={c.resolved ? "resolved" : "open"} />
-              {area && <span className="type">{area}</span>}
-              <span className="source-tag" title={_contraSubtitle(c)}>
-                {_contraSubtitle(c).slice(0, 60)}{_contraSubtitle(c).length > 60 ? "…" : ""}
-              </span>
-            </>
-          }
-          actions={<CardKebab onClick={(e) => { e.stopPropagation(); onCardClick(); }} title={isOpen ? "Collapse" : "Expand"} />}
-        />
-        {isOpen && (
-          <ContradictionDetail
-            contradiction={c}
-            projectId={projectId}
-            onResolved={() => { setExpandedRow(null); loadData(); }}
-          />
-        )}
-      </div>
+      <FindingCard
+        key={c.id}
+        id={ctrId}
+        timeLabel={date.time}
+        dateLabel={date.date}
+        dateTooltip={date.tooltip}
+        title={_contraTitle(c)}
+        isNew={isNew}
+        onClick={onCardClick}
+        meta={
+          <>
+            <SevBadge severity="high" />
+            <GapStatusPill status={c.resolved ? "resolved" : "open"} />
+            {area && <span className="type">{area}</span>}
+            <span className="source-tag" title={_contraSubtitle(c)}>
+              {_contraSubtitle(c).slice(0, 60)}{_contraSubtitle(c).length > 60 ? "…" : ""}
+            </span>
+          </>
+        }
+        actions={<CardKebab onClick={(e) => { e.stopPropagation(); onCardClick(); }} />}
+      />
     );
   }
 
@@ -550,68 +539,27 @@ function ConflictsSection({
 }
 
 
-/* ── Contradiction expanded detail (preserved from previous version) ── */
 
-function ContradictionDetail({
-  contradiction: c, projectId, onResolved,
-}: {
-  contradiction: ApiContradiction;
-  projectId: string;
-  onResolved: () => void;
-}) {
-  const sideAText = c.side_a
-    || (c.item_a_ref && !c.item_a_ref.startsWith("New ") ? c.item_a_ref : null);
-  const sideBText = c.side_b
-    || (c.item_b_ref && !c.item_b_ref.startsWith("New ") ? c.item_b_ref : null)
-    || (c.explanation ? _extractConflictDetail(c.explanation) : null);
 
-  return (
-    <div className="finding-detail" style={{ margin: "0 0 12px 124px" }}>
-      <div className="cd-quotes">
-        {sideAText && (
-          <div className="cd-quote side-a">
-            <div className="cd-quote-header">
-              <span className="cd-quote-badge a">Side A</span>
-              {c.item_a_source && <span className="gap-meta-chip file">{c.item_a_source}</span>}
-              {c.item_a_person && <span className="person-chip">{c.item_a_person}</span>}
-            </div>
-            <div className="cd-quote-text">{sideAText}</div>
-          </div>
-        )}
-        {sideAText && sideBText && <div className="cd-quote-vs">VS</div>}
-        {sideBText && (
-          <div className="cd-quote side-b">
-            <div className="cd-quote-header">
-              <span className="cd-quote-badge b">Side B</span>
-              {c.item_b_source && <span className="gap-meta-chip" style={{ background: "var(--must-soft)", color: "var(--must)" }}>{c.item_b_source}</span>}
-              {c.item_b_person && <span className="person-chip">{c.item_b_person}</span>}
-            </div>
-            <div className="cd-quote-text">{sideBText}</div>
-          </div>
-        )}
-      </div>
-      {!c.side_a && !c.side_b && !c.item_a_ref && !c.item_b_ref && c.explanation && (
-        <div className="cd-explanation">{c.explanation}</div>
-      )}
-      <div className="gap-ai-suggestion">
-        <div className="ai-label">AI Recommendation</div>
-        {c.suggested_resolution || "Review both sources with the people involved. Determine which statement is current and whether the earlier requirement needs updating."}
-      </div>
-      {c.resolved ? (
-        <div className="gap-resolution-box">
-          <div className="res-label">Resolution</div>
-          {c.resolution_note}
-        </div>
-      ) : (
-        <ContraResolveForm
-          onResolve={async (note) => {
-            await resolveContradiction(projectId, c.id, note);
-            onResolved();
-          }}
-        />
-      )}
-    </div>
-  );
+function _contraTitle(c: ApiContradiction): string {
+  if (c.title) return c.title.slice(0, 80);
+  if (c.item_a_ref && !c.item_a_ref.startsWith("New ")) return c.item_a_ref.slice(0, 80);
+  const expl = (c.explanation || "").trim();
+  if (!expl) return "Contradiction";
+  const colon = expl.indexOf(":");
+  if (colon > 0 && colon < 80) return expl.slice(0, colon).trim();
+  return expl.slice(0, 80);
+}
+
+function _contraSubtitle(c: ApiContradiction): string {
+  if (c.side_a && c.side_b) return `${c.side_a}  ↔  ${c.side_b}`;
+  if (c.side_b) return c.side_b;
+  if (c.side_a) return c.side_a;
+  if (c.item_b_ref && !c.item_b_ref.startsWith("New ")) return `vs ${c.item_b_ref}`;
+  const expl = (c.explanation || "").trim();
+  const colon = expl.indexOf(":");
+  const body = colon > 0 && colon < 80 ? expl.slice(colon + 1).trim() : expl;
+  return body || "Conflict detected";
 }
 
 
@@ -654,64 +602,6 @@ function FiltersRow({
           ✓ {unreadLabel}
         </button>
       )}
-    </div>
-  );
-}
-
-
-/* ── Helpers ──────────────────────────────────────────────────────── */
-
-function _extractConflictDetail(explanation: string): string {
-  if (!explanation) return "Conflicting information from new document";
-  const m1 = explanation.match(/[Nn]ew document[^.]*says\s+(.+?)(?:\.|$)/);
-  if (m1) return m1[1].trim();
-  const m2 = explanation.match(/new document says:?\s*"?(.+?)(?:"|$)/i);
-  if (m2) return m2[1].trim();
-  const m3 = explanation.match(/—\s*(.+?)(?:\.|$)/);
-  if (m3) return m3[1].trim();
-  const m4 = explanation.match(/(?:New|but)\s+(.{20,120})/i);
-  if (m4) return m4[1].trim().replace(/\.$/, "");
-  return explanation.slice(0, 120);
-}
-
-
-function _contraTitle(c: ApiContradiction): string {
-  if (c.title) return c.title.slice(0, 80);
-  if (c.item_a_ref && !c.item_a_ref.startsWith("New ")) return c.item_a_ref.slice(0, 80);
-  const expl = (c.explanation || "").trim();
-  if (!expl) return "Contradiction";
-  const colon = expl.indexOf(":");
-  if (colon > 0 && colon < 80) return expl.slice(0, colon).trim();
-  return expl.slice(0, 80);
-}
-
-function _contraSubtitle(c: ApiContradiction): string {
-  if (c.side_a && c.side_b) return `${c.side_a}  ↔  ${c.side_b}`;
-  if (c.side_b) return c.side_b;
-  if (c.side_a) return c.side_a;
-  if (c.item_b_ref && !c.item_b_ref.startsWith("New ")) return `vs ${c.item_b_ref}`;
-  const expl = (c.explanation || "").trim();
-  const colon = expl.indexOf(":");
-  const body = colon > 0 && colon < 80 ? expl.slice(colon + 1).trim() : expl;
-  return body || "Conflict detected";
-}
-
-
-function ContraResolveForm({ onResolve }: { onResolve: (note: string) => void }) {
-  const [note, setNote] = useState("");
-  return (
-    <div className="cd-decision">
-      <div className="cd-decision-label">Your Decision</div>
-      <textarea
-        placeholder="Type your decision to resolve this contradiction..."
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        className="gap-resolve-input"
-      />
-      <div className="cd-decision-actions">
-        <button type="button" className="cd-action-btn primary" disabled={!note.trim()} onClick={() => onResolve(note)}>Resolve</button>
-        <button type="button" className="cd-action-btn info">Add to Meeting</button>
-      </div>
     </div>
   );
 }

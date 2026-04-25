@@ -28,6 +28,13 @@ import {
 } from "./datapanel/feedback-cards";
 import { ProposedUpdatesSection } from "./datapanel/proposed-updates-section";
 import RequirementDetailView from "./datapanel/requirement-detail-view";
+import FindingDetailView from "./datapanel/finding-detail-view";
+import { ConflictBody } from "./datapanel/conflict-body";
+import {
+  gapChips, gapMetaLine,
+  constraintChips, constraintMetaLine,
+  contradictionChips, contradictionMetaLine,
+} from "./datapanel/detail-meta";
 import PersonDetailView from "./datapanel/person-detail-view";
 import ConnectionsSection from "./datapanel/connections-section";
 import { HandoffTab } from "./datapanel/handoff-tab";
@@ -39,7 +46,7 @@ import { RequirementsTab } from "./datapanel/tabs/requirements-tab";
 import { DocumentsTab } from "./datapanel/tabs/documents-tab";
 import { GapsTab } from "./datapanel/tabs/gaps-tab";
 import {
-  buildRequirementView, buildConstraintView, buildGapView,
+  buildRequirementView, buildConstraintView, buildContradictionView, buildGapView,
   buildDocumentPlaceholder, buildDocumentFullView,
 } from "./datapanel/detail-builders";
 import { usePersistedState } from "@/lib/persistedState";
@@ -66,7 +73,7 @@ interface DetailView {
    *  For requirements, this is the req_id — so that when proposals change
    *  (accept/reject), the rerendered detail view picks up the new list. */
   itemKey?: string;
-  itemKind?: "requirement" | "gap";
+  itemKind?: "requirement" | "gap" | "constraint" | "contradiction";
   /** Closure info for gaps — rendered as metadata above the body, not in
    *  the markdown. Shape is defined next to GapResolutionCard so this type
    *  and the component stay in lockstep. */
@@ -509,6 +516,136 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       );
     }
 
+    // Gap detail — uses the same .req-detail visual shell as BR, but
+    // with a markdown body instead of the tracked-changes diff. Looks
+    // up the live ApiGap from local state so the chip values stay in
+    // sync after status changes; falls through to MarkdownPanel only
+    // if the row hasn't loaded yet.
+    const gapForDetail = detail.itemKind === "gap" && detail.itemKey
+      ? gaps.find((g) => g.gap_id === detail.itemKey)
+      : undefined;
+    if (detail.itemKind === "gap" && gapForDetail) {
+      return (
+        <div
+          className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
+          style={{ flex: 1, width: "100%" }}
+        >
+          <FindingDetailView
+            displayId={gapForDetail.gap_id}
+            title={gapForDetail.question}
+            chips={gapChips(gapForDetail)}
+            metaLine={gapMetaLine(gapForDetail, handleLinkClick)}
+            content={detail.content}
+            source={{
+              quote: gapForDetail.source_quote && gapForDetail.source_quote !== "extracted from document"
+                ? gapForDetail.source_quote
+                : null,
+              filename: gapForDetail.source_doc,
+              docId: gapForDetail.source_doc_id,
+            }}
+            actions={detail.actions}
+            onAction={detail.onAction}
+            history={detail.history}
+            onClose={handleClose}
+            onLinkClick={handleLinkClick}
+            slotTop={slotTopContent}
+            slotBottom={
+              <ConnectionsSection
+                projectId={projectId}
+                displayId={gapForDetail.gap_id}
+                onNavigate={onNavigate}
+              />
+            }
+          />
+        </div>
+      );
+    }
+
+    // Constraint detail — same FindingDetailView shell as gaps. Looks
+    // up the live ApiConstraint from local state by the positional
+    // CON-NNN id (itemKey carries that). Source quote + document
+    // render via <SourceCitation> outside the body, so detail-builders
+    // strips them from the markdown.
+    const conForDetail = detail.itemKind === "constraint" && detail.itemKey
+      ? (() => {
+          const idx = parseInt(detail.itemKey.replace(/^CON-/, ""), 10) - 1;
+          return Number.isFinite(idx) && idx >= 0 ? constraints[idx] : undefined;
+        })()
+      : undefined;
+    if (detail.itemKind === "constraint" && conForDetail) {
+      return (
+        <div
+          className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
+          style={{ flex: 1, width: "100%" }}
+        >
+          <FindingDetailView
+            displayId={detail.itemKey || ""}
+            title={detail.title}
+            chips={constraintChips(conForDetail)}
+            metaLine={constraintMetaLine(conForDetail, handleLinkClick)}
+            content={detail.content}
+            source={{
+              quote: conForDetail.source_quote,
+              filename: conForDetail.source_doc,
+              docId: conForDetail.source_doc_id,
+            }}
+            actions={detail.actions}
+            onAction={detail.onAction}
+            history={detail.history}
+            onClose={handleClose}
+            onLinkClick={handleLinkClick}
+            slotTop={slotTopContent}
+            slotBottom={
+              <ConnectionsSection
+                projectId={projectId}
+                displayId={detail.itemKey || ""}
+                onNavigate={onNavigate}
+              />
+            }
+          />
+        </div>
+      );
+    }
+
+    // Contradiction detail — same shell as gap/constraint. Looks up
+    // the live ApiContradiction by positional CTR-NNN index since
+    // contradictions don't carry a persistent display id.
+    const ctrForDetail = detail.itemKind === "contradiction" && detail.itemKey
+      ? (() => {
+          const idx = parseInt(detail.itemKey.replace(/^CTR-/, ""), 10) - 1;
+          return Number.isFinite(idx) && idx >= 0 ? contradictions[idx] : undefined;
+        })()
+      : undefined;
+    if (detail.itemKind === "contradiction" && ctrForDetail) {
+      return (
+        <div
+          className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
+          style={{ flex: 1, width: "100%" }}
+        >
+          <FindingDetailView
+            displayId={detail.itemKey || ""}
+            title={detail.title}
+            chips={contradictionChips(ctrForDetail)}
+            metaLine={contradictionMetaLine(ctrForDetail)}
+            bodyContent={<ConflictBody c={ctrForDetail} />}
+            actions={detail.actions}
+            onAction={detail.onAction}
+            history={detail.history}
+            onClose={handleClose}
+            onLinkClick={handleLinkClick}
+            slotTop={slotTopContent}
+            slotBottom={
+              <ConnectionsSection
+                projectId={projectId}
+                displayId={detail.itemKey || ""}
+                onNavigate={onNavigate}
+              />
+            }
+          />
+        </div>
+      );
+    }
+
     return (
       <div
         className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
@@ -741,6 +878,7 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
             markRowSeen={markRowSeen}
             openGap={openGap}
             openConstraint={openConstraint}
+            openContradiction={openContradiction}
             clientFeedback={clientFeedback}
             expandedRow={expandedRow}
             setExpandedRow={setExpandedRow}
@@ -836,6 +974,34 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
         await updateConstraintStatus(projectId, con.id, action as "confirmed" | "assumed" | "negotiable");
         loadData();
         setDetail(null);
+      },
+    });
+  }
+
+  function openContradiction(c: ApiContradiction, index: number) {
+    setDetail({
+      ...buildContradictionView(c, index, projectId),
+      onAction: async (action: string) => {
+        if (action === "resolve") {
+          const note = prompt("Resolution — how was this conflict settled?");
+          if (note) {
+            await resolveContradiction(projectId, c.id, note);
+            loadData();
+            setDetail(null);
+          }
+        } else if (action === "meeting") {
+          // MeetingPrepTab listens for this and auto-approves the
+          // item in its picker when the user jumps to that tab.
+          window.dispatchEvent(new CustomEvent("add-to-meeting", { detail: { type: "contradiction", id: c.id } }));
+          onNavigate?.("schedule");
+          setDetail(null);
+        } else if (action === "reopen") {
+          if (confirm("Reopen this conflict? The current resolution will be kept in history.")) {
+            await resolveContradiction(projectId, c.id, "");
+            loadData();
+            setDetail(null);
+          }
+        }
       },
     });
   }
