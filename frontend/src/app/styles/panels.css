@@ -2613,9 +2613,9 @@
 .people-card-top {
   display: flex; align-items: center; gap: 12px;
 }
-/* Inverted avatar — black disc with bright accent-green icon, soft
- * accent-tinted outer ring. Reads as a strong terminal-style anchor
- * (echoes the dark sidebar + black topbar buttons). */
+/* Inverted avatar — black disc with bright accent-green icon. Reads
+ * as a strong terminal-style anchor (echoes the dark sidebar +
+ * black topbar buttons). */
 .people-card-avatar {
   width: 40px; height: 40px;
   border-radius: 50%;
@@ -2623,7 +2623,6 @@
   color: var(--accent);
   display: grid; place-items: center;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .people-card-avatar svg {
   width: 22px; height: 22px;
