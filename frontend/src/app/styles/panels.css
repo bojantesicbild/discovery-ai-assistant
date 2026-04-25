@@ -336,27 +336,30 @@
   gap: 12px;
   cursor: pointer;
   position: relative;
-  /* Single unified easing curve + matched durations so the lift,
-   * border-color shift, and shadow grow as one motion instead of
-   * three jittery transitions completing at different times.
-   * cubic-bezier(.2,.8,.2,1) is a soft "ease-out-back-ish" that
-   * settles without overshoot — feels native, not snappy. */
-  transition:
-    transform        220ms cubic-bezier(.2,.8,.2,1),
-    border-color     220ms cubic-bezier(.2,.8,.2,1),
-    box-shadow       220ms cubic-bezier(.2,.8,.2,1),
-    background-color 220ms cubic-bezier(.2,.8,.2,1);
-  will-change: transform, box-shadow;
+  /* `transition: all` covers every animatable property (transform,
+   * border-color, box-shadow, background) without us listing them.
+   * 250ms with a soft ease-out feels considered, not snappy. */
+  transition: all 250ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform, box-shadow, border-color;
 }
 .req:hover {
+  /* Border stays neutral on hover — the only colour cue is the BR
+   * id turning green via .req:hover .req-id-head .id below. Keeps
+   * the row chrome quiet so identity reads as the affordance. */
   border-color: var(--line-strong);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg, 0 12px 28px rgba(15, 23, 42, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04));
-  background-color: var(--surface);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+.req:hover .req-id-head .id {
+  color: var(--accent);
 }
 .req:active {
   transform: translateY(-1px);
-  transition-duration: 80ms;
+  transition: all 100ms ease-out;
+}
+/* Honour macOS / Windows "Reduce motion" — instant state change instead. */
+@media (prefers-reduced-motion: reduce) {
+  .req, .req:hover, .req:active { transition: none; transform: none; }
 }
 
 .req-id {
@@ -387,6 +390,7 @@
   font-size: 12.5px; font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
+  transition: color 250ms cubic-bezier(.2, .8, .2, 1);
 }
 .req-id-head .v {
   font-size: 10px; font-weight: 700;
@@ -1831,26 +1835,34 @@
   display: flex; align-items: center; gap: 10px;
   min-width: 0;
 }
-/* Ghost-style icon button — no border, hover reveals a subtle bg.
- * Matches the chat-header action buttons (.ghost-btn) so the page-
- * level navigation reads the same on both sides. */
+/* Same dimensions / colors / hover treatment as the topbar
+ * .icon-btn (notification bell etc.) so panel-level chrome reads
+ * consistently with the page-level chrome above. 40×40 hit-target,
+ * transparent until hover, ink-2 → ink on hover, --surface bg. */
 .req-detail-back {
-  width: 32px; height: 32px;
+  width: 40px; height: 40px;
   border-radius: 10px;
   border: 0;
   background: transparent;
   display: grid; place-items: center;
-  color: var(--ink-3);
+  color: var(--ink-2);
   cursor: pointer;
   flex-shrink: 0;
   transition: background .15s, color .15s, transform .12s;
 }
 .req-detail-back:hover {
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--ink);
   transform: translateX(-1px);
 }
-.req-detail-back svg { width: 16px; height: 16px; }
+.req-detail-back svg {
+  width: 18px; height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .req-detail-id-pair {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1873,18 +1885,25 @@
 
 .req-detail-overflow {
   margin-left: auto;
-  width: 32px; height: 32px;
+  width: 40px; height: 40px;
   border-radius: 10px;
   border: 0;
   background: transparent;
-  color: var(--ink-3);
+  color: var(--ink-2);
   cursor: pointer;
   display: grid; place-items: center;
   transition: background .15s, color .15s;
   position: relative;
 }
-.req-detail-overflow:hover { color: var(--ink); background: var(--surface-2); }
-.req-detail-overflow svg { width: 18px; height: 18px; }
+.req-detail-overflow:hover { color: var(--ink); background: var(--surface); }
+.req-detail-overflow svg {
+  width: 18px; height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* Title — sits inline with the id+version pair on the top row.
  * Bold but tighter than the previous standalone treatment so the
