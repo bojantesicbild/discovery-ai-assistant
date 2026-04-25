@@ -119,18 +119,22 @@ function DiffCountLabel({ kind, count }: { kind: "current" | "new"; count: numbe
 }
 
 
+type AnimKind = "accepting" | "rejecting" | null;
+
 function StringProposalBlock({
-  p, label, busy, onAccept, onReject, fieldLabel,
+  p, label, busy, anim, onAccept, onReject, fieldLabel,
 }: {
   p: ProposedUpdate;
   label: string;
   busy: boolean;
+  anim: AnimKind;
   onAccept: () => void;
   onReject: () => void;
   fieldLabel: string;
 }) {
+  const animCls = anim === "accepting" ? " accepting" : anim === "rejecting" ? " rejecting" : "";
   return (
-    <div id={`proposal-${p.id}`} className="proposal-block">
+    <div id={`proposal-${p.id}`} className={`proposal-block${animCls}`}>
       <div className="proposal-block-head">
         <span className="proposal-block-new-tag">NEW</span>
         <span className="proposal-block-label">{label}</span>
@@ -145,24 +149,26 @@ function StringProposalBlock({
 
 
 function ListProposalRow({
-  p, busy, onAccept, onReject, fieldLabel,
+  p, busy, anim, onAccept, onReject, fieldLabel,
 }: {
   p: ProposedUpdate;
   busy: boolean;
+  anim: AnimKind;
   onAccept: () => void;
   onReject: () => void;
   fieldLabel: string;
 }) {
   const values = toList(p.proposed_value);
+  const animCls = anim === "accepting" ? " accepting" : anim === "rejecting" ? " rejecting" : "";
   return (
-    <li id={`proposal-${p.id}`} className="proposal-row">
+    <li id={`proposal-${p.id}`} className={`proposal-row${animCls}`}>
       <div className="proposal-row-inner">
         <span className="proposal-row-plus" aria-hidden>+</span>
         <div className="proposal-row-body">
           {values.map((v, i) => (
             <div key={i} className="proposal-row-value">{v}</div>
           ))}
-          {p.rationale && <div className="proposal-block-rationale" style={{ marginTop: 3 }}>{p.rationale}</div>}
+          {p.rationale && <div className="proposal-block-rationale" style={{ marginTop: 3, padding: 0 }}>{p.rationale}</div>}
           <ProposalSubtitle p={p} />
         </div>
         <AcceptRejectButtons busy={busy} onAccept={onAccept} onReject={onReject} fieldLabel={fieldLabel} />
@@ -195,6 +201,10 @@ export default function RequirementDetailView({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // Animation state — which proposal id is currently animating, and
+  // which kind (accepting → checkmark burst + collapse, rejecting →
+  // shake + slide-out). Cleared when the animation + API both finish.
+  const [anim, setAnim] = useState<{ id: string; kind: "accepting" | "rejecting" } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const pending = useMemo(
@@ -226,12 +236,33 @@ export default function RequirementDetailView({
 
   async function handleAccept(id: string) {
     setBusy(id);
-    try { await onAccept(id); } finally { setBusy(null); }
+    setAnim({ id, kind: "accepting" });
+    // Hold the proposal in the DOM for the full 800ms animation
+    // sequence — pulse → checkmark burst → collapse. The API call
+    // runs in parallel so we don't introduce latency.
+    const animDelay = new Promise<void>((r) => setTimeout(r, 760));
+    try {
+      await Promise.all([animDelay, onAccept(id)]);
+    } finally {
+      setBusy(null);
+      setAnim(null);
+    }
   }
 
   async function handleReject(id: string, reason: string) {
     setBusy(id);
-    try { await onReject(id, reason); } finally { setBusy(null); }
+    setAnim({ id, kind: "rejecting" });
+    const animDelay = new Promise<void>((r) => setTimeout(r, 520));
+    try {
+      await Promise.all([animDelay, onReject(id, reason)]);
+    } finally {
+      setBusy(null);
+      setAnim(null);
+    }
+  }
+
+  function animFor(id: string): AnimKind {
+    return anim?.id === id ? anim.kind : null;
   }
 
   function jumpToFirst() {
@@ -425,7 +456,7 @@ export default function RequirementDetailView({
                 label="Description"
                 stringProposal={stringProposal("description")}
                 fieldLabel="description"
-                busyId={busy}
+                busyId={busy} animState={anim}
                 onAccept={handleAccept}
                 onReject={(id) => setRejecting(id)}
                 current={req.description || ""}
@@ -441,7 +472,7 @@ export default function RequirementDetailView({
                   label="User Perspective"
                   stringProposal={stringProposal("user_perspective")}
                   fieldLabel="user perspective"
-                  busyId={busy}
+                  busyId={busy} animState={anim}
                   onAccept={handleAccept}
                   onReject={(id) => setRejecting(id)}
                   current={userPerspective}
@@ -456,7 +487,7 @@ export default function RequirementDetailView({
                   label="Rationale"
                   stringProposal={stringProposal("rationale")}
                   fieldLabel="rationale"
-                  busyId={busy}
+                  busyId={busy} animState={anim}
                   onAccept={handleAccept}
                   onReject={(id) => setRejecting(id)}
                   current={rationale}
@@ -485,7 +516,7 @@ export default function RequirementDetailView({
                           {props.map((p) => (
                             <ListProposalRow
                               key={p.id} p={p}
-                              busy={busy === p.id}
+                              busy={busy === p.id} anim={animFor(p.id)}
                               onAccept={() => handleAccept(p.id)}
                               onReject={() => setRejecting(p.id)}
                               fieldLabel="alternatives considered"
@@ -518,7 +549,7 @@ export default function RequirementDetailView({
                           {props.map((p) => (
                             <ListProposalRow
                               key={p.id} p={p}
-                              busy={busy === p.id}
+                              busy={busy === p.id} anim={animFor(p.id)}
                               onAccept={() => handleAccept(p.id)}
                               onReject={() => setRejecting(p.id)}
                               fieldLabel="business rule"
@@ -551,7 +582,7 @@ export default function RequirementDetailView({
                           {props.map((p) => (
                             <ListProposalRow
                               key={p.id} p={p}
-                              busy={busy === p.id}
+                              busy={busy === p.id} anim={animFor(p.id)}
                               onAccept={() => handleAccept(p.id)}
                               onReject={() => setRejecting(p.id)}
                               fieldLabel="acceptance criterion"
@@ -584,7 +615,7 @@ export default function RequirementDetailView({
                           {props.map((p) => (
                             <ListProposalRow
                               key={p.id} p={p}
-                              busy={busy === p.id}
+                              busy={busy === p.id} anim={animFor(p.id)}
                               onAccept={() => handleAccept(p.id)}
                               onReject={() => setRejecting(p.id)}
                               fieldLabel="edge case"
@@ -607,7 +638,7 @@ export default function RequirementDetailView({
                       <StringProposalBlock
                         p={p}
                         label={scopeNote ? "New value" : "Proposed — not yet set"}
-                        busy={busy === p.id}
+                        busy={busy === p.id} anim={animFor(p.id)}
                         onAccept={() => handleAccept(p.id)}
                         onReject={() => setRejecting(p.id)}
                         fieldLabel="scope note"
@@ -647,7 +678,7 @@ export default function RequirementDetailView({
                           {props.map((p) => (
                             <ListProposalRow
                               key={p.id} p={p}
-                              busy={busy === p.id}
+                              busy={busy === p.id} anim={animFor(p.id)}
                               onAccept={() => handleAccept(p.id)}
                               onReject={() => setRejecting(p.id)}
                               fieldLabel="blocker"
@@ -674,7 +705,7 @@ export default function RequirementDetailView({
                       <StringProposalBlock
                         p={p}
                         label={req.source_person ? "New value" : "Proposed — not yet set"}
-                        busy={busy === p.id}
+                        busy={busy === p.id} anim={animFor(p.id)}
                         onAccept={() => handleAccept(p.id)}
                         onReject={() => setRejecting(p.id)}
                         fieldLabel="source person"
@@ -704,7 +735,7 @@ export default function RequirementDetailView({
                     <StringProposalBlock
                       p={p}
                       label="New value"
-                      busy={busy === p.id}
+                      busy={busy === p.id} anim={animFor(p.id)}
                       onAccept={() => handleAccept(p.id)}
                       onReject={() => setRejecting(p.id)}
                       fieldLabel="title"
@@ -902,6 +933,7 @@ function FieldSection({
   stringProposal,
   fieldLabel,
   busyId,
+  animState,
   onAccept,
   onReject,
   emptyLabel,
@@ -913,6 +945,7 @@ function FieldSection({
   stringProposal: ProposedUpdate | undefined;
   fieldLabel: string;
   busyId: string | null;
+  animState: { id: string; kind: "accepting" | "rejecting" } | null;
   onAccept: (id: string) => void;
   onReject: (id: string) => void;
   emptyLabel: string;
@@ -920,6 +953,7 @@ function FieldSection({
 }) {
   if (!current && !stringProposal) return null;
   const hasBoth = !!current && !!stringProposal;
+  const proposalAnim: AnimKind = stringProposal && animState?.id === stringProposal.id ? animState.kind : null;
   return (
     <>
       {hasLabelHeader && <FieldHeader label={label} />}
@@ -936,6 +970,7 @@ function FieldSection({
           p={stringProposal}
           label={current ? "New value" : emptyLabel}
           busy={busyId === stringProposal.id}
+          anim={proposalAnim}
           onAccept={() => onAccept(stringProposal.id)}
           onReject={() => onReject(stringProposal.id)}
           fieldLabel={fieldLabel}

@@ -167,10 +167,35 @@ export function ProposedUpdatesSection({ proposals, onAccept, onReject }: Propos
   const [collapsed, setCollapsed] = useState(false);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [anim, setAnim] = useState<{ id: string; kind: "accepting" | "rejecting" } | null>(null);
 
   if (proposals.length === 0) return null;
 
   const pendingCount = proposals.filter((p) => p.status === "pending").length;
+
+  async function runAccept(id: string) {
+    setBusy(id);
+    setAnim({ id, kind: "accepting" });
+    const animDelay = new Promise<void>((r) => setTimeout(r, 760));
+    try {
+      await Promise.all([animDelay, onAccept(id)]);
+    } finally {
+      setBusy(null);
+      setAnim(null);
+    }
+  }
+
+  async function runReject(id: string, reason: string) {
+    setBusy(id);
+    setAnim({ id, kind: "rejecting" });
+    const animDelay = new Promise<void>((r) => setTimeout(r, 520));
+    try {
+      await Promise.all([animDelay, onReject(id, reason)]);
+    } finally {
+      setBusy(null);
+      setAnim(null);
+    }
+  }
 
   return (
     <div className="prop-section">
@@ -192,9 +217,12 @@ export function ProposedUpdatesSection({ proposals, onAccept, onReject }: Propos
             const decided = p.status !== "pending";
             const isBusy = busy === p.id;
             const when = p.created_at ? new Date(p.created_at).toLocaleString() : null;
+            const animCls = anim?.id === p.id
+              ? (anim.kind === "accepting" ? " accepting" : " rejecting")
+              : "";
 
             return (
-              <div key={p.id} className={`prop-card${decided ? " decided" : ""}`}>
+              <div key={p.id} className={`prop-card${decided ? " decided" : ""}${animCls}`}>
                 <div className="prop-card-head">
                   <span className="prop-card-field">{humaniseField(p.proposed_field)}</span>
                   <SourceChips p={p} />
@@ -221,10 +249,7 @@ export function ProposedUpdatesSection({ proposals, onAccept, onReject }: Propos
                       type="button"
                       className="btn-accept"
                       disabled={isBusy}
-                      onClick={async () => {
-                        setBusy(p.id);
-                        try { await onAccept(p.id); } finally { setBusy(null); }
-                      }}
+                      onClick={() => runAccept(p.id)}
                     >Accept</button>
                     <button
                       type="button"
@@ -246,8 +271,7 @@ export function ProposedUpdatesSection({ proposals, onAccept, onReject }: Propos
           onConfirm={async (reason) => {
             const id = rejecting;
             setRejecting(null);
-            setBusy(id);
-            try { await onReject(id, reason); } finally { setBusy(null); }
+            await runReject(id, reason);
           }}
         />
       )}

@@ -343,7 +343,14 @@
   width: 108px;
   flex-shrink: 0;
   display: flex; flex-direction: column;
-  align-items: flex-start;
+  /* Right-aligned so id / time / date sit flush against the dashed
+   * separator regardless of individual text length. Without this,
+   * "12:56" and "Apr 22, 2026" left-align inside a 108px column and
+   * leave visible dead space on the right of the short lines —
+   * which reads as "the gap left of the separator is bigger than the
+   * gap right of it" even though both paddings are 12px. */
+  align-items: flex-end;
+  text-align: right;
   gap: 3px;
   padding-top: 1px;
   /* padding-right matches the parent .req `gap: 12px` so the
@@ -2039,29 +2046,43 @@
 .btn-reject:hover:not(:disabled) { background: var(--must-soft); }
 .btn-accept:disabled, .btn-reject:disabled { opacity: .5; cursor: wait; }
 
-/* ==== Notice strip (jump-to-first proposals, alerts) ==== */
+/* ==== Notice strip (jump-to-first proposals, alerts) ====
+ * Larger, bolder than the previous strip — uses an icon badge on the
+ * left, count in heavy ink, and a ghost "Jump to first →" affordance
+ * on the right. Stays amber so it reads as "something needs you" but
+ * with a cleaner hierarchy. */
 .dp-notice-strip {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 10px;
   width: 100%; text-align: left;
-  padding: 8px 12px;
-  margin-bottom: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
   background: var(--should-soft);
-  border: 1px solid rgba(245,158,11,.25);
-  border-left: 3px solid var(--should);
-  border-radius: 8px;
-  color: #92400e;
-  font-size: 12px; font-weight: 600;
+  border: 1px solid rgba(245,158,11,.3);
+  border-left: 4px solid var(--should);
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13px; font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: background .15s;
+  transition: background .15s, border-color .15s;
 }
-.dp-notice-strip:hover { background: #fde68a; }
-.dp-notice-strip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.dp-notice-strip:hover {
+  background: #fde68a;
+  border-color: rgba(245,158,11,.45);
+}
+.dp-notice-strip > svg:first-child {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  color: #B45309;
+}
+.dp-notice-strip strong { color: var(--ink); font-weight: 700; }
 .dp-notice-strip .jump {
   margin-left: auto;
-  display: flex; align-items: center; gap: 4px;
-  color: #b45309;
+  display: inline-flex; align-items: center; gap: 4px;
+  color: #B45309;
+  font-size: 12px; font-weight: 600;
 }
+.dp-notice-strip .jump svg { width: 12px; height: 12px; }
 
 /* ==== Field sections (shared by BR detail + reminders-detail) ====
  * Section labels are bold black inside the white content card so they
@@ -2091,85 +2112,232 @@
   border: 1px solid var(--line);
 }
 
-/* String-field proposal block */
+/* Proposal block — bold card pattern.
+ *
+ * White surface for the body so the proposed text is fully readable
+ * (the previous dark-green-on-soft-green was muddy). Accent green
+ * lives in three signal-only places:
+ *   1. Solid 1px outer border (signals "this is live + needs action")
+ *   2. 4px left rail (loud column accent)
+ *   3. Top header strip in --accent-soft (housing NEW + label + actions)
+ */
 .proposal-block {
-  margin-top: 8px;
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  display: flex; flex-direction: column; gap: 6px;
-  animation: proposalFadeIn 0.2s ease-out;
+  margin: 10px 0 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  overflow: hidden;
+  position: relative;
+  animation: proposalFadeIn 0.25s cubic-bezier(.4,0,.2,1);
+  transition: transform .2s, box-shadow .2s;
 }
+.proposal-block:hover {
+  box-shadow: 0 4px 18px -8px rgba(0,168,100,0.28);
+}
+.proposal-block::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+  background: var(--accent);
+  z-index: 1;
+}
+
 .proposal-block-head {
   display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap;
+  padding: 9px 14px 9px 18px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid rgba(0,168,100,.2);
 }
 .proposal-block-new-tag {
-  font-size: 9px; font-weight: 800;
-  padding: 1px 6px;
-  border-radius: 10px;
+  font-size: 9.5px; font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
   background: var(--accent);
   color: #0A1A10;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .proposal-block-label {
-  font-size: 10px; font-weight: 700;
+  font-size: 10.5px; font-weight: 700;
   color: var(--accent-ink);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
-.proposal-block-actions { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
-.proposal-block-body {
-  font-size: 13px;
-  color: #065f46;
-  font-weight: 500;
-  white-space: pre-wrap;
-  line-height: 1.6;
-}
-.proposal-block-rationale {
-  font-size: 11px;
-  color: var(--ink-3);
-  font-style: italic;
-  line-height: 1.45;
-}
-.proposal-block-sub {
-  font-size: 10px;
-  color: var(--ink-4);
-  margin-top: 3px;
+.proposal-block-actions {
+  margin-left: auto;
+  display: flex; gap: 6px;
+  flex-shrink: 0;
 }
 
-/* List-item proposal row */
+.proposal-block-body {
+  padding: 12px 16px 12px 18px;
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+  white-space: pre-wrap;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+.proposal-block-rationale {
+  padding: 0 16px 8px 18px;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.proposal-block-sub {
+  padding: 6px 16px 10px 18px;
+  font-size: 10.5px;
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  letter-spacing: -0.01em;
+  border-top: 1px dashed var(--line);
+  margin-top: 2px;
+}
+
+/* List-item proposal row — same vocabulary, single-row variant. */
 .proposal-row {
   list-style: none;
-  margin-left: -18px; margin-top: 6px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--accent-soft);
-  border-left: 3px solid var(--accent);
-  animation: proposalFadeIn 0.2s ease-out;
+  margin-left: -18px; margin-top: 8px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  position: relative;
+  overflow: hidden;
+  animation: proposalFadeIn 0.25s cubic-bezier(.4,0,.2,1);
+  transition: transform .2s, box-shadow .2s;
+}
+.proposal-row:hover {
+  box-shadow: 0 4px 14px -8px rgba(0,168,100,0.28);
+}
+.proposal-row::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 4px;
+  background: var(--accent);
 }
 .proposal-row-inner {
-  display: flex; align-items: flex-start; gap: 10px;
+  display: flex; align-items: flex-start; gap: 12px;
+  padding-left: 8px;
 }
 .proposal-row-plus {
-  font-size: 14px; font-weight: 800;
-  color: var(--accent);
+  font-size: 15px; font-weight: 800;
+  color: var(--accent-ink);
   line-height: 1.5;
   flex-shrink: 0;
 }
 .proposal-row-body { flex: 1; min-width: 0; }
 .proposal-row-value {
-  font-size: 13px;
-  color: #065f46;
+  font-size: 14px;
+  color: var(--ink);
   font-weight: 500;
-  line-height: 1.6;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
 @keyframes proposalFadeIn {
   from { opacity: 0; transform: translateY(-2px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==== Accept animation — bold + satisfying ====
+ *
+ * Sequence (over 800ms):
+ *   0–15%   pulse: card scales up 2%, accent glow ring expands
+ *   15–35%  checkmark badge bursts at center (scale 0 → 1.25 → 1)
+ *   35–60%  card holds, ring fades out, check stays
+ *   60–100% check expands to 2.2x fading, card collapses to 0
+ *
+ * The collapse uses max-height + margin/padding 0 so surrounding
+ * content reflows smoothly into the freed space (no layout snap).
+ */
+.proposal-block.accepting,
+.proposal-row.accepting {
+  animation: proposal-accept .8s cubic-bezier(.4,0,.2,1) forwards;
+  pointer-events: none;
+}
+.proposal-block.accepting::after,
+.proposal-row.accepting::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%) scale(0);
+  z-index: 3;
+  animation: proposal-check-burst .8s cubic-bezier(.4,0,.2,1) forwards;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%230A1A10' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='20 6 9 17 4 12'/%3e%3c/svg%3e");
+  background-size: 58% 58%;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 8px 32px -4px rgba(0,168,100,0.5);
+}
+
+@keyframes proposal-accept {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(0,168,100,0);
+    opacity: 1;
+  }
+  15% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 8px rgba(0,168,100,0.22);
+  }
+  35% {
+    transform: scale(1);
+    box-shadow: 0 0 0 18px rgba(0,168,100,0);
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    max-height: 600px;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94) translateY(-10px);
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+  }
+}
+
+@keyframes proposal-check-burst {
+  0%   { transform: translate(-50%, -50%) scale(0);    opacity: 0; }
+  20%  { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  35%  { transform: translate(-50%, -50%) scale(1);    opacity: 1; }
+  72%  { transform: translate(-50%, -50%) scale(1);    opacity: 0.92; }
+  100% { transform: translate(-50%, -50%) scale(2.2);  opacity: 0; }
+}
+
+/* Reject animation — quick shake + slide-out left, less celebratory. */
+.proposal-block.rejecting,
+.proposal-row.rejecting {
+  animation: proposal-reject .55s cubic-bezier(.4,0,.2,1) forwards;
+  pointer-events: none;
+}
+@keyframes proposal-reject {
+  0%   { transform: translateX(0);    opacity: 1; }
+  15%  { transform: translateX(-6px); opacity: 1; }
+  30%  { transform: translateX(4px);  opacity: 1; }
+  45%  { transform: translateX(-2px); opacity: 1; }
+  60%  { transform: translateX(0);    opacity: 1; max-height: 600px; }
+  100% {
+    opacity: 0;
+    transform: translateX(-12px);
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+  }
 }
 
 /* Source section blockquote (legacy single-line variant — still used
@@ -2528,6 +2696,34 @@
   display: flex; flex-direction: column; gap: 8px;
 }
 .prop-card.decided { opacity: .7; }
+.prop-card { position: relative; overflow: hidden; }
+.prop-card.accepting,
+.prop-card.rejecting {
+  pointer-events: none;
+}
+.prop-card.accepting {
+  animation: proposal-accept .8s cubic-bezier(.4,0,.2,1) forwards;
+  border-color: var(--accent);
+}
+.prop-card.rejecting {
+  animation: proposal-reject .55s cubic-bezier(.4,0,.2,1) forwards;
+}
+.prop-card.accepting::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%) scale(0);
+  z-index: 3;
+  animation: proposal-check-burst .8s cubic-bezier(.4,0,.2,1) forwards;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' fill='none' stroke='%230A1A10' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='20 6 9 17 4 12'/%3e%3c/svg%3e");
+  background-size: 58% 58%;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: 0 8px 32px -4px rgba(0,168,100,0.5);
+}
 .prop-card-head {
   display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap;
