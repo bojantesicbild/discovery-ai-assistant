@@ -447,12 +447,19 @@ async def get_stakeholder_by_name(
     stakeholder row AND no source_person matches exist — a "ghost"
     person referenced only on findings still resolves to a partial
     record with name + empty role/org."""
-    stk_row = (await db.execute(
+    # Multiple Stakeholder rows can share the same name when the same
+    # person is extracted from several documents — pick the most
+    # complete record (longest role+org+authority+interests) so the
+    # detail header shows whatever the agent has gathered cumulatively.
+    stk_rows = (await db.execute(
         select(Stakeholder).where(
             Stakeholder.project_id == project_id,
             Stakeholder.name.ilike(name),
         )
-    )).scalar_one_or_none()
+    )).scalars().all()
+    def _completeness(s: Stakeholder) -> int:
+        return sum(len(getattr(s, f, "") or "") for f in ("role", "organization", "decision_authority", "interests"))
+    stk_row = max(stk_rows, key=_completeness) if stk_rows else None
 
     # Pull every finding kind that has a source_person column.
     reqs = (await db.execute(
