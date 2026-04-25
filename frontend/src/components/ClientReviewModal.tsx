@@ -110,16 +110,24 @@ export default function ClientReviewModal({ projectId, open, onClose }: ClientRe
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: 14, width: "min(960px, 92vw)",
+          background: "var(--bg)", borderRadius: 14, width: "min(960px, 92vw)",
           maxHeight: "88vh", display: "flex", flexDirection: "column",
           boxShadow: "0 24px 64px rgba(0,0,0,0.24)", overflow: "hidden",
+          border: "1px solid var(--line-strong)",
         }}
       >
-        {/* Header — matches DirectoryModal */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 28px 16px", borderBottom: "1px solid var(--gray-100)" }}>
+        {/* Header — surface tone so it sits clearly above the tinted
+         *  body, matches the readiness panel + notif popover pattern. */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 16,
+          padding: "20px 28px 16px",
+          borderBottom: "1px solid var(--line)",
+          background: "var(--surface)",
+          flexShrink: 0,
+        }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a" }}>Client Review</div>
-            <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 2 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Client Review</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>
               Secure links for clients to confirm requirements and answer open gaps.
             </div>
           </div>
@@ -155,38 +163,22 @@ export default function ClientReviewModal({ projectId, open, onClose }: ClientRe
 
         {/* Body — horizontal tabs (like Gaps/Constraints/Conflicts) + content */}
         <div style={{ flex: 1, overflow: "auto", padding: "16px 24px 24px", minHeight: 0 }}>
-          {/* Segmented tab group */}
-          <div style={{
-            display: "flex", gap: 4, padding: 3,
-            background: "var(--gray-50)", borderRadius: 10,
-            marginBottom: 16, width: "fit-content",
-          }}>
+          {/* Underline-style tab pair — matches .dp-subtab + the topbar
+           *  inbox tabs. Active tab gets a 2px ink underline; counts use
+           *  the same accent-green pill as the "X NEW" tab badges. */}
+          <div className="crm-tabs">
             {([
-              { id: "links" as const, label: "Links", count: tokens.length, color: "var(--green)" },
-              { id: "submissions" as const, label: "Submissions", count: submissions.length, color: "#7c3aed" },
+              { id: "links" as const, label: "Links", count: tokens.length },
+              { id: "submissions" as const, label: "Submissions", count: submissions.length },
             ]).map((t) => (
               <button
                 key={t.id}
+                type="button"
                 onClick={() => setTab(t.id)}
-                style={{
-                  padding: "7px 16px", borderRadius: 7, border: "none",
-                  background: tab === t.id ? "#fff" : "transparent",
-                  color: tab === t.id ? "var(--dark)" : "var(--gray-500)",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "var(--font)",
-                  boxShadow: tab === t.id ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-                  transition: "all 0.15s",
-                  display: "flex", alignItems: "center", gap: 6,
-                }}
+                className={`crm-tab${tab === t.id ? " active" : ""}`}
               >
                 {t.label}
-                {t.count > 0 && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
-                    background: tab === t.id ? `${t.color}1a` : "var(--gray-100)",
-                    color: tab === t.id ? t.color : "var(--gray-500)",
-                  }}>{t.count}</span>
-                )}
+                {t.count > 0 && <span className="crm-tab-badge">{t.count}</span>}
               </button>
             ))}
           </div>

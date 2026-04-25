@@ -92,14 +92,27 @@ export default function DirectoryModal({ projectId, open, onClose }: DirectoryMo
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: 14, width: "min(960px, 92vw)",
+          background: "var(--bg)", borderRadius: 14, width: "min(960px, 92vw)",
           maxHeight: "88vh", display: "flex", flexDirection: "column",
           boxShadow: "0 24px 64px rgba(0,0,0,0.24)", overflow: "hidden",
+          border: "1px solid var(--line-strong)",
         }}
       >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "20px 28px 16px", borderBottom: "1px solid var(--gray-100)" }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#0f172a", flex: 1 }}>Directory</div>
+        {/* Header — surface tone so it sits clearly above the tinted
+         *  body, matches the readiness panel + Client Review modal pattern. */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 16,
+          padding: "20px 28px 16px",
+          borderBottom: "1px solid var(--line)",
+          background: "var(--surface)",
+          flexShrink: 0,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>Directory</div>
+            <div style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 2 }}>
+              Skills, connectors, and plugins available to this project.
+            </div>
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -116,8 +129,9 @@ export default function DirectoryModal({ projectId, open, onClose }: DirectoryMo
 
         {/* Body */}
         <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          {/* Sidebar tabs */}
-          <div style={{ width: 220, borderRight: "1px solid var(--gray-100)", padding: 16, background: "#fafbfc" }}>
+          {/* Sidebar tabs — surface rail against tinted body so the
+           *  active item pops by switching to the body bg. */}
+          <div style={{ width: 220, borderRight: "1px solid var(--line)", padding: 16, background: "var(--surface)" }}>
             {([
               { key: "skills", label: "Skills", icon: "book" },
               { key: "connectors", label: "Connectors", icon: "plug" },
@@ -129,10 +143,10 @@ export default function DirectoryModal({ projectId, open, onClose }: DirectoryMo
                 style={{
                   display: "flex", alignItems: "center", gap: 10, width: "100%",
                   padding: "10px 12px", borderRadius: 8, border: "none",
-                  background: tab === t.key ? "#fff" : "transparent",
+                  background: tab === t.key ? "var(--bg)" : "transparent",
                   boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
                   cursor: "pointer", fontSize: 13, fontWeight: 600,
-                  color: tab === t.key ? "#0f172a" : "#64748b",
+                  color: tab === t.key ? "var(--ink)" : "var(--ink-3)",
                   marginBottom: 4, textAlign: "left",
                 }}
               >
@@ -238,15 +252,15 @@ function ConnectorCard({ connector, installed, onAdd, onRemove }: {
 
   return (
     <div style={{
-      border: "1px solid var(--gray-200)", borderRadius: 12,
-      padding: 16, background: "#fff",
+      border: "1px solid var(--line)", borderRadius: 12,
+      padding: 16, background: "var(--surface)",
       display: "flex", flexDirection: "column", gap: 10,
       transition: "all 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <ConnectorIcon provider={connector.provider} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{connector.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)" }}>{connector.name}</div>
           {isActive && (
             <div style={{ fontSize: 10, fontWeight: 600, color: "#16a34a", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} />
@@ -830,7 +844,7 @@ function ConnectorIcon({ provider }: { provider: string }) {
 }
 
 function TabIcon({ name, active }: { name: string; active: boolean }) {
-  const color = active ? "#0f172a" : "#94a3b8";
+  const color = active ? "var(--ink)" : "var(--ink-3)";
   const common = { width: 16, height: 16, stroke: color, fill: "none", strokeWidth: 2 } as const;
   if (name === "book") {
     return (
