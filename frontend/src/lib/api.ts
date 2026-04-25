@@ -167,9 +167,17 @@ export interface ApiConstraint {
 export interface ApiStakeholder {
   id: string;
   name: string;
-  role: string;
+  /** Short job title (≤40 chars). Added in migration 037 — pre-037
+   *  rows have role_title=null and the UI falls back to role. */
+  role_title?: string | null;
+  /** Free-form one-paragraph narrative. Pre-037 rows use this for the
+   *  full role description; new rows keep it short / nullable. */
+  role: string | null;
   organization: string;
   decision_authority: string;  // final | recommender | informed
+  /** Specific decisions this person has made or owns. Each entry is
+   *  a short headline + reasoning. Added in migration 037. */
+  decisions?: string[];
   interests: string[];
   seen_at: string | null;
   /** Per-kind finding counts where this person is named source_person.
@@ -256,6 +264,14 @@ export interface ConnectionRef {
   kind: ConnectionKind;
   display_id: string;
   label: string;
+  // Per-kind status string. Drives the "Confirmed" / "Resolved" green
+  // badge on connection rows so the PM can see at a glance which
+  // linked items are settled vs still in flight.
+  //   requirement / gap / constraint  → row.status
+  //   contradiction                    → "resolved" / "open"
+  //   document                         → pipeline_stage
+  //   stakeholder                      → null
+  status: string | null;
 }
 
 export interface ConnectionEdge {
@@ -459,10 +475,12 @@ export interface PersonFindingsBundle {
   stakeholder: {
     id: string | null;
     name: string;
+    role_title?: string | null;
     role: string | null;
     organization: string | null;
     decision_authority: string | null;
-    interests: string | null;
+    decisions?: string[];
+    interests: string | string[] | null;
   };
   findings: {
     requirements: Array<{ id: string; req_id: string; title: string; priority: string; status: string }>;

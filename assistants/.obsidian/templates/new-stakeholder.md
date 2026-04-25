@@ -2,6 +2,7 @@
 
 ---
 name: <% tp.file.title %>
+role_title: ""
 role: ""
 organization: ""
 decision_authority: informed
@@ -16,7 +17,11 @@ cssclasses: [stakeholder, node-purple]
 
 ## Role
 
-_(content)_
+_One-paragraph role narrative. Used when role_title alone doesn't capture the relationship — e.g. context like 'Client CEO with final authority on architecture + budget.' Keep to 1-2 sentences; surface specific decisions / concerns in the dedicated lists below._
+
+## Decisions Made
+
+- 
 
 ## Interests
 

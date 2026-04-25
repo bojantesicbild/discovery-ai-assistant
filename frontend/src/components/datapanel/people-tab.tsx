@@ -130,7 +130,15 @@ export function PeopleTab({ projectId, onNavigate }: Props) {
                 </div>
                 <div className="people-card-body">
                   <div className="people-card-name">{p.name}</div>
-                  {p.role && <div className="people-card-role">{p.role}</div>}
+                  {/* Prefer role_title (short, post-037). Fall back to
+                   *  role only when it's chip-length; otherwise hide
+                   *  the full paragraph here — it'll render in the
+                   *  detail view's Role section instead. */}
+                  {p.role_title ? (
+                    <div className="people-card-role">{p.role_title}</div>
+                  ) : p.role && p.role.length <= 60 ? (
+                    <div className="people-card-role">{p.role}</div>
+                  ) : null}
                   {p.organization && (
                     <div className="people-card-org">{p.organization}</div>
                   )}

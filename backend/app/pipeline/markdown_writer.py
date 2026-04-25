@@ -673,12 +673,19 @@ def stakeholder_to_payload(
     """Build the writer-input payload from a Stakeholder SQLAlchemy row.
 
     `person_reqs` is a pre-computed list of (req_id, title) tuples for
-    requirements this person requested."""
+    requirements this person requested.
+
+    Migration 037 split role into role_title + role + decisions. We
+    surface all three so the renderer can pick the right shape. Pre-037
+    rows have role_title=None and decisions=None — renderer falls back
+    to the legacy single-paragraph Role section."""
     return {
         "name": s.name,
+        "role_title": getattr(s, "role_title", None) or "",
         "role": s.role or "",
         "organization": s.organization or "",
         "decision_authority": s.decision_authority or "informed",
+        "decisions": list(getattr(s, "decisions", None) or []),
         "interests": list(s.interests or []),
         "date": today,
         "_person_reqs": person_reqs,
@@ -1051,32 +1058,47 @@ def render_stakeholder_text(payload: dict, *, original_text: str | None = None) 
     """Render a single stakeholder note as markdown.
 
     Frontmatter from `schema_lib.render_frontmatter("stakeholder", payload)`.
-    Body sections (Role, Interests, Requirements) hand-built — the
-    Requirements list is pre-computed by the caller as cross-row context."""
+    Body sections built per migration 037:
+
+      ## Role            — short narrative (uses payload['role'])
+      ## Decisions Made  — bullet list (uses payload['decisions'])
+      ## Interests       — bullet list (uses payload['interests'])
+      ## Requirements    — wikilinks to BRs the person raised
+
+    Each section is omitted when its source list/string is empty so a
+    sparse stakeholder (just role_title + name) renders clean instead
+    of with empty placeholder sections."""
     name = payload["name"]
-    role = payload.get("role", "")
+    role_title = (payload.get("role_title") or "").strip()
+    role = (payload.get("role") or "").strip()
+    decisions = payload.get("decisions") or []
     interests = payload.get("interests") or []
     person_reqs = payload.get("_person_reqs") or []
 
     fm_block = schema_lib.render_frontmatter("stakeholder", payload)
 
-    lines: list[str] = [
-        f"# {name}",
-        "",
-        "## Role",
-        "",
-        role or "_(role not specified)_",
-        "",
-    ]
-    if interests:
-        lines.append("## Interests")
+    lines: list[str] = [f"# {name}", ""]
+
+    # Role section. Prefer the narrative paragraph when present; fall
+    # back to role_title alone (which still answers "what's their job"
+    # for downstream readers), or a stub when the row is empty.
+    role_text = role or (role_title and f"{role_title}.") or "_(role not specified)_"
+    lines.extend(["## Role", "", role_text, ""])
+
+    if decisions:
+        lines.extend(["## Decisions Made", ""])
+        for d in decisions:
+            lines.append(f"- {d}")
         lines.append("")
+
+    if interests:
+        lines.extend(["## Interests", ""])
         for interest in interests:
             lines.append(f"- {interest}")
         lines.append("")
+
     if person_reqs:
-        lines.append("## Requirements")
-        lines.append("")
+        lines.extend(["## Requirements", ""])
         for req_id, title in person_reqs:
             lines.append(f"- [[{req_id}]] — {title}")
         lines.append("")

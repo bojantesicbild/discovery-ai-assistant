@@ -11,9 +11,15 @@ fields:
     required: true
     description: "Full name — used as the file name"
 
+  - key: role_title
+    type: string
+    required: false
+    description: "Short job title (≤40 chars). Renders as the headline chip in the People list and PersonDetailView. Examples: 'CEO', 'CTO', 'Lead Developer', 'Product Manager'."
+
   - key: role
     type: string
-    required: true
+    required: false
+    description: "One-paragraph role narrative. Used when role_title alone doesn't capture the relationship — e.g. context like 'Client CEO with final authority on architecture + budget.' Keep to 1-2 sentences; surface specific decisions / concerns in the dedicated lists below."
 
   - key: organization
     type: string
@@ -25,12 +31,19 @@ fields:
     required: true
     default: informed
 
+  - key: decisions
+    type: list
+    item_type: string
+    required: false
+    frontmatter: false
+    description: "Specific decisions this person has made, owns, or signed off on. One per item, written as a short headline + reasoning. Examples: 'EU-only hosting — non-negotiable contractual requirement.', '€80k MVP budget ceiling — confirmed.'"
+
   - key: interests
     type: list
     item_type: string
     required: false
     frontmatter: false
-    description: "What this person cares about"
+    description: "What this person cares about — short keywords or phrases. Examples: 'cost predictability', 'data residency', 'time to market'. Keep each entry under ~6 words; longer context goes into decisions[] or role."
 
   - key: source_doc
     type: string
@@ -50,7 +63,12 @@ sections:
   - name: Role
     format: paragraphs
     source_field: role
-    required: true
+    required: false
+
+  - name: Decisions Made
+    format: bullets
+    generated_from: decisions
+    required: false
 
   - name: Interests
     format: bullets
@@ -67,7 +85,7 @@ classification:
   default_tags: [stakeholder, "{{decision_authority}}"]
 
 view:
-  dataview_columns: [role, organization, decision_authority]
+  dataview_columns: [role_title, organization, decision_authority]
   default_sort: [decision_authority asc, name asc]
   group_by: organization
 
@@ -81,10 +99,39 @@ extraction_prompt: |
 
   For each stakeholder, capture:
   - name: full name as it appears in the source
-  - role: job title (CTO, PM, end-user, etc.)
+  - role_title: SHORT job title only (≤40 chars). 'CEO', 'CTO', 'Lead Developer',
+    'Product Manager'. Do NOT pack decisions, opinions, or context into this
+    field — those go into decisions[] / interests[] below.
   - organization: company or team
   - decision_authority: final (signs off), recommender (advises), informed (kept in loop)
-  - interests: what they personally care about (cost, speed, security, …)
+  - role: optional 1-2 sentence narrative if role_title alone doesn't convey
+    the relationship (e.g. "Client CEO with final authority on architecture
+    decisions"). Leave empty when role_title is sufficient.
+  - decisions: specific decisions this person has made or owns. Each entry is
+    a short headline + reasoning. Examples:
+      - "EU-only hosting — non-negotiable contractual requirement."
+      - "€80k MVP budget ceiling — confirmed."
+      - "Named RAGFlow as vector store — any swap requires amendment."
+    A long sentence describing one person's behaviour usually splits into
+    2-4 distinct decisions; do that split.
+  - interests: short keyword phrases for what they personally care about.
+    Examples: "cost predictability", "data residency", "audit trail".
+    Each entry under ~6 words. NEVER combine multiple interests into one
+    entry separated by 'and' / commas.
+
+  WRONG (legacy free-form):
+    role: "Client CEO with final authority. Imposed EU-only hosting as a
+    non-negotiable contractual requirement. Confirmed the €80k MVP budget
+    ceiling. Named RAGFlow as contractually specified."
+
+  RIGHT (split into role_title + decisions + interests):
+    role_title: "CEO"
+    role: "Client CEO with final authority on architecture + budget."
+    decisions:
+      - "EU-only hosting — non-negotiable contractual requirement."
+      - "€80k MVP budget ceiling — confirmed."
+      - "Named RAGFlow as vector store — any swap requires amendment."
+    interests: ["compliance", "cost predictability"]
 
   Avoid creating stakeholders for one-off mentions. Wait until someone
   appears in two or more sources OR is the named decision-maker for at

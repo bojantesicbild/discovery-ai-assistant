@@ -452,9 +452,12 @@ async def list_stakeholders(
     for s in items:
         key = (s.name or "").lower()
         out.append({
-            "id": str(s.id), "name": s.name, "role": s.role,
+            "id": str(s.id), "name": s.name,
+            "role_title": getattr(s, "role_title", None),
+            "role": s.role,
             "organization": s.organization,
             "decision_authority": s.decision_authority,
+            "decisions": getattr(s, "decisions", None) or [],
             "interests": s.interests,
             "finding_counts": {
                 "requirements": req_counts.get(key, 0),
@@ -539,17 +542,20 @@ async def get_stakeholder_by_name(
         {
             "id": str(stk_row.id),
             "name": stk_row.name,
+            "role_title": getattr(stk_row, "role_title", None),
             "role": stk_row.role,
             "organization": stk_row.organization,
             "decision_authority": stk_row.decision_authority,
+            "decisions": getattr(stk_row, "decisions", None) or [],
             "interests": stk_row.interests,
         }
         if stk_row else
         # Ghost stakeholder — referenced as source_person but never
         # extracted as a Stakeholder row. UI should still render
         # something so the deep-link works.
-        {"id": None, "name": name, "role": None, "organization": None,
-         "decision_authority": None, "interests": None}
+        {"id": None, "name": name, "role_title": None, "role": None,
+         "organization": None, "decision_authority": None,
+         "decisions": [], "interests": None}
     )
 
     # Same positional ordering used elsewhere for CON/CTR.

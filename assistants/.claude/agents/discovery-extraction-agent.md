@@ -72,7 +72,34 @@ Execute in this order, no skipping.
      - `source_quote` — the verbatim quote from the current document that establishes the contradiction (usually matches one of the sides).
      - `concerns_refs` — list of display ids (BR-NNN / CON-NNN) the contradiction is ABOUT. If the two sides argue over how to satisfy BR-007, pass `['BR-007']`. If the contradiction spans a BR and the constraint that forces it, pass both (e.g., `['BR-007', 'CON-003']`). Populate whenever the source text makes the target concrete; leave empty when it's a free-floating disagreement not yet tied to a specific requirement. This wires the contradiction into the graph so it surfaces on the BR / constraint detail view — without it the contradiction is invisible to downstream analysis.
      Do NOT stuff "X vs Y" into a single description field — use side_a + side_b so the UI can render the two sides distinctly. Do NOT skip the per-side `_person` / `_source` fields when the information is in the document — the UI needs them to show provenance chips. The whole point of capturing a contradiction is to show *who disagrees with whom and where* so the PM can resolve it.
-   - **stakeholder** — a person named in the document with a role. Fields: `title` (the name), `description` (their role + any context), `priority` (decision authority: final/recommender/informed), `source_person` (their name again — for search). Skip generic references like "the team" or "management."
+   - **stakeholder** — a person named in the document with a role. Required: `title` (the name), `priority` (decision authority: final/recommender/informed), `source_person` (their name again — for search). Skip generic references like "the team" or "management."
+
+     Use the **structured fields** introduced in migration 037 — do **not** stuff multi-sentence narratives into one field:
+     - `role_title` — SHORT job title only (≤40 chars). 'CEO', 'CTO', 'Lead Developer', 'Product Manager'. No punctuation, no decisions, no context.
+     - `role` — optional 1-2 sentence narrative when `role_title` alone doesn't convey the relationship (e.g. 'Client CEO with final authority on architecture decisions'). Leave empty when `role_title` is sufficient.
+     - `decisions` — array of specific decisions this person has made or owns. Each entry: short headline + reasoning. Example: `["EU-only hosting — non-negotiable contractual requirement.", "€80k MVP budget ceiling — confirmed."]`. A long single-sentence role usually splits into 2-4 distinct decisions; do that split.
+     - `interests` — array of short keyword phrases (≤6 words each) for what they personally care about. Example: `["cost predictability", "data residency"]`. Never combine multiple interests into one entry separated by 'and' / commas.
+
+     **WRONG** (legacy free-form, don't do this):
+     ```
+     description: "Client CEO with final authority. Imposed EU-only hosting as a non-negotiable contractual requirement. Confirmed the €80k MVP budget ceiling. Named RAGFlow as contractually specified — any swap requires amendment."
+     ```
+
+     **RIGHT** (split):
+     ```
+     title: "Maria Gomez"
+     role_title: "CEO"
+     role: "Client CEO with final authority on architecture + budget."
+     decisions: [
+       "EU-only hosting — non-negotiable contractual requirement.",
+       "€80k MVP budget ceiling — confirmed.",
+       "Named RAGFlow as vector store — any swap requires amendment."
+     ]
+     interests: ["compliance", "cost predictability"]
+     priority: "final"
+     ```
+
+     The legacy `description` field still works as a fallback (it lands on `role`), but new extractions should populate `role_title` + `decisions` + `interests` directly.
 
 5. **Record learnings (when warranted).** If the document surfaces a *pattern* that will matter on future runs — not a finding about the project, a rule about how to work on it — call `record_learning` once per pattern. The point is cheap institutional memory: repeat emissions bump `reference_count` and hit the auto-promotion threshold.
 

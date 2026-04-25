@@ -100,9 +100,16 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
         </div>
 
         <div className="req-detail-hero-chips">
-          {stakeholder.role && (
+          {/* Prefer the short role_title chip; fall back to the legacy
+           *  long-text role only when role_title is missing AND the
+           *  role string is short enough to render as a chip. Long
+           *  legacy roles render as a paragraph in the Role section
+           *  inside the body card, not as a chip. */}
+          {stakeholder.role_title ? (
+            <span className="chip purple">{stakeholder.role_title}</span>
+          ) : stakeholder.role && stakeholder.role.length <= 40 ? (
             <span className="chip purple">{stakeholder.role}</span>
-          )}
+          ) : null}
           {stakeholder.decision_authority && (
             <span className="chip xs uppercase amber">Decides: {stakeholder.decision_authority}</span>
           )}
@@ -111,16 +118,47 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
           </span>
         </div>
 
-        {(stakeholder.organization || stakeholder.interests) && (
+        {stakeholder.organization && (
           <div className="req-detail-hero-meta">
-            {stakeholder.organization && <span><strong>{stakeholder.organization}</strong></span>}
-            {stakeholder.organization && stakeholder.interests && <span className="sep">·</span>}
-            {stakeholder.interests && <span>Interests: {stakeholder.interests}</span>}
+            <span><strong>{stakeholder.organization}</strong></span>
           </div>
         )}
       </div>
 
       <div className="req-detail-body">
+        {/* Profile sections — Role narrative, Decisions, Interests.
+         *  Render before findings so the person's "who they are" comes
+         *  first, then "what they touched" follows. Each section
+         *  conditionally rendered so a sparse stakeholder doesn't show
+         *  empty placeholders. */}
+        {(stakeholder.role || (stakeholder.decisions && stakeholder.decisions.length > 0) ||
+          (Array.isArray(stakeholder.interests) && stakeholder.interests.length > 0)) && (
+          <div className="req-detail-content-card" style={{ marginBottom: 12 }}>
+            {stakeholder.role && (
+              <>
+                <div className="field-header">Role</div>
+                <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{stakeholder.role}</p>
+              </>
+            )}
+            {stakeholder.decisions && stakeholder.decisions.length > 0 && (
+              <>
+                <div className="field-header">Decisions Made</div>
+                <ul>
+                  {stakeholder.decisions.map((d, i) => <li key={i}>{d}</li>)}
+                </ul>
+              </>
+            )}
+            {Array.isArray(stakeholder.interests) && stakeholder.interests.length > 0 && (
+              <>
+                <div className="field-header">Interests</div>
+                <ul>
+                  {stakeholder.interests.map((it, i) => <li key={i}>{it}</li>)}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
         {totalFindings === 0 ? (
           <div className="detail-empty">No findings raised by {stakeholder.name} yet.</div>
         ) : (

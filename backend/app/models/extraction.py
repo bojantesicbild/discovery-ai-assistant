@@ -57,9 +57,19 @@ class Stakeholder(Base, IdMixin, TimestampMixin):
 
     project_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    role: Mapped[str] = mapped_column(String, nullable=False)
+    # Short job title (≤40 chars in practice). Renders as the headline
+    # chip in the People list + PersonDetailView. Added in migration
+    # 037 — older rows have role_title=NULL and fall back to `role`.
+    role_title: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Free-form one-paragraph role narrative. Legacy field — once role_title
+    # is populated, this is optional context for nuance the title can't
+    # carry. Pre-037 rows store the entire role description here.
+    role: Mapped[str | None] = mapped_column(String, nullable=True)
     organization: Mapped[str] = mapped_column(String, nullable=False)
     decision_authority: Mapped[str] = mapped_column(String, default="informed")
+    # Specific decisions this person has made or owns. Each entry is a
+    # short headline + reasoning. Added in migration 037.
+    decisions: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     interests: Mapped[list] = mapped_column(JSONB, default=list)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     sources: Mapped[list] = mapped_column(JSONB, default=list)

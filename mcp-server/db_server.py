@@ -1053,6 +1053,10 @@ async def list_tools() -> list[Tool]:
                     "side_b_source": {"type": "string", "description": "Contradiction-only. Document / source reference for side_b. Leave null if unknown."},
                     "side_b_person": {"type": "string", "description": "Contradiction-only. Person who stated side_b. Leave null if unknown."},
                     "concerns_refs": {"type": "array", "items": {"type": "string"}, "description": "Contradiction-only. Display ids of BRs and/or constraints this contradiction is ABOUT — the things whose approach or validity is in dispute. E.g. a 'RAGFlow vs Qdrant' contradiction concerns BR-007 (retrieval layer) and CON-003 (RAGFlow contract constraint). Used to wire the contradiction into the graph so it surfaces on the BR/constraint detail view. Leave empty when the contradiction is free-floating (a disagreement not yet tied to a specific requirement)."},
+                    "role_title": {"type": "string", "description": "Stakeholder-only. SHORT job title (≤40 chars). Examples: 'CEO', 'CTO', 'Lead Developer', 'Product Manager'. Do NOT pack decisions, opinions, or context into this field — those go into decisions[] / interests[]. Title-case, no punctuation. Use this instead of cramming the title into `description`."},
+                    "role": {"type": "string", "description": "Stakeholder-only. Optional 1-2 sentence narrative when role_title alone doesn't convey the relationship (e.g. 'Client CEO with final authority on architecture decisions'). Leave empty when role_title is sufficient. NEVER pack 4+ separate decisions into one paragraph here — split into decisions[] instead."},
+                    "decisions": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Specific decisions this person has made or owns. Each entry: short headline + reasoning. Examples: ['EU-only hosting — non-negotiable contractual requirement.', '€80k MVP budget ceiling — confirmed.', 'Named RAGFlow as vector store — any swap requires amendment.']. A long single-sentence role usually splits into 2-4 distinct decisions; do that split."},
+                    "interests": {"type": "array", "items": {"type": "string"}, "description": "Stakeholder-only. Short keyword phrases (≤6 words each) for what this person personally cares about. Examples: ['cost predictability', 'data residency', 'audit trail']. NEVER combine multiple interests into one entry separated by 'and' / commas."},
                 },
                 "required": ["finding_type", "title", "description"],
             },
@@ -1763,10 +1767,24 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"success": True, "type": "constraint", "title": title, "readiness": new_score})
 
             elif finding_type == "stakeholder":
+                # Migration 037 split role into role_title (short) +
+                # role (paragraph) + decisions (list). Older callers
+                # only pass `description` (= legacy role); newer
+                # callers pass role_title / decisions / interests
+                # explicitly. Both shapes work — the renderer falls
+                # back to role when role_title is null.
+                role_title = (arguments.get("role_title") or "")[:64] or None
+                role_para = arguments.get("role") or description or None
+                decisions_list = arguments.get("decisions") or None
+                interests_list = arguments.get("interests") or []
                 await conn.execute(
-                    "INSERT INTO stakeholders (id, project_id, name, role, organization, decision_authority, source_doc_id) "
-                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)",
-                    pid, title, description or "unknown", source or "unknown", priority or "informed", source_doc_uuid
+                    "INSERT INTO stakeholders (id, project_id, name, role_title, role, organization, decision_authority, decisions, interests, source_doc_id) "
+                    "VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                    pid, title, role_title, role_para,
+                    source or "unknown", priority or "informed",
+                    json.dumps(decisions_list) if decisions_list is not None else None,
+                    json.dumps(interests_list),
+                    source_doc_uuid,
                 )
                 await conn.execute(
                     "INSERT INTO activity_log (id, project_id, action, summary, details) VALUES (gen_random_uuid(), $1, 'finding_stored', $2, $3)",
@@ -1774,7 +1792,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 )
                 await _emit_event(
                     conn, pid=pid, event_type="finding_stored",
-                    payload={"kind": "stakeholder", "name": title, "role": description},
+                    payload={"kind": "stakeholder", "name": title, "role_title": role_title, "role": role_para},
                     artifact_updates={"findings_created": [f"STK:{title}"]},
                 )
                 return _json_result({"success": True, "type": "stakeholder", "name": title})
