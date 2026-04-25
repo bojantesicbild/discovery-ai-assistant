@@ -1748,19 +1748,26 @@
 .req-detail-hero-top {
   display: flex; align-items: center; gap: 10px;
 }
+/* Ghost-style icon button — no border, hover reveals a subtle bg.
+ * Matches the chat-header action buttons (.ghost-btn) so the page-
+ * level navigation reads the same on both sides. */
 .req-detail-back {
   width: 32px; height: 32px;
   border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 0;
+  background: transparent;
   display: grid; place-items: center;
   color: var(--ink-3);
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color .15s, color .15s, transform .12s;
+  transition: background .15s, color .15s, transform .12s;
 }
-.req-detail-back:hover { border-color: var(--line-strong); color: var(--ink); transform: translateX(-1px); }
-.req-detail-back svg { width: 14px; height: 14px; }
+.req-detail-back:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+  transform: translateX(-1px);
+}
+.req-detail-back svg { width: 16px; height: 16px; }
 
 .req-detail-id-pair {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1785,17 +1792,16 @@
   margin-left: auto;
   width: 32px; height: 32px;
   border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 0;
+  background: transparent;
   color: var(--ink-3);
   cursor: pointer;
   display: grid; place-items: center;
-  font-size: 18px;
-  transition: border-color .15s, color .15s, background .15s;
+  transition: background .15s, color .15s;
   position: relative;
 }
-.req-detail-overflow:hover { border-color: var(--line-strong); color: var(--ink); background: var(--surface-2); }
-.req-detail-overflow svg { width: 16px; height: 16px; }
+.req-detail-overflow:hover { color: var(--ink); background: var(--surface-2); }
+.req-detail-overflow svg { width: 18px; height: 18px; }
 
 /* Title — big and bold, full width, can wrap to two lines if long. */
 .req-detail-title-h1 {
@@ -1833,22 +1839,58 @@
   font-size: 11.5px;
 }
 
-/* Secondary meta line — quiet, single row, dot-separated. */
+/* Secondary meta line — quiet, single row, dot-separated.
+ * The source-block groups filename + "merged from N" tightly so they
+ * read as one origin-of-this-BR phrase, separated from raised/by by
+ * a clear bullet. */
 .req-detail-hero-meta {
   display: flex; flex-wrap: wrap;
-  align-items: center; gap: 6px 10px;
-  font-size: 11.5px;
+  align-items: center; gap: 6px 12px;
+  font-size: 12px;
   color: var(--ink-3);
   line-height: 1.4;
 }
 .req-detail-hero-meta strong { color: var(--ink); font-weight: 600; }
 .req-detail-hero-meta .sep { color: var(--ink-4); }
-.req-detail-hero-meta .source-icon {
-  display: inline-flex; align-items: center; gap: 5px;
-  color: var(--could);
+
+.req-detail-source-block {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink-2);
   font-weight: 500;
+  cursor: default;
+  transition: border-color .15s, background .15s, color .15s;
 }
-.req-detail-hero-meta .source-icon svg { width: 12px; height: 12px; }
+.req-detail-source-block.clickable { cursor: pointer; }
+.req-detail-source-block.clickable:hover {
+  background: var(--accent-soft);
+  border-color: rgba(0,168,100,.25);
+  color: var(--accent-ink);
+}
+.req-detail-source-block svg {
+  width: 12px; height: 12px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+.req-detail-source-block.clickable:hover svg { color: var(--accent-ink); }
+.req-detail-source-block .merge-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-left: 6px;
+  margin-left: 2px;
+  border-left: 1px solid var(--line);
+}
+.req-detail-source-block.clickable:hover .merge-tag {
+  color: var(--accent-ink);
+  border-left-color: rgba(0,168,100,.25);
+}
 
 /* Hero overflow menu (kebab) */
 .req-detail-overflow-menu {
@@ -1935,10 +1977,41 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
-  padding: 22px 26px 18px;
+  padding: 22px 26px 20px;
   box-shadow: var(--shadow-sm);
+
+  /* Body typography — Inter at a comfortable reading size, slightly
+   * tighter than the inherited 13/1.7 the previous inline styles set. */
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  letter-spacing: -0.005em;
 }
 .req-detail-content-card > .field-header:first-child { margin-top: 0; }
+.req-detail-content-card p { margin: 0 0 8px; }
+.req-detail-content-card strong { color: var(--ink); font-weight: 600; }
+
+/* Lists: green markers for bullets and ordered lists. Custom marker
+ * via list-style + ::marker so we don't need a wrapping <span>. */
+.req-detail-content-card ul,
+.req-detail-content-card ol {
+  margin: 4px 0 0;
+  padding-left: 22px;
+  list-style: disc outside;
+}
+.req-detail-content-card ol { list-style: decimal outside; }
+.req-detail-content-card ul li,
+.req-detail-content-card ol li {
+  margin-bottom: 4px;
+  padding-left: 4px;
+}
+.req-detail-content-card ul li::marker,
+.req-detail-content-card ol li::marker {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.req-detail-content-card ul li::marker { font-size: 1.1em; }
 
 /* Subtle divider between sections inside the doc card — only used
  * where the eye benefits from it (between description + criteria,
@@ -2000,13 +2073,16 @@
   color: #b45309;
 }
 
-/* ==== Field sections (shared by BR detail + reminders-detail) ==== */
+/* ==== Field sections (shared by BR detail + reminders-detail) ====
+ * Section labels are bold black inside the white content card so they
+ * read as structural headers, not muted captions. */
 .field-header {
-  font-size: 11px; font-weight: 700;
-  color: var(--ink-3);
+  font-size: 11.5px; font-weight: 800;
+  color: var(--ink);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 16px 0 6px;
+  margin: 18px 0 8px;
+  font-family: inherit;
 }
 
 .diff-count-label {

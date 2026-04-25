@@ -65,6 +65,19 @@ function statusChipClasses(status: string): string {
 }
 
 
+// Map an Action (label/value) onto one of the three .btn-status
+// variants in panels.css. The detail-builders ship Drop with
+// value="dropped" — the previous switch only matched "dismissed",
+// so Drop fell through to discuss (amber) instead of dismiss (red).
+function statusActionClass(value: string, label: string): string {
+  const v = (value || "").toLowerCase();
+  const l = (label || "").toLowerCase();
+  if (v === "confirmed" || l === "confirm") return "confirm";
+  if (v === "dropped" || v === "dismissed" || l === "drop") return "dismiss";
+  return "discuss";
+}
+
+
 function ProposalSubtitle({ p }: { p: ProposedUpdate }) {
   const bits: string[] = [];
   if (p.source_doc) bits.push(p.source_doc);
@@ -282,32 +295,22 @@ export default function RequirementDetailView({
 
         <div className="req-detail-hero-meta">
           {req.source_doc && (
-            <span className="source-icon" title={req.source_doc}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              {req.source_doc}
-            </span>
+            <SourceBlock
+              filename={req.source_doc}
+              docId={req.source_doc_id}
+              mergedCount={mergedFromCount}
+              onLinkClick={onLinkClick}
+            />
           )}
           {ageStr && (
-            <>
-              <span className="sep">·</span>
-              <span title={req.created_at ? new Date(req.created_at).toLocaleString() : undefined}>
-                Raised {ageStr}
-              </span>
-            </>
+            <span title={req.created_at ? new Date(req.created_at).toLocaleString() : undefined}>
+              Raised {ageStr}
+            </span>
           )}
           {req.source_person && (
             <>
               <span className="sep">·</span>
               <span>by <strong>{req.source_person}</strong></span>
-            </>
-          )}
-          {mergedFromCount > 0 && (
-            <>
-              <span className="sep">·</span>
-              <span>merged from {mergedFromCount} docs</span>
             </>
           )}
         </div>
@@ -318,10 +321,10 @@ export default function RequirementDetailView({
         <div className="req-detail-actions">
           <span className="label">Set status</span>
           {actions.map((action) => {
-            const cls = action.value === "confirmed" ? "confirm" : action.value === "dismissed" ? "dismiss" : "discuss";
+            const cls = statusActionClass(action.value, action.label);
             return (
               <button
-                key={action.value}
+                key={`${action.value}-${action.label}`}
                 type="button"
                 className={`btn-status ${cls}`}
                 onClick={() => onAction?.(action.value)}
@@ -738,6 +741,57 @@ export default function RequirementDetailView({
         />
       )}
     </div>
+  );
+}
+
+
+function SourceBlock({
+  filename, docId, mergedCount, onLinkClick,
+}: {
+  filename: string;
+  docId?: string | null;
+  mergedCount: number;
+  onLinkClick?: (href: string) => boolean | void;
+}) {
+  const clickable = !!docId && !!onLinkClick;
+  const Icon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+    </svg>
+  );
+  const Body = (
+    <>
+      {Icon}
+      <span>{filename}</span>
+      {mergedCount > 0 && (
+        <span className="merge-tag">+{mergedCount - 1} merged</span>
+      )}
+    </>
+  );
+  if (clickable) {
+    return (
+      <a
+        href={`doc://${docId}`}
+        className="req-detail-source-block clickable"
+        title={`Open ${filename}${mergedCount > 1 ? ` · merged from ${mergedCount} docs` : ""}`}
+        onClick={(e) => {
+          if (!onLinkClick) return;
+          const handled = onLinkClick(`doc://${docId}`);
+          if (handled !== false) e.preventDefault();
+        }}
+      >
+        {Body}
+      </a>
+    );
+  }
+  return (
+    <span
+      className="req-detail-source-block"
+      title={mergedCount > 1 ? `${filename} · merged from ${mergedCount} docs` : filename}
+    >
+      {Body}
+    </span>
   );
 }
 
