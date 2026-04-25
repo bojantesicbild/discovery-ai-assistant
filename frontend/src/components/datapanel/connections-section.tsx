@@ -123,12 +123,13 @@ function DirArrow({ dir }: { dir: EdgeDir }) {
 
 
 function EdgeRow({
-  edge, dir, projectId, onNavigate,
+  edge, dir, projectId, onNavigate, hideRel,
 }: {
   edge: ConnectionEdge;
   dir: EdgeDir;
   projectId: string;
   onNavigate?: (tab: string, displayId?: string) => void;
+  hideRel?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLButtonElement>(null);
@@ -151,7 +152,7 @@ function EdgeRow({
   return (
     <div className={`conn-row${dir === "derived" ? " derived" : ""}`}>
       <DirArrow dir={dir} />
-      <span className="rel">{humaniseRel(edge.rel_type)}</span>
+      {!hideRel && <span className="rel">{humaniseRel(edge.rel_type)}</span>}
       <KindChip target={edge.neighbor} projectId={projectId} onNavigate={onNavigate} />
       <span className="label">{edge.neighbor.label}</span>
       <ConfidencePill c={edge.confidence} />
@@ -351,6 +352,16 @@ export default function ConnectionsSection({
     return Array.from(set);
   }, [tabFiltered]);
 
+  // Uniform rel-type detection — when every visible row shares the
+  // same rel_type, the per-row column is redundant. Hide it and show
+  // the rel as a single chip in the section head instead. Most common
+  // case: the Derived tab where everything is "Same document".
+  const uniformRel = useMemo(() => {
+    if (finalEdges.length < 2) return null;
+    const first = finalEdges[0].edge.rel_type;
+    return finalEdges.every(({ edge }) => edge.rel_type === first) ? first : null;
+  }, [finalEdges]);
+
   if (loading) return null;
   if (error || !data) return null;
 
@@ -439,6 +450,13 @@ export default function ConnectionsSection({
         ))}
       </div>
 
+      {uniformRel && !grouped && finalEdges.length > 0 && (
+        <div className="conn-uniform-rel">
+          <span className="conn-uniform-rel-label">All rows</span>
+          <span className="conn-uniform-rel-chip">{humaniseRel(uniformRel)}</span>
+        </div>
+      )}
+
       <div className="conn-body">
         {finalEdges.length === 0 ? (
           <div className="conn-empty">
@@ -456,6 +474,7 @@ export default function ConnectionsSection({
               dir={dir}
               projectId={projectId}
               onNavigate={onNavigate}
+              hideRel={!!uniformRel}
             />
           ))
         )}

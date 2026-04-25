@@ -222,9 +222,16 @@
   color: var(--ink-2);
   cursor: pointer;
   white-space: nowrap;
-  transition: border-color .15s, color .15s;
+  transition:
+    border-color     200ms cubic-bezier(.2,.8,.2,1),
+    color            200ms cubic-bezier(.2,.8,.2,1),
+    background-color 200ms cubic-bezier(.2,.8,.2,1);
 }
-.fd-trigger:hover { border-color: var(--line-strong); color: var(--ink); }
+.fd-trigger:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--surface-2);
+}
 .fd-trigger.has-value {
   color: var(--ink);
   border-color: var(--line-strong);
@@ -244,7 +251,7 @@
 .fd-trigger.has-value[data-v="proposed"] .fd-value-dot { background: var(--proposed); }
 .fd-value-dot { display: none; }
 .fd-label { letter-spacing: -0.005em; }
-.fd-chev { width: 14px; height: 14px; color: var(--ink-3); transition: transform .15s; flex-shrink: 0; }
+.fd-chev { width: 14px; height: 14px; color: var(--ink-3); transition: transform 220ms cubic-bezier(.2,.8,.2,1); flex-shrink: 0; }
 .fd.open .fd-chev { transform: rotate(180deg); }
 .fd-clear {
   display: none;
@@ -329,12 +336,27 @@
   gap: 12px;
   cursor: pointer;
   position: relative;
-  transition: border-color .15s, transform .12s, box-shadow .15s;
+  /* Single unified easing curve + matched durations so the lift,
+   * border-color shift, and shadow grow as one motion instead of
+   * three jittery transitions completing at different times.
+   * cubic-bezier(.2,.8,.2,1) is a soft "ease-out-back-ish" that
+   * settles without overshoot — feels native, not snappy. */
+  transition:
+    transform        220ms cubic-bezier(.2,.8,.2,1),
+    border-color     220ms cubic-bezier(.2,.8,.2,1),
+    box-shadow       220ms cubic-bezier(.2,.8,.2,1),
+    background-color 220ms cubic-bezier(.2,.8,.2,1);
+  will-change: transform, box-shadow;
 }
 .req:hover {
   border-color: var(--line-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg, 0 12px 28px rgba(15, 23, 42, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04));
+  background-color: var(--surface);
+}
+.req:active {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  transition-duration: 80ms;
 }
 
 .req-id {
@@ -488,9 +510,17 @@
   border-radius: 8px;
   color: var(--ink-3);
   cursor: pointer;
+  transition:
+    background-color 180ms cubic-bezier(.2,.8,.2,1),
+    color            180ms cubic-bezier(.2,.8,.2,1),
+    transform        120ms cubic-bezier(.2,.8,.2,1);
 }
 .kebab:hover { background: var(--bg); color: var(--ink); }
-.kebab svg { width: 16px; height: 16px; }
+.kebab:active { transform: scale(0.94); }
+.kebab svg {
+  width: 16px; height: 16px;
+  transition: transform 180ms cubic-bezier(.2,.8,.2,1);
+}
 
 /* ==== Pagination — pinned at the bottom of .dp-tab-content ==== */
 .reqs-footer {
@@ -812,13 +842,18 @@
   cursor: pointer;
   font-family: inherit;
   letter-spacing: -0.005em;
-  transition: border-color .15s, color .15s, background .15s, transform .12s;
+  transition:
+    border-color     200ms cubic-bezier(.2,.8,.2,1),
+    color            200ms cubic-bezier(.2,.8,.2,1),
+    background-color 200ms cubic-bezier(.2,.8,.2,1),
+    transform        160ms cubic-bezier(.2,.8,.2,1);
 }
 .panel-filter-btn:hover {
   border-color: var(--line-strong);
   color: var(--ink);
   transform: translateY(-1px);
 }
+.panel-filter-btn:active { transform: translateY(0); transition-duration: 80ms; }
 .panel-filter-btn.active {
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -1087,9 +1122,18 @@
   font-size: 12px; font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background .15s, color .15s, box-shadow .15s;
+  /* Unified curve so the sliding pill (background swap on .active),
+   * text-color shift, and shadow grow as one motion. 200ms is long
+   * enough to read but short enough not to feel sluggish on quick
+   * sub-tab toggles. */
+  transition:
+    background-color 200ms cubic-bezier(.2,.8,.2,1),
+    color            200ms cubic-bezier(.2,.8,.2,1),
+    box-shadow       200ms cubic-bezier(.2,.8,.2,1),
+    transform        120ms cubic-bezier(.2,.8,.2,1);
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
+.dp-subtab:active { transform: scale(0.97); }
 .dp-subtab:hover { color: var(--ink); }
 .dp-subtab.active {
   background: var(--surface);
@@ -1721,6 +1765,43 @@
   display: flex; flex-direction: column;
   height: 100%;
   background: var(--bg);
+}
+
+/* Compact mode — fired by JS once the body scrolls past ~24px. The
+ * chips trio + secondary meta line collapse smoothly to 0 height and
+ * the title shrinks to a single line so the doc reading area gains
+ * the freed real-estate. Mirrors RequirementsTab's readiness-collapse
+ * pattern, but for the BR detail. */
+.req-detail-hero {
+  transition: padding .25s cubic-bezier(.4,0,.2,1),
+              gap .25s cubic-bezier(.4,0,.2,1);
+}
+.req-detail-title-h1,
+.req-detail-hero-chips,
+.req-detail-hero-meta {
+  transition: max-height .25s cubic-bezier(.4,0,.2,1),
+              opacity .2s cubic-bezier(.4,0,.2,1),
+              margin .25s, padding .25s,
+              font-size .2s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  max-height: 240px;
+}
+.req-detail.compact .req-detail-hero {
+  padding-top: 12px;
+  padding-bottom: 10px;
+  gap: 6px;
+}
+.req-detail.compact .req-detail-title-h1 {
+  font-size: 18px;
+  -webkit-line-clamp: 1;
+  letter-spacing: -0.02em;
+}
+.req-detail.compact .req-detail-hero-chips,
+.req-detail.compact .req-detail-hero-meta {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
 }
 
 /* Hero: 4 stacked rows.
@@ -3000,6 +3081,31 @@
 }
 .conn-toggle-btn:hover { border-color: var(--line-strong); color: var(--ink); }
 .conn-toggle-btn.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+/* Uniform-rel header strip — replaces the per-row rel column when
+ * every visible row shares the same rel_type. Cuts a redundant
+ * column of "Same document … Same document …" down to one label. */
+.conn-uniform-rel {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.conn-uniform-rel-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--ink-4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.conn-uniform-rel-chip {
+  display: inline-flex; align-items: center;
+  font-size: 11px; font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
 
 .conn-body {
   padding: 4px 8px 8px;

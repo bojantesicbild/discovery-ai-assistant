@@ -205,6 +205,10 @@ export default function RequirementDetailView({
   // which kind (accepting → checkmark burst + collapse, rejecting →
   // shake + slide-out). Cleared when the animation + API both finish.
   const [anim, setAnim] = useState<{ id: string; kind: "accepting" | "rejecting" } | null>(null);
+  // Compact header state — chips + meta collapse once the body scrolls
+  // past ~24px. Hysteresis (24 down, 4 up) so a 1-pixel jiggle near the
+  // boundary doesn't toggle the class repeatedly.
+  const [compact, setCompact] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const pending = useMemo(
@@ -288,8 +292,17 @@ export default function RequirementDetailView({
   const ageStr = formatAge(req.created_at);
   const mergedFromCount = (req.version || 1) > 1 ? 1 + (req.sources?.length || 0) : 0;
 
+  function onBodyScroll(e: React.UIEvent<HTMLDivElement>) {
+    const top = e.currentTarget.scrollTop;
+    setCompact((wasCompact) => {
+      if (wasCompact && top < 4) return false;
+      if (!wasCompact && top > 24) return true;
+      return wasCompact;
+    });
+  }
+
   return (
-    <div className="req-detail">
+    <div className={`req-detail${compact ? " compact" : ""}`}>
       {/* Hero — 4 stacked rows: top (back/id/menu) → title → chip trio → meta */}
       <div className="req-detail-hero">
         <div className="req-detail-hero-top">
@@ -384,7 +397,7 @@ export default function RequirementDetailView({
       )}
 
       {/* Body */}
-      <div className="req-detail-body" ref={bodyRef}>
+      <div className="req-detail-body" ref={bodyRef} onScroll={onBodyScroll}>
         {activeView === "history" && history ? (
           historyLoading ? (
             <div className="detail-empty">Loading history…</div>
