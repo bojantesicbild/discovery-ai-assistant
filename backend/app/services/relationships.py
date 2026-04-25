@@ -158,7 +158,13 @@ async def resolve_uuids_to_display(
     """Batch-resolve many (kind, uuid) pairs back to display IDs.
 
     Groups lookups per-kind so a typical Connections query runs 5-6
-    queries total regardless of how many edges it touches."""
+    queries total regardless of how many edges it touches.
+
+    For positional kinds (constraint, contradiction) we also fetch a
+    project-wide ordered uuid list so each row can map back to its
+    canonical CON-NNN / CTR-NNN form — same shape that the list
+    endpoints + resolve_display_id use, so a UUID round-tripped
+    through here ends up at the same display id it came in with."""
     by_kind: dict[str, list[uuid.UUID]] = {}
     for kind, u in pairs:
         by_kind.setdefault(kind, []).append(u)
@@ -171,23 +177,56 @@ async def resolve_uuids_to_display(
         rows = (await db.execute(
             select(Model).where(Model.id.in_(uuids))
         )).scalars().all()
+        idx_map: dict[uuid.UUID, int] | None = None
+        if kind in ("constraint", "contradiction"):
+            idx_map = await _positional_index(db, project_id, Model)
         for r in rows:
-            display, label = _display_for(kind, r)
+            display, label = _display_for(kind, r, idx_map)
             out[(kind, r.id)] = FindingRef(r.id, kind, display, label)
     return out
 
 
-def _display_for(kind: str, row: Any) -> tuple[str, str]:
+async def _positional_index(
+    db: AsyncSession, project_id: uuid.UUID, Model: Any,
+) -> dict[uuid.UUID, int]:
+    """Build a {uuid: 1-based-rank} map for a kind, ordered by
+    (created_at, id) to match the same sequence the list endpoints +
+    the markdown writer use. Lets us turn a UUID back into its
+    canonical CON-NNN / CTR-NNN display form.
+
+    One query per call — fine because we only call it for constraint
+    and contradiction kinds, and only once per request."""
+    rows = (await db.execute(
+        select(Model.id)
+        .where(Model.project_id == project_id)
+        .order_by(Model.created_at, Model.id)
+    )).scalars().all()
+    return {uid: i + 1 for i, uid in enumerate(rows)}
+
+
+def _display_for(
+    kind: str, row: Any,
+    idx_map: dict[uuid.UUID, int] | None = None,
+) -> tuple[str, str]:
     """Per-kind display-id + label extraction. One function so all
-    callers produce consistent labels."""
+    callers produce consistent labels.
+
+    For positional kinds (constraint, contradiction) the caller is
+    expected to pass idx_map — without it, we fall back to the UUID
+    prefix form which won't match resolve_display_id's expectations
+    but is still distinguishable per row."""
     if kind == "requirement":
         return row.req_id, row.title or ""
     if kind == "gap":
         return row.gap_id, (row.question or "")[:80]
     if kind == "constraint":
-        return f"CON-{str(row.id)[:8]}", (row.description or "")[:80]
+        idx = idx_map.get(row.id) if idx_map else None
+        display = f"CON-{idx:03d}" if idx else f"CON-{str(row.id)[:8]}"
+        return display, (row.description or "")[:80]
     if kind == "contradiction":
-        return f"CTR-{str(row.id)[:8]}", row.title or (row.explanation or "")[:80]
+        idx = idx_map.get(row.id) if idx_map else None
+        display = f"CTR-{idx:03d}" if idx else f"CTR-{str(row.id)[:8]}"
+        return display, row.title or (row.explanation or "")[:80]
     if kind == "stakeholder":
         return row.name, row.role or ""
     if kind == "document":
@@ -445,6 +484,15 @@ async def _derived_groups_for(
     source_doc_id = getattr(row, "source_doc_id", None)
     source_person = getattr(row, "source_person", None)
 
+    # Positional index maps for the two kinds that need numeric IDs.
+    # Computed lazily — only fetch when we hit a sibling of that kind.
+    idx_maps: dict[str, dict[uuid.UUID, int]] = {}
+    async def _idx_for(kind: str, Model: Any) -> dict[uuid.UUID, int]:
+        if kind in idx_maps:
+            return idx_maps[kind]
+        idx_maps[kind] = await _positional_index(db, project_id, Model)
+        return idx_maps[kind]
+
     if source_doc_id:
         siblings: list[FindingRef] = []
         for kind, SiblingModel in _MODEL_BY_KIND.items():
@@ -460,8 +508,9 @@ async def _derived_groups_for(
                     SiblingModel.id != center.uuid,
                 ).limit(30)
             )).scalars().all()
+            idx_map = await _idx_for(kind, SiblingModel) if kind in ("constraint", "contradiction") else None
             for r in rows:
-                disp, lbl = _display_for(kind, r)
+                disp, lbl = _display_for(kind, r, idx_map)
                 siblings.append(FindingRef(r.id, kind, disp, lbl))
         if siblings:
             doc = await db.get(Document, source_doc_id)
@@ -484,8 +533,9 @@ async def _derived_groups_for(
                     SiblingModel.id != center.uuid,
                 ).limit(30)
             )).scalars().all()
+            idx_map = await _idx_for(kind, SiblingModel) if kind in ("constraint", "contradiction") else None
             for r in rows:
-                disp, lbl = _display_for(kind, r)
+                disp, lbl = _display_for(kind, r, idx_map)
                 siblings.append(FindingRef(r.id, kind, disp, lbl))
         if siblings:
             groups.append(DerivedGroup(
