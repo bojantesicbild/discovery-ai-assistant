@@ -100,7 +100,7 @@ export function GapsTab({
   return (
     <div className="dp-tab-content active">
       {/* Sub-tabs: Gaps | Constraints | Conflicts */}
-      <div className="dp-subtabs" style={{ padding: "12px 32px 0" }}>
+      <div className="dp-subtabs">
         {([
           { id: "gaps" as const,        label: "Gaps",        count: gaps.length },
           { id: "constraints" as const, label: "Constraints", count: constraints.length },
