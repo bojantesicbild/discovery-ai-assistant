@@ -346,22 +346,12 @@
   align-items: flex-start;
   gap: 3px;
   padding-top: 1px;
-  padding-right: 14px;
-  position: relative;
-}
-/* Vertical separator between id column and body — short centered
- * pill, not a full-height rule. Uses --line-strong for a quiet but
- * visible divider that reads as "these are two zones". */
-.req-id::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 0;
-  width: 2px;
-  height: 28px;
-  border-radius: 999px;
-  background: var(--line-strong);
-  transform: translateY(-50%);
+  /* padding-right matches the parent .req `gap: 12px` so the
+   * dashed separator sits at a symmetric 12-1-12 sandwich:
+   * id-text → 12px → border → 12px → body-text. */
+  padding-right: 12px;
+  border-right: 1px dashed var(--line);
+  align-self: stretch;
 }
 .req-id-head {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2195,52 +2185,102 @@
   color: var(--ink-2);
 }
 
-/* Combined source citation — green-tinted block holding the quote on
- * top and the source-doc attribution on the bottom, separated by a
- * dashed accent rule. Reads as one cohesive citation instead of two
- * loose pieces stacked. */
+/* Source citation — neutral document-card treatment.
+ *
+ * The earlier green-wash version was too loud for body content —
+ * accent green is reserved for *signals* (confirmed status, accept
+ * actions, tab counts), not source references. So the citation now
+ * reads quiet + editorial: a clickable filename header strip on top,
+ * an italic pull-quote with a decorative ❝ glyph below.
+ */
 .source-citation {
-  background: var(--accent-soft);
-  border: 1px solid rgba(0,168,100,.18);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius-xs, 8px) var(--radius-xs, 8px) 0;
-  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
   margin: 6px 0 12px;
-}
-.source-citation-quote {
-  font-size: 13.5px;
-  color: var(--ink);
-  line-height: 1.55;
-  font-style: italic;
-  font-weight: 500;
-}
-.source-citation-attrib {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed rgba(0,168,100,.3);
-  font-size: 11.5px;
-  color: var(--ink-3);
-  width: 100%;
-}
-.source-citation-attrib .em-dash {
-  color: var(--accent-ink);
-  font-weight: 700;
-}
-.source-citation-attrib svg {
-  width: 12px; height: 12px;
-  color: var(--accent-ink);
-  flex-shrink: 0;
-}
-.source-citation-link {
-  color: var(--accent-ink);
-  font-weight: 600;
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
+  overflow: hidden;
   transition: border-color .15s;
 }
-.source-citation-link:hover { border-bottom-color: var(--accent-ink); }
-.source-citation-attrib .plain { color: var(--ink-2); font-weight: 500; }
+.source-citation:hover { border-color: var(--line-strong); }
+
+.source-citation-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--ink-2);
+  text-decoration: none;
+  cursor: default;
+  transition: background .15s, color .15s;
+}
+.source-citation-header.clickable { cursor: pointer; }
+.source-citation-header.clickable:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+.source-citation-header .file-icon {
+  width: 14px; height: 14px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+  transition: color .15s;
+}
+.source-citation-header.clickable:hover .file-icon { color: var(--accent-ink); }
+.source-citation-header .file-name {
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.source-citation-header .open-arrow {
+  width: 13px; height: 13px;
+  color: var(--ink-4);
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity .15s, transform .15s, color .15s;
+}
+.source-citation-header.clickable:hover .open-arrow {
+  opacity: 1;
+  transform: translateX(2px);
+  color: var(--accent-ink);
+}
+
+.source-citation-body {
+  padding: 16px 22px 18px 38px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  font-style: italic;
+  font-weight: 500;
+  position: relative;
+}
+.source-citation-body::before {
+  content: "\201C"; /* left double quotation mark */
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  font-size: 38px;
+  line-height: 1;
+  color: var(--line-strong);
+  font-style: normal;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  pointer-events: none;
+}
+/* When there's no quote (only filename), the header has no bottom
+ * border — keeps the citation card from looking like an empty box. */
+.source-citation:not(:has(.source-citation-body)) .source-citation-header {
+  border-bottom: 0;
+}
 
 .blocked-chip-row {
   display: flex; flex-wrap: wrap; gap: 6px;
@@ -2734,12 +2774,20 @@
 .conn-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
 .conn-tab .tab-c {
   font-size: 10px; font-weight: 700;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-3);
+  letter-spacing: 0.02em;
+  transition: background .15s, color .15s;
 }
-.conn-tab.active .tab-c { background: var(--accent-soft); color: var(--accent-ink); }
+/* Active tab count — bright neon-green pill, same hue as the section
+ * total badge so the eye reads "this is the live count for this view". */
+.conn-tab.active .tab-c {
+  background: var(--accent);
+  color: #0A1A10;
+  font-weight: 800;
+}
 
 /* Filter dropdown trigger inside conn-head-right */
 .conn-filter-btn {
