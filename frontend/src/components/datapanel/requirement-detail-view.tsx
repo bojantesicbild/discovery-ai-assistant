@@ -11,7 +11,7 @@ import {
   getItemHistory, type HistoryEntry,
   type ApiRequirement, type ProposedUpdate, type ProposedField,
 } from "@/lib/api";
-import { formatAge, formatRaisedMeta } from "@/lib/dates";
+import { formatAge } from "@/lib/dates";
 import { RejectModal } from "./proposed-updates-section";
 
 
@@ -54,21 +54,14 @@ function ago(iso: string | null | undefined): string {
 }
 
 
-// Map meta values to .chip variants so the meta row mirrors the rest of v2.
-function metaVariant(key: string, value: string): string {
-  if (key === "priority") {
-    if (value === "must") return "red";
-    if (value === "should") return "amber";
-    if (value === "could") return "blue";
-    return "";
-  }
-  if (key === "status") {
-    if (value === "confirmed" || value === "resolved") return "green";
-    if (value === "open" || value === "discussed") return "amber";
-    if (value === "dismissed") return "";
-    return "";
-  }
-  return "";
+// Hero chip helpers.
+// The status chip uses the canonical .status / .status.confirmed /
+// .status.discussed pattern (dot + label) so it matches RequirementsTab
+// rows. Confidence stays a neutral .chip with the literal label.
+function statusChipClasses(status: string): string {
+  if (status === "confirmed" || status === "resolved") return "status confirmed";
+  if (status === "discussed") return "status discussed";
+  return "status"; // proposed / pending / open
 }
 
 
@@ -242,58 +235,88 @@ export default function RequirementDetailView({
   const listProposals = (f: ProposedField): ProposedUpdate[] =>
     byField[f] || [];
 
-  const metaEntries: [string, string][] = [
-    ["priority", req.priority],
-    ["status", req.status],
-    ["confidence", req.confidence],
-    ["version", `v${req.version || 1}${req.version > 1 ? ` · merged from ${1 + (req.sources?.length || 0)} docs` : ""}`],
-    ["source", req.source_doc || "unknown"],
-  ];
-  const raised = formatRaisedMeta(req.created_at);
-  if (raised) metaEntries.push(["raised", raised]);
-  if (req.source_person) metaEntries.push(["requested_by", req.source_person]);
-
   const blockedBy = req.blocked_by || [];
   const alternatives = req.alternatives_considered || [];
   const rationale = (req.rationale || "").trim();
   const scopeNote = (req.scope_note || "").trim();
   const userPerspective = (req.user_perspective || "").trim();
 
+  const ageStr = formatAge(req.created_at);
+  const mergedFromCount = (req.version || 1) > 1 ? 1 + (req.sources?.length || 0) : 0;
+
   return (
     <div className="req-detail">
-      {/* Hero: back + id/version + title */}
+      {/* Hero — 4 stacked rows: top (back/id/menu) → title → chip trio → meta */}
       <div className="req-detail-hero">
-        <button type="button" className="req-detail-back" onClick={onClose} aria-label="Back">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-        </button>
-        <div className="req-detail-title">
-          <div className="req-detail-title-row">
+        <div className="req-detail-hero-top">
+          <button type="button" className="req-detail-back" onClick={onClose} aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <span className="req-detail-id-pair">
             <span className="id">{req.req_id}</span>
             <span className="v">v{req.version || 1}</span>
-          </div>
-          <h1>{req.title}</h1>
+          </span>
+          <HeroOverflowMenu
+            displayId={req.req_id}
+            onCopyId={() => navigator.clipboard.writeText(req.req_id)}
+            onCopyLink={() => {
+              try { navigator.clipboard.writeText(window.location.href); } catch {}
+            }}
+          />
         </div>
-      </div>
 
-      {/* Meta row — chips */}
-      <div className="req-detail-meta">
-        {metaEntries.map(([key, value]) => {
-          const variant = metaVariant(key, value);
-          return (
-            <span key={key} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <span className="meta-label">{key}</span>
-              <span className={`chip xs${variant ? ` ${variant}` : ""}`}>{value}</span>
+        <h1 className="req-detail-title-h1">{req.title}</h1>
+
+        <div className="req-detail-hero-chips">
+          {req.priority && <span className={`pri ${req.priority}`}>{req.priority}</span>}
+          {req.status && (
+            <span className={statusChipClasses(req.status)}>
+              {req.status !== "confirmed" && req.status !== "resolved" && <span className="dot" />}
+              {req.status}
             </span>
-          );
-        })}
+          )}
+          {req.confidence && <span className="chip xs">{req.confidence} confidence</span>}
+        </div>
+
+        <div className="req-detail-hero-meta">
+          {req.source_doc && (
+            <span className="source-icon" title={req.source_doc}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              {req.source_doc}
+            </span>
+          )}
+          {ageStr && (
+            <>
+              <span className="sep">·</span>
+              <span title={req.created_at ? new Date(req.created_at).toLocaleString() : undefined}>
+                Raised {ageStr}
+              </span>
+            </>
+          )}
+          {req.source_person && (
+            <>
+              <span className="sep">·</span>
+              <span>by <strong>{req.source_person}</strong></span>
+            </>
+          )}
+          {mergedFromCount > 0 && (
+            <>
+              <span className="sep">·</span>
+              <span>merged from {mergedFromCount} docs</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Action buttons */}
       {actions && actions.length > 0 && (
         <div className="req-detail-actions">
-          <span className="label">Set status:</span>
+          <span className="label">Set status</span>
           {actions.map((action) => {
             const cls = action.value === "confirmed" ? "confirm" : action.value === "dismissed" ? "dismiss" : "discuss";
             return (
@@ -394,7 +417,7 @@ export default function RequirementDetailView({
 
             {slotTop}
 
-            <div style={{ fontSize: 13, lineHeight: 1.7, color: "var(--ink)" }}>
+            <div className="req-detail-content-card" style={{ fontSize: 13, lineHeight: 1.7, color: "var(--ink)" }}>
               <FieldSection
                 label="Description"
                 stringProposal={stringProposal("description")}
@@ -713,6 +736,59 @@ export default function RequirementDetailView({
             await handleReject(id, reason);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+
+function HeroOverflowMenu({
+  displayId, onCopyId, onCopyLink,
+}: {
+  displayId: string;
+  onCopyId: () => void;
+  onCopyLink: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", marginLeft: "auto" }}>
+      <button
+        type="button"
+        className="req-detail-overflow"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="More actions"
+        title="More actions"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="5" r="1.4" /><circle cx="12" cy="12" r="1.4" /><circle cx="12" cy="19" r="1.4" />
+        </svg>
+      </button>
+      {open && (
+        <div className="req-detail-overflow-menu" role="menu">
+          <button type="button" onClick={() => { onCopyId(); setOpen(false); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+              <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+            Copy ID ({displayId})
+          </button>
+          <button type="button" onClick={() => { onCopyLink(); setOpen(false); }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ width: 13, height: 13 }}>
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            Copy link
+          </button>
+        </div>
       )}
     </div>
   );

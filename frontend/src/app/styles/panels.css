@@ -1726,12 +1726,27 @@
   background: var(--bg);
 }
 
+/* Hero: 4 stacked rows.
+ *   1. top    — back + id/version pair + overflow menu
+ *   2. title  — large bold headline
+ *   3. chips  — pri + status + confidence trio (loud)
+ *   4. meta   — secondary line (source · raised · by · merged)
+ *
+ * No more inline "PRIORITY:" / "STATUS:" labels — chips speak for
+ * themselves. The id+version pair lives small & mono above the title
+ * like a doc reference, which mirrors the requirements-list .req-id
+ * column shape.
+ */
 .req-detail-hero {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 20px 10px;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 18px 24px 16px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: var(--bg);
+}
+
+.req-detail-hero-top {
+  display: flex; align-items: center; gap: 10px;
 }
 .req-detail-back {
   width: 32px; height: 32px;
@@ -1742,80 +1757,156 @@
   color: var(--ink-3);
   cursor: pointer;
   flex-shrink: 0;
-  transition: border-color .15s, color .15s;
+  transition: border-color .15s, color .15s, transform .12s;
 }
-.req-detail-back:hover { border-color: var(--line-strong); color: var(--ink); }
+.req-detail-back:hover { border-color: var(--line-strong); color: var(--ink); transform: translateX(-1px); }
 .req-detail-back svg { width: 14px; height: 14px; }
 
-.req-detail-title {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column; gap: 3px;
-}
-.req-detail-title-row {
+.req-detail-id-pair {
   display: inline-flex; align-items: center; gap: 6px;
-  min-width: 0;
 }
-.req-detail-title-row .id {
+.req-detail-id-pair .id {
   font-family: var(--font-mono);
-  font-size: 12.5px; font-weight: 700;
+  font-size: 13px; font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
 }
-.req-detail-title-row .v {
+.req-detail-id-pair .v {
   font-size: 10px; font-weight: 700;
   color: var(--could);
   font-family: var(--font-mono);
-  padding: 1px 5px;
+  padding: 1px 6px;
   background: var(--could-soft);
-  border-radius: 4px;
-}
-.req-detail-title h1 {
-  margin: 0;
-  font-size: 17px; font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.015em;
-  line-height: 1.25;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  border-radius: 5px;
+  letter-spacing: 0;
 }
 
-.req-detail-meta {
-  display: flex; flex-wrap: wrap; gap: 8px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--line);
-  align-items: center;
-  font-size: 11px;
+.req-detail-overflow {
+  margin-left: auto;
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
   color: var(--ink-3);
+  cursor: pointer;
+  display: grid; place-items: center;
+  font-size: 18px;
+  transition: border-color .15s, color .15s, background .15s;
+  position: relative;
 }
-.req-detail-meta .meta-label {
-  font-weight: 600;
-  color: var(--ink-4);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-  margin-right: 2px;
+.req-detail-overflow:hover { border-color: var(--line-strong); color: var(--ink); background: var(--surface-2); }
+.req-detail-overflow svg { width: 16px; height: 16px; }
+
+/* Title — big and bold, full width, can wrap to two lines if long. */
+.req-detail-title-h1 {
+  margin: 0;
+  font-size: 24px; font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  /* allow wrap, but cap at 3 lines for stability */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+
+.req-detail-hero-chips {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center;
+}
+/* Make hero chips a touch louder than tabular row chips —
+ * they are the thing the PM scans first. */
+.req-detail-hero-chips .pri {
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
+.req-detail-hero-chips .status {
+  font-size: 12px;
+}
+.req-detail-hero-chips .status.confirmed {
+  font-size: 11.5px;
+  padding: 3px 12px;
+  letter-spacing: 0.04em;
+}
+.req-detail-hero-chips .chip {
+  font-size: 11.5px;
+}
+
+/* Secondary meta line — quiet, single row, dot-separated. */
+.req-detail-hero-meta {
+  display: flex; flex-wrap: wrap;
+  align-items: center; gap: 6px 10px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.4;
+}
+.req-detail-hero-meta strong { color: var(--ink); font-weight: 600; }
+.req-detail-hero-meta .sep { color: var(--ink-4); }
+.req-detail-hero-meta .source-icon {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--could);
+  font-weight: 500;
+}
+.req-detail-hero-meta .source-icon svg { width: 12px; height: 12px; }
+
+/* Hero overflow menu (kebab) */
+.req-detail-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 50;
+  display: flex; flex-direction: column;
+  gap: 1px;
+}
+.req-detail-overflow-menu button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.req-detail-overflow-menu button:hover { background: var(--bg); color: var(--ink); }
+.req-detail-overflow-menu button.danger { color: var(--must); }
+.req-detail-overflow-menu button.danger:hover { background: var(--must-soft); }
 
 .req-detail-actions {
   display: flex; gap: 8px;
-  padding: 10px 20px;
+  padding: 10px 24px;
   border-bottom: 1px solid var(--line);
   align-items: center;
+  background: var(--surface-2);
 }
 .req-detail-actions .label {
-  font-size: 11px; color: var(--ink-4);
-  font-weight: 600;
+  font-size: 11px; color: var(--ink-3);
+  font-weight: 700;
   margin-right: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .req-detail-subtabs {
   display: flex;
-  padding: 0 20px;
+  padding: 0 24px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+  background: var(--bg);
 }
 .req-detail-subtab {
   padding: 10px 14px;
-  font-size: 12px; font-weight: 600;
+  font-size: 12.5px; font-weight: 600;
   background: none; border: 0;
   color: var(--ink-3);
   border-bottom: 2px solid transparent;
@@ -1831,7 +1922,32 @@
 
 .req-detail-body {
   flex: 1; overflow: auto;
-  padding: 16px 20px;
+  padding: 18px 24px;
+  background: var(--bg);
+}
+
+/* Single white "document" card that wraps every field section.
+ * Reads as one cohesive doc rather than a wall of stacked text on
+ * the page background. Internal sections still use .field-header
+ * spacing — the card just gives the body shape + contrast.
+ */
+.req-detail-content-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 26px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.req-detail-content-card > .field-header:first-child { margin-top: 0; }
+
+/* Subtle divider between sections inside the doc card — only used
+ * where the eye benefits from it (between description + criteria,
+ * not between every header). */
+.req-detail-divider {
+  border: 0;
+  height: 1px;
+  background: var(--line);
+  margin: 18px 0 4px;
 }
 
 /* ==== Accept / Reject inline buttons (shared with feedback + proposed) ==== */
@@ -2409,66 +2525,258 @@
 }
 .modal-actions .btn-danger:hover { background: #b91c1c; }
 
-/* ==== Connections section (BR / gap / constraint / contradiction detail) ==== */
+/* ==== Connections section (BR / gap / constraint / contradiction detail) ====
+ *
+ * Layout:
+ *   .conn-section
+ *     .conn-head    — title + total + filter dropdown + show-derived toggle
+ *     .conn-tabs    — All | Outgoing | Incoming | Derived (segmented)
+ *     .conn-body    — rows or grouped (by neighbor kind) view
+ *
+ * Each .conn-row reads left→right: kind chip, rel-type label, neighbor
+ * label, confidence pill, source-doc chip, kebab. Hovering reveals the
+ * kebab; clicking it opens .conn-row-menu with retract / jump / copy.
+ */
 .conn-section {
   margin-top: 20px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--surface);
-  overflow: hidden;
+  overflow: visible; /* allow row menus to spill out */
+  box-shadow: var(--shadow-sm);
 }
+
 .conn-head {
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+  border-radius: 14px 14px 0 0;
 }
-.conn-head .title { font-size: 13px; font-weight: 700; color: var(--ink); }
-.conn-head .count { font-size: 11px; color: var(--ink-3); }
-
-.conn-body { padding: 10px 14px; }
-
-.conn-row {
+.conn-head-left {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 0;
+  min-width: 0;
+}
+.conn-head .title-icon {
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.conn-head .title-icon svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.conn-head .title { font-size: 13.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.005em; }
+.conn-head .count {
+  font-size: 11px; font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+}
+
+.conn-head-right {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+
+.conn-tabs {
+  display: flex;
+  padding: 8px 12px 0;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
+.conn-tab {
+  padding: 6px 12px;
+  font-size: 12px; font-weight: 600;
+  color: var(--ink-3);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: color .15s, border-color .15s;
+}
+.conn-tab:hover { color: var(--ink); }
+.conn-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+.conn-tab .tab-c {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+.conn-tab.active .tab-c { background: var(--accent-soft); color: var(--accent-ink); }
+
+/* Filter dropdown trigger inside conn-head-right */
+.conn-filter-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .15s, color .15s;
+}
+.conn-filter-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.conn-filter-btn.active { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.conn-filter-btn svg { width: 11px; height: 11px; }
+
+/* Sort/group toggle button */
+.conn-toggle-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.conn-toggle-btn:hover { border-color: var(--line-strong); color: var(--ink); }
+.conn-toggle-btn.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+.conn-body {
+  padding: 4px 8px 8px;
+  background: var(--surface);
+  border-radius: 0 0 14px 14px;
+}
+
+/* Row layout — wider, hoverable, kebab on hover */
+.conn-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  position: relative;
+  transition: background .12s;
+  flex-wrap: wrap;
+}
+.conn-row:hover { background: var(--surface-2); }
+.conn-row + .conn-row { border-top: 1px solid var(--line); border-radius: 0; }
+.conn-row + .conn-row:hover { border-radius: 0; }
+
+.conn-row .dir-arrow {
+  flex-shrink: 0;
+  width: 14px; height: 14px;
+  color: var(--ink-4);
+}
+.conn-row .dir-arrow.in { color: var(--could); transform: rotate(180deg); }
+.conn-row .dir-arrow.out { color: var(--accent-ink); }
+
 .conn-row .rel {
   font-size: 11px; font-weight: 600;
   color: var(--ink-2);
-  min-width: 120px;
+  min-width: 110px;
+  white-space: nowrap;
 }
 .conn-row .label {
-  font-size: 11px; color: var(--ink-3);
+  font-size: 12px; color: var(--ink-2);
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .conn-row .source {
-  font-size: 10px; color: var(--ink-3);
-  padding: 1px 6px;
-  border-radius: 8px;
+  font-size: 10.5px; color: var(--ink-3);
+  padding: 2px 7px;
+  border-radius: 999px;
   background: var(--surface-2);
   border: 1px solid var(--line);
   white-space: nowrap; max-width: 200px;
   overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; gap: 4px;
 }
+.conn-row .source svg { width: 10px; height: 10px; flex-shrink: 0; opacity: .7; }
 
-.conn-derived {
-  margin-top: 10px; padding-top: 10px;
-  border-top: 1px dashed var(--line);
-  opacity: .85;
+/* Kebab — visible on row hover only, clickable always */
+.conn-row-kebab {
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-4);
+  cursor: pointer;
+  display: grid; place-items: center;
+  opacity: 0;
+  transition: opacity .12s, background .12s, color .12s;
+  flex-shrink: 0;
 }
-.conn-derived .group { padding: 6px 0; }
-.conn-derived .group-label {
+.conn-row:hover .conn-row-kebab,
+.conn-row-kebab.open { opacity: 1; }
+.conn-row-kebab:hover { background: var(--bg); color: var(--ink); }
+.conn-row-kebab svg { width: 14px; height: 14px; }
+
+.conn-row-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: 6px;
+  min-width: 180px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 5px;
+  z-index: 30;
+  display: flex; flex-direction: column;
+  gap: 1px;
+}
+.conn-row-menu button {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12.5px; font-weight: 500;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+.conn-row-menu button:hover { background: var(--bg); color: var(--ink); }
+.conn-row-menu button.danger { color: var(--must); }
+.conn-row-menu button.danger:hover { background: var(--must-soft); }
+.conn-row-menu button svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* Group-by-kind view — section heading + chip cluster */
+.conn-group {
+  padding: 8px 6px;
+}
+.conn-group + .conn-group { border-top: 1px solid var(--line); }
+.conn-group-head {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 6px;
+}
+.conn-group-label {
   font-size: 10px; font-weight: 700;
   color: var(--ink-3);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 4px;
+  letter-spacing: 0.08em;
 }
-.conn-derived .group-members {
+.conn-group-count {
+  font-size: 10px; font-weight: 700;
+  color: var(--ink-3);
+}
+.conn-group-members {
   display: flex; flex-wrap: wrap; gap: 6px;
 }
+
+/* Empty state inside conn-body */
+.conn-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-4);
+}
+
+/* Derived edge has a quieter visual treatment — italic rel + opacity */
+.conn-row.derived { opacity: .82; }
+.conn-row.derived .rel { font-style: italic; color: var(--ink-3); }
 
 /* Kind chip — link styled, color-coded by ref kind */
 .kind-chip {
