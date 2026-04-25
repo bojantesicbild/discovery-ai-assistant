@@ -500,7 +500,11 @@
   color: #B91C1C;
   border-radius: 8px;
   font-size: 11px; font-weight: 700;
+  transition:
+    background-color 220ms cubic-bezier(.2,.8,.2,1),
+    transform        220ms cubic-bezier(.2,.8,.2,1);
 }
+.req:hover .req-warn { transform: translateY(-1px); }
 .req-warn svg { width: 12px; height: 12px; }
 .kebab {
   width: 28px; height: 28px;
@@ -2002,27 +2006,40 @@
 .req-detail-overflow-menu button.danger { color: var(--must); }
 .req-detail-overflow-menu button.danger:hover { background: var(--must-soft); }
 
-.req-detail-actions {
-  display: flex; gap: 8px;
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--line);
-  align-items: center;
-  background: var(--surface-2);
-}
-.req-detail-actions .label {
-  font-size: 11px; color: var(--ink-3);
-  font-weight: 700;
-  margin-right: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.req-detail-subtabs {
-  display: flex;
+/* Combined row — sub-tabs anchor left, "Set status · …" floats right.
+ * Single bottom border on the row (children don't draw their own) so
+ * the active sub-tab's underline stays the only structural divider. */
+.req-detail-tab-row {
+  display: flex; align-items: center; gap: 16px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: var(--bg);
+  flex-wrap: wrap;
+}
+
+.req-detail-actions {
+  display: inline-flex; gap: 6px;
+  align-items: center;
+  margin-left: auto;
+  padding: 6px 0;
+  background: transparent;
+  border: 0;
+}
+.req-detail-actions .label {
+  font-size: 10px; color: var(--ink-4);
+  font-weight: 700;
+  margin-right: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.req-detail-subtabs {
+  display: flex;
+  padding: 0;
+  border-bottom: 0;
+  flex-shrink: 0;
+  background: transparent;
 }
 .req-detail-subtab {
   padding: 10px 14px;
@@ -3272,22 +3289,35 @@
 .confidence-pill.proposed { background: var(--should-soft); color: #B45309; border-color: rgba(245,158,11,.2); }
 .confidence-pill.derived  { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); }
 
-/* Status-setting button (used in BR detail actions row) */
+/* Status-setting button — chip-shaped pill that lives inside the
+ * combined sub-tabs/actions row. Tighter padding + 999px radius +
+ * a shared "dot" prefix per variant make the trio visually balanced
+ * regardless of label length. */
 .btn-status {
-  padding: 5px 14px;
-  border-radius: var(--radius-xs, 6px);
-  font-size: 12px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: 11.5px; font-weight: 700;
   cursor: pointer;
   font-family: inherit;
   border: 1px solid transparent;
-  transition: background .15s, border-color .15s;
+  letter-spacing: -0.005em;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.btn-status.confirm { background: var(--accent-soft); color: var(--accent-ink); border-color: rgba(0,168,100,.2); }
-.btn-status.confirm:hover { background: var(--accent); color: #0A1A10; }
-.btn-status.dismiss { background: var(--must-soft); color: var(--must); border-color: rgba(239,68,68,.2); }
-.btn-status.dismiss:hover { background: #fecaca; }
-.btn-status.discuss { background: var(--should-soft); color: #B45309; border-color: rgba(245,158,11,.2); }
-.btn-status.discuss:hover { background: #fde68a; }
+.btn-status::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .8;
+  flex-shrink: 0;
+}
+.btn-status.confirm  { background: var(--accent-soft); color: var(--accent-ink); border-color: rgba(0,168,100,.22); }
+.btn-status.confirm:hover  { background: var(--accent); color: #0A1A10; border-color: var(--accent); }
+.btn-status.dismiss  { background: var(--must-soft); color: var(--must); border-color: rgba(239,68,68,.22); }
+.btn-status.dismiss:hover  { background: #fecaca; border-color: var(--must); }
+.btn-status.discuss  { background: var(--should-soft); color: #B45309; border-color: rgba(245,158,11,.22); }
+.btn-status.discuss:hover  { background: #fde68a; border-color: var(--should); }
 
 /* ==== Primary button (black pill, used for Generate All, etc) ==== */
 .btn-primary {

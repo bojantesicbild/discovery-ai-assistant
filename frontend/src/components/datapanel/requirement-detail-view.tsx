@@ -360,39 +360,43 @@ export default function RequirementDetailView({
         </div>
       </div>
 
-      {/* Action buttons */}
-      {actions && actions.length > 0 && (
-        <div className="req-detail-actions">
-          <span className="label">Set status</span>
-          {actions.map((action) => {
-            const cls = statusActionClass(action.value, action.label);
-            return (
-              <button
-                key={`${action.value}-${action.label}`}
-                type="button"
-                className={`btn-status ${cls}`}
-                onClick={() => onAction?.(action.value)}
-              >
-                {action.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Sub-tabs (Content / History) merged with status actions on one row.
+       * Sub-tabs anchor left, "Set status · Confirm · Drop" floats right. */}
+      {(history || (actions && actions.length > 0)) && (
+        <div className="req-detail-tab-row">
+          {history ? (
+            <div className="req-detail-subtabs">
+              {(["content", "history"] as const).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setActiveView(view)}
+                  className={`req-detail-subtab${activeView === view ? " active" : ""}`}
+                >
+                  {view}
+                </button>
+              ))}
+            </div>
+          ) : <span />}
 
-      {/* History sub-tabs */}
-      {history && (
-        <div className="req-detail-subtabs">
-          {(["content", "history"] as const).map((view) => (
-            <button
-              key={view}
-              type="button"
-              onClick={() => setActiveView(view)}
-              className={`req-detail-subtab${activeView === view ? " active" : ""}`}
-            >
-              {view}
-            </button>
-          ))}
+          {actions && actions.length > 0 && (
+            <div className="req-detail-actions">
+              <span className="label">Set status</span>
+              {actions.map((action) => {
+                const cls = statusActionClass(action.value, action.label);
+                return (
+                  <button
+                    key={`${action.value}-${action.label}`}
+                    type="button"
+                    className={`btn-status ${cls}`}
+                    onClick={() => onAction?.(action.value)}
+                  >
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
