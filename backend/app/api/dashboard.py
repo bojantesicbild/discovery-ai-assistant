@@ -328,6 +328,9 @@ async def trigger_gap_analysis(
         user_id=user.id,
         message="Run a full gap analysis on all control points. Classify each gap as AUTO-RESOLVE, ASK-CLIENT, or ASK-PO.",
         agent="discovery-gap-agent",
+        # One-shot trigger — fresh session each time; do not pollute the
+        # (project, user) session cache.
+        resume=False,
     ):
         if event["type"] == "text":
             result_text += event["content"]

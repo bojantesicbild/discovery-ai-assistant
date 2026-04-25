@@ -479,6 +479,11 @@ async def prep_reminder(db: AsyncSession, reminder_id: uuid.UUID) -> Reminder:
             user_id=reminder.created_by_user_id,
             message=prompt,
             agent=reminder.prep_agent,
+            # Each scheduled reminder is a one-shot prep run — never
+            # inherit nor leak its session into the (project, user) cache,
+            # otherwise back-to-back reminders for the same user would
+            # accidentally see each other's transcripts.
+            resume=False,
         ):
             etype = event.get("type")
             if etype == "thinking":

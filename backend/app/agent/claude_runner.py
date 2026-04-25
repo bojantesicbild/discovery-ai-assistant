@@ -127,6 +127,25 @@ class ClaudeCodeRunner:
         # Ensure uploads dir
         (project_dir / "uploads").mkdir(exist_ok=True)
 
+        # Scope git to this project dir. Without an isolated `.git` here,
+        # `git status` / `git diff` issued by the chat agent walk up the
+        # filesystem and report on whatever repo contains .runtime/ —
+        # leaking the orchestrator's source tree into PM-facing chat
+        # responses. An empty repo here makes git report a clean state
+        # and stops the leak.
+        git_dir = project_dir / ".git"
+        if not git_dir.exists():
+            try:
+                import subprocess
+                subprocess.run(
+                    ["git", "init", "--quiet"],
+                    cwd=str(project_dir),
+                    check=False,
+                    capture_output=True,
+                )
+            except Exception as e:
+                log.warning("git init failed in project dir", error=str(e))
+
         # .raw/ inside the vault holds the original payload of every
         # ingested document (Gmail message, Drive file, manual upload,
         # Slack thread). Derived notes get a `source_raw:` frontmatter
@@ -365,8 +384,18 @@ class ClaudeCodeRunner:
         allowed_tools: Optional[list[str]] = None,
         agent: Optional[str] = None,
         model: Optional[str] = None,
+        resume: bool = True,
     ) -> AsyncGenerator[dict, None]:
-        """Stream Claude Code response. Resumes session if one exists."""
+        """Stream Claude Code response.
+
+        ``resume`` (default True) opts the call into the per-(project,user)
+        session — multi-turn conversations like web chat and Slack inbound
+        rely on this to pick up where the last turn left off. One-shot
+        runs (handoff doc generation, gap-analysis trigger, scheduled
+        reminder prep) should pass ``resume=False`` so they neither
+        inherit a stale unrelated transcript on startup nor leak their
+        own session into whatever runs next under the same key.
+        """
 
         project_dir = self.get_project_dir(project_id)
         # Refresh .mcp.json with enabled integrations (Gmail, Slack, ...)
@@ -376,7 +405,10 @@ class ClaudeCodeRunner:
             log.warning("refresh_mcp_config failed, continuing with existing config", error=str(e))
 
         session_key = self._session_key(project_id, user_id)
-        session_id = self._sessions.get(session_key)
+        # Only consult the cached session_id when the caller wants to
+        # resume. One-shot runs always start fresh — they neither read
+        # from nor write to _sessions.
+        session_id = self._sessions.get(session_key) if resume else None
 
         cmd = [
             "claude",
@@ -432,8 +464,14 @@ class ClaudeCodeRunner:
                 if event_type == "system" and event.get("subtype") == "init":
                     new_session_id = event.get("session_id")
                     if new_session_id:
-                        self._sessions[session_key] = new_session_id
-                        log.info("Session", session_id=new_session_id, resumed=bool(session_id))
+                        # Only cache the session for resumable callers.
+                        # One-shot runs (resume=False) keep _sessions clean
+                        # so they can't accidentally hand a stale transcript
+                        # to the next caller under the same (project, user)
+                        # key.
+                        if resume:
+                            self._sessions[session_key] = new_session_id
+                        log.info("Session", session_id=new_session_id, resumed=bool(session_id), cached=resume)
                     yield {"type": "session", "session_id": new_session_id}
                     continue
 

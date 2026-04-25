@@ -354,6 +354,12 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
     activity_thinking = 0
     last_phase: str | None = None
     last_update_ms = 0.0
+    # Capture the Claude Code session id from the agent run so we can
+    # write it into the persisted assistant message. Without this, after
+    # a backend restart the chat handler can't `--resume` into the
+    # extraction transcript and the user sees a chat that doesn't know
+    # what was just extracted.
+    captured_session_id: str | None = None
 
     def _flush_activity() -> None:
         nonlocal activity_tools, activity_thinking
@@ -405,7 +411,9 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
             model="sonnet",  # extraction benefits from the stronger model
         ):
             etype = event.get("type")
-            if etype == "thinking":
+            if etype == "session":
+                captured_session_id = event.get("session_id") or captured_session_id
+            elif etype == "thinking":
                 thinking_count += 1
                 activity_thinking += 1
                 last_phase = "activity"
@@ -461,6 +469,7 @@ async def _stage_extract(db, doc: Document, project=None) -> dict:
                     "segments": segments,
                     "toolCalls": tool_calls,
                     "thinkingCount": thinking_count,
+                    "session_id": captured_session_id,
                     "_processing": False,
                 },
             )

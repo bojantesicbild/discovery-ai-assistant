@@ -79,6 +79,9 @@ async def generate_handoff(
                     "Apply source attribution on every claim: [CONFIRMED] or [ASSUMED]. "
                     "Write the documents to .memory-bank/docs/discovery/",
             agent="discovery-docs-agent",
+            # Handoff doc generation is a one-shot — start fresh and do
+            # not pollute the (project, user) session cache.
+            resume=False,
         ):
             event_type = event.get("type")
             if event_type == "text":
