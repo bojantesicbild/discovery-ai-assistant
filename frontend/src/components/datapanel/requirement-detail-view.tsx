@@ -687,24 +687,33 @@ export default function RequirementDetailView({
               {(req.source_quote || req.source_doc) && (
                 <>
                   <FieldHeader label="Source" />
-                  {req.source_quote && (
-                    <blockquote className="source-quote">{req.source_quote}</blockquote>
-                  )}
-                  {req.source_doc && (
-                    req.source_doc_id ? (
-                      <a
-                        href={`doc://${req.source_doc_id}`}
-                        className="source-doc-link"
-                        onClick={(e) => {
-                          if (!onLinkClick) return;
-                          const handled = onLinkClick(`doc://${req.source_doc_id}`);
-                          if (handled !== false) e.preventDefault();
-                        }}
-                      >{req.source_doc}</a>
-                    ) : (
-                      <span className="source-doc-plain">{req.source_doc}</span>
-                    )
-                  )}
+                  <div className="source-citation">
+                    {req.source_quote && (
+                      <div className="source-citation-quote">&ldquo;{req.source_quote}&rdquo;</div>
+                    )}
+                    {req.source_doc && (
+                      <div className="source-citation-attrib">
+                        <span className="em-dash">—</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        {req.source_doc_id ? (
+                          <a
+                            href={`doc://${req.source_doc_id}`}
+                            className="source-citation-link"
+                            onClick={(e) => {
+                              if (!onLinkClick) return;
+                              const handled = onLinkClick(`doc://${req.source_doc_id}`);
+                              if (handled !== false) e.preventDefault();
+                            }}
+                          >{req.source_doc}</a>
+                        ) : (
+                          <span className="plain">{req.source_doc}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 

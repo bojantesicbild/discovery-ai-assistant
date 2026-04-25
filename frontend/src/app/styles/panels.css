@@ -2182,7 +2182,9 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Source section blockquote */
+/* Source section blockquote (legacy single-line variant — still used
+ * by gap detail / contradiction detail). For BR detail we use the
+ * combined .source-citation block below. */
 .source-quote {
   border-left: 3px solid var(--accent);
   padding: 8px 14px;
@@ -2192,6 +2194,53 @@
   font-size: 12px;
   color: var(--ink-2);
 }
+
+/* Combined source citation — green-tinted block holding the quote on
+ * top and the source-doc attribution on the bottom, separated by a
+ * dashed accent rule. Reads as one cohesive citation instead of two
+ * loose pieces stacked. */
+.source-citation {
+  background: var(--accent-soft);
+  border: 1px solid rgba(0,168,100,.18);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-xs, 8px) var(--radius-xs, 8px) 0;
+  padding: 12px 16px;
+  margin: 6px 0 12px;
+}
+.source-citation-quote {
+  font-size: 13.5px;
+  color: var(--ink);
+  line-height: 1.55;
+  font-style: italic;
+  font-weight: 500;
+}
+.source-citation-attrib {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0,168,100,.3);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  width: 100%;
+}
+.source-citation-attrib .em-dash {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.source-citation-attrib svg {
+  width: 12px; height: 12px;
+  color: var(--accent-ink);
+  flex-shrink: 0;
+}
+.source-citation-link {
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color .15s;
+}
+.source-citation-link:hover { border-bottom-color: var(--accent-ink); }
+.source-citation-attrib .plain { color: var(--ink-2); font-weight: 500; }
 
 .blocked-chip-row {
   display: flex; flex-wrap: wrap; gap: 6px;
@@ -2634,21 +2683,26 @@
   display: flex; align-items: center; gap: 8px;
   min-width: 0;
 }
+/* Section title icon — solid neon-green badge so the connections
+ * surface visually anchors to the brand accent. Matches the count
+ * pill below for a paired feel. */
 .conn-head .title-icon {
-  width: 24px; height: 24px;
+  width: 26px; height: 26px;
   display: grid; place-items: center;
-  border-radius: 6px;
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  border-radius: 7px;
+  background: var(--accent);
+  color: #0A1A10;
 }
-.conn-head .title-icon svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+.conn-head .title-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.2; }
 .conn-head .title { font-size: 13.5px; font-weight: 700; color: var(--ink); letter-spacing: -0.005em; }
+/* Total count — neon-green pill, same hue as the title icon */
 .conn-head .count {
-  font-size: 11px; font-weight: 600;
-  padding: 1px 8px;
+  font-size: 11px; font-weight: 800;
+  padding: 2px 9px;
   border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
+  background: var(--accent);
+  color: #0A1A10;
+  letter-spacing: 0.02em;
 }
 
 .conn-head-right {
