@@ -343,19 +343,15 @@
   width: 108px;
   flex-shrink: 0;
   display: flex; flex-direction: column;
-  /* Right-aligned so id / time / date sit flush against the dashed
-   * separator regardless of individual text length. Without this,
-   * "12:56" and "Apr 22, 2026" left-align inside a 108px column and
-   * leave visible dead space on the right of the short lines —
-   * which reads as "the gap left of the separator is bigger than the
-   * gap right of it" even though both paddings are 12px. */
-  align-items: flex-end;
+  /* baseline + symmetric horizontal padding so the id-zone reads as
+   * a balanced gutter: 15px from the card edge → text → 12px →
+   * dashed separator. Pairs with .req-body's padding-left: 10px on
+   * the other side to keep visual whitespace even across the rule. */
+  align-items: baseline;
   text-align: right;
   gap: 3px;
   padding-top: 1px;
-  /* padding-right matches the parent .req `gap: 12px` so the
-   * dashed separator sits at a symmetric 12-1-12 sandwich:
-   * id-text → 12px → border → 12px → body-text. */
+  padding-left: 15px;
   padding-right: 12px;
   border-right: 1px dashed var(--line);
   align-self: stretch;
@@ -399,6 +395,10 @@
   flex: 1 1 0;
   min-width: 0;
   display: flex; flex-direction: column; gap: 6px;
+  /* matches the gutter on the id side (.req-id padding-right: 12px
+   * + 1px dashed border + 12px flex gap = visual 25px) so the title
+   * doesn't crash up against the separator. */
+  padding-left: 10px;
 }
 .req-title {
   font-size: 14.5px; font-weight: 600;
@@ -2116,10 +2116,9 @@
  *
  * White surface for the body so the proposed text is fully readable
  * (the previous dark-green-on-soft-green was muddy). Accent green
- * lives in three signal-only places:
+ * lives in two signal-only places:
  *   1. Solid 1px outer border (signals "this is live + needs action")
- *   2. 4px left rail (loud column accent)
- *   3. Top header strip in --accent-soft (housing NEW + label + actions)
+ *   2. Top header strip in --accent-soft (housing NEW + label + actions)
  */
 .proposal-block {
   margin: 10px 0 12px;
@@ -2134,19 +2133,11 @@
 .proposal-block:hover {
   box-shadow: 0 4px 18px -8px rgba(0,168,100,0.28);
 }
-.proposal-block::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; bottom: 0;
-  width: 4px;
-  background: var(--accent);
-  z-index: 1;
-}
 
 .proposal-block-head {
   display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap;
-  padding: 9px 14px 9px 18px;
+  padding: 9px 14px;
   background: var(--accent-soft);
   border-bottom: 1px solid rgba(0,168,100,.2);
 }
@@ -2172,7 +2163,7 @@
 }
 
 .proposal-block-body {
-  padding: 12px 16px 12px 18px;
+  padding: 12px 16px;
   font-size: 14px;
   color: var(--ink);
   font-weight: 500;
@@ -2182,7 +2173,7 @@
 }
 
 .proposal-block-rationale {
-  padding: 0 16px 8px 18px;
+  padding: 0 16px 8px;
   font-size: 12px;
   color: var(--ink-3);
   font-style: italic;
@@ -2190,7 +2181,7 @@
 }
 
 .proposal-block-sub {
-  padding: 6px 16px 10px 18px;
+  padding: 6px 16px 10px;
   font-size: 10.5px;
   color: var(--ink-4);
   font-family: var(--font-mono);
@@ -2215,16 +2206,8 @@
 .proposal-row:hover {
   box-shadow: 0 4px 14px -8px rgba(0,168,100,0.28);
 }
-.proposal-row::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; bottom: 0;
-  width: 4px;
-  background: var(--accent);
-}
 .proposal-row-inner {
   display: flex; align-items: flex-start; gap: 12px;
-  padding-left: 8px;
 }
 .proposal-row-plus {
   font-size: 15px; font-weight: 800;
