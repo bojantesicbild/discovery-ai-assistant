@@ -55,11 +55,21 @@ class ProposedUpdate(Base, IdMixin, TimestampMixin):
     source_gap_id: Mapped[str | None] = mapped_column(String, nullable=True)
     source_doc_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     source_person: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Migration 044 — discriminator for per-kind dispatch.
+    #   'requirement' | 'stakeholder' | 'constraint' | 'gap' | 'contradiction'
+    # Existing rows backfilled with 'requirement'; new rows always set it
+    # explicitly via MCP propose_update.
+    target_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="requirement")
+    # Polymorphic display id of the target row. Despite the legacy column
+    # name (kept to avoid touching ~30 call sites), this carries:
+    #   - BR-NNN  for target_kind='requirement'
+    #   - the stakeholder name for target_kind='stakeholder'
+    #   - CON-NNN for target_kind='constraint'
+    #   - GAP-NNN for target_kind='gap'
+    #   - CTR-NNN for target_kind='contradiction'
+    # See app.api.review._apply_patch_by_kind for the per-kind dispatch.
     target_req_id: Mapped[str] = mapped_column(String, nullable=False)
-    # field on Requirement to patch: description / user_perspective / rationale /
-    # scope_note / acceptance_criteria / business_rules / edge_cases /
-    # alternatives_considered / blocked_by / source_person. See
-    # app.api.review._apply_patch for the live whitelist.
+    # Per-kind whitelist lives in app.api.review.PATCHABLE_FIELDS_BY_KIND.
     proposed_field: Mapped[str] = mapped_column(String, nullable=False)
     # JSONB so we can carry either a string (description) or a list (criteria/rules)
     proposed_value: Mapped[Any] = mapped_column(JSONB, nullable=False)

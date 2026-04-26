@@ -99,7 +99,9 @@ export function RequirementsTab({
   const earlier = visible.filter((r) => r.seen_at);
 
   function renderCard(req: ApiRequirement, isNew: boolean) {
-    const pendingCount = proposals.filter((p) => p.target_req_id === req.req_id).length;
+    const pendingCount = proposals.filter(
+      (p) => (p.target_kind ?? "requirement") === "requirement" && p.target_req_id === req.req_id,
+    ).length;
     const fb = clientFeedback.requirements[req.req_id];
     const pri = (req.priority || "could").toLowerCase();
     const status = (req.status || "proposed").toLowerCase();

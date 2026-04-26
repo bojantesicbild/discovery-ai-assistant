@@ -41,15 +41,31 @@ Execute in this order, no skipping.
    - If a document clearly contradicts a promoted learning, surface that as a `contradiction` finding rather than silently overriding.
    The pipeline already prepends an `ACTIVE LEARNINGS` block to your message; if it's present, you have what you need without calling the tool again.
 
-2. **Deduplication check (important).** Call `get_requirements` and `get_gaps`. Scan for titles/questions that overlap with what you're about to extract.
+2. **Deduplication check (important).** Call `get_requirements`, `get_gaps`, `get_constraints`, `get_stakeholders`, and `get_contradictions` for the kinds you're about to write. Scan for titles/questions/names that overlap with what you're about to extract.
    - If no match → go to step 3 (`store_finding`).
-   - If a match exists AND the current document carries **new info** on that item (rationale that wasn't captured, an extra acceptance criterion, a `source_person` that was missing, a `blocked_by` dependency, etc.) → use `propose_update` (step 3a), NOT `store_finding`.
+   - If a match exists AND the current document carries **new info** on that item (a corrected role_title on a stakeholder, a refined cost_if_kept on a constraint, an extra acceptance criterion on a BR, a missing impact_summary on a gap, etc.) → use `propose_update` (step 3a), NOT `store_finding`.
    - If a match exists AND the current document says the same thing → genuinely skip.
    - When in doubt between "skip" and "propose": prefer `propose_update` with a clear `rationale`. The PM can reject noise in one click, but can't recover an extraction the agent silently dropped.
 
 3. **Extract, one `store_finding` call per item** (new findings). The MCP tool validates enums and assigns display ids (BR-NNN, GAP-NNN, etc.) server-side — don't compute ids yourself.
 
-   **3a. Updates to existing BRs use `propose_update`, not `store_finding`.** Each call stages ONE field patch (target_req_id, field, value, rationale, source_doc_id, source_person). The PM reviews on the BR detail panel and accepts or rejects. Nothing mutates the BR until they accept. Before proposing, call `get_past_rejections` with `{target_req_id, field}` — if the PM already rejected a similar change, skip and note it in your chat summary. This is how the agent learns the PM's preferences without anyone editing agent files by hand.
+   **3a. Updates to existing findings use `propose_update`, not `store_finding`.** As of migration 044 the tool works on all five kinds — requirement, stakeholder, constraint, gap, contradiction. Pass `target_kind` plus the appropriate display id in `target_req_id`:
+   - `target_kind: "requirement"` + `target_req_id: "BR-NNN"`
+   - `target_kind: "stakeholder"` + `target_req_id: "<full name>"` (e.g. `"Sarah Petrovic"`)
+   - `target_kind: "constraint"` + `target_req_id: "CON-NNN"`
+   - `target_kind: "gap"` + `target_req_id: "GAP-NNN"`
+   - `target_kind: "contradiction"` + `target_req_id: "CTR-NNN"`
+
+   Each call stages ONE field patch (target_kind, target_req_id, field, value, rationale, source_doc_id, source_person). The PM reviews on the relevant detail view and accepts or rejects. Nothing mutates the row until they accept. Lifecycle fields (priority / status / confidence / version / decision_authority / resolved-bool) are NOT patchable here — those route through `update_requirement_status`, `resolve_contradiction`, etc.
+
+   Per-kind patchable fields:
+   - **requirement**: description, user_perspective, rationale, scope_note, title, source_person; lists: acceptance_criteria, business_rules, edge_cases, alternatives_considered, blocked_by
+   - **stakeholder**: role_title, role, organization; lists: decisions, interests, concerns
+   - **constraint**: description, impact, cost_if_kept, renegotiation_path, workaround, source_person; lists: affects_reqs, workaround_options
+   - **gap**: question, impact_summary, assumed_default, suggested_action, source_person; lists: validation_plan, options, blocked_reqs
+   - **contradiction**: title, side_a, side_b, area, side_a_source/_person, side_b_source/_person, impact_summary; lists: resolution_options
+
+   Before proposing, call `get_past_rejections` with `{target_req_id, field}` — if the PM already rejected a similar change, skip and note it in your chat summary. This is how the agent learns the PM's preferences without anyone editing agent files by hand.
 
 4. **Five finding kinds only** — the project's taxonomy. Do NOT extract `decision`, `scope`, or `assumption` even if the document mentions them; those live on other kinds now:
    - Decisions → folded onto the relevant BR as `rationale` + `alternatives_considered`.

@@ -1074,32 +1074,50 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="propose_update",
             description=(
-                "Stage a delta to an EXISTING requirement instead of creating a duplicate. "
-                "Call this when your dedup check (get_requirements) matched an existing BR but "
-                "the current document carries new info — a new rationale, an extra acceptance "
-                "criterion, a source_person that wasn't captured, etc. Each call writes ONE "
-                "staged proposal (one field, one patch) that shows up on the PM's BR detail "
-                "view with Accept / Reject buttons. PM decides; nothing mutates the BR until "
-                "they accept.\n\n"
+                "Stage a delta to an EXISTING finding instead of creating a duplicate. Works "
+                "across all five finding kinds: requirement, stakeholder, constraint, gap, "
+                "contradiction. Call this when your dedup check matched an existing row but "
+                "the current document carries new info — a corrected role_title on a "
+                "stakeholder, a refined cost_if_kept on a constraint, a missing impact_summary "
+                "on a gap, etc. Each call writes ONE staged proposal (one field, one patch) "
+                "that shows up on the PM's detail view with Accept / Reject buttons. PM "
+                "decides; nothing mutates the row until they accept.\n\n"
                 "IMPORTANT: only propose fields whose content genuinely differs from what the "
-                "BR already has. Don't propose the same value back. Don't propose on "
-                "priority / status / confidence / version — those go through "
-                "update_requirement_status / update_requirement_priority.\n\n"
-                "Supported fields: description, user_perspective, rationale, scope_note, "
-                "title, source_person, acceptance_criteria, business_rules, edge_cases, "
-                "alternatives_considered, blocked_by.\n\n"
-                "For list fields (acceptance_criteria etc.), pass ONLY the new entries — "
-                "the accept endpoint appends with dedup. For string fields, pass the new "
-                "value; accept replaces the existing string.\n\n"
-                "Before proposing, check `get_past_rejections` for this BR + field. If the "
+                "row already has. Don't propose the same value back. Don't propose on lifecycle "
+                "fields (priority / status / confidence / version / decision_authority / "
+                "resolved-bool) — those route through dedicated endpoints "
+                "(update_requirement_status / update_requirement_priority / "
+                "resolve_contradiction etc.).\n\n"
+                "Supported fields per kind:\n"
+                "  - requirement: description, user_perspective, rationale, scope_note, title, "
+                "source_person; lists: acceptance_criteria, business_rules, edge_cases, "
+                "alternatives_considered, blocked_by\n"
+                "  - stakeholder: role_title, role, organization; lists: decisions, interests, concerns\n"
+                "  - constraint: description, impact, cost_if_kept, renegotiation_path, "
+                "workaround, source_person; lists: affects_reqs, workaround_options\n"
+                "  - gap: question, impact_summary, assumed_default, suggested_action, "
+                "source_person; lists: validation_plan, options, blocked_reqs\n"
+                "  - contradiction: title, side_a, side_b, area, side_a_source, side_a_person, "
+                "side_b_source, side_b_person, impact_summary; lists: resolution_options\n\n"
+                "For list fields (acceptance_criteria, decisions, etc.), pass ONLY the new "
+                "entries — the accept endpoint appends with dedup. For string fields, pass the "
+                "new value; accept replaces the existing string.\n\n"
+                "Target id format by kind:\n"
+                "  - requirement: BR-NNN (e.g. 'BR-004')\n"
+                "  - stakeholder: full name (e.g. 'Sarah Petrovic')\n"
+                "  - constraint: CON-NNN (e.g. 'CON-002')\n"
+                "  - gap: GAP-NNN (e.g. 'GAP-007')\n"
+                "  - contradiction: CTR-NNN (e.g. 'CTR-001')\n\n"
+                "Before proposing, check `get_past_rejections` for this target + field. If the "
                 "PM has already rejected a similar proposal, don't re-propose — note it in "
                 "your chat summary instead."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "target_req_id": {"type": "string", "description": "BR id to patch (e.g. 'BR-004')."},
-                    "field": {"type": "string", "description": "Which requirement field to patch. One of: description, user_perspective, rationale, scope_note, title, source_person, acceptance_criteria, business_rules, edge_cases, alternatives_considered, blocked_by."},
+                    "target_kind": {"type": "string", "enum": ["requirement", "stakeholder", "constraint", "gap", "contradiction"], "description": "Which finding kind the patch targets. Defaults to 'requirement' for back-compat."},
+                    "target_req_id": {"type": "string", "description": "Display id of the row to patch — BR-NNN for requirement, full name for stakeholder, CON-NNN for constraint, GAP-NNN for gap, CTR-NNN for contradiction. Name kept for back-compat with the BR-only era."},
+                    "field": {"type": "string", "description": "Which field on the target row to patch. See per-kind whitelist in the tool description above. Lifecycle fields (priority/status/confidence/version) are not patchable here — use the dedicated update endpoints."},
                     "value": {"description": "New value. For string fields a string; for list fields an array of strings (only the new entries — they'll be appended with dedup on accept)."},
                     "rationale": {"type": "string", "description": "One-sentence note on why the agent is proposing this. Appears in the UI so the PM can judge the change without re-reading the source document."},
                     "source_doc_id": {"type": "string", "description": "UUID of the document that surfaced this delta — always pass the Document ID from the pipeline message."},
@@ -1968,6 +1986,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return _json_result({"error": f"Unknown finding_type: {finding_type}. Supported: requirement, constraint, stakeholder, gap, contradiction."})
 
         if name == "propose_update":
+            target_kind = (arguments.get("target_kind") or "requirement").lower()
             target_req_id = arguments.get("target_req_id")
             field = arguments.get("field")
             value = arguments.get("value")
@@ -1975,44 +1994,107 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             person = arguments.get("source_person") or None
             doc_id_raw = arguments.get("source_doc_id") or None
 
-            # App-level enforcement of the whitelist — mirrors the backend
-            # `_apply_patch` function so the agent gets a clean error before
-            # the row hits the DB rather than a 400 on accept.
-            string_fields = {
-                "description", "user_perspective", "rationale", "scope_note",
-                "title", "source_person",
+            # Per-kind whitelists — must mirror PATCHABLE_FIELDS_BY_KIND
+            # in backend/app/api/review.py exactly. Drift here means the
+            # agent stages a proposal the backend then refuses on accept.
+            FIELDS_BY_KIND = {
+                "requirement": {
+                    "string": {"description", "user_perspective", "rationale",
+                               "scope_note", "title", "source_person"},
+                    "list":   {"acceptance_criteria", "business_rules", "edge_cases",
+                               "alternatives_considered", "blocked_by"},
+                    "table": "requirements",
+                    "id_col": "req_id",
+                },
+                "stakeholder": {
+                    "string": {"role_title", "role", "organization"},
+                    "list":   {"decisions", "interests", "concerns"},
+                    "table": "stakeholders",
+                    "id_col": "name",
+                },
+                "constraint": {
+                    "string": {"description", "impact", "cost_if_kept",
+                               "renegotiation_path", "workaround", "source_person"},
+                    "list":   {"affects_reqs", "workaround_options"},
+                    "table": "constraints",
+                    # Constraint + contradiction use positional CON-NNN /
+                    # CTR-NNN ids — resolved below by ordered scan.
+                    "id_col": None,
+                },
+                "gap": {
+                    "string": {"question", "impact_summary", "assumed_default",
+                               "suggested_action", "source_person"},
+                    "list":   {"validation_plan", "options", "blocked_reqs"},
+                    "table": "gaps",
+                    "id_col": "gap_id",
+                },
+                "contradiction": {
+                    "string": {"title", "side_a", "side_b", "area",
+                               "side_a_source", "side_a_person",
+                               "side_b_source", "side_b_person",
+                               "impact_summary"},
+                    "list":   {"resolution_options"},
+                    "table": "contradictions",
+                    "id_col": None,
+                },
             }
-            list_fields = {
-                "acceptance_criteria", "business_rules", "edge_cases",
-                "alternatives_considered", "blocked_by",
-            }
+            spec = FIELDS_BY_KIND.get(target_kind)
+            if not spec:
+                return _json_result({
+                    "error": f"Unknown target_kind '{target_kind}'. Allowed: "
+                             f"{sorted(FIELDS_BY_KIND.keys())}"
+                })
+            string_fields = spec["string"]
+            list_fields = spec["list"]
+
             if not target_req_id or not field:
                 return _json_result({"error": "target_req_id and field are required"})
             if field not in string_fields and field not in list_fields:
                 return _json_result({
-                    "error": f"Cannot propose on field '{field}'. Allowed: "
-                             f"{sorted(string_fields | list_fields)}"
+                    "error": f"Cannot propose on field '{field}' for {target_kind}. "
+                             f"Allowed: {sorted(string_fields | list_fields)}"
                 })
 
-            # Resolve the target BR (by its req_id within the project).
-            br = await conn.fetchrow(
-                "SELECT id, "
-                "       description, user_perspective, rationale, scope_note, title, source_person, "
-                "       acceptance_criteria, business_rules, edge_cases, "
-                "       alternatives_considered, blocked_by "
-                "FROM requirements WHERE project_id = $1 AND req_id = $2",
-                pid, target_req_id,
-            )
-            if not br:
-                return _json_result({"error": f"Requirement {target_req_id} not found"})
+            # Resolve the target row. Direct id-column lookup for kinds
+            # that have one (requirement/stakeholder/gap); positional
+            # CON-NNN / CTR-NNN scan for the others, mirroring the same
+            # ordering the connections + detail views use.
+            row = None
+            if spec["id_col"]:
+                row = await conn.fetchrow(
+                    f"SELECT * FROM {spec['table']} "
+                    f"WHERE project_id = $1 AND {spec['id_col']} = $2",
+                    pid, target_req_id,
+                )
+            else:
+                prefix = "CON-" if target_kind == "constraint" else "CTR-"
+                if not target_req_id.startswith(prefix):
+                    return _json_result({
+                        "error": f"{target_kind} target id must start with {prefix} (got '{target_req_id}')"
+                    })
+                try:
+                    idx_n = int(target_req_id[len(prefix):])
+                except ValueError:
+                    return _json_result({"error": f"Invalid {target_kind} id '{target_req_id}'"})
+                if idx_n < 1:
+                    return _json_result({"error": f"Invalid {target_kind} id '{target_req_id}'"})
+                rows = await conn.fetch(
+                    f"SELECT * FROM {spec['table']} WHERE project_id = $1 "
+                    f"ORDER BY created_at ASC, id ASC",
+                    pid,
+                )
+                if idx_n > len(rows):
+                    return _json_result({"error": f"{target_kind} {target_req_id} not found"})
+                row = rows[idx_n - 1]
 
-            # asyncpg returns JSONB columns as the raw JSON string (no
-            # codec registered on this connection), so list-typed BR
-            # fields come back as a JSON-encoded string like
-            # '["ac1", "ac2"]' rather than a Python list. Decode before
-            # comparing / echoing into current_value — otherwise `list()`
-            # on a string would split it into one entry per character.
-            raw = br[field] if field in br.keys() else None
+            if not row:
+                return _json_result({"error": f"{target_kind} {target_req_id} not found"})
+
+            # asyncpg returns JSONB columns as the raw JSON string when no
+            # codec is registered, so list-typed fields come back as
+            # '["a","b"]'. Decode before comparing / echoing into
+            # current_value, otherwise list() splits the string per char.
+            raw = row[field] if field in row.keys() else None
             current: Any
             if field in list_fields:
                 if isinstance(raw, str):
@@ -2038,7 +2120,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 if not truly_new:
                     return _json_result({
                         "skipped": True,
-                        "reason": f"All proposed {field} entries already exist on {target_req_id}.",
+                        "reason": f"All proposed {field} entries already exist on {target_kind} {target_req_id}.",
                     })
                 staged_value = truly_new
                 current_value_for_row = existing_items or None
@@ -2047,7 +2129,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 if (staged_value or "") == (current or ""):
                     return _json_result({
                         "skipped": True,
-                        "reason": f"{field} on {target_req_id} already equals the proposed value.",
+                        "reason": f"{field} on {target_kind} {target_req_id} already equals the proposed value.",
                     })
                 current_value_for_row = current
 
@@ -2064,24 +2146,26 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             await conn.execute(
                 "INSERT INTO proposed_updates "
                 "(id, project_id, source_gap_id, source_doc_id, source_person, "
-                " target_req_id, proposed_field, proposed_value, current_value, rationale, status) "
-                "VALUES (gen_random_uuid(), $1, NULL, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, 'pending')",
-                pid, doc_uuid, person, target_req_id, field,
+                " target_kind, target_req_id, proposed_field, proposed_value, current_value, rationale, status) "
+                "VALUES (gen_random_uuid(), $1, NULL, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, 'pending')",
+                pid, doc_uuid, person, target_kind, target_req_id, field,
                 json.dumps(staged_value), json.dumps(current_value_for_row), rationale,
             )
             await conn.execute(
                 "INSERT INTO activity_log (id, project_id, action, summary, details) "
                 "VALUES (gen_random_uuid(), $1, 'proposal_created', $2, $3)",
-                pid, f"Proposed update to {target_req_id} ({field})",
-                json.dumps({"req_id": target_req_id, "field": field, "source": "extraction"}),
+                pid, f"Proposed update to {target_req_id} ({target_kind} · {field})",
+                json.dumps({"target_kind": target_kind, "target_id": target_req_id, "field": field, "source": "extraction"}),
             )
             await _emit_event(
                 conn, pid=pid, event_type="proposal_created",
-                payload={"target_req_id": target_req_id, "field": field, "source": "extraction"},
+                payload={"target_kind": target_kind, "target_id": target_req_id, "target_req_id": target_req_id, "field": field, "source": "extraction"},
                 artifact_updates={"proposals_created": [target_req_id]},
             )
             return _json_result({
                 "success": True,
+                "target_kind": target_kind,
+                "target_id": target_req_id,
                 "target_req_id": target_req_id,
                 "field": field,
                 "staged_value": staged_value,

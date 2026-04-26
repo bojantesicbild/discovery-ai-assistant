@@ -471,7 +471,11 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
       : undefined;
 
     if (detail.itemKind === "requirement" && reqForDetail) {
-      const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
+      const pendingProps = proposals.filter(
+        (p) =>
+          (p.target_kind ?? "requirement") === "requirement" &&
+          p.target_req_id === detail.itemKey,
+      );
       return (
         <div
           className={`data-panel detail-anim${detailClosing ? " closing" : ""}`}
@@ -660,36 +664,48 @@ export default function DataPanel({ projectId, refreshKey = 0, initialTab, highl
           history={detail.history}
           slotTop={slotTopContent}
           slotBottom={(() => {
-            // Non-requirement kinds get:
-            //   1. ProposedUpdatesSection (legacy gap-driven proposals)
-            //   2. ConnectionsSection (new — graph neighbourhood)
+            // Detail views get:
+            //   1. ProposedUpdatesSection (any pending PM-staged updates
+            //      for THIS row — works on all 5 kinds since migration 044)
+            //   2. ConnectionsSection (graph neighbourhood for gap /
+            //      constraint — BRs use RequirementDetailView's own block)
             // Both render only when there's data to show.
             const parts: React.ReactNode[] = [];
-            if (detail.itemKind === "requirement" && detail.itemKey) {
-              const pendingProps = proposals.filter((p) => p.target_req_id === detail.itemKey);
-              if (pendingProps.length > 0) {
-                parts.push(
-                  <ProposedUpdatesSection
-                    key="props"
-                    proposals={pendingProps}
-                    onAccept={async (id) => {
-                      try {
-                        await acceptProposal(projectId, id);
-                        await loadData();
-                      } catch (e) {
-                        console.error("Proposal accept failed", e);
-                      }
-                    }}
-                    onReject={async (id, reason) => {
-                      try {
-                        await rejectProposal(projectId, id, reason || undefined);
-                        await loadData();
-                      } catch (e) {
-                        console.error("Proposal reject failed", e);
-                      }
-                    }}
-                  />
+            if (detail.itemKey && detail.itemKind) {
+              // Match the proposal's target to this detail row. For BRs
+              // we already render the section in the RequirementDetailView
+              // branch above, so skip it here to avoid double-render.
+              const isBrAlreadyRendered = detail.itemKind === "requirement";
+              if (!isBrAlreadyRendered) {
+                const pendingProps = proposals.filter(
+                  (p) =>
+                    (p.target_kind ?? "requirement") === detail.itemKind &&
+                    p.target_req_id === detail.itemKey,
                 );
+                if (pendingProps.length > 0) {
+                  parts.push(
+                    <ProposedUpdatesSection
+                      key="props"
+                      proposals={pendingProps}
+                      onAccept={async (id) => {
+                        try {
+                          await acceptProposal(projectId, id);
+                          await loadData();
+                        } catch (e) {
+                          console.error("Proposal accept failed", e);
+                        }
+                      }}
+                      onReject={async (id, reason) => {
+                        try {
+                          await rejectProposal(projectId, id, reason || undefined);
+                          await loadData();
+                        } catch (e) {
+                          console.error("Proposal reject failed", e);
+                        }
+                      }}
+                    />
+                  );
+                }
               }
             }
             // Connections section for gap / constraint — BRs use the

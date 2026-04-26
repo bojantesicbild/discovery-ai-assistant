@@ -14,8 +14,16 @@
 //     contradictions). Each row is clickable and navigates to the
 //     corresponding finding via onNavigate.
 
-import { useEffect, useState } from "react";
-import { getStakeholderByName, type PersonFindingsBundle } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import {
+  acceptProposal,
+  getStakeholderByName,
+  listProposedUpdates,
+  rejectProposal,
+  type PersonFindingsBundle,
+  type ProposedUpdate,
+} from "@/lib/api";
+import { ProposedUpdatesSection } from "./proposed-updates-section";
 
 
 interface Props {
@@ -30,6 +38,24 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
   const [data, setData] = useState<PersonFindingsBundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Pending proposed updates targeting THIS stakeholder. Server-filtered
+  // by target_kind=stakeholder + target_id=name so we don't pull every
+  // pending proposal in the project just to filter client-side.
+  const [proposals, setProposals] = useState<ProposedUpdate[]>([]);
+
+  const loadProposals = useCallback(async () => {
+    try {
+      const r = await listProposedUpdates(projectId, "pending", {
+        targetKind: "stakeholder",
+        targetId: name,
+      });
+      setProposals(r.items || []);
+    } catch (e) {
+      // Pending proposals are non-critical — silent fail keeps the
+      // person view rendering even if the endpoint hiccups.
+      console.warn("Failed to load stakeholder proposals", e);
+    }
+  }, [projectId, name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,8 +65,9 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
       .then((d) => { if (!cancelled) setData(d); })
       .catch((e) => { if (!cancelled) setError(e?.message || "Failed to load person"); })
       .finally(() => { if (!cancelled) setLoading(false); });
+    loadProposals();
     return () => { cancelled = true; };
-  }, [projectId, name]);
+  }, [projectId, name, loadProposals]);
 
   if (loading) {
     return (
@@ -131,6 +158,39 @@ export default function PersonDetailView({ projectId, name, onClose, onNavigate 
          *  first, then "what they touched" follows. Each section
          *  conditionally rendered so a sparse stakeholder doesn't show
          *  empty placeholders. */}
+        {/* Pending PM-staged updates targeting this stakeholder. Slots
+         *  above the profile so the PM sees the inbox first — accept /
+         *  reject lands inline, then the row reload picks up the new
+         *  values. */}
+        {proposals.length > 0 && (
+          <div style={{ marginBottom: 12 }}>
+            <ProposedUpdatesSection
+              proposals={proposals}
+              onAccept={async (id) => {
+                try {
+                  await acceptProposal(projectId, id);
+                  // Reload both the stakeholder row (so the new field
+                  // value renders) and the proposal list (so the
+                  // accepted card disappears).
+                  const fresh = await getStakeholderByName(projectId, name);
+                  setData(fresh);
+                  await loadProposals();
+                } catch (e) {
+                  console.error("Stakeholder proposal accept failed", e);
+                }
+              }}
+              onReject={async (id, reason) => {
+                try {
+                  await rejectProposal(projectId, id, reason || undefined);
+                  await loadProposals();
+                } catch (e) {
+                  console.error("Stakeholder proposal reject failed", e);
+                }
+              }}
+            />
+          </div>
+        )}
+
         {(stakeholder.role || (stakeholder.decisions && stakeholder.decisions.length > 0) ||
           (Array.isArray(stakeholder.interests) && stakeholder.interests.length > 0) ||
           (stakeholder.concerns && stakeholder.concerns.length > 0)) && (

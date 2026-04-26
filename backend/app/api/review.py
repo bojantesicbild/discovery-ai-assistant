@@ -27,7 +27,9 @@ from app.deps import get_current_user
 from app.models.auth import User
 from app.models.project import Project
 from app.models.review import ReviewToken, ReviewSubmission, ProposedUpdate
-from app.models.extraction import Requirement, Gap
+from app.models.extraction import (
+    Requirement, Gap, Constraint, Stakeholder, Contradiction,
+)
 from app.services.sessions import record_event_for_user
 from app.services.learnings import record_learning
 from app.models.operational import ActivityLog, Notification
@@ -120,6 +122,10 @@ async def _generate_proposals(
             db.add(ProposedUpdate(
                 project_id=project_id,
                 source_gap_id=gap.gap_id,
+                # Legacy gap-driven flow always patches a BR; set the
+                # discriminator explicitly so we don't rely on the column
+                # default for new code paths.
+                target_kind="requirement",
                 target_req_id=req.req_id,
                 proposed_field=patch.field,
                 proposed_value=proposed_value,
@@ -286,53 +292,123 @@ async def list_review_submissions(
 async def list_proposed_updates(
     project_id: uuid.UUID,
     status: str = "pending",
+    target_kind: str | None = None,
+    target_id: str | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List staged proposals for this project. Default filter = pending."""
+    """List staged proposals for this project. Default filter = pending.
+
+    Optional `target_kind` + `target_id` filters scope the result to a
+    single row's proposals — the per-detail-view ProposedUpdatesSection
+    on the frontend uses this to render only the proposals for the row
+    you're looking at."""
     q = select(ProposedUpdate).where(ProposedUpdate.project_id == project_id)
     if status and status != "all":
         q = q.where(ProposedUpdate.status == status)
+    if target_kind:
+        q = q.where(ProposedUpdate.target_kind == target_kind)
+    if target_id:
+        q = q.where(ProposedUpdate.target_req_id == target_id)
     q = q.order_by(ProposedUpdate.created_at.desc())
     result = await db.execute(q)
     proposals = result.scalars().all()
 
-    # Enrich with gap question + target req title + source doc filename.
-    # Extraction-driven proposals have source_gap_id=NULL but set source_doc_id;
-    # filter None out of the gap lookup so the IN-query stays well-formed.
+    # Enrich with gap question (for legacy gap-driven flow) + per-kind
+    # target title + source doc filename. We bucket the targets by kind
+    # so each lookup stays a single IN-query against the right table.
     gap_ids = [gid for gid in {p.source_gap_id for p in proposals} if gid]
     doc_ids = [did for did in {p.source_doc_id for p in proposals} if did]
-    req_ids = list({p.target_req_id for p in proposals})
-    gap_map: dict[str, Gap] = {}
-    req_map: dict[str, Requirement] = {}
+    by_kind: dict[str, set[str]] = {}
+    for p in proposals:
+        by_kind.setdefault(p.target_kind or "requirement", set()).add(p.target_req_id)
+
+    gap_question_map: dict[str, str] = {}
+    title_map: dict[tuple[str, str], str] = {}  # (kind, target_id) -> title
     doc_map: dict[uuid.UUID, str] = {}
+
     if gap_ids:
-        gr = await db.execute(select(Gap).where(Gap.project_id == project_id, Gap.gap_id.in_(gap_ids)))
+        gr = await db.execute(
+            select(Gap).where(Gap.project_id == project_id, Gap.gap_id.in_(gap_ids))
+        )
         for g in gr.scalars().all():
-            gap_map[g.gap_id] = g
-    if req_ids:
-        rr = await db.execute(select(Requirement).where(Requirement.project_id == project_id, Requirement.req_id.in_(req_ids)))
+            gap_question_map[g.gap_id] = g.question
+
+    # Requirement titles (legacy req_title field).
+    if "requirement" in by_kind:
+        rr = await db.execute(
+            select(Requirement).where(
+                Requirement.project_id == project_id,
+                Requirement.req_id.in_(by_kind["requirement"]),
+            )
+        )
         for r in rr.scalars().all():
-            req_map[r.req_id] = r
+            title_map[("requirement", r.req_id)] = r.title
+
+    # Stakeholder targets are name-keyed; use the name as title too.
+    if "stakeholder" in by_kind:
+        for nm in by_kind["stakeholder"]:
+            title_map[("stakeholder", nm)] = nm
+
+    # Gap targets — patchable gaps are GAP-NNN, distinct from the
+    # client-review source_gap_id. Title becomes the question.
+    if "gap" in by_kind:
+        gr2 = await db.execute(
+            select(Gap).where(
+                Gap.project_id == project_id,
+                Gap.gap_id.in_(by_kind["gap"]),
+            )
+        )
+        for g in gr2.scalars().all():
+            title_map[("gap", g.gap_id)] = g.question[:80] if g.question else g.gap_id
+
+    # Constraint + contradiction targets are CON-NNN / CTR-NNN. Resolve
+    # to title via the same positional ordering used by the detail views.
+    for kind, prefix, Model, title_attr in (
+        ("constraint", "CON-", Constraint, "description"),
+        ("contradiction", "CTR-", Contradiction, "title"),
+    ):
+        if kind not in by_kind:
+            continue
+        rows = (
+            await db.execute(
+                select(Model)
+                .where(Model.project_id == project_id)
+                .order_by(Model.created_at.asc(), Model.id.asc())
+            )
+        ).scalars().all()
+        for idx, row in enumerate(rows):
+            display = f"{prefix}{idx + 1:03d}"
+            if display in by_kind[kind]:
+                raw = getattr(row, title_attr, None) or display
+                title_map[(kind, display)] = (raw[:80] if isinstance(raw, str) else display)
+
     if doc_ids:
         from app.models.document import Document
-        dr = await db.execute(select(Document.id, Document.filename).where(Document.id.in_(doc_ids)))
+        dr = await db.execute(
+            select(Document.id, Document.filename).where(Document.id.in_(doc_ids))
+        )
         for row in dr.all():
             doc_map[row.id] = row.filename
 
     items = []
     for p in proposals:
-        g = gap_map.get(p.source_gap_id) if p.source_gap_id else None
-        r = req_map.get(p.target_req_id)
+        kind = p.target_kind or "requirement"
+        target_title = title_map.get((kind, p.target_req_id))
         items.append({
             "id": str(p.id),
             "source_gap_id": p.source_gap_id,
-            "gap_question": g.question if g else None,
+            "gap_question": gap_question_map.get(p.source_gap_id) if p.source_gap_id else None,
             "source_doc_id": str(p.source_doc_id) if p.source_doc_id else None,
             "source_doc": doc_map.get(p.source_doc_id) if p.source_doc_id else None,
             "source_person": p.source_person,
+            "target_kind": kind,
+            "target_id": p.target_req_id,
+            # Legacy aliases — older frontend code still reads these for
+            # the BR review portal flow. Same value, alternate names.
             "target_req_id": p.target_req_id,
-            "req_title": r.title if r else None,
+            "req_title": target_title if kind == "requirement" else None,
+            "target_title": target_title,
             "proposed_field": p.proposed_field,
             "proposed_value": p.proposed_value,
             "current_value": p.current_value,
@@ -376,33 +452,175 @@ _LIST_PATCH_FIELDS = (
 )
 
 
-def _apply_patch(req: Requirement, field: str, new_value: Any) -> None:
-    """Apply a proposed patch to a Requirement.
+# ─────────────────────────────────────────────────────────────────────
+# Per-kind patch whitelists (migration 044)
+# ─────────────────────────────────────────────────────────────────────
+#
+# Each entry maps target_kind → (string-fields, list-fields). Lifecycle
+# fields (status, priority, decision_authority, resolved-bool) are
+# intentionally omitted — those route through dedicated endpoints
+# (update_requirement_status etc.) which carry their own audit + state-
+# transition rules. Sources/version/UUID/created_at are managed
+# automatically and never patchable.
+PATCHABLE_FIELDS_BY_KIND: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "requirement": (
+        _STRING_PATCH_FIELDS,
+        _LIST_PATCH_FIELDS,
+    ),
+    "stakeholder": (
+        ("role_title", "role", "organization"),
+        ("decisions", "interests", "concerns"),
+    ),
+    "constraint": (
+        ("description", "impact", "cost_if_kept", "renegotiation_path", "workaround", "source_person"),
+        ("affects_reqs", "workaround_options"),
+    ),
+    "gap": (
+        ("question", "impact_summary", "assumed_default", "suggested_action", "source_person"),
+        ("validation_plan", "options", "blocked_reqs"),
+    ),
+    "contradiction": (
+        ("title", "side_a", "side_b", "area",
+         "side_a_source", "side_a_person", "side_b_source", "side_b_person",
+         "impact_summary"),
+        ("resolution_options",),
+    ),
+}
+
+
+_MODEL_BY_KIND = {
+    "requirement": Requirement,
+    "stakeholder": Stakeholder,
+    "constraint": Constraint,
+    "gap": Gap,
+    "contradiction": Contradiction,
+}
+
+
+async def _resolve_target_row(
+    db: AsyncSession,
+    project_id: uuid.UUID,
+    target_kind: str,
+    target_id: str,
+):
+    """Resolve a polymorphic display id (BR-NNN | name | CON-NNN | GAP-NNN
+    | CTR-NNN) to the concrete SQLA row. Returns None when not found.
+
+    Constraint and contradiction don't have a stored prefix-id column in
+    the DB — their CON-NNN / CTR-NNN ids are positional, derived from
+    `created_at, id` ordering. We mirror that here so a proposal staged
+    against CON-003 always resolves to the same row the connections /
+    detail view shows."""
+    if target_kind == "requirement":
+        result = await db.execute(
+            select(Requirement).where(
+                Requirement.project_id == project_id,
+                Requirement.req_id == target_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    if target_kind == "gap":
+        result = await db.execute(
+            select(Gap).where(
+                Gap.project_id == project_id,
+                Gap.gap_id == target_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    if target_kind == "stakeholder":
+        # Stakeholders key by name. Multiple rows can share a name (one
+        # per source doc); pick the most-populated using the same heuristic
+        # as the by-name endpoint so proposals always land on the canonical
+        # record.
+        result = await db.execute(
+            select(Stakeholder).where(
+                Stakeholder.project_id == project_id,
+                Stakeholder.name == target_id,
+            )
+        )
+        rows = result.scalars().all()
+        if not rows:
+            return None
+        if len(rows) == 1:
+            return rows[0]
+        def _completeness(s):
+            return sum(len(getattr(s, f, "") or "") for f in ("role", "organization", "decision_authority")) \
+                + len(getattr(s, "decisions", None) or []) \
+                + len(getattr(s, "interests", None) or []) \
+                + len(getattr(s, "concerns", None) or [])
+        return max(rows, key=_completeness)
+
+    if target_kind in ("constraint", "contradiction"):
+        # Positional resolution — parse N from CON-NNN / CTR-NNN, fetch
+        # all rows ordered by (created_at, id) and pick by index.
+        prefix = "CON-" if target_kind == "constraint" else "CTR-"
+        if not target_id.startswith(prefix):
+            return None
+        try:
+            idx = int(target_id[len(prefix):]) - 1
+        except ValueError:
+            return None
+        if idx < 0:
+            return None
+        Model = _MODEL_BY_KIND[target_kind]
+        result = await db.execute(
+            select(Model)
+            .where(Model.project_id == project_id)
+            .order_by(Model.created_at.asc(), Model.id.asc())
+        )
+        rows = result.scalars().all()
+        if idx >= len(rows):
+            return None
+        return rows[idx]
+
+    return None
+
+
+def _apply_patch_by_kind(row, target_kind: str, field: str, new_value: Any) -> None:
+    """Apply a staged patch to a row of the given kind.
 
     String fields replace the whole value. List fields append new items
-    with dedup (order-preserving). Also bumps `version` and appends the
-    field name to `sources` as a lightweight merge-history marker so the
-    UI's "v2 · merged from 2 docs" chip keeps working.
-    """
-    if field in _STRING_PATCH_FIELDS:
-        setattr(req, field, str(new_value) if new_value is not None else None)
-    elif field in _LIST_PATCH_FIELDS:
-        existing = list(getattr(req, field) or [])
+    with dedup (order-preserving). For kinds that carry a `version` int
+    we bump it so the UI's "v2 · merged from 2 docs" chip updates."""
+    whitelist = PATCHABLE_FIELDS_BY_KIND.get(target_kind)
+    if not whitelist:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown target_kind '{target_kind}'. Allowed: {sorted(PATCHABLE_FIELDS_BY_KIND.keys())}",
+        )
+    string_fields, list_fields = whitelist
+
+    if field in string_fields:
+        setattr(row, field, str(new_value) if new_value is not None else None)
+    elif field in list_fields:
+        existing = list(getattr(row, field) or [])
         additions = new_value if isinstance(new_value, list) else [new_value]
         for item in additions:
             if isinstance(item, str) and item.strip() and item not in existing:
                 existing.append(item)
-        setattr(req, field, existing)
+        setattr(row, field, existing)
     else:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"Cannot patch field '{field}'. Allowed: "
-                f"{', '.join(_STRING_PATCH_FIELDS + _LIST_PATCH_FIELDS)}."
+                f"Cannot patch field '{field}' on {target_kind}. Allowed: "
+                f"{', '.join(string_fields + list_fields)}."
             ),
         )
-    # Bump version so the BR table chip updates visibly.
-    req.version = (req.version or 1) + 1
+    # Bump version on kinds that carry it (requirement, constraint,
+    # stakeholder all have it; gap + contradiction don't, so this is a
+    # no-op for them).
+    if hasattr(row, "version"):
+        row.version = (row.version or 1) + 1
+
+
+# Back-compat shim — the gap-driven client review flow still calls
+# _apply_patch(req, field, value) on a Requirement directly. Keep the
+# old signature so review.py's earlier section doesn't have to change.
+def _apply_patch(req: Requirement, field: str, new_value: Any) -> None:
+    _apply_patch_by_kind(req, "requirement", field, new_value)
 
 
 @router.post("/api/projects/{project_id}/proposed-updates/{proposal_id}/accept")
@@ -413,37 +631,47 @@ async def accept_proposal(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Apply the proposed patch to the target requirement and mark accepted."""
+    """Apply the proposed patch to the target row and mark accepted.
+
+    Dispatches by `target_kind` to handle requirement / stakeholder /
+    constraint / gap / contradiction uniformly. The legacy gap-driven
+    BR review flow stays at target_kind='requirement', so existing
+    proposals keep working unchanged."""
     p = await db.get(ProposedUpdate, proposal_id)
     if not p or p.project_id != project_id:
         raise HTTPException(status_code=404, detail="Proposal not found")
     if p.status != "pending":
         raise HTTPException(status_code=409, detail=f"Proposal already {p.status}")
 
-    req_result = await db.execute(
-        select(Requirement).where(
-            Requirement.project_id == project_id,
-            Requirement.req_id == p.target_req_id,
+    target_kind = p.target_kind or "requirement"
+    row = await _resolve_target_row(db, project_id, target_kind, p.target_req_id)
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Target {target_kind} '{p.target_req_id}' not found",
         )
-    )
-    req = req_result.scalar_one_or_none()
-    if not req:
-        raise HTTPException(status_code=404, detail="Target requirement not found")
 
     value_to_apply = body.override_value if body.override_value is not None else p.proposed_value
-    _apply_patch(req, p.proposed_field, value_to_apply)
+    _apply_patch_by_kind(row, target_kind, p.proposed_field, value_to_apply)
 
     p.status = "edited" if body.override_value is not None else "accepted"
     p.reviewed_at = datetime.now(timezone.utc)
     p.reviewed_by = user.id
 
     provenance = p.source_gap_id or (f"doc:{p.source_doc_id}" if p.source_doc_id else "unknown")
+    summary_label = p.target_req_id  # BR-NNN / name / CON-NNN / GAP-NNN / CTR-NNN
     db.add(ActivityLog(
         project_id=project_id,
         user_id=user.id,
         action="proposal_accepted",
-        summary=f"Applied update to {req.req_id} ({p.proposed_field}) — from {provenance}",
-        details={"proposal_id": str(p.id), "req_id": req.req_id, "field": p.proposed_field, "edited": body.override_value is not None},
+        summary=f"Applied update to {summary_label} ({p.proposed_field}) — from {provenance}",
+        details={
+            "proposal_id": str(p.id),
+            "target_kind": target_kind,
+            "target_id": p.target_req_id,
+            "field": p.proposed_field,
+            "edited": body.override_value is not None,
+        },
     ))
 
     await record_event_for_user(
@@ -452,6 +680,10 @@ async def accept_proposal(
         event_type="proposal_accepted",
         payload={
             "proposal_id": str(p.id),
+            "target_kind": target_kind,
+            "target_id": p.target_req_id,
+            # `target_req_id` kept in the payload for back-compat with
+            # any session-event consumers that still read the old name.
             "target_req_id": p.target_req_id,
             "field": p.proposed_field,
             "edited": body.override_value is not None,
@@ -461,7 +693,15 @@ async def accept_proposal(
     )
 
     await db.commit()
-    return {"id": str(p.id), "status": p.status, "req_id": req.req_id}
+    return {
+        "id": str(p.id),
+        "status": p.status,
+        "target_kind": target_kind,
+        "target_id": p.target_req_id,
+        # Keep the legacy field for the BR review modal that already
+        # consumes this response shape.
+        "req_id": p.target_req_id if target_kind == "requirement" else None,
+    }
 
 
 @router.post("/api/projects/{project_id}/proposed-updates/{proposal_id}/reject")
@@ -493,7 +733,8 @@ async def reject_proposal(
     p.reviewed_by = user.id
 
     provenance = p.source_gap_id or (f"doc:{p.source_doc_id}" if p.source_doc_id else "unknown")
-    summary = f"Rejected proposed update to {p.target_req_id} from {provenance}"
+    target_kind = p.target_kind or "requirement"
+    summary = f"Rejected proposed update to {p.target_req_id} ({target_kind}) from {provenance}"
     if reason:
         summary += f" — {reason[:80]}"
     db.add(ActivityLog(

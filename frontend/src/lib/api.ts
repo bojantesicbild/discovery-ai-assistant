@@ -420,7 +420,12 @@ export async function listReviewSubmissions(projectId: string): Promise<{ submis
 //   (a) gap-driven  — source_gap_id + gap_question + client_answer set (client-review portal).
 //   (b) extraction-driven — source_doc_id + source_doc + source_person set (MCP propose_update).
 // Fields from the other flavour are null.
+// Union of every field patchable across the five finding kinds —
+// must stay in sync with PATCHABLE_FIELDS_BY_KIND in
+// backend/app/api/review.py and the FIELDS_BY_KIND map in
+// mcp-server/db_server.py.
 export type ProposedField =
+  // requirement
   | "description"
   | "user_perspective"
   | "rationale"
@@ -431,7 +436,45 @@ export type ProposedField =
   | "business_rules"
   | "edge_cases"
   | "alternatives_considered"
-  | "blocked_by";
+  | "blocked_by"
+  // stakeholder
+  | "role_title"
+  | "role"
+  | "organization"
+  | "decisions"
+  | "interests"
+  | "concerns"
+  // constraint
+  | "impact"
+  | "cost_if_kept"
+  | "renegotiation_path"
+  | "workaround"
+  | "affects_reqs"
+  | "workaround_options"
+  // gap
+  | "question"
+  | "impact_summary"
+  | "assumed_default"
+  | "suggested_action"
+  | "validation_plan"
+  | "options"
+  | "blocked_reqs"
+  // contradiction
+  | "side_a"
+  | "side_b"
+  | "area"
+  | "side_a_source"
+  | "side_a_person"
+  | "side_b_source"
+  | "side_b_person"
+  | "resolution_options";
+
+export type ProposedUpdateTargetKind =
+  | "requirement"
+  | "stakeholder"
+  | "constraint"
+  | "gap"
+  | "contradiction";
 
 export interface ProposedUpdate {
   id: string;
@@ -440,7 +483,17 @@ export interface ProposedUpdate {
   source_doc_id: string | null;
   source_doc: string | null;
   source_person: string | null;
+  /** Which finding kind the patch targets. Added with migration 044;
+   *  pre-044 rows backfilled to 'requirement'. */
+  target_kind: ProposedUpdateTargetKind;
+  /** Display id of the target row — BR-NNN | name | CON-NNN | GAP-NNN
+   *  | CTR-NNN. Matches `detail.itemKey` on the corresponding detail view. */
+  target_id: string;
+  /** Legacy alias of `target_id` kept for the BR review portal flow. */
   target_req_id: string;
+  /** Title of the target row when known (BR title, gap question, etc.). */
+  target_title: string | null;
+  /** Legacy alias of target_title for BR-only consumers. */
   req_title: string | null;
   proposed_field: ProposedField;
   proposed_value: string | string[];
@@ -453,8 +506,15 @@ export interface ProposedUpdate {
   created_at: string | null;
   reviewed_at: string | null;
 }
-export async function listProposedUpdates(projectId: string, status: string = "pending"): Promise<{ items: ProposedUpdate[]; total: number }> {
-  return fetchAPI(`/api/projects/${projectId}/proposed-updates?status=${encodeURIComponent(status)}`);
+export async function listProposedUpdates(
+  projectId: string,
+  status: string = "pending",
+  filters: { targetKind?: string; targetId?: string } = {},
+): Promise<{ items: ProposedUpdate[]; total: number }> {
+  const params = new URLSearchParams({ status });
+  if (filters.targetKind) params.set("target_kind", filters.targetKind);
+  if (filters.targetId) params.set("target_id", filters.targetId);
+  return fetchAPI(`/api/projects/${projectId}/proposed-updates?${params.toString()}`);
 }
 export async function acceptProposal(projectId: string, proposalId: string, overrideValue?: string | string[]) {
   return fetchAPI(`/api/projects/${projectId}/proposed-updates/${proposalId}/accept`, {
@@ -590,16 +650,30 @@ export async function generateDigest(projectId: string) {
   return fetchAPI(`/api/projects/${projectId}/digests/generate`, { method: "POST" });
 }
 
+// Stats payload mirrored on the SSE done event AND persisted on the
+// assistant message row, so the chat header can render the context-
+// window pill on reload without re-asking the runner.
+export interface ChatStats {
+  numTurns?: number;
+  durationMs?: number;
+  contextTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  model?: string;
+}
+
 // Chat (SSE streaming)
 export function chatStream(
   projectId: string,
   text: string,
   onText: (text: string) => void,
-  onDone: (stats?: { numTurns?: number; durationMs?: number }) => void,
+  onDone: (stats?: ChatStats) => void,
   onError: (error: string) => void,
   onTool?: (tool: string, toolType?: string) => void,
   onThinking?: () => void,
   onRetry?: (attempt: number, maxRetries: number) => void,
+  model?: string,
 ) {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -609,7 +683,9 @@ export function chatStream(
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ text }),
+    // model is optional — undefined keys get dropped by JSON.stringify,
+    // so the backend default still applies when none is selected.
+    body: JSON.stringify({ text, ...(model ? { model } : {}) }),
   }).then(async (response) => {
     if (!response.ok) {
       onError("Chat request failed");

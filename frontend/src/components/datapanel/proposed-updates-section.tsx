@@ -11,6 +11,7 @@ import type { ProposedUpdate, ProposedField } from "@/lib/api";
 
 
 const FIELD_LABELS: Record<ProposedField, string> = {
+  // requirement
   description: "Description",
   user_perspective: "User Perspective",
   rationale: "Rationale",
@@ -22,14 +23,59 @@ const FIELD_LABELS: Record<ProposedField, string> = {
   edge_cases: "Edge Cases",
   alternatives_considered: "Alternatives Considered",
   blocked_by: "Blocked By",
+  // stakeholder
+  role_title: "Role Title",
+  role: "Role",
+  organization: "Organization",
+  decisions: "Decisions",
+  interests: "Interests",
+  concerns: "Concerns",
+  // constraint
+  impact: "Impact",
+  cost_if_kept: "Cost If Kept",
+  renegotiation_path: "Renegotiation Path",
+  workaround: "Workaround",
+  affects_reqs: "Affects Reqs",
+  workaround_options: "Workaround Options",
+  // gap
+  question: "Question",
+  impact_summary: "Impact Summary",
+  assumed_default: "Assumed Default",
+  suggested_action: "Suggested Action",
+  validation_plan: "Validation Plan",
+  options: "Options",
+  blocked_reqs: "Blocked Reqs",
+  // contradiction
+  side_a: "Side A",
+  side_b: "Side B",
+  area: "Area",
+  side_a_source: "Side A Source",
+  side_a_person: "Side A Person",
+  side_b_source: "Side B Source",
+  side_b_person: "Side B Person",
+  resolution_options: "Resolution Options",
 };
 
 const LIST_FIELDS: ProposedField[] = [
+  // requirement
   "acceptance_criteria",
   "business_rules",
   "edge_cases",
   "alternatives_considered",
   "blocked_by",
+  // stakeholder
+  "decisions",
+  "interests",
+  "concerns",
+  // constraint
+  "affects_reqs",
+  "workaround_options",
+  // gap
+  "validation_plan",
+  "options",
+  "blocked_reqs",
+  // contradiction
+  "resolution_options",
 ];
 
 
