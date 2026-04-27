@@ -173,7 +173,11 @@ async def chat(
                     project_id=project_id,
                     user_id=user_id,
                     message=agent_message,
-                    model="haiku",
+                    # Model picked by the user in the composer; falls
+                    # back to haiku for cost when nothing was sent.
+                    # --resume keeps the session_id so the swap is
+                    # continuous, not a reset.
+                    model=(message.model or "haiku"),
                 ):
                     event_type = event.get("type")
 
@@ -255,9 +259,18 @@ async def chat(
                                 except (asyncio.CancelledError, GeneratorExit):
                                     pass
                         session_id = event.get("session_id") or session_id
+                        # Pack the runner's token totals into stats so the
+                        # SSE done event AND the persisted assistant row
+                        # both carry it — the chat header's context-window
+                        # pill reads this on every reload, not just live.
                         stats = {
                             "numTurns": event.get("num_turns", 0),
                             "durationMs": event.get("duration_ms", 0),
+                            "contextTokens": event.get("context_tokens", 0),
+                            "inputTokens": event.get("input_tokens", 0),
+                            "outputTokens": event.get("output_tokens", 0),
+                            "cacheReadTokens": event.get("cache_read_tokens", 0),
+                            "model": (message.model or "haiku"),
                         }
 
                     # Throttled persistence after every event the user

@@ -12,6 +12,19 @@ interface Segment {
   thinkingCount?: number;
 }
 
+// Stats persisted on every assistant message — turn metadata + the
+// Claude Code usage block so the chat header can render the context-
+// window pill without re-asking the runner.
+interface ChatStats {
+  numTurns?: number;
+  durationMs?: number;
+  contextTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  model?: string;
+}
+
 interface Message {
   role: "user" | "assistant" | "system";
   content: string;
@@ -19,7 +32,7 @@ interface Message {
   toolCalls?: string[];
   thinkingCount?: number;
   activityLog?: { type: string; content?: string; tool?: string }[];
-  stats?: { numTurns?: number; durationMs?: number };
+  stats?: ChatStats;
   segments?: Segment[];
   // Source attribution — where the message was initiated from. "web" =
   // typed by the PM in the chat; "slack" = inbound Slack; "pipeline" =
@@ -122,6 +135,42 @@ const WORKFLOWS = [
   },
 ];
 
+// Model registry. `id` is the alias the backend hands to Claude Code's
+// --model flag (the bare aliases work; explicit IDs are accepted too).
+// `contextWindow` is the per-turn ceiling we render in the context-
+// usage pill — most models cap at 200K, the 1M-context Opus opts in.
+const MODELS: { id: string; label: string; contextWindow: number }[] = [
+  { id: "opus",                   label: "Opus 4.6",       contextWindow: 200_000 },
+  { id: "claude-opus-4-7[1m]",    label: "Opus 4.7 (1M)",  contextWindow: 1_000_000 },
+  { id: "sonnet",                 label: "Sonnet 4.6",     contextWindow: 200_000 },
+  { id: "haiku",                  label: "Haiku 4.5",      contextWindow: 200_000 },
+];
+const DEFAULT_MODEL_ID = "opus";
+
+function modelLabel(id: string): string {
+  return MODELS.find((m) => m.id === id)?.label || id;
+}
+
+// Tools the discovery agent currently has registered — surfaced via the
+// "13 tools" chip popover so the PM can see what's actually available
+// without diving into the agent definition. Grouped for readability;
+// the count comes from .length so updates here keep the chip accurate.
+const TOOLS: { name: string; group: "discovery" | "files" | "shell"; desc: string }[] = [
+  { name: "get_requirements",    group: "discovery", desc: "List extracted requirements (BR-* records)" },
+  { name: "get_gaps",            group: "discovery", desc: "List open gaps blocking handoff" },
+  { name: "get_constraints",     group: "discovery", desc: "List active project constraints" },
+  { name: "get_contradictions",  group: "discovery", desc: "List unresolved contradictions between sources" },
+  { name: "get_stakeholders",    group: "discovery", desc: "List people involved and their roles" },
+  { name: "propose_update",      group: "discovery", desc: "Stage a change to a finding for your review" },
+  { name: "validate_extraction", group: "discovery", desc: "Run quality checks against extracted findings" },
+  { name: "Read",                group: "files",     desc: "Read a file in the project workspace" },
+  { name: "Edit",                group: "files",     desc: "Modify an existing file in place" },
+  { name: "Write",               group: "files",     desc: "Create or fully replace a file" },
+  { name: "Grep",                group: "files",     desc: "Search file contents by regex" },
+  { name: "Glob",                group: "files",     desc: "Find files by pathname pattern" },
+  { name: "Bash",                group: "shell",     desc: "Run a shell command in the project root" },
+];
+
 interface ChatPanelProps {
   projectId: string;
   onDataChanged?: () => void;
@@ -136,9 +185,41 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   const [status, setStatus] = useState<ActiveStatus>({
     phase: "idle", thinkingCount: 0, toolCount: 0, startTime: 0,
   });
-  const [lastStats, setLastStats] = useState<{ numTurns?: number; durationMs?: number } | null>(null);
+  const [lastStats, setLastStats] = useState<ChatStats | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Model selection — applies per chat turn and persists across reloads
+  // via localStorage. Claude Code's --resume keeps the same session_id
+  // when the model flag changes, so swapping mid-conversation is
+  // continuous (not a reset). Default opus matches the UI label history.
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    if (typeof window === "undefined") return DEFAULT_MODEL_ID;
+    const stored = window.localStorage.getItem("discoveryChat:model");
+    if (stored && MODELS.some((m) => m.id === stored)) return stored;
+    return DEFAULT_MODEL_ID;
+  });
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("discoveryChat:model", selectedModel);
+  }, [selectedModel]);
+
+  // Keep lastStats in sync with whatever the most recent assistant
+  // message persisted — covers Slack-triggered runs that finish while
+  // the page is open (polling reconcile updates msg.stats; without this
+  // the context-window pill would only refresh on web-stream end /
+  // page reload).
+  useEffect(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role === "assistant" && m.stats?.numTurns) {
+        setLastStats(m.stats);
+        return;
+      }
+    }
+  }, [messages]);
 
   // Cursor pagination state — the chat now loads the newest page on
   // mount and fetches older pages on scroll-up. `oldestCursor` is opaque
@@ -605,6 +686,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           retryInfo: `Retry ${attempt}/${maxRetries}`,
         }));
       },
+      // model — picked in the composer, persisted in localStorage
+      selectedModel,
     );
   }
 
@@ -624,29 +707,99 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
           <div className="bubble">AI</div>
           <div>
             <h2>Discovery Chat</h2>
-            <p>
-              <span className="tools-chip">
+            {/* Was a <p> — switched to <div> because the tools popover
+             *  renders block-level <div>s inside, which HTML forbids
+             *  inside <p> (causes a hydration error). */}
+            <div style={{ position: "relative", fontSize: 13, color: "var(--ink-3)" }}>
+              <button
+                type="button"
+                className="tools-chip"
+                onClick={() => setToolsMenuOpen((v) => !v)}
+                aria-haspopup="dialog"
+                aria-expanded={toolsMenuOpen}
+                title="Available tools"
+                style={{
+                  border: "none", background: "var(--surface-2)",
+                  cursor: "pointer", fontFamily: "inherit",
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "2px 8px", borderRadius: 999,
+                }}
+              >
                 <span className="dot" />
-                13 tools
-              </span>
-              <span>Opus 4.6</span>
-            </p>
+                {TOOLS.length} tools
+              </button>
+              {toolsMenuOpen && (
+                <>
+                  <div
+                    onClick={() => setToolsMenuOpen(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 100 }}
+                  />
+                  <div
+                    role="dialog"
+                    style={{
+                      position: "absolute", top: "calc(100% + 6px)", left: 0,
+                      zIndex: 101, width: 320, maxHeight: 420, overflow: "auto",
+                      background: "var(--surface)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
+                      padding: 10,
+                    }}
+                  >
+                    {(["discovery", "files", "shell"] as const).map((g) => {
+                      const items = TOOLS.filter((t) => t.group === g);
+                      if (items.length === 0) return null;
+                      const heading =
+                        g === "discovery" ? "Discovery MCP" :
+                        g === "files" ? "File operations" :
+                        "Shell";
+                      return (
+                        <div key={g} style={{ marginBottom: g === "shell" ? 0 : 10 }}>
+                          <div style={{
+                            fontSize: 9, fontWeight: 700, letterSpacing: 0.4,
+                            textTransform: "uppercase",
+                            color: "var(--ink-4)", marginBottom: 6,
+                            paddingLeft: 4,
+                          }}>
+                            {heading}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            {items.map((t) => (
+                              <div key={t.name} style={{
+                                display: "flex", flexDirection: "column", gap: 2,
+                                padding: "5px 8px", borderRadius: 6,
+                                background: "transparent",
+                              }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--surface-2)")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                              >
+                                <span style={{
+                                  fontFamily: "var(--font-mono)",
+                                  fontSize: 11, fontWeight: 600,
+                                  color: "var(--ink)",
+                                  letterSpacing: "-0.01em",
+                                }}>
+                                  {t.name}
+                                </span>
+                                <span style={{
+                                  fontSize: 11, color: "var(--ink-3)", lineHeight: 1.35,
+                                }}>
+                                  {t.desc}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="chat-actions">
-          <StatusBar status={status} lastStats={lastStats} isStreaming={isStreaming} />
-          <button
-            className="ghost-btn"
-            onClick={() => { /* History view — TODO: wire to conversation archive */ }}
-            title="Conversation history"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v5h5" />
-              <path d="M3.05 13A9 9 0 106 5.3L3 8" />
-              <path d="M12 7v5l4 2" />
-            </svg>
-            History
-          </button>
+          <StatusBar status={status} lastStats={lastStats} isStreaming={isStreaming} modelId={selectedModel} />
           {messages.length > 0 && !isStreaming && (
             <button
               className="ghost-btn"
@@ -1129,19 +1282,95 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
               Type <strong style={{ color: "var(--ink-2)" }}>/</strong> for workflows
             </div>
 
-            <div className="composer-right">
+            <div className="composer-right" style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {/* Context-window ring — same vocabulary as the readiness
+                  hero: track + tier-coloured fill + numeric % center.
+                  Reads lastStats.contextTokens (persisted on the latest
+                  assistant message) so it survives a refresh. */}
+              {(lastStats?.contextTokens || 0) > 0 && (
+                <ContextWindowRing
+                  tokens={lastStats?.contextTokens || 0}
+                  modelId={lastStats?.model || selectedModel}
+                />
+              )}
               <button
                 type="button"
                 className="model-pill"
-                title="Model"
-                onClick={(e) => e.preventDefault()}
+                title="Pick model — applied to the next turn (session continues)"
+                onClick={() => setModelMenuOpen((v) => !v)}
+                aria-haspopup="listbox"
+                aria-expanded={modelMenuOpen}
               >
                 <span className="model-dot" />
-                Opus 4.6
+                {modelLabel(selectedModel)}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
+              {modelMenuOpen && (
+                <>
+                  {/* Click-outside catcher */}
+                  <div
+                    onClick={() => setModelMenuOpen(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 100 }}
+                  />
+                  <div
+                    role="listbox"
+                    style={{
+                      position: "absolute", bottom: "calc(100% + 6px)", right: 0,
+                      zIndex: 101, minWidth: 220,
+                      background: "var(--surface)",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
+                      padding: 6, display: "flex", flexDirection: "column", gap: 2,
+                    }}
+                  >
+                    {MODELS.map((m) => {
+                      const active = m.id === selectedModel;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          role="option"
+                          aria-selected={active}
+                          onClick={() => { setSelectedModel(m.id); setModelMenuOpen(false); }}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 8,
+                            padding: "7px 10px", borderRadius: 7,
+                            border: "none", textAlign: "left", cursor: "pointer",
+                            background: active ? "var(--accent-soft)" : "transparent",
+                            color: active ? "var(--accent-ink)" : "var(--ink)",
+                            fontFamily: "var(--font)", fontSize: 12, fontWeight: 600,
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) e.currentTarget.style.background = "var(--surface-2)";
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <span style={{
+                            width: 6, height: 6, borderRadius: "50%",
+                            background: active ? "var(--accent)" : "var(--ink-4)",
+                            flexShrink: 0,
+                          }} />
+                          <span style={{ flex: 1 }}>{m.label}</span>
+                          <span style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 10, color: "var(--ink-3)",
+                            fontVariantNumeric: "tabular-nums",
+                          }}>
+                            {m.contextWindow >= 1_000_000
+                              ? `${m.contextWindow / 1_000_000}M`
+                              : `${m.contextWindow / 1_000}K`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
               <button
                 type="button"
                 className="send-btn"
@@ -1165,10 +1394,77 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
 
 /* ── Claude Code-style Status Bar ── */
 
-function StatusBar({ status, lastStats, isStreaming }: {
+function ContextWindowRing({ tokens, modelId }: { tokens: number; modelId: string }) {
+  // Mini ring matching the readiness hero's vocabulary: track on
+  // var(--line), fill tier-mapped (green < 70%, amber 70-89%, red ≥ 90%),
+  // numeric % inside. Sits in the composer footer next to the model
+  // pill — small enough to read as a status icon, big enough to read
+  // the percentage at a glance.
+  const ceiling = MODELS.find((m) => m.id === modelId)?.contextWindow || 200_000;
+  const pct = Math.min(100, Math.max(0, (tokens / ceiling) * 100));
+  const fillColor =
+    pct >= 90 ? "var(--must, #B91C1C)" :
+    pct >= 70 ? "#B45309" :
+    "var(--accent)";
+  const fmt = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` :
+    n >= 1_000 ? `${Math.round(n / 1_000)}K` :
+    `${n}`;
+  // SVG ring geometry. r=22 + strokeWidth=8 in a 60×60 viewBox keeps
+  // the ring crisp while leaving room for the centered % label.
+  const ringR = 22;
+  const ringC = 2 * Math.PI * ringR;
+  const dashOffset = ringC - (pct / 100) * ringC;
+
+  return (
+    <span
+      title={`Context window — ${tokens.toLocaleString()} of ${ceiling.toLocaleString()} tokens used (${fmt(tokens)}/${fmt(ceiling)})`}
+      style={{
+        position: "relative",
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 28, height: 28,
+        flexShrink: 0,
+      }}
+    >
+      <svg width="28" height="28" viewBox="0 0 60 60">
+        <circle
+          cx="30" cy="30" r={ringR}
+          fill="none"
+          stroke="var(--line)"
+          strokeWidth="8"
+        />
+        <circle
+          cx="30" cy="30" r={ringR}
+          fill="none"
+          stroke={fillColor}
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={ringC}
+          strokeDashoffset={dashOffset}
+          transform="rotate(-90 30 30)"
+          style={{ transition: "stroke-dashoffset .25s ease, stroke .15s ease" }}
+        />
+      </svg>
+      <span style={{
+        position: "absolute",
+        fontFamily: "var(--font-mono)",
+        fontSize: 9, fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
+        color: "var(--ink-2)",
+        letterSpacing: "-0.02em",
+      }}>
+        {Math.round(pct)}
+      </span>
+    </span>
+  );
+}
+
+
+function StatusBar({ status, lastStats, isStreaming, modelId }: {
   status: ActiveStatus;
-  lastStats: { numTurns?: number; durationMs?: number } | null;
+  lastStats: ChatStats | null;
   isStreaming: boolean;
+  modelId: string;
 }) {
   const elapsed = isStreaming && status.startTime
     ? Math.floor((Date.now() - status.startTime) / 1000)
@@ -1255,12 +1551,18 @@ function StatusBar({ status, lastStats, isStreaming }: {
     );
   }
 
+  // Context-window status moved to the composer footer (next to the
+  // model dropdown) — modelId / lastStats are still passed in for
+  // future header use, but the StatusBar itself only carries the
+  // streaming/idle pill + turn-stats now.
+  void modelId;
+
   // Idle state — show last session stats
   if (lastStats?.numTurns) {
     return (
       <div style={barStyle}>
-        <span style={pillStyle("var(--green-light, #d1fae5)", "#059669")}>
-          <span style={dotStyle("#059669")} />
+        <span style={pillStyle("var(--accent-soft)", "var(--accent-ink)")}>
+          <span style={dotStyle("var(--accent)")} />
           Ready
         </span>
         <span style={{ color: "var(--gray-400)" }}>

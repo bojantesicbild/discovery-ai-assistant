@@ -512,6 +512,19 @@ class ClaudeCodeRunner:
                     result_session = event.get("session_id")
                     if result_session:
                         self._sessions[session_key] = result_session
+                    # Token totals — Claude Code's result event carries
+                    # a `usage` block with input_tokens (uncached input
+                    # for THIS turn), cache_read_input_tokens (the prior
+                    # context replayed from cache), cache_creation_input_
+                    # tokens, and output_tokens. The UI's "context window"
+                    # pill is the sum of input + cache_read for that turn,
+                    # which represents how much the model actually saw.
+                    usage = event.get("usage") or {}
+                    input_tokens = int(usage.get("input_tokens") or 0)
+                    cache_read = int(usage.get("cache_read_input_tokens") or 0)
+                    cache_create = int(usage.get("cache_creation_input_tokens") or 0)
+                    output_tokens = int(usage.get("output_tokens") or 0)
+                    context_tokens = input_tokens + cache_read + cache_create
                     yield {
                         "type": "result",
                         "content": event.get("result", ""),
@@ -520,6 +533,11 @@ class ClaudeCodeRunner:
                         "duration_ms": event.get("duration_ms", 0),
                         "duration_api_ms": event.get("duration_api_ms", 0),
                         "num_turns": event.get("num_turns", 0),
+                        "input_tokens": input_tokens,
+                        "cache_read_tokens": cache_read,
+                        "cache_creation_tokens": cache_create,
+                        "output_tokens": output_tokens,
+                        "context_tokens": context_tokens,
                     }
                     continue
 
