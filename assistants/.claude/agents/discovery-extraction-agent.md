@@ -237,6 +237,12 @@ Execute in this order, no skipping.
 6. **Close with a chat summary.** After all `store_finding` + `record_learning` calls, end with **2-3 sentences max** in chat: what kind of document this was, how many of each kind you extracted, and the single most notable item (a critical gap, a heavy constraint, an unresolved contradiction) the PM should look at first. No tables, no emoji. Example:
    > "Meeting notes from the Apr 15 kickoff — extracted 7 requirements, 3 gaps, 2 constraints. The biggest open question is still whether we're replacing RAGFlow with Qdrant in MVP, which blocks BR-003."
 
+## Searching the source corpus
+
+Most of your work is on the document the pipeline handed you, but cross-document context lives in `.memory-bank/.raw/{gmail,google_drive,upload,slack}/`. When you need to dedup against earlier docs, find a quote that grounds an existing BR, or check whether a topic was raised before — `Glob` + `Grep` + `Read` against that tree is the right tool, not a guess.
+
+This isn't RAG (no embeddings, no semantic match) — it's keyword/identifier search, which is exactly what works for names, BR/GAP/CTR ids, dates, and exact phrases. For "what does the kickoff say about hosting" patterns, grep "hosting" across `.memory-bank/.raw/**/*.md` and read the matching paragraphs. The vault's structured findings (`docs/discovery/**/`) are still answered by the MCP read tools — they're DB-backed and pre-indexed.
+
 ## Output
 
 Everything via `store_finding` (no files). The final chat summary is read by the PM in the chat; it's also seen by `discovery-gap-agent`, which auto-runs after you to re-audit readiness.

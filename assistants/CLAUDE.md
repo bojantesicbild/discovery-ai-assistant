@@ -270,6 +270,10 @@ Only reset the archived domain — never touch the others.
 
 **Tool inheritance.** Sub-agents do not declare `tools:` in their frontmatter — they inherit every tool and MCP server from this orchestrator session. This prevents namespace drift when MCP configurations change and keeps a single source of truth for what's available.
 
+**Two transports, same tools.** The Discovery MCP exposes the same tool registry over two transports — pick the one your environment uses:
+- **stdio** (in-process). Used by the web chat, Slack listener, and pipeline subprocess paths inside the backend host. `.mcp.json` config: `{"command": "python", "args": [".../db_server.py"], "env": {...}}`.
+- **streamable-HTTP** (remote). Used by team members running Claude Code on their laptops. `.mcp.json` config: `{"url": "https://discovery-host/mcp/{project_id}", "headers": {"Authorization": "Bearer dsc_..."}}`. Auth via personal access tokens minted from the web UI Settings page or via `discovery setup`. Same tool definitions, same DB writes — the only difference is who's holding the token.
+
 **Discovery MCP** (`mcp-server/db_server.py`) — the project's own server:
 - Read: `get_project_context`, `get_requirements`, `get_constraints`, `get_stakeholders`, `get_contradictions`, `get_control_points`, `get_readiness`, `get_gaps`, `get_related`, `get_graph_stats`, `get_connections`, `get_active_learnings`, `search_documents`, `get_current_time`, `list_reminders`.
 - Write: `store_finding` (requirement, constraint, stakeholder, gap, contradiction) (decision-like info goes on BR as `rationale` + `alternatives_considered`; scope boundaries go on BR as `scope_note`; imposed assumptions → `constraint`; unvalidated assumptions → `gap` with `kind='unvalidated_assumption'`), `propose_update`, `propose_relationship`, `record_learning`, `update_requirement_status`, `schedule_reminder`, `cancel_reminder`, `reschedule_reminder`.
