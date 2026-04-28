@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens, mcp_proxy
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens, mcp_proxy, internal as api_internal
 
 
 @asynccontextmanager
@@ -33,6 +33,12 @@ async def lifespan(app: FastAPI):
         import structlog
         structlog.get_logger().warning("Slack listeners failed to start", error=str(e))
 
+    # VaultSync (LT-2) — debounced commit + push for vault repos.
+    # Started before MCP so MCP-driven writes can land via the same
+    # singleton. Stopped on shutdown via the lifespan teardown below.
+    from app.services.vault_sync import vault_sync
+    await vault_sync.start()
+
     # HTTP MCP transport (LT-1) — wraps the same Server instance the
     # stdio MCP uses, served at /mcp/{project_id} for remote (laptop)
     # Claude Code clients. The manager's run() context owns the task
@@ -40,7 +46,12 @@ async def lifespan(app: FastAPI):
     # for the entire app lifetime.
     from app.api.mcp_proxy import init_mcp_manager
     async with init_mcp_manager(app):
-        yield
+        try:
+            yield
+        finally:
+            # Stop the push loop before the rest of teardown; otherwise
+            # an in-flight git push could race with engine.dispose().
+            await vault_sync.stop()
 
     # Shutdown Slack listeners first
     try:
@@ -248,6 +259,7 @@ app.include_router(api_sessions.router)
 app.include_router(api_learnings.router)
 app.include_router(api_tokens.router)
 app.include_router(mcp_proxy.router)
+app.include_router(api_internal.router)
 
 
 @app.get("/health")

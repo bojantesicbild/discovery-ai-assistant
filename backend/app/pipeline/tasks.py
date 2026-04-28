@@ -105,6 +105,19 @@ async def process_document(ctx, document_id: str):
             except Exception as e:
                 log.warning("Markdown export failed (non-fatal)", error=str(e))
 
+            # Stage 5b (LT-2): commit the vault state. VaultSync
+            # debounces pushes (~10s); here we just commit and let
+            # the push loop coalesce. Failure non-fatal — the next
+            # successful pipeline tick will catch up the vault.
+            try:
+                from app.services.vault_sync import vault_sync
+                await vault_sync.commit(
+                    project_id,
+                    f"Pipeline: ingest {doc.filename} (readiness {readiness['score']}%)",
+                )
+            except Exception as e:
+                log.warning("Vault commit failed (non-fatal)", error=str(e))
+
             # Done.
             doc.pipeline_stage = "completed"
             doc.pipeline_completed_at = datetime.now(timezone.utc)
