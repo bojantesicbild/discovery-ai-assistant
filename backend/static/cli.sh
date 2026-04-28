@@ -124,19 +124,122 @@ _discovery_setup() {
 
   echo "$bundle" | jq -r '.linked_repos' > "$target/.discovery-linked-repos.json"
 
+  # Resolve each linked code repo to an absolute path on this laptop.
+  # Writes .discovery/repos.json — gitignored — mapping repo name to
+  # absolute path. `discovery claude` reads this to build --add-dir
+  # flags so the agent can read across all linked repos.
+  mkdir -p "$target/.discovery"
+  _discovery_resolve_repos "$target" "$bundle"
+
   cat <<EOF
 
 Done. Next:
   cd ~/discovery/$slug
-  claude
+  discovery claude
 
 Linked code repos for this project:
-$(echo "$bundle" | jq -r '.linked_repos[]? | "  - " + .name + "  →  " + .url')
-
-Phase 4 will add 'discovery claude' that wraps claude with --add-dir
-for each linked repo. For now, clone them manually wherever you keep
-your code and pass --add-dir yourself.
+$(jq -r 'to_entries[]? | "  - " + .key + "  →  " + .value' "$target/.discovery/repos.json" 2>/dev/null || echo "  (none linked)")
 EOF
+}
+
+# Per-laptop resolution of linked code repos. For each entry in
+# bundle.linked_repos, autodetect at common locations
+# (~/work/{name}, ~/code/{name}, ~/dev/{name}) and confirm; if not
+# found, offer to clone fresh into ~/work/{name}; users can also type
+# a custom path or 'skip' if they don't have access.
+_discovery_resolve_repos() {
+  local target="$1"
+  local bundle="$2"
+  local repos_json="$target/.discovery/repos.json"
+
+  # Start with an empty mapping.
+  echo '{}' > "$repos_json"
+
+  local count
+  count=$(echo "$bundle" | jq -r '.linked_repos | length')
+  if [ "$count" -eq 0 ]; then
+    return 0
+  fi
+
+  echo
+  echo "Resolving $count linked code repo(s) for this project."
+
+  local i=0
+  while [ "$i" -lt "$count" ]; do
+    local name url
+    name=$(echo "$bundle" | jq -r ".linked_repos[$i].name")
+    url=$(echo "$bundle" | jq -r ".linked_repos[$i].url")
+    branch=$(echo "$bundle" | jq -r ".linked_repos[$i].default_branch // \"main\"")
+    i=$((i + 1))
+
+    echo
+    echo "  $name  →  $url ($branch)"
+
+    # Autodetect at common parent dirs by matching the remote URL.
+    local found=""
+    local parent
+    for parent in "$HOME/work" "$HOME/code" "$HOME/dev" "$HOME/projects" "$HOME/git"; do
+      local candidate="$parent/$name"
+      if [ -d "$candidate/.git" ]; then
+        local remote
+        remote=$(git -C "$candidate" remote get-url origin 2>/dev/null || true)
+        if [ "$remote" = "$url" ]; then
+          found="$candidate"
+          break
+        fi
+      fi
+    done
+
+    if [ -n "$found" ]; then
+      printf "    Already cloned at %s — use it? [Y/n/path] " "$found"
+      local ans
+      read -r ans
+      case "$ans" in
+        ""|y|Y|yes) ;;
+        n|N|no) found="" ;;
+        *) found="$ans" ;;
+      esac
+    fi
+
+    if [ -z "$found" ]; then
+      local default_dest="$HOME/work/$name"
+      printf "    Not found. Clone to %s? [Y/n/path/skip] " "$default_dest"
+      local ans
+      read -r ans
+      case "$ans" in
+        ""|y|Y|yes)
+          mkdir -p "$HOME/work"
+          if git clone --branch "$branch" "$url" "$default_dest" 2>&1 | tail -3; then
+            found="$default_dest"
+          else
+            echo "    Clone failed; skipping. Re-run 'discovery setup' after fixing access."
+          fi
+          ;;
+        n|N|no|skip)
+          echo "    Skipped — agent won't see this repo until you add it manually."
+          ;;
+        *)
+          # Custom path. Either use existing clone or clone fresh.
+          if [ -d "$ans/.git" ]; then
+            found="$ans"
+          else
+            mkdir -p "$(dirname "$ans")"
+            if git clone --branch "$branch" "$url" "$ans" 2>&1 | tail -3; then
+              found="$ans"
+            fi
+          fi
+          ;;
+      esac
+    fi
+
+    if [ -n "$found" ]; then
+      # Persist the path. Resolve to absolute so `discovery claude`
+      # works regardless of where it's invoked from.
+      local abs
+      abs=$(cd "$found" && pwd)
+      jq --arg n "$name" --arg p "$abs" '.[$n] = $p' "$repos_json" > "$repos_json.tmp" && mv "$repos_json.tmp" "$repos_json"
+    fi
+  done
 }
 
 # --- sync ------------------------------------------------------------
@@ -154,7 +257,18 @@ _discovery_sync() {
 
 _discovery_claude() {
   command -v claude >/dev/null 2>&1 || { echo "discovery: 'claude' (Claude Code) not found in PATH" >&2; return 1; }
-  exec claude "$@"
+  local args=()
+  if [ -f ".discovery/repos.json" ]; then
+    # Build --add-dir flags from the resolved linked-repos map. The
+    # agent gets read access to every linked code repo without the
+    # user having to type --add-dir manually each session.
+    local path
+    while IFS= read -r path; do
+      [ -z "$path" ] && continue
+      args+=(--add-dir "$path")
+    done < <(jq -r '.[]' .discovery/repos.json 2>/dev/null)
+  fi
+  exec claude "${args[@]}" "$@"
 }
 
 # --- refresh-token ---------------------------------------------------
@@ -187,9 +301,19 @@ _discovery_refresh_token() {
 # --- repos -----------------------------------------------------------
 
 _discovery_repos() {
-  if [ ! -f ".discovery-linked-repos.json" ]; then
+  if [ ! -f ".discovery/repos.json" ] && [ ! -f ".discovery-linked-repos.json" ]; then
     echo "discovery repos: nothing here yet (run 'discovery setup' first)" >&2
     return 1
   fi
-  jq -r '.[] | "  - " + .name + "  →  " + .url + "  (" + .default_branch + ")"' .discovery-linked-repos.json
+  echo "Linked repos (from project):"
+  if [ -f ".discovery-linked-repos.json" ]; then
+    jq -r '.[] | "  - " + .name + "  →  " + .url + "  (" + .default_branch + ")"' .discovery-linked-repos.json
+  fi
+  echo
+  echo "Resolved on this laptop:"
+  if [ -f ".discovery/repos.json" ]; then
+    jq -r 'to_entries[]? | "  - " + .key + "  →  " + .value' .discovery/repos.json
+  else
+    echo "  (none — re-run 'discovery setup' to resolve)"
+  fi
 }
