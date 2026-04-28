@@ -8,6 +8,7 @@ priority: should
 status: proposed
 confidence: medium
 description: [description]
+scope_note: [scope_note]
 source_doc: [source_doc]
 source_person: [source_person]
 source_raw: [source_raw]
@@ -32,6 +33,22 @@ _Body of the requirement — also rendered as the H1 paragraph_
 ## User Perspective
 
 _As a [role], I want [X], so that [Y]_
+
+## Rationale
+
+_Why this requirement over alternatives — absorbs decision info. Populate when the source explains WHY, not just WHAT._
+
+## Alternatives Considered
+
+- 
+
+## Scope Note
+
+_Short boundary clarifier if this BR doesn't apply everywhere. E.g. 'iOS only', 'MVP — not post-launch'. Skip for most BRs._
+
+## Blocked by
+
+- [[item]]
 
 ## Business Rules
 
@@ -80,6 +97,16 @@ For each requirement, capture:
 - source_quote: EXACT verbatim quote from the document (≥10 chars)
 - status: proposed (default), discussed (mentioned in multiple docs), confirmed (client EXPLICITLY confirmed)
 - confidence: high (explicit), medium (implied), low (inferred)
+- rationale: populate when the source explains WHY this BR is the way it is,
+             not just what it does. Absorbs decision-style content ("we chose X
+             because Y"). Skip when the source only states the requirement flatly.
+- alternatives_considered: options weighed and rejected, one per entry as
+                           '<option> — <reason rejected>'. Skip if only one path
+                           was ever on the table.
+- scope_note: short boundary clarifier when the BR doesn't apply everywhere
+              (e.g. 'iOS only', 'MVP — not post-launch'). Skip for most BRs.
+- blocked_by: BR ids that must ship before this one (e.g. ['BR-001']). Use when
+              the source explicitly sequences work. Leave empty otherwise.
 
 Avoid extracting:
 - Already-existing requirements (return existing_match: BR-XXX instead)

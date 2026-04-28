@@ -8,6 +8,7 @@ priority: should
 status: proposed
 confidence: medium
 description: ""
+scope_note: ""
 source_doc: ""
 source_person: ""
 source_raw: ""
@@ -32,6 +33,22 @@ _Body of the requirement — also rendered as the H1 paragraph_
 ## User Perspective
 
 _As a [role], I want [X], so that [Y]_
+
+## Rationale
+
+_Why this requirement over alternatives — absorbs decision info. Populate when the source explains WHY, not just WHAT._
+
+## Alternatives Considered
+
+- 
+
+## Scope Note
+
+_Short boundary clarifier if this BR doesn't apply everywhere. E.g. 'iOS only', 'MVP — not post-launch'. Skip for most BRs._
+
+## Blocked by
+
+- [[item]]
 
 ## Business Rules
 
