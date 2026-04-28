@@ -25,6 +25,7 @@ import sys
 import json
 import uuid
 import asyncio
+from contextvars import ContextVar
 from pathlib import Path
 
 import asyncpg
@@ -36,6 +37,17 @@ from mcp.types import Tool, TextContent
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://discovery_user:discovery_pass@localhost:5432/discovery_db")
 PROJECT_ID = os.environ.get("DISCOVERY_PROJECT_ID", "")
 USER_ID = os.environ.get("DISCOVERY_USER_ID", "")
+
+# Per-request overrides for HTTP MCP transport (LT-1). When the same
+# Python process serves N projects + M users (one streamable-HTTP
+# manager, many concurrent requests), env-var globals can't represent
+# "this request is for project A acting as user B". The FastAPI
+# wrapper in backend/app/api/mcp_proxy.py sets these ContextVars from
+# the verified PAT before delegating to the MCP handler; tools below
+# (get_project_id, _resolve_token_identity, get_user_id) consult them
+# first and fall back to env vars for the stdio path.
+HTTP_PROJECT_ID: ContextVar[str | None] = ContextVar("http_project_id", default=None)
+HTTP_TOKEN_IDENTITY: ContextVar[dict | None] = ContextVar("http_token_identity", default=None)
 # The all-zeros UUID is the session-sharing sentinel, not a real user.
 # Treat it as unset so the fallback chain in get_user_id runs.
 if USER_ID == "00000000-0000-0000-0000-000000000000":
@@ -316,7 +328,15 @@ async def get_pool():
 
 
 async def get_project_id():
-    """Get project ID — from env or most recent project."""
+    """Get project ID — from per-request ContextVar (HTTP MCP), env
+    (stdio), or most recent active project (dev fallback).
+
+    The HTTP path sets HTTP_PROJECT_ID per FastAPI request from the
+    URL path; takes precedence so a single process can serve many
+    projects without env-var thrash."""
+    http_pid = HTTP_PROJECT_ID.get()
+    if http_pid:
+        return http_pid
     if PROJECT_ID:
         return PROJECT_ID
     pool = await get_pool()
@@ -330,12 +350,21 @@ async def _resolve_token_identity() -> dict:
     once per subprocess lifetime. Returns the cached dict on subsequent
     calls.
 
+    HTTP path: when HTTP_TOKEN_IDENTITY is set in this request's
+    ContextVar (FastAPI wrapper resolves the PAT against the api_tokens
+    table and stuffs the identity dict here), return it directly. The
+    stdio cache (_TOKEN_IDENTITY) is bypassed since HTTP requests come
+    from many users in one process.
+
     Graceful degradation: if the token is missing, the backend is
     unreachable, or verify returns non-200, we record the failure and
     callers fall through to the env/DB chain. Dev setups without a
     token keep working. Production setups with a revoked token get a
     clear stderr line instead of silent wrong-user attribution.
     """
+    http_id = HTTP_TOKEN_IDENTITY.get()
+    if http_id is not None:
+        return http_id
     global _TOKEN_IDENTITY, _TOKEN_IDENTITY_LOCK
     if _TOKEN_IDENTITY is not None:
         return _TOKEN_IDENTITY

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens, mcp_proxy
 
 
 @asynccontextmanager
@@ -33,7 +33,14 @@ async def lifespan(app: FastAPI):
         import structlog
         structlog.get_logger().warning("Slack listeners failed to start", error=str(e))
 
-    yield
+    # HTTP MCP transport (LT-1) — wraps the same Server instance the
+    # stdio MCP uses, served at /mcp/{project_id} for remote (laptop)
+    # Claude Code clients. The manager's run() context owns the task
+    # group it needs for stateless request dispatch; we hold it open
+    # for the entire app lifetime.
+    from app.api.mcp_proxy import init_mcp_manager
+    async with init_mcp_manager(app):
+        yield
 
     # Shutdown Slack listeners first
     try:
@@ -240,6 +247,7 @@ app.include_router(api_relationships.router)
 app.include_router(api_sessions.router)
 app.include_router(api_learnings.router)
 app.include_router(api_tokens.router)
+app.include_router(mcp_proxy.router)
 
 
 @app.get("/health")
