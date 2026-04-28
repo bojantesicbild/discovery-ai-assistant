@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # Frontend URL to redirect back to after OAuth success/failure
     frontend_url: str = "http://localhost:3000"
 
+    # Public URL of the Discovery backend (the one teammates' laptops
+    # hit for /mcp + /vaults git clone). Defaults to the api_host:port
+    # for dev; production deploys override this with the nginx-fronted
+    # https URL via env var DISCOVERY_PUBLIC_URL.
+    public_url: str = "http://localhost:8008"
+
     # File uploads
     upload_max_size_mb: int = 50
 

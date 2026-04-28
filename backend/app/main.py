@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens, mcp_proxy, internal as api_internal
+from app.api import projects, documents, extracted_items, dashboard, chat, generate, auth, knowledge, repos, integrations, slack_channels, finding_views, history, review, meeting, reminders, vault, relationships as api_relationships, sessions as api_sessions, learnings as api_learnings, tokens as api_tokens, mcp_proxy, internal as api_internal, bootstrap as api_bootstrap
 
 
 @asynccontextmanager
@@ -260,6 +260,22 @@ app.include_router(api_learnings.router)
 app.include_router(api_tokens.router)
 app.include_router(mcp_proxy.router)
 app.include_router(api_internal.router)
+app.include_router(api_bootstrap.router)
+
+
+# Static cli.sh — served from a stable URL so users can do
+#   curl -fsSL https://discovery-host/cli.sh >> ~/.zshrc
+# and the function always matches the API it calls (no version skew).
+@app.get("/cli.sh", include_in_schema=False)
+async def serve_cli_sh():
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    cli_path = Path(__file__).parent.parent / "static" / "cli.sh"
+    return FileResponse(
+        cli_path,
+        media_type="text/x-shellscript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/health")
