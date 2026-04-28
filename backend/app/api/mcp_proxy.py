@@ -42,7 +42,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user_strict
 from app.models.auth import User
 from app.models.project import ProjectMember
 
@@ -106,7 +106,7 @@ async def mcp_endpoint(
     project_id: uuid.UUID,
     request: Request,
     rest: str = "",
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_strict),
     db: AsyncSession = Depends(get_db),
 ) -> StreamingResponse:
     # Project membership gate. Admins bypass; everyone else must be

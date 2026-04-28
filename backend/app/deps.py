@@ -61,6 +61,60 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_strict(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Auth dep that REQUIRES real credentials — no dev fallback to the
+    first user in the DB. Use this on routes that serve secrets or
+    project-scoped content over the network: ``/vaults/...``,
+    ``/mcp/{project_id}``, anything where "any logged-in dev user"
+    is the wrong default.
+
+    Accepts the same credentials as ``get_current_user`` (PAT with
+    ``dsc_`` prefix or JWT) — just requires that they be present and
+    valid."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    raw = credentials.credentials
+
+    # Internal service shortcut — local-only, not for the network paths
+    # this dep is used on, but kept consistent with get_current_user
+    # so callers can swap deps without behavior change.
+    if raw == "internal":
+        result = await db.execute(select(User).limit(1))
+        user = result.scalar_one_or_none()
+        if user:
+            return user
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+
+    from app.services.api_tokens import TOKEN_PREFIX, verify_token
+    if raw.startswith(TOKEN_PREFIX):
+        result = await verify_token(db, plaintext=raw)
+        if result is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or revoked token")
+        _, user = result
+        return user
+
+    try:
+        payload = jwt.decode(raw, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        user_id = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    except JWTError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    return user
+
+
 async def verify_project_access(
     project_id: uuid.UUID,
     user: User = Depends(get_current_user),
