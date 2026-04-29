@@ -292,7 +292,10 @@ _discovery_claude() {
       args+=(--add-dir "$path")
     done < <(jq -r '.[]' .discovery/repos.json 2>/dev/null)
   fi
-  exec "$claude_bin" "${args[@]}" "$@"
+  # Plain call (not exec) so when Claude Code exits the user lands
+  # back in their shell. exec replaces the shell process, which kills
+  # the terminal tab on /exit — bad UX.
+  "$claude_bin" "${args[@]}" "$@"
 }
 
 # --- refresh-token ---------------------------------------------------
