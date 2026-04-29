@@ -280,6 +280,21 @@ async def serve_cli_sh():
     )
 
 
+# Stdio→HTTP MCP bridge — Python script that Claude Code spawns as a
+# stdio server and forwards JSON-RPC to /mcp/{id} with bearer auth.
+# Sidesteps the SDK's OAuth-on-HTTP-transport requirement.
+@app.get("/mcp-bridge.py", include_in_schema=False)
+async def serve_mcp_bridge():
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    bridge_path = Path(__file__).parent.parent / "static" / "mcp_bridge.py"
+    return FileResponse(
+        bridge_path,
+        media_type="text/x-python",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "0.1.0"}

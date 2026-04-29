@@ -168,16 +168,26 @@ async def bootstrap(
     vault_url = f"{public}/vaults/{project_id}.git"
     mcp_url = f"{public}/mcp/{project_id}"
 
-    # Claude Code's .mcp.json schema requires `type: "http"` for
-    # streamable-HTTP servers (omitting it makes Claude Code reject the
-    # entry as "Does not adhere to MCP server configuration schema").
-    # See https://code.claude.com/docs/en/mcp
+    # Stdio-bridge config: Claude Code's MCP SDK forces OAuth 2.1 on
+    # streamable-HTTP transports (no escape hatch for static bearer
+    # tokens), so we route through a tiny local Python script that
+    # forwards JSON-RPC over stdio to /mcp/{id} with bearer auth.
+    # The bridge script is downloaded by `discovery setup` from
+    # /mcp-bridge.py and executed locally; the {{HOME}} placeholder
+    # is replaced by the CLI with the actual user home.
     mcp_config = {
         "mcpServers": {
             "discovery": {
-                "type": "http",
-                "url": mcp_url,
-                "headers": {"Authorization": f"Bearer {plaintext}"},
+                "type": "stdio",
+                "command": "/usr/bin/env",
+                "args": [
+                    "python3",
+                    "{{HOME}}/.local/share/discovery/mcp-bridge.py",
+                ],
+                "env": {
+                    "DISCOVERY_MCP_URL": mcp_url,
+                    "DISCOVERY_PAT": plaintext,
+                },
             }
         }
     }

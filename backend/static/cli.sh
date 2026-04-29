@@ -116,8 +116,23 @@ _discovery_setup() {
     git -C "$target" config "http.${clone_url%/*}/.extraHeader" "Authorization: Bearer $pat"
   fi
 
-  # Write .mcp.json (gitignored; do NOT commit).
-  echo "$bundle" | jq -r '.mcp_config' > "$target/.mcp.json"
+  # Install the stdio MCP bridge once per laptop. Claude Code's HTTP
+  # MCP transport mandates OAuth 2.1; the bridge sidesteps that by
+  # running locally as stdio and forwarding to /mcp over HTTPS with
+  # Bearer auth. Idempotent — overwrites on each setup so updates
+  # propagate.
+  local bridge_dir="$HOME/.local/share/discovery"
+  mkdir -p "$bridge_dir"
+  curl -fsSL "$DISCOVERY_HOST/mcp-bridge.py" -o "$bridge_dir/mcp-bridge.py" || {
+    echo "discovery: failed to download mcp-bridge.py" >&2; return 1; }
+  chmod +x "$bridge_dir/mcp-bridge.py"
+
+  # Write .mcp.json (gitignored; do NOT commit). Bootstrap returns
+  # paths with {{HOME}} placeholders so the same JSON is portable
+  # across users — substitute the real home path here.
+  echo "$bundle" | jq -r '.mcp_config' \
+    | sed "s|{{HOME}}|$HOME|g" \
+    > "$target/.mcp.json"
   if ! grep -qxF ".mcp.json" "$target/.gitignore" 2>/dev/null; then
     printf '\n.mcp.json\n.discovery/\n' >> "$target/.gitignore"
   fi
@@ -309,10 +324,14 @@ _discovery_refresh_token() {
     return 1
   fi
 
-  # Reuse the bootstrap endpoint to mint a fresh PAT.
-  local pid
-  pid=$(jq -r '.mcpServers.discovery.url' .mcp.json | sed -E 's|.*/mcp/([0-9a-f-]+).*|\1|')
-  if [ -z "$pid" ]; then
+  # Reuse the bootstrap endpoint to mint a fresh PAT. With the stdio-
+  # bridge config the URL lives in env.DISCOVERY_MCP_URL; with the
+  # earlier HTTP-direct config it was at .url. Try both for forward
+  # compatibility.
+  local mcp_url pid
+  mcp_url=$(jq -r '.mcpServers.discovery.env.DISCOVERY_MCP_URL // .mcpServers.discovery.url' .mcp.json 2>/dev/null)
+  pid=$(echo "$mcp_url" | sed -E 's|.*/mcp/([0-9a-f-]+).*|\1|')
+  if [ -z "$pid" ] || [ "$pid" = "null" ]; then
     echo "discovery refresh-token: could not parse project_id from .mcp.json" >&2
     return 1
   fi
@@ -321,7 +340,9 @@ _discovery_refresh_token() {
   bundle=$(curl -fsSL -H "Authorization: Bearer $DISCOVERY_JWT" \
     "$DISCOVERY_HOST/api/projects/$pid/bootstrap") || {
       echo "discovery: refresh failed" >&2; return 1; }
-  echo "$bundle" | jq -r '.mcp_config' > .mcp.json
+  echo "$bundle" | jq -r '.mcp_config' \
+    | sed "s|{{HOME}}|$HOME|g" \
+    > .mcp.json
   echo "PAT rotated in .mcp.json. Old PAT still valid until you revoke it from the web UI."
 }
 
