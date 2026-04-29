@@ -168,9 +168,14 @@ async def bootstrap(
     vault_url = f"{public}/vaults/{project_id}.git"
     mcp_url = f"{public}/mcp/{project_id}"
 
+    # Claude Code's .mcp.json schema requires `type: "http"` for
+    # streamable-HTTP servers (omitting it makes Claude Code reject the
+    # entry as "Does not adhere to MCP server configuration schema").
+    # See https://code.claude.com/docs/en/mcp
     mcp_config = {
         "mcpServers": {
             "discovery": {
+                "type": "http",
                 "url": mcp_url,
                 "headers": {"Authorization": f"Bearer {plaintext}"},
             }
