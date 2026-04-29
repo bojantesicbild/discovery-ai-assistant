@@ -256,7 +256,31 @@ _discovery_sync() {
 # --- claude wrapper (Phase 4 will add --add-dir for linked repos) ---
 
 _discovery_claude() {
-  command -v claude >/dev/null 2>&1 || { echo "discovery: 'claude' (Claude Code) not found in PATH" >&2; return 1; }
+  # Resolve claude's full path defensively. zsh sometimes caches command
+  # lookups in a function-local hash that doesn't match the interactive
+  # shell's PATH; using the resolved path bypasses that. Tries (in order):
+  # `command -v`, then well-known locations.
+  local claude_bin=""
+  claude_bin=$(command -v claude 2>/dev/null) || claude_bin=""
+  if [ -z "$claude_bin" ]; then
+    for try in \
+      "$HOME/.local/bin/claude" \
+      "$HOME/.npm-global/bin/claude" \
+      "/opt/homebrew/bin/claude" \
+      "/usr/local/bin/claude"; do
+      if [ -x "$try" ]; then
+        claude_bin="$try"
+        break
+      fi
+    done
+  fi
+  if [ -z "$claude_bin" ]; then
+    echo "discovery: 'claude' (Claude Code) not found in PATH or common locations" >&2
+    echo "  Tried: \$PATH, ~/.local/bin/claude, ~/.npm-global/bin/claude, /opt/homebrew/bin/claude, /usr/local/bin/claude" >&2
+    echo "  Run 'which claude' in a fresh shell — if it resolves, your shell rc isn't being loaded by the function context." >&2
+    return 1
+  fi
+
   local args=()
   if [ -f ".discovery/repos.json" ]; then
     # Build --add-dir flags from the resolved linked-repos map. The
@@ -268,7 +292,7 @@ _discovery_claude() {
       args+=(--add-dir "$path")
     done < <(jq -r '.[]' .discovery/repos.json 2>/dev/null)
   fi
-  exec claude "${args[@]}" "$@"
+  exec "$claude_bin" "${args[@]}" "$@"
 }
 
 # --- refresh-token ---------------------------------------------------
