@@ -32,16 +32,15 @@ router = APIRouter(tags=["oauth-metadata"])
 def _resource_metadata(resource_url: str) -> dict:
     """RFC 9728 metadata declaring Bearer-via-header is the only auth.
 
-    Empty authorization_servers + bearer_methods_supported=["header"]
-    → client uses the Authorization header it already has from
-    .mcp.json, skips the discovery flow."""
+    Per RFC 9728 §3.3: ``authorization_servers`` ABSENT (not empty
+    array) signals "the resource manages tokens itself" — clients
+    should use whatever Bearer token they already have from config.
+    An empty array seems to trip Claude Code's MCP SDK into OAuth
+    discovery anyway, so we omit the field entirely."""
     return {
         "resource": resource_url,
-        "authorization_servers": [],
         "bearer_methods_supported": ["header"],
         "scopes_supported": [],
-        # Tells the client this resource doesn't require any specific
-        # JWT issuer / audience claims to be validated client-side.
         "resource_documentation": "Discovery MCP — auth via Bearer dsc_… token from Settings",
     }
 
