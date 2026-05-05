@@ -1,9 +1,8 @@
 "use client";
 
-// Handoff tab — document generation UI (Discovery Brief, MVP Scope,
-// Functional Requirements). Extracted from DataPanel.tsx; the tab
-// manages its own state so it can live in its own file without threading
-// anything through DataPanel.
+// Handoff tab — document generation UI (Discovery Brief, MVP Spec).
+// Extracted from DataPanel.tsx; the tab manages its own state so it can
+// live in its own file without threading anything through DataPanel.
 
 import { useEffect, useState } from "react";
 import { listHandoffDocs, getHandoffDoc, generateHandoffStream } from "@/lib/api";
@@ -126,7 +125,7 @@ export function HandoffTab({ projectId }: { projectId: string }) {
       <div className="ho-header">
         <div>
           <div className="ho-header-title">Handoff Documents</div>
-          <div className="ho-header-sub">3 deliverables for Phase 2 handoff</div>
+          <div className="ho-header-sub">2 deliverables for Phase 2 handoff</div>
         </div>
         <button type="button" className="btn-primary" onClick={handleGenerate} disabled={generating}>
           {generating ? "Generating..." : "Generate All"}
@@ -136,8 +135,7 @@ export function HandoffTab({ projectId }: { projectId: string }) {
       <div className="ho-cards">
         {[
           { type: "discovery_brief", label: "Discovery Brief", desc: "Client overview, business context, target users, market analysis" },
-          { type: "mvp_scope_freeze", label: "MVP Scope Freeze", desc: "Core features, out of scope, platform decisions, sign-off" },
-          { type: "functional_requirements", label: "Functional Requirements", desc: "Detailed requirements with user stories and business rules" },
+          { type: "mvp_spec", label: "MVP Specification", desc: "Scope commitment + functional requirements with ACs, NFRs, release criteria, sign-off" },
         ].map((d) => {
           const info = docs.find((x) => x.type === d.type);
           const generated = !!info?.generated;
@@ -179,7 +177,7 @@ export function HandoffTab({ projectId }: { projectId: string }) {
                 >
                   <span className={`chip xs ${statusVariant}`}>v{gen.version}</span>
                   <span className="ho-gen-count">
-                    {gen.status === "completed" ? "3/3 docs" : gen.status === "partial" ? `${gen.documents?.length}/3 docs` : "Failed"}
+                    {gen.status === "completed" ? "2/2 docs" : gen.status === "partial" ? `${gen.documents?.length}/2 docs` : "Failed"}
                   </span>
                   {gen.errors && gen.errors.length > 0 && (
                     <span className="ho-gen-err">{gen.errors.length} error{gen.errors.length > 1 ? "s" : ""}</span>
@@ -278,7 +276,10 @@ function _inl(t: string): string {
     return slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📄 ${name}</a>`);
   });
   t = t.replace(/`([^`]+)`/g, (_m, code) => slot(`<code style="${CODE_STYLE}">${code}</code>`));
-  t = t.replace(/(?<!["a-zA-Z])(\.?[\w.-]+(?:\/[\w.-]+)+\/)/g, (_m, path) => slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📁 ${path}</a>`));
+  t = t.replace(/(?<!["a-zA-Z])(\.?[\w.-]+(?:\/[\w.-]+)+\/)/g, (m, path) => {
+    if (/^(BR|GAP|CON|CTR)-\d/.test(path)) return m;
+    return slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📁 ${path}</a>`);
+  });
   t = t.replace(/(?<!["\/a-zA-Z\x01])((?:[\w.-]+\/)+[\w.-]+\.(?:md|json|yaml|yml|txt|py|ts|tsx|js|sh))(?![a-zA-Z])/g, (_m, path) => {
     const name = path.split("/").pop() || path;
     return slot(`<a style="${FILE_STYLE}" data-file="${path}" title="${path}">📄 ${name}</a>`);

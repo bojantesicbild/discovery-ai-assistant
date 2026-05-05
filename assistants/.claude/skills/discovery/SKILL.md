@@ -58,17 +58,20 @@ When the user provides client communication (meeting notes, email, document):
 ```
 1. Read/receive the document content
 2. Extract typed business data using the extraction framework:
-   → Requirements (FR-xxx, NFR-xxx) with MoSCoW priority
-   → Constraints (budget, timeline, technology, regulatory)
-   → Decisions (who decided what, why, alternatives)
+   → Requirements (BR-NNN) with MoSCoW priority. Decision context goes
+     on the BR — `rationale` (why this BR), `alternatives_considered`
+     (what was rejected), `scope_note` (boundary). No separate decision
+     finding kind.
+   → Constraints (budget, timeline, technology, regulatory) — these
+     also capture imposed assumptions the team must accept as-is.
    → Stakeholders (name, role, authority level)
-   → Assumptions (HIGH-RISK ONLY — beliefs that if wrong force major rework, 2-5 per doc max)
-   → Scope boundaries mentioned in document_summary (NOT as individual tracked items)
+   → Gaps — unvalidated assumptions go here with `kind='unvalidated_assumption'`
+     plus `assumed_default`. Generic gaps use other `kind` values.
    → Contradictions (vs existing data from MCP get_requirements)
-3. For EACH extracted item, call the appropriate MCP store tool:
-   → store_requirement(), store_constraint(), store_decision(), etc.
+3. For each extracted item call `store_finding(kind=…, …)` — single
+   MCP write tool, the `kind` argument selects the schema.
 4. Check for contradictions: compare new items against existing via MCP
-   → If found: call store_contradiction() and surface to user
+   → If found: call `store_finding(kind='contradiction', …)` and surface to user
 5. After storing, call get_readiness() to show updated score
 6. [GATE: Extraction Review] — Show user what was extracted, ask to confirm/edit
 7. Update active-tasks/discovery.md
@@ -83,12 +86,15 @@ status, and the extraction prompt the agent should follow.
 |---|---|---|
 | Requirement | `schemas/requirement.yaml` | BR-NNN |
 | Constraint | `schemas/constraint.yaml` | CON-NNN |
-| Decision | `schemas/decision.yaml` | DEC-NNN |
 | Stakeholder | `schemas/stakeholder.yaml` | (none — file is the name) |
-| Assumption | `schemas/assumption.yaml` | ASM-NNN | **High-risk only** (2-5 per doc) |
-| Scope item | `schemas/scope.yaml` | SCO-NNN | **Deprecated** — use document_summary for scope boundaries |
 | Gap | `schemas/gap.yaml` | GAP-NNN |
 | Contradiction | `schemas/contradiction.yaml` | CTR-NNN |
+
+Decision context is folded into the requirement (BR `rationale` +
+`alternatives_considered` + `scope_note`). Unvalidated assumptions are
+gaps with `kind='unvalidated_assumption'`. Imposed assumptions the team
+must accept are constraints. Scope boundaries belong in the document
+summary, not as standalone findings.
 
 **Read the schema before extracting.** Each YAML has an `extraction_prompt`
 field with kind-specific guidance, plus the exact field names and allowed
@@ -147,10 +153,8 @@ Extracted from [document name]:
 ─────────────────────────────
 Requirements: [N] new ([list titles])
 Constraints: [N] new
-Decisions: [N] new
 Stakeholders: [N] new/updated
-Assumptions: [N] new (high-risk only)
-Scope: (captured in document_summary, not as individual items)
+Gaps: [N] new (incl. unvalidated assumptions)
 Contradictions: [N] found
 
 Readiness: [X]% (was [Y]%)
@@ -203,7 +207,7 @@ If 3 extraction attempts from the same document produce unsatisfactory results:
 |----------|---------------|
 | `Context loaded (MCP get_project_context called)` | MCP context retrieved and memory bank files read |
 | `Document received/identified` | User provided or referenced a client document |
-| `Extraction complete` | All 6 typed categories extracted from document |
+| `Extraction complete` | All 5 typed kinds (requirement, constraint, stakeholder, gap, contradiction) extracted from document |
 | `User approved extraction` | User responds to Extraction Review gate |
 | `Items stored via MCP` | All approved items stored via MCP store tools |
 | `Readiness updated` | get_readiness() called and score shown to user |
@@ -258,7 +262,7 @@ template via get_control_points().
 | Agent | Use When |
 |-------|----------|
 | discovery-gap-agent | User asks about gaps, readiness, what's missing, or wants full analysis |
-| discovery-docs-agent | User requests handoff documents (discovery brief, scope freeze, requirements) |
+| discovery-docs-agent | User requests handoff documents (discovery brief, MVP spec) |
 | discovery-prep-agent | User wants to prepare for a client meeting |
 | research-agent | Deep research on unfamiliar technology, industry, or competitor |
 
@@ -289,25 +293,24 @@ date: {today}
 |---|---|---|
 | [[CON-001]] | technology | confirmed |
 
-## Decisions
-| ID | Title | Status |
-|---|---|---|
-| DEC-001 | Decision title | confirmed |
-
 ## Gaps
-| ID | Question | Severity | Status |
-|---|---|---|---|
-| [[GAP-001]] | Question here | high | open |
+| ID | Question | Kind | Severity | Status |
+|---|---|---|---|---|
+| [[GAP-001]] | Question here | unvalidated_assumption | high | open |
 
 ## Stakeholders
 | Name | Role | Authority |
 |---|---|---|
 | [[David Miller]] | CTO | final |
 
+## Contradictions
+| ID | Subject | Status |
+|---|---|---|
+| [[CTR-001]] | Conflicting auth requirements | open |
+
 ## Documents
 - discovery-brief.md
-- mvp-scope-freeze.md
-- functional-requirements.md
+- mvp-spec.md
 ```
 
 ### `docs/discovery/log.md`

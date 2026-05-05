@@ -67,9 +67,13 @@ What the new system must live alongside, integrate with, or inherit from.
 
 ## 7. Risk Register (top 5)
 
+The "Related" column references gap and contradiction findings. Unvalidated
+assumptions are stored as gaps with `kind='unvalidated_assumption'` — link
+to those rather than inventing standalone IDs.
+
 | # | Risk | Likelihood | Impact | Mitigation | Related |
 |---|---|---|---|---|---|
-| 1 |  | low / med / high | low / med / high |  | ASM-001, GAP-003 |
+| 1 |  | low / med / high | low / med / high |  | GAP-003, CTR-001 |
 | 2 |  |  |  |  |  |
 | 3 |  |  |  |  |  |
 | 4 |  |  |  |  |  |
@@ -77,9 +81,14 @@ What the new system must live alongside, integrate with, or inherit from.
 
 ## 8. Key Decisions Made During Discovery
 
-| ID | Decision | Status | Decided by | Date | Impacts |
-|---|---|---|---|---|---|
-| DEC-001 |  | confirmed / tentative / reversed |  |  | BR-003, BR-007 |
+Synthesized from BR `rationale` + `alternatives_considered` + `scope_note`,
+plus BRs with `status='rejected'` or `priority='wont'` (these encode "we
+chose not to do X"). Each row points to the BR(s) that motivated the
+decision — there is no separate decision finding kind.
+
+| Decision | Status | Decided by | Date | Affected BRs |
+|---|---|---|---|---|
+|  | confirmed / tentative / reversed |  |  | BR-003, BR-007 |
 
 ## 9. Open Questions (top 5 gaps)
 

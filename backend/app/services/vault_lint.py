@@ -40,6 +40,9 @@ FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.S)
 
 NARRATIVE_FILES = {
     "discovery-brief.md",
+    "mvp-spec.md",
+    # Legacy filenames — kept so vaults with un-regenerated handoff
+    # docs from before the consolidation don't trigger lint failures.
     "functional-requirements.md",
     "mvp-scope-freeze.md",
     "README.md",

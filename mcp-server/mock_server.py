@@ -154,8 +154,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             "status": "success",
             "documents": [
                 {"type": "discovery_brief", "path": ".memory-bank/docs/discovery/discovery-brief.md"},
-                {"type": "mvp_scope_freeze", "path": ".memory-bank/docs/discovery/mvp-scope-freeze.md"},
-                {"type": "functional_requirements", "path": ".memory-bank/docs/discovery/functional-requirements.md"},
+                {"type": "mvp_spec", "path": ".memory-bank/docs/discovery/mvp-spec.md"},
             ],
             "message": "Handoff documents generated (mock). In production, these would be written to the project repo."
         })

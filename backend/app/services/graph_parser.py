@@ -89,9 +89,14 @@ def _resolve_link_target(link_text: str, known_ids: dict) -> str:
 
 
 DOCUMENT_NAMES = {
-    "discovery brief", "discovery-brief", "mvp scope freeze", "mvp-scope-freeze",
-    "functional requirements", "functional-requirements", "project brief",
-    "project-brief", "system patterns", "tech context", "key decisions",
+    "discovery brief", "discovery-brief",
+    "mvp spec", "mvp-spec", "mvp specification",
+    # Legacy names — kept so older vault content with the pre-consolidation
+    # filenames still classifies correctly when the graph parser runs.
+    "mvp scope freeze", "mvp-scope-freeze",
+    "functional requirements", "functional-requirements",
+    "project brief", "project-brief",
+    "system patterns", "tech context", "key decisions",
 }
 
 

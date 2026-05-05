@@ -18,8 +18,7 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["generate"])
 
 DOC_FILE_MAP = {
     "discovery_brief": "discovery-brief.md",
-    "mvp_scope_freeze": "mvp-scope-freeze.md",
-    "functional_requirements": "functional-requirements.md",
+    "mvp_spec": "mvp-spec.md",
 }
 
 
@@ -74,8 +73,9 @@ async def generate_handoff(
         async for event in claude_runner.run_stream(
             project_id=project_id,
             user_id=user.id,
-            message="Generate all 3 handoff documents: Discovery Brief, MVP Scope Freeze, and Functional Requirements. "
-                    "Read the templates from .claude/templates/. Read all data from MCP tools or from .memory-bank/docs/discovery/ files. "
+            message="Generate both handoff documents: Discovery Brief and MVP Specification. "
+                    "Read the templates from .claude/templates/ (discovery-brief.template.md, mvp-spec.template.md). "
+                    "Read all data from MCP tools or from .memory-bank/docs/discovery/ files. "
                     "Apply source attribution on every claim: [CONFIRMED] or [ASSUMED]. "
                     "Write the documents to .memory-bank/docs/discovery/",
             agent="discovery-docs-agent",
@@ -129,8 +129,9 @@ async def generate_handoff(
                 generated.append(doc_type)
 
         duration_ms = int((time.time() - start_time) * 1000)
-        status = "completed" if len(generated) == 3 else "partial" if generated else "failed"
-        logs.append(f"[{_ts()}] {status.upper()}: Generated {len(generated)}/3 documents in {duration_ms/1000:.1f}s")
+        total = len(DOC_FILE_MAP)
+        status = "completed" if len(generated) == total else "partial" if generated else "failed"
+        logs.append(f"[{_ts()}] {status.upper()}: Generated {len(generated)}/{total} documents in {duration_ms/1000:.1f}s")
 
         # Save to DB
         async with async_session() as db2:

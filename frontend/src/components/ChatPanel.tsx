@@ -2594,8 +2594,14 @@ function renderInline(text: string): string {
   });
   // Remaining backticks → slot
   t = t.replace(/`([^`]+)`/g, (_m, code) => slot(`<code ${CS}>${code}</code>`));
-  // Directory paths → slot
-  t = t.replace(/(?<!["a-zA-Z])(\.?[\w.-]+(?:\/[\w.-]+)+\/)/g, (_m, path) => slot(`<a ${FS} data-file="${path}" title="${path}">📁 ${path}</a>`));
+  // Directory paths → slot. Guard against finding-id strings like
+  // "GAP-008/009/010" backtracking into "GAP-008/009/" — the trailing
+  // slash satisfies the regex even when no real path is intended. The
+  // bare finding-id substitution below tokenizes each id individually.
+  t = t.replace(/(?<!["a-zA-Z])(\.?[\w.-]+(?:\/[\w.-]+)+\/)/g, (m, path) => {
+    if (/^(BR|GAP|CON|CTR)-\d/.test(path)) return m;
+    return slot(`<a ${FS} data-file="${path}" title="${path}">📁 ${path}</a>`);
+  });
   // Bare file paths → slot
   t = t.replace(/(?<!["\/a-zA-Z\x01])((?:[\w.-]+\/)+[\w.-]+\.(?:md|json|yaml|yml|txt|py|ts|tsx|js|sh))(?![a-zA-Z])/g, (_m, path) => {
     const name = path.split("/").pop() || path;

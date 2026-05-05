@@ -143,7 +143,7 @@ Per-item files end with an `<!-- END-GENERATED — hand-edits below this line ar
 
 **Agent-owned — authored by an agent, only rewritten when the agent is explicitly re-invoked.** Edit freely. The pipeline never touches these.
 
-- Discovery deliverables: `docs/discovery/discovery-brief.md` · `docs/discovery/mvp-scope-freeze.md` · `docs/discovery/functional-requirements.md`
+- Discovery deliverables: `docs/discovery/discovery-brief.md` · `docs/discovery/mvp-spec.md`
 - Chain outputs: `docs/meeting-prep/*` · `docs/research-sessions/*` · `docs/tech-docs/*` · `docs/test-cases/*` · `docs/defects/*` · `docs/reports/*` · `docs/completed-tasks/*`
 - Core context: `project-brief.md` · `system-patterns.md` · `tech-context.md` · `gotchas.md`
 - State: `active-task.md` · `active-tasks/[domain].md` · `learnings.jsonl`
