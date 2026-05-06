@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getItemHistory, type HistoryEntry } from "@/lib/api";
 import { renderMarkdown } from "@/lib/markdown";
+import { renderMermaid } from "@/lib/mermaid";
 
 interface MarkdownPanelProps {
   title: string;
@@ -61,6 +62,16 @@ export default function MarkdownPanel({
     setHistoryEntries(null);
     setActiveView("content");
   }, [history?.itemId]);
+
+  // Render any ```mermaid blocks the markdown converted into
+  // <div class="mermaid"> placeholders. Idempotent: mermaid stamps
+  // each rendered node with data-processed="true", so re-running on
+  // content changes only touches new diagrams.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!bodyRef.current) return;
+    renderMermaid(bodyRef.current);
+  }, [content, activeView]);
 
   function handleSave() {
     onSave?.(editContent);
@@ -308,6 +319,7 @@ export default function MarkdownPanel({
           <>
             {slotTop}
             <div
+              ref={bodyRef}
               style={{
                 fontSize: 13, lineHeight: 1.7, color: "var(--dark)",
                 fontFamily: "var(--font)",

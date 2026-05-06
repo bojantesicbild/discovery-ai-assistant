@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useRouter, usePathname } from "next/navigation";
 import { chatStream, getConversation, clearConversation } from "@/lib/api";
 import { useTopSentinel } from "@/lib/useTopSentinel";
+import { renderMermaid } from "@/lib/mermaid";
 
 interface Segment {
   type: "text" | "activity";
@@ -233,6 +234,14 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
   const [hasNewBelow, setHasNewBelow] = useState<number>(0);
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  // After every message render, walk the chat body for `<div class="mermaid">`
+  // placeholders the markdown renderer left and swap them for SVG.
+  // Scoped to scrollerRef so we don't accidentally render diagrams
+  // elsewhere on the page; idempotent so re-running is cheap.
+  useEffect(() => {
+    if (!scrollerRef.current) return;
+    renderMermaid(scrollerRef.current);
+  }, [messages]);
   // Snapshot scrollHeight + scrollTop right before a prepend. The
   // useLayoutEffect that fires after the prepend renders restores the
   // delta so the user's reading position never jumps.
@@ -2609,8 +2618,14 @@ function renderChatMarkdown(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Code blocks (``` ... ```)
+  // Code blocks (``` ... ```). `mermaid` fences land as a placeholder
+  // div that lib/mermaid.ts → renderMermaid() upgrades to SVG after
+  // mount. The HTML-escaped body is fine — mermaid reads textContent
+  // which un-escapes back to the source characters.
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
+    if ((lang || "").toLowerCase() === "mermaid") {
+      return `\x00BLOCK<div class="mermaid" style="margin:10px 0;text-align:center">${code.trimEnd()}</div>BLOCK\x00`;
+    }
     return `\x00BLOCK<div class="chat-codeblock"><div class="chat-codeblock-header">${lang || "code"}</div><pre><code>${code.trimEnd()}</code></pre></div>BLOCK\x00`;
   });
 
