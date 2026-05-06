@@ -50,6 +50,10 @@ async function loadMermaid(): Promise<MermaidApi | null> {
         securityLevel: "loose",
       });
       cached = m;
+      // One-shot signal so it's easy to confirm in DevTools that the
+      // lazy import succeeded vs. silently failed. Removed once the
+      // surface stabilizes.
+      console.info("[mermaid] loaded");
       return m;
     } catch (e) {
       // Fail soft — leaving the raw code visible is strictly better

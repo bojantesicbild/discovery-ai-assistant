@@ -918,6 +918,22 @@
     transition: none; transform: none;
   }
 }
+
+/* Mermaid placeholder → SVG transition. The placeholder ships with
+ * inline styles (code-block look) so the user sees readable source
+ * even if the lazy mermaid import is in flight. Once mermaid stamps
+ * data-processed="true", we strip the code-block chrome and let the
+ * SVG render in a clean, centered container. */
+.mermaid[data-processed="true"] {
+  background: transparent !important;
+  border: 0 !important;
+  white-space: normal !important;
+  font-family: inherit !important;
+  text-align: center !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+.mermaid[data-processed="true"] svg { max-width: 100%; height: auto; }
 .panel-filter-btn:active { transform: translateY(0); transition-duration: 80ms; }
 .panel-filter-btn.active {
   border-color: var(--accent);

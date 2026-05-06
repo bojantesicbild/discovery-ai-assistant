@@ -37,12 +37,13 @@ export function renderMarkdown(text: string): string {
       if (lang === "dataview" || lang === "dataviewjs") {
         html = '<div style="padding:8px 12px;margin:10px 0;border:1px dashed var(--gray-200);border-radius:var(--radius-xs);color:var(--gray-500);font-size:12px;font-style:italic">Live view — open this file in Obsidian to see the table</div>';
       } else if (lang === "mermaid") {
-        // Emit a placeholder div with the raw (un-escaped) source.
-        // lib/mermaid.ts → renderMermaid() finds these on mount and
-        // swaps them for SVG. Until then they stay invisible-but-
-        // present so layout doesn't reflow when the diagram renders.
+        // Placeholder div for lib/mermaid.ts → renderMermaid() to swap
+        // for SVG on mount. White-space:pre + monospace font preserve
+        // the source layout during the brief moment before mermaid
+        // initializes — so even if the lazy import is slow, the user
+        // sees a readable code block, not collapsed text-flow.
         const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        html = `<div class="mermaid" style="margin:12px 0;text-align:center">${esc(bodyLines.join("\n"))}</div>`;
+        html = `<div class="mermaid" style="margin:12px 0;padding:12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-xs);white-space:pre;font-family:var(--font-mono);font-size:12px;color:var(--gray-600);overflow-x:auto;text-align:left">${esc(bodyLines.join("\n"))}</div>`;
       } else {
         const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         html = `<pre style="margin:10px 0;padding:12px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius-xs);overflow-x:auto;font-size:12px;font-family:monospace;color:var(--dark)"><code>${esc(bodyLines.join("\n"))}</code></pre>`;

@@ -2624,7 +2624,7 @@ function renderChatMarkdown(text: string): string {
   // which un-escapes back to the source characters.
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
     if ((lang || "").toLowerCase() === "mermaid") {
-      return `\x00BLOCK<div class="mermaid" style="margin:10px 0;text-align:center">${code.trimEnd()}</div>BLOCK\x00`;
+      return `\x00BLOCK<div class="mermaid" style="margin:10px 0;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-xs);white-space:pre;font-family:var(--font-mono);font-size:12px;color:var(--ink-2);overflow-x:auto;text-align:left">${code.trimEnd()}</div>BLOCK\x00`;
     }
     return `\x00BLOCK<div class="chat-codeblock"><div class="chat-codeblock-header">${lang || "code"}</div><pre><code>${code.trimEnd()}</code></pre></div>BLOCK\x00`;
   });
