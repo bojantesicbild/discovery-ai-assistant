@@ -1083,8 +1083,15 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                 // whole conversation body. Activity blocks' bottom
                 // border visually separates them from adjacent content.
                 <>
-                  {msg.segments.map((seg, si) => {
-                    const isLastSegment = si === msg.segments.length - 1;
+                  {(() => {
+                    // Cache the segments array so TS keeps the
+                    // non-null narrowing inside the .map callback —
+                    // strict mode loses it across the closure boundary
+                    // (`msg.segments?` works at the call site but not
+                    // when read by index inside the callback).
+                    const segs = msg.segments!;
+                    return segs.map((seg, si) => {
+                      const isLastSegment = si === segs.length - 1;
                     // The last activity segment of a still-streaming
                     // message gets the "live" treatment: auto-expanded,
                     // current-tool indicator at the top, accent border.
@@ -1108,14 +1115,15 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                         <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
                       </div>
                     );
-                  })}
+                    });
+                  })()}
                   {/* Fallback indicator only when there's no activity
                       segment yet (very first thinking before any tool
                       lands) or when the agent is purely writing text. */}
                   {isLiveStreamTarget &&
                     status.phase !== "idle" &&
                     status.phase !== "writing" &&
-                    !msg.segments.some((s) => s.type === "activity") && (
+                    !(msg.segments || []).some((s) => s.type === "activity") && (
                     <div className="msg-content">
                       <ActiveIndicator status={status} />
                     </div>
