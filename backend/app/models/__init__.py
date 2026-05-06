@@ -16,6 +16,7 @@ from app.models.finding_view import FindingView
 from app.models.reminder import Reminder
 from app.models.relationship import Relationship
 from app.models.session import Session, SessionEvent
+from app.models.tech_story import TechDoc, Story
 
 __all__ = [
     "User", "ApiToken", "Project", "ProjectMember", "Document",
@@ -29,4 +30,5 @@ __all__ = [
     "Reminder",
     "Relationship",
     "Session", "SessionEvent",
+    "TechDoc", "Story",
 ]
