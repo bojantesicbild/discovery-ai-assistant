@@ -839,6 +839,85 @@
   color: var(--ink);
   transform: translateY(-1px);
 }
+
+/* ==== Tech-Story panel cards & rows ====
+ * Mirror Discovery's .req row vocabulary so the two surfaces feel
+ * like the same product. Same easing, same hover lift, same active
+ * settle. Reduced-motion users get an instant state change.
+ */
+.ts-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 250ms cubic-bezier(.2, .8, .2, 1);
+  will-change: transform, box-shadow, border-color;
+}
+.ts-card:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+.ts-card:active {
+  transform: translateY(-1px);
+  transition: all 100ms ease-out;
+}
+
+/* Tabular row used inside TD detail's slotBottom and the Stories
+ * tab's flat / grouped lists. White surface so the row reads as a
+ * solid item against the panel's cream background. Bottom border
+ * instead of full surround so a run of rows reads as one list. */
+.ts-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 120ms ease-out;
+}
+.ts-row:hover { background: var(--surface-2); }
+.ts-row:active { background: var(--bg); transition-duration: 60ms; }
+.ts-row:last-child { border-bottom: 0; }
+
+/* Group header + container inside the Stories tab "grouped by TD"
+ * view. The container is white (.ts-row sits on white instead of the
+ * cream panel background) so each TD reads as its own self-contained
+ * card. The header is stronger than the rows: thicker padding, a
+ * left accent stripe, slightly louder typography — so the eye lands
+ * on "this is a TD section" before scanning the stories. */
+.ts-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.ts-group-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  transition: background 120ms ease-out;
+}
+.ts-group-head:hover { background: var(--surface-2); }
+/* Compensate the left-stripe so the chip aligns with the row chip. */
+.ts-group-head > :first-child { margin-left: -3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ts-card, .ts-card:hover, .ts-card:active,
+  .ts-row, .ts-row:hover, .ts-row:active,
+  .ts-group-head, .ts-group-head:hover {
+    transition: none; transform: none;
+  }
+}
 .panel-filter-btn:active { transform: translateY(0); transition-duration: 80ms; }
 .panel-filter-btn.active {
   border-color: var(--accent);

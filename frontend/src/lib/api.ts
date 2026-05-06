@@ -1201,6 +1201,20 @@ export async function getWikiFile(projectId: string, path: string) {
   return fetchAPI(`/api/projects/${projectId}/wiki/file?path=${encodeURIComponent(path)}`);
 }
 
+// Generic vault file reader. Unlike /wiki/file (which is scoped to
+// docs/discovery/), this serves anything under .memory-bank — used by
+// the tech-story surface to render docs/tech-docs/ markdown.
+export interface VaultFile {
+  path: string;
+  content: string;
+  size: number;
+  modified: string | null;
+}
+
+export async function getVaultFile(projectId: string, path: string): Promise<VaultFile> {
+  return fetchAPI(`/api/projects/${projectId}/vault/file?path=${encodeURIComponent(path)}`);
+}
+
 // Learnings (Phase 3 — session-heartbeat architecture)
 export type LearningCategory = "pm_preference" | "domain_fact" | "workflow_pattern" | "anti_pattern";
 export type LearningStatus = "transient" | "promoted" | "dismissed";
@@ -1287,4 +1301,112 @@ export async function createApiToken(body: {
 
 export async function revokeApiToken(tokenId: string): Promise<ApiTokenSummary> {
   return fetchAPI(`/api/tokens/${tokenId}/revoke`, { method: "POST" });
+}
+
+// ── Tech-Story shapes (mirror backend/app/api/tech_story.py) ──
+//
+// Tech docs and stories are an index over agent-owned vault files.
+// `file_path` points at the markdown source; content lives in the vault
+// and is fetched via the existing wiki/vault APIs when the user opens
+// the detail view.
+//
+// `Story.tech_doc_id` is always set — every story belongs to a parent TD.
+// `source_brs` on a Story is denormalized from its parent so the list
+// view can render BR pills without a join.
+export interface ApiTechDoc {
+  id: string;
+  td_id: string;                 // TD-001
+  title: string;
+  file_path: string | null;
+  source_brs: string[];          // ["BR-001", "BR-005"]
+  status: string;                // draft | reviewed | approved | superseded
+  summary: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  /** Present only when listed with ?include_stories=true or fetched as a single TD. */
+  stories?: ApiStory[];
+  story_count?: number;
+}
+
+export interface ApiStory {
+  id: string;
+  us_id: string;                 // US-001
+  tech_doc_id: string;
+  title: string;
+  file_path: string | null;
+  source_brs: string[];
+  acceptance_criteria: string[];
+  status: string;                // todo | in_progress | done | dropped
+  summary: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export async function listTechDocs(
+  projectId: string,
+  opts?: { status?: string; search?: string; includeStories?: boolean },
+): Promise<ApiListResponse<ApiTechDoc>> {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.search) params.set("search", opts.search);
+  if (opts?.includeStories) params.set("include_stories", "true");
+  const qs = params.toString();
+  return fetchAPI(`/api/projects/${projectId}/tech-docs${qs ? `?${qs}` : ""}`);
+}
+
+// PATCH /tech-docs/{td_id} — currently only `status` is editable.
+export async function updateTechDocStatus(
+  projectId: string,
+  tdId: string,
+  status: string,
+): Promise<ApiTechDoc> {
+  return fetchAPI(`/api/projects/${projectId}/tech-docs/${tdId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function updateStoryStatus(
+  projectId: string,
+  usId: string,
+  status: string,
+): Promise<ApiStory> {
+  return fetchAPI(`/api/projects/${projectId}/stories/${usId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+// Reconcile DB index with markdown files written by the agents under
+// .memory-bank/docs/tech-docs/. Idempotent — safe to call on mount.
+export interface SyncReport {
+  tech_docs: { created: number; updated: number };
+  stories: { created: number; updated: number };
+  skipped: { file: string; reason: string; us_id?: string }[];
+}
+
+export async function syncTechDocs(projectId: string): Promise<SyncReport> {
+  return fetchAPI(`/api/projects/${projectId}/tech-docs/sync`, {
+    method: "POST",
+  });
+}
+
+export async function getTechDoc(projectId: string, tdId: string): Promise<ApiTechDoc> {
+  return fetchAPI(`/api/projects/${projectId}/tech-docs/${tdId}`);
+}
+
+export async function listStories(
+  projectId: string,
+  opts?: { techDocId?: string; status?: string; search?: string },
+): Promise<ApiListResponse<ApiStory>> {
+  const params = new URLSearchParams();
+  if (opts?.techDocId) params.set("tech_doc_id", opts.techDocId);
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.search) params.set("search", opts.search);
+  const qs = params.toString();
+  return fetchAPI(`/api/projects/${projectId}/stories${qs ? `?${qs}` : ""}`);
+}
+
+export async function getStory(projectId: string, usId: string): Promise<ApiStory> {
+  return fetchAPI(`/api/projects/${projectId}/stories/${usId}`);
 }
