@@ -37,6 +37,19 @@ def tool_label(tool_name: str, tool_input: dict) -> str:
         return f"Write {short}" if short else "Write file"
     if tool_name == "ToolSearch":
         return "searching tools"
+    if tool_name == "Task":
+        # Sub-agent invocation. The subagent_type is the canonical agent
+        # name (e.g. "story-tech-agent") — exactly what the user asked
+        # to see in chat. Falling back to the description gives a
+        # reasonable label when the sub-agent has been called by name
+        # but not by type (rare).
+        sub = (tool_input.get("subagent_type") or "").strip()
+        if sub:
+            return f"@agent-{sub}"
+        desc = (tool_input.get("description") or "").strip()
+        if desc:
+            return f"@agent · {desc[:40]}"
+        return "@agent"
     return name.replace("_", " ")
 
 
@@ -52,4 +65,6 @@ def tool_type(tool_name: str) -> str:
         return "bash"
     if tool_name == "ToolSearch":
         return "search"
+    if tool_name == "Task":
+        return "agent"
     return "other"

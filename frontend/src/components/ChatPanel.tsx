@@ -563,19 +563,30 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
     let assistantContent = "";
     let toolCalls: string[] = [];
     let thinkingCount = 0;
-    // Segments track interleaved text/activity blocks
+    // Segments track interleaved text/activity blocks. Activity segments
+    // grow IN-PLACE as tools/thinking events arrive — so the user can
+    // see the cumulative tool list build up during a run instead of
+    // only the most-recent tool name. Once a text chunk arrives we
+    // freeze the last activity segment by starting a new text segment.
     let segments: Segment[] = [];
-    let lastPhase: "text" | "activity" = "activity"; // start expecting activity (thinking)
-    let currentActivityTools: string[] = [];
-    let currentActivityThinking = 0;
 
-    const flushActivity = () => {
-      if (currentActivityTools.length > 0 || currentActivityThinking > 0) {
-        segments.push({ type: "activity", tools: [...currentActivityTools], thinkingCount: currentActivityThinking });
-        currentActivityTools = [];
-        currentActivityThinking = 0;
+    const ensureActivitySegment = () => {
+      const last = segments[segments.length - 1];
+      if (!last || last.type !== "activity") {
+        segments.push({ type: "activity", tools: [], thinkingCount: 0 });
       }
     };
+    const ensureTextSegment = () => {
+      const last = segments[segments.length - 1];
+      if (!last || last.type !== "text") {
+        segments.push({ type: "text", content: "" });
+      }
+    };
+    // Kept for compatibility with the onError path (which used to
+    // flush before tearing down). With in-place segments there is
+    // nothing to flush, but we keep the symbol so the call site below
+    // doesn't need a special case.
+    const flushActivity = () => { /* segments are always live */ };
 
     const updateMsg = () => {
       setMessages((prev) => {
@@ -596,15 +607,8 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       text,
       // onText
       (chunk) => {
-        // If we were in activity phase, flush activity segment before starting text
-        if (lastPhase === "activity") {
-          flushActivity();
-          // Start new text segment
-          segments.push({ type: "text", content: "" });
-        }
-        lastPhase = "text";
+        ensureTextSegment();
         assistantContent += chunk;
-        // Update current text segment
         const lastSeg = segments[segments.length - 1];
         if (lastSeg && lastSeg.type === "text") {
           lastSeg.content = (lastSeg.content || "") + chunk;
@@ -614,8 +618,6 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       },
       // onDone
       (stats) => {
-        // Flush any remaining activity
-        flushActivity();
         setIsStreaming(false);
         setStatus({ phase: "idle", thinkingCount: 0, toolCount: 0, startTime: 0 });
         if (stats) setLastStats(stats);
@@ -647,13 +649,15 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       },
       // onTool
       (tool, toolType) => {
-        // If we were in text phase, start new activity segment
-        if (lastPhase === "text") {
-          // text segment is already in segments array
-        }
-        lastPhase = "activity";
         toolCalls.push(tool);
-        currentActivityTools.push(tool);
+        ensureActivitySegment();
+        const seg = segments[segments.length - 1];
+        if (seg.type === "activity") {
+          // Spread to a fresh array — React diffs on reference equality
+          // for the segments prop, so mutating in place wouldn't trigger
+          // a re-render of the InlineActivity panel.
+          seg.tools = [...(seg.tools || []), tool];
+        }
         setStatus((s) => ({
           ...s,
           phase: "tool",
@@ -665,18 +669,19 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
       },
       // onThinking
       () => {
-        if (lastPhase === "text") {
-          // switching from text to activity
-        }
-        lastPhase = "activity";
         thinkingCount++;
-        currentActivityThinking++;
+        ensureActivitySegment();
+        const seg = segments[segments.length - 1];
+        if (seg.type === "activity") {
+          seg.thinkingCount = (seg.thinkingCount || 0) + 1;
+        }
         setStatus((s) => ({
           ...s,
           phase: "thinking",
           detail: undefined,
           thinkingCount: s.thinkingCount + 1,
         }));
+        updateMsg();
       },
       // onRetry
       (attempt, maxRetries) => {
@@ -1078,21 +1083,39 @@ export default function ChatPanel({ projectId, onDataChanged }: ChatPanelProps) 
                 // whole conversation body. Activity blocks' bottom
                 // border visually separates them from adjacent content.
                 <>
-                  {msg.segments.map((seg, si) =>
-                    seg.type === "activity" ? (
+                  {msg.segments.map((seg, si) => {
+                    const isLastSegment = si === msg.segments.length - 1;
+                    // The last activity segment of a still-streaming
+                    // message gets the "live" treatment: auto-expanded,
+                    // current-tool indicator at the top, accent border.
+                    const isLiveSeg =
+                      isLiveStreamTarget &&
+                      isLastSegment &&
+                      seg.type === "activity" &&
+                      (status.phase === "tool" || status.phase === "thinking");
+                    return seg.type === "activity" ? (
                       <InlineActivity
                         key={si}
                         tools={seg.tools || []}
                         thinkingCount={seg.thinkingCount}
-                        isLive={false}
+                        isLive={isLiveSeg}
+                        currentTool={isLiveSeg && status.phase === "tool" ? status.detail : undefined}
+                        currentToolType={isLiveSeg ? status.toolType : undefined}
+                        isThinkingLive={isLiveSeg && status.phase === "thinking"}
                       />
                     ) : (
                       <div key={si} className="msg-content">
                         <div dangerouslySetInnerHTML={{ __html: renderChatMarkdown(seg.content || "") }} />
                       </div>
-                    )
-                  )}
-                  {isLiveStreamTarget && status.phase !== "idle" && status.phase !== "writing" && (
+                    );
+                  })}
+                  {/* Fallback indicator only when there's no activity
+                      segment yet (very first thinking before any tool
+                      lands) or when the agent is purely writing text. */}
+                  {isLiveStreamTarget &&
+                    status.phase !== "idle" &&
+                    status.phase !== "writing" &&
+                    !msg.segments.some((s) => s.type === "activity") && (
                     <div className="msg-content">
                       <ActiveIndicator status={status} />
                     </div>
@@ -1507,20 +1530,25 @@ function StatusBar({ status, lastStats, isStreaming, modelId }: {
         )}
         {status.phase === "tool" && (
           <span style={pillStyle(
+            status.toolType === "agent" ? "var(--accent-soft, #E0FFEF)" :
             status.toolType === "mcp" ? "var(--blue-light, #dbeafe)" :
             status.toolType === "read" ? "var(--gray-100, #f3f4f6)" :
             status.toolType === "write" ? "var(--orange-light, #fff7ed)" :
             "var(--gray-100)",
+            status.toolType === "agent" ? "var(--accent-ink, #003D24)" :
             status.toolType === "mcp" ? "#2563eb" :
             status.toolType === "read" ? "#6b7280" :
             status.toolType === "write" ? "#ea580c" :
             "#6b7280"
           )}>
             <span style={dotStyle(
+              status.toolType === "agent" ? "var(--accent-ink, #003D24)" :
               status.toolType === "mcp" ? "#2563eb" :
               status.toolType === "write" ? "#ea580c" : "#6b7280", true
             )} />
-            {status.detail || "Tool"}
+            {status.toolType === "agent" && status.detail
+              ? `Running ${agentNameFromLabel(status.detail)}`
+              : (status.detail || "Tool")}
           </span>
         )}
         {status.phase === "writing" && (
@@ -1614,7 +1642,17 @@ function ActivityPanel({ tools, isLive, currentTool, thinkingCount, activityLog 
   const mcpCount = groups.mcp || 0;
   const readCount = (groups.read || 0);
   const writeCount = (groups.write || 0) + (groups.bash || 0);
-  const otherCount = (groups.other || 0) + (groups.search || 0) + (groups.agent || 0);
+  const agentCount = groups.agent || 0;
+  const otherCount = (groups.other || 0) + (groups.search || 0);
+  // Agent calls get their own slot in the summary so the user sees
+  // exactly which sub-agent ran (e.g. "1 agent · story-tech-agent").
+  if (agentCount > 0) {
+    const firstAgent = tools.find((t) => inferToolType(t) === "agent");
+    const name = firstAgent ? agentNameFromLabel(firstAgent) : "agent";
+    const more = agentCount > 1 ? ` (+${agentCount - 1})` : "";
+    summaryParts.push(`${agentCount} agent · ${name}${more}`);
+    groupBadges.push({ cls: "a-agent", label: `${agentCount} agent${more ? ` ${more}` : ""}` });
+  }
   if (mcpCount > 0) { summaryParts.push(`${mcpCount} MCP`); groupBadges.push({ cls: "a-mcp", label: `${mcpCount} MCP` }); }
   if (readCount + writeCount + otherCount > 0) {
     const n = readCount + writeCount + otherCount;
@@ -1696,10 +1734,24 @@ function groupTools(tools: string[]): Record<string, number> {
   const groups: Record<string, number> = {};
   for (const tool of tools) {
     const type = inferToolType(tool);
-    const label = type === "mcp" ? "mcp" : type === "read" ? "read" : type === "write" ? "write" : type === "bash" ? "bash" : "other";
+    const label =
+      type === "mcp" ? "mcp" :
+      type === "read" ? "read" :
+      type === "write" ? "write" :
+      type === "bash" ? "bash" :
+      type === "agent" ? "agent" : "other";
     groups[label] = (groups[label] || 0) + 1;
   }
   return groups;
+}
+
+// Pull "story-tech-agent" out of "@agent-story-tech-agent" — used for
+// the live running indicator so the user sees the actual agent name
+// instead of a generic "Agent" label.
+function agentNameFromLabel(label: string): string {
+  if (label.startsWith("@agent-")) return label.slice("@agent-".length);
+  if (label.startsWith("@agent")) return label.slice("@agent".length).replace(/^[\s·\-]+/, "") || "agent";
+  return label;
 }
 
 function inferToolType(tool: string): string {
@@ -1707,35 +1759,67 @@ function inferToolType(tool: string): string {
   if (tool.startsWith("Edit ") || tool.startsWith("Write ")) return "write";
   if (tool.startsWith("Bash")) return "bash";
   if (tool === "searching tools") return "search";
-  if (tool === "Agent" || tool.startsWith("Agent")) return "agent";
+  // New convention: backend emits `@agent-<name>` for sub-agent calls.
+  // Keep legacy "Agent" / "Agent " match so older transcripts still
+  // render with the agent style.
+  if (tool.startsWith("@agent") || tool === "Agent" || tool.startsWith("Agent ")) return "agent";
   return "mcp";
 }
 
 
 /* ── Inline Activity (compact tool block between text segments) ── */
 
-function InlineActivity({ tools, thinkingCount, isLive }: {
+function InlineActivity({ tools, thinkingCount, isLive, currentTool, currentToolType, isThinkingLive }: {
   tools: string[];
   thinkingCount?: number;
   isLive: boolean;
+  /** Tool currently executing — drives the "Running …" header. */
+  currentTool?: string;
+  currentToolType?: string;
+  /** True when the agent is between tools, currently thinking. */
+  isThinkingLive?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  // Live activity auto-expands so the user sees the cumulative tool
+  // log as it builds. They can still collapse if they prefer.
+  const [expanded, setExpanded] = useState<boolean>(isLive);
+  // Re-open whenever a stream starts, even if the user previously
+  // collapsed the same panel. Without this the second turn in a row
+  // stays collapsed because `expanded` was already false.
+  useEffect(() => { if (isLive) setExpanded(true); }, [isLive]);
   const groups = groupTools(tools);
   const total = tools.length;
 
-  // Compose the "· 13 MCP, 1 other, 2 thinking" summary + detail chips.
+  // Compose the "· 1 agent · story-tech-agent, 2 MCP, 1 other, 2 thinking"
+  // summary + detail chips.
   const mcpCount = groups.mcp || 0;
+  const agentCount = groups.agent || 0;
   const otherCount = (groups.read || 0) + (groups.write || 0) + (groups.bash || 0)
-    + (groups.search || 0) + (groups.agent || 0) + (groups.other || 0);
+    + (groups.search || 0) + (groups.other || 0);
   const summaryParts: string[] = [];
   const chips: { cls: string; label: string }[] = [];
+  if (agentCount) {
+    const firstAgent = tools.find((t) => inferToolType(t) === "agent");
+    const name = firstAgent ? agentNameFromLabel(firstAgent) : "agent";
+    const more = agentCount > 1 ? ` (+${agentCount - 1})` : "";
+    summaryParts.push(`${agentCount} agent · ${name}${more}`);
+    chips.push({ cls: "a-agent", label: `${agentCount} agent${more ? ` ${more}` : ""}` });
+  }
   if (mcpCount) { summaryParts.push(`${mcpCount} MCP`); chips.push({ cls: "a-mcp", label: `${mcpCount} MCP` }); }
   if (otherCount) { summaryParts.push(`${otherCount} other`); chips.push({ cls: "a-other", label: `${otherCount} other` }); }
   if (thinkingCount) { summaryParts.push(`${thinkingCount} thinking`); chips.push({ cls: "a-think", label: `${thinkingCount} thinking` }); }
   const summary = summaryParts.length ? `· ${summaryParts.join(", ")}` : "";
 
+  // Live header: above the chip strip when streaming, replaces the
+  // ActiveIndicator-at-the-bottom pattern. Shows the current running
+  // tool or the "thinking" state — always visible alongside the
+  // cumulative log so the user sees both the past and the present.
+  const liveType = currentTool ? inferToolType(currentTool) : null;
+  const liveLabel = currentTool
+    ? (liveType === "agent" ? agentNameFromLabel(currentTool) : currentTool)
+    : null;
+
   return (
-    <div className={`msg-card-tools${expanded ? " expanded" : ""}`}>
+    <div className={`msg-card-tools${expanded ? " expanded" : ""}${isLive ? " live" : ""}`}>
       <div className="tools-bar">
         <button className="tools-toggle" type="button" onClick={() => setExpanded(!expanded)}>
           <svg className="tt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1748,6 +1832,20 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
           </svg>
         </button>
       </div>
+      {isLive && (liveLabel || isThinkingLive) && (
+        <div className={`activity-live activity-live-${liveType || "thinking"}`}>
+          <span className="activity-live-dots" aria-hidden>
+            <span /><span /><span />
+          </span>
+          <span className="activity-live-label">
+            {isThinkingLive
+              ? "Thinking…"
+              : liveType === "agent"
+                ? <>Running <strong>{liveLabel}</strong></>
+                : <>Running <strong>{liveLabel}</strong></>}
+          </span>
+        </div>
+      )}
       {expanded && (
         <>
           <div className="tools-detail">
@@ -1761,10 +1859,12 @@ function InlineActivity({ tools, thinkingCount, isLive }: {
             <div className="activity-list">
               {tools.map((tool, i) => {
                 const type = inferToolType(tool);
+                const isCurrent = isLive && i === tools.length - 1 && !!currentTool;
                 return (
-                  <div key={i} className={`activity-item ${type}`}>
+                  <div key={i} className={`activity-item ${type}${isCurrent ? " current" : ""}`}>
                     <div className={`activity-dot ${type}`} />
                     <span className="activity-label">{tool}</span>
+                    {isCurrent && <span className="activity-current-tag">running</span>}
                   </div>
                 );
               })}
@@ -2443,9 +2543,18 @@ function SlackBadge({ msg }: { msg: Message }) {
 
 
 function ActiveIndicator({ status }: { status: ActiveStatus }) {
+  // For sub-agent calls, surface the canonical agent name so the user
+  // sees "Running story-tech-agent…" instead of a generic "Agent" or a
+  // long "@agent-…" string.
+  const toolLabel = status.detail
+    ? (status.toolType === "agent"
+        ? `Running ${agentNameFromLabel(status.detail)}...`
+        : `Running ${status.detail}...`)
+    : "Running tool...";
+  const toolColor = status.toolType === "agent" ? "var(--accent-ink, #003D24)" : "#2563eb";
   const phases: Record<string, { label: string; color: string }> = {
     thinking: { label: "Thinking...", color: "#7c3aed" },
-    tool: { label: status.detail ? `Running ${status.detail}...` : "Running tool...", color: "#2563eb" },
+    tool: { label: toolLabel, color: toolColor },
     writing: { label: "Writing response...", color: "#059669" },
     retry: { label: status.retryInfo || "Retrying...", color: "#d97706" },
     idle: { label: "Thinking...", color: "var(--gray-400)" },
