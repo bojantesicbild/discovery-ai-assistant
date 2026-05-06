@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getItemHistory, type HistoryEntry } from "@/lib/api";
 import { renderMarkdown } from "@/lib/markdown";
 import { renderMermaid } from "@/lib/mermaid";
@@ -68,10 +68,18 @@ export default function MarkdownPanel({
   // each rendered node with data-processed="true", so re-running on
   // content changes only touches new diagrams.
   const bodyRef = useRef<HTMLDivElement>(null);
+  // Memoize the dangerouslySetInnerHTML payload so the OBJECT
+  // identity survives parent re-renders (e.g. the 15s sync tick on
+  // the tech-story panel). Without the memo, every parent render
+  // built a fresh `{ __html: ... }` literal — even when the inner
+  // string was byte-identical — and that's enough to make React
+  // re-apply innerHTML, wiping mermaid's externally-rendered SVG.
+  const renderedHtml = useMemo(() => renderMarkdown(content), [content]);
+  const innerHtmlPayload = useMemo(() => ({ __html: renderedHtml }), [renderedHtml]);
   useEffect(() => {
     if (!bodyRef.current) return;
     renderMermaid(bodyRef.current);
-  }, [content, activeView]);
+  }, [renderedHtml, activeView]);
 
   function handleSave() {
     onSave?.(editContent);
@@ -333,7 +341,7 @@ export default function MarkdownPanel({
                 const handled = onLinkClick(href);
                 if (handled !== false) e.preventDefault();
               }}
-              dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }}
+              dangerouslySetInnerHTML={innerHtmlPayload}
             />
             {slotBottom}
           </>
