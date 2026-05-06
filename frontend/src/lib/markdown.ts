@@ -88,6 +88,18 @@ export function renderMarkdown(text: string): string {
         });
 
       const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      // Inline-format a table cell: HTML-escape first, then apply the
+      // same bold / italic / inline-code / link patterns the body
+      // markdown supports. Cells without any inline syntax fall
+      // through as escaped plain text. Bold runs before italic so
+      // `**foo**` doesn't get half-eaten by the italic regex.
+      const renderInlineCell = (raw: string): string => {
+        return esc(raw)
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code style="padding:1px 6px;background:var(--gray-100);border-radius:4px;font-size:11px;font-family:monospace">$1</code>')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="md-link" style="color:var(--green);text-decoration:underline;cursor:pointer">$1</a>');
+      };
       const parseCells = (line: string) =>
         line.split("|").filter((_, idx, arr) => idx > 0 && idx < arr.length - (line.endsWith("|") ? 1 : 0)).map((c) => c.trim());
 
@@ -95,7 +107,7 @@ export function renderMarkdown(text: string): string {
       let h = '<table style="width:100%;border-collapse:collapse;margin:12px 0;font-size:12px"><thead><tr>';
       headerCells.forEach((cell, ci) => {
         const a = alignments[ci] || "left";
-        h += `<th style="text-align:${a};padding:8px 12px;border:1px solid var(--gray-200);background:var(--gray-50);font-weight:600;color:var(--dark)">${esc(cell)}</th>`;
+        h += `<th style="text-align:${a};padding:8px 12px;border:1px solid var(--gray-200);background:var(--gray-50);font-weight:600;color:var(--dark)">${renderInlineCell(cell)}</th>`;
       });
       h += "</tr></thead><tbody>";
       for (let r = 1; r < tableLines.length; r++) {
@@ -103,7 +115,7 @@ export function renderMarkdown(text: string): string {
         h += "<tr>";
         cells.forEach((cell, ci) => {
           const a = alignments[ci] || "left";
-          h += `<td style="text-align:${a};padding:6px 12px;border:1px solid var(--gray-200);color:var(--gray-600)">${esc(cell)}</td>`;
+          h += `<td style="text-align:${a};padding:6px 12px;border:1px solid var(--gray-200);color:var(--gray-600)">${renderInlineCell(cell)}</td>`;
         });
         h += "</tr>";
       }
