@@ -6,15 +6,34 @@ End-to-end install of the Discovery AI Assistant for a local demo. Plain Mac (Ap
 
 ## Quick path — one script
 
+### macOS
+
 ```bash
 git clone <your-origin-url> discovery-ai-assistant
 cd discovery-ai-assistant
 ./scripts/demo-install.sh
 ```
 
-The installer is idempotent — re-running is safe. It walks every step below (Homebrew, brew packages, Docker Desktop check, `uv`, Claude CLI, `.env`, backend `uv sync`, frontend `npm install`+`npm run build`, migrations) and prompts for `ANTHROPIC_API_KEY` if it isn't already in your shell.
+### Windows (native PowerShell — no WSL)
 
-When it finishes you still need three terminals to run the app — see §8 below.
+Open **PowerShell as Administrator** (Docker Desktop install needs it):
+
+```powershell
+# One-time, allows running the script in this session:
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+git clone <your-origin-url> discovery-ai-assistant
+cd discovery-ai-assistant
+.\scripts\demo-install.ps1
+```
+
+If `winget` is missing, install **App Installer** from the Microsoft Store first.
+
+---
+
+Both installers are idempotent — re-running is safe. They walk every step below (package install, Docker Desktop check, `uv`, Claude CLI, `.env`, backend `uv sync`, frontend `npm install`+`npm run build`, migrations) and prompt for `ANTHROPIC_API_KEY` if it isn't already in your shell.
+
+When the installer finishes you still need three terminals to run the app — see §8 below (macOS) or §8-Windows.
 
 The phase-by-phase guide that follows is the manual fallback if you want to run individual steps yourself.
 
@@ -160,6 +179,8 @@ docker exec discovery-ai-assistant-postgres-1 \
 
 ## 8. Run the app — three terminals
 
+### macOS
+
 **Terminal 1 — backend**
 
 ```bash
@@ -177,6 +198,31 @@ arq app.pipeline.worker.WorkerSettings
 **Terminal 3 — frontend**
 
 ```bash
+cd frontend
+npm run dev
+```
+
+### Windows (PowerShell)
+
+**Terminal 1 — backend**
+
+```powershell
+cd backend
+. .\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --host :: --port 8008 --reload
+```
+
+**Terminal 2 — worker**
+
+```powershell
+cd backend
+. .\.venv\Scripts\Activate.ps1
+arq app.pipeline.worker.WorkerSettings
+```
+
+**Terminal 3 — frontend**
+
+```powershell
 cd frontend
 npm run dev
 ```
@@ -236,3 +282,7 @@ docker compose down
 | `docker exec ... psql` and the running app see different data | Local Postgres is shadowing Docker on 5432 — `brew services stop postgresql@16` |
 | Migration says "Can't locate revision 044..." | Run `bash scripts/dev-up.sh` again — it walks all missing revisions in order |
 | Chat shows `Running Agent...` instead of the agent name | Browser cache stale — hard reload |
+| (Windows) `cannot be loaded because running scripts is disabled` | Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` then retry |
+| (Windows) `winget : The term 'winget' is not recognized` | Install **App Installer** from the Microsoft Store, restart PowerShell |
+| (Windows) `docker info` errors after install | Docker Desktop starts as a tray app — open it from Start menu, wait for "Engine running" |
+| (Windows) `node` / `python` not found right after winget install | Close + reopen PowerShell so the new PATH is picked up, or run `$env:Path = [Environment]::GetEnvironmentVariable("Path","Machine")` |
