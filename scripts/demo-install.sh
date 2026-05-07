@@ -118,15 +118,36 @@ else
   skip "Claude Code CLI already installed: $(claude --version 2>&1 | head -1)"
 fi
 
-# ── 6. ANTHROPIC_API_KEY ───────────────────────────────────────────
+# ── 6. ANTHROPIC_API_KEY (or skip for `claude login` / Keychain) ─
+#
+# Two auth paths supported:
+#   1. API key  — covers backend SDK calls (Discovery extraction
+#      pipeline) AND the Claude Code CLI subprocess (agent runs).
+#      One secret, both layers work.
+#   2. claude login — caches an OAuth token in the macOS Keychain.
+#      The Claude CLI subprocess auths via Keychain on every run.
+#      Backend SDK calls (document upload → extraction) WILL FAIL
+#      with this path; agents driven from chat work fine.
+USE_KEYCHAIN=0
 if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
   warn "ANTHROPIC_API_KEY is not set in your shell."
-  read -r -s -p "Paste your Anthropic API key (input hidden): " ANTHROPIC_API_KEY
-  echo
-  [[ -n "$ANTHROPIC_API_KEY" ]] || die "No key provided. Aborting."
+  echo "  1) Paste an API key   (full pipeline + agents work)"
+  echo "  2) Use 'claude login' (agents only — no document upload)"
+  read -r -p "Pick auth path [1/2, default=1]: " AUTH_CHOICE
+  if [[ "$AUTH_CHOICE" == "2" ]]; then
+    USE_KEYCHAIN=1
+    ANTHROPIC_API_KEY=""
+    say "Skipping API key — you'll run 'claude login' after this script."
+  else
+    read -r -s -p "Paste your Anthropic API key (input hidden): " ANTHROPIC_API_KEY
+    echo
+    [[ -n "$ANTHROPIC_API_KEY" ]] || die "No key provided. Aborting."
+  fi
 fi
-# Echo masked so the user knows what was captured.
-say "Using ANTHROPIC_API_KEY ${ANTHROPIC_API_KEY:0:10}… (length=${#ANTHROPIC_API_KEY})"
+if [[ -n "$ANTHROPIC_API_KEY" ]]; then
+  # Echo masked so the user knows what was captured.
+  say "Using ANTHROPIC_API_KEY ${ANTHROPIC_API_KEY:0:10}… (length=${#ANTHROPIC_API_KEY})"
+fi
 
 # ── 7. Write .env at repo root ────────────────────────────────────
 ENV_FILE="$REPO_ROOT/.env"
@@ -192,24 +213,48 @@ say "Starting Postgres + Redis containers and running alembic upgrade head..."
 bash "$REPO_ROOT/scripts/dev-up.sh"
 
 # ── Done ──────────────────────────────────────────────────────────
-cat <<'EOF'
+say "Install complete."
+if [[ "$USE_KEYCHAIN" == "1" ]]; then
+  cat <<'EOF'
 
-==> Install complete.
+You picked the Keychain auth path. Before starting the backend:
+
+  1) claude login
+     # Opens a browser. Sign in to your Anthropic Console account.
+     # The OAuth token is cached in macOS Keychain.
+     # Verify with: claude --print "say ok"
+
+Then start the app in three terminals:
+
+  Backend     cd backend && source .venv/bin/activate
+              uvicorn app.main:app --host :: --port 8008 --reload
+
+  Worker      cd backend && source .venv/bin/activate
+              arq app.pipeline.worker.WorkerSettings
+
+  Frontend    cd frontend && npm run dev
+
+After login, OPEN http://localhost:3000 and:
+  - Register a user, create a project.
+  - Skip document upload — it needs the backend SDK auth this path
+    doesn't have. Use chat to ask the assistant to extract BRs from
+    a description, then ask for the tech doc + stories.
+EOF
+else
+  cat <<'EOF'
 
 Start the app in three terminals:
 
-  1) Backend
-     cd backend && source .venv/bin/activate
-     uvicorn app.main:app --host :: --port 8008 --reload
+  Backend     cd backend && source .venv/bin/activate
+              uvicorn app.main:app --host :: --port 8008 --reload
 
-  2) Worker (only needed if you'll upload documents)
-     cd backend && source .venv/bin/activate
-     arq app.pipeline.worker.WorkerSettings
+  Worker      cd backend && source .venv/bin/activate
+              arq app.pipeline.worker.WorkerSettings
 
-  3) Frontend
-     cd frontend && npm run dev
+  Frontend    cd frontend && npm run dev
 
 Then open http://localhost:3000 — register a user, create a project,
 and follow DEMO_SETUP.md §10 for the demo flow.
-
 EOF
+fi
+echo
