@@ -1,5 +1,55 @@
-from pydantic_settings import BaseSettings
+import os
 from pathlib import Path
+
+from pydantic_settings import BaseSettings
+
+
+# Load repo-root `.env` into os.environ before Settings is instantiated.
+#
+# Pydantic Settings reads .env relative to the current working
+# directory — typically `backend/` when uvicorn starts. Our repo's
+# .env lives at the repo root (one level up), so without this loader
+# Pydantic finds nothing and `settings.anthropic_api_key` stays empty.
+#
+# Two consumers depend on these values:
+#   1. The backend itself — Pydantic AI / SDK calls — picks them up
+#      via the standard env-var path once they're in os.environ.
+#   2. claude_runner.py — spawns the Claude CLI as a subprocess with
+#      `env={**os.environ, ...}`. Without this loader, the subprocess
+#      inherits an empty ANTHROPIC_API_KEY and the agent run fails
+#      with auth error on a fresh laptop where the operator never
+#      exported the key in their shell rc.
+#
+# Existing env vars always win — if the operator already exported
+# ANTHROPIC_API_KEY in their shell, we leave it alone. Comment lines
+# and blank lines in .env are ignored. Surrounding quotes (single or
+# double) on values are stripped.
+def _load_repo_root_dotenv() -> None:
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    env_file = repo_root / ".env"
+    if not env_file.exists():
+        return
+    try:
+        for raw in env_file.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
+            ):
+                value = value[1:-1]
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except OSError:
+        # Disk hiccup or permissions — leave os.environ alone, Settings
+        # will fall back to its declared defaults.
+        pass
+
+
+_load_repo_root_dotenv()
 
 
 class Settings(BaseSettings):
